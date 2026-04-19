@@ -14,6 +14,10 @@ import {
 	MAP_STYLE_STORAGE_KEY,
 	resetMapStylePreferenceForTests,
 } from "$lib/map-style-settings.svelte";
+import {
+	resetSavedRoutesForTests,
+	SAVED_ROUTES_STORAGE_KEY,
+} from "$lib/saved-routes.svelte";
 
 const successfulRoutePayload = {
 	route: {
@@ -116,7 +120,9 @@ describe("+page.svelte", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
 		resetMapStylePreferenceForTests();
+		resetSavedRoutesForTests();
 		window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, "maptiler-outdoor");
+		window.history.replaceState({}, "", "/");
 		mockState.sources.clear();
 		mockState.layers.clear();
 		mapMock.mockClear();
@@ -168,8 +174,20 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByText("Mixed / worn (20%)"))
 			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Save Draft" }).click();
+		await expect
+			.element(page.getByRole("button", { name: "Saved" }))
+			.toBeInTheDocument();
 
 		expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/route");
+		const savedRoutes = JSON.parse(
+			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
+		);
+		expect(savedRoutes).toHaveLength(1);
+		expect(savedRoutes[0]?.route.startLabel).toBe(
+			"Marienplatz, Munich, Germany",
+		);
+		expect(savedRoutes[0]?.route.destinationLabel).toBe("Schliersee, Germany");
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
 			"planned-route-casing",
 			"planned-route-line",
@@ -182,6 +200,68 @@ describe("+page.svelte", () => {
 		expect(document.body.textContent).not.toContain(
 			"OpenStreetMap contributors",
 		);
+
+		await page.getByRole("button", { name: "Saved" }).click();
+		await expect
+			.element(page.getByRole("button", { name: "Save Draft" }))
+			.toBeInTheDocument();
+		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("restores a saved route from the query string without recomputing it", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulRoutePayload.route,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-route-1");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Destination" }))
+			.toHaveValue("Schliersee, Germany");
+		await expect
+			.element(page.getByRole("button", { name: "Saved" }))
+			.toBeInTheDocument();
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("ignores an unknown saved-route id and keeps the planner empty", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulRoutePayload.route,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=missing-route");
+
+		render(PageTestShell);
+
+		await expect
+			.element(
+				page.getByText(
+					"Generate a route to see live distance, climbing, and elevation.",
+				),
+			)
+			.toBeInTheDocument();
+		expect(mapInstance.addSource).not.toHaveBeenCalled();
 	});
 
 	it("shows inline routing errors without clearing the existing map", async () => {
