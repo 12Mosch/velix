@@ -41,6 +41,14 @@ const testRouteGeoJson: FeatureCollection = {
 		},
 		{
 			type: "Feature",
+			properties: { kind: "waypoint", label: "Waypoint 1", order: 1 },
+			geometry: {
+				type: "Point",
+				coordinates: [11.55, 47.225, 730],
+			},
+		},
+		{
+			type: "Feature",
 			properties: { kind: "destination", label: "Destination" },
 			geometry: {
 				type: "Point",
@@ -181,6 +189,7 @@ describe("MapView", () => {
 			"planned-route-casing",
 			"planned-route-line",
 			"planned-route-start",
+			"planned-route-waypoint",
 			"planned-route-destination",
 		]);
 		expect(mapInstance.fitBounds).toHaveBeenCalledWith(

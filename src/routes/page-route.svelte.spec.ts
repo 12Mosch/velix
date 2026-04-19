@@ -23,6 +23,12 @@ const successfulRoutePayload = {
 	route: {
 		startLabel: "Marienplatz, Munich, Germany",
 		destinationLabel: "Schliersee, Germany",
+		waypoints: [
+			{
+				label: "Tegernsee, Germany",
+				coordinate: [11.7581, 47.7123, 734],
+			},
+		],
 		bounds: [11.5755, 47.7362, 11.8598, 48.1374],
 		distanceMeters: 61234,
 		durationMs: 9876000,
@@ -155,6 +161,8 @@ describe("+page.svelte", () => {
 		await page
 			.getByRole("textbox", { name: "Start" })
 			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Add waypoint" }).click();
+		await page.getByRole("textbox", { name: "Waypoint 1" }).fill("Tegernsee");
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
@@ -167,6 +175,9 @@ describe("+page.svelte", () => {
 		await page.getByRole("button", { name: "Analysis" }).click();
 		await expect
 			.element(page.getByText(/GraphHopper bike/i))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("1. Tegernsee, Germany"))
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByText("Smooth asphalt (80%)"))
@@ -188,10 +199,24 @@ describe("+page.svelte", () => {
 			"Marienplatz, Munich, Germany",
 		);
 		expect(savedRoutes[0]?.route.destinationLabel).toBe("Schliersee, Germany");
+		expect(savedRoutes[0]?.route.waypoints).toEqual([
+			{
+				label: "Tegernsee, Germany",
+				coordinate: [11.7581, 47.7123, 734],
+			},
+		]);
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+		).toMatchObject({
+			startQuery: "Marienplatz Munich",
+			waypointQueries: ["Tegernsee"],
+			destinationQuery: "Schliersee",
+		});
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
 			"planned-route-casing",
 			"planned-route-line",
 			"planned-route-start",
+			"planned-route-waypoint",
 			"planned-route-destination",
 		]);
 		expect(
@@ -229,6 +254,9 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("textbox", { name: "Start" }))
 			.toHaveValue("Marienplatz, Munich, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.toHaveValue("Tegernsee, Germany");
 		await expect
 			.element(page.getByRole("textbox", { name: "Destination" }))
 			.toHaveValue("Schliersee, Germany");
@@ -268,7 +296,7 @@ describe("+page.svelte", () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
 			new Response(
 				JSON.stringify({
-					error: "We couldn't resolve one or both locations.",
+					error: "We couldn't resolve one or more locations.",
 					fieldErrors: {
 						startQuery: "We couldn't resolve that start point.",
 					},
@@ -287,10 +315,35 @@ describe("+page.svelte", () => {
 		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
 		await expect
 			.element(page.getByRole("alert"))
-			.toHaveTextContent("We couldn't resolve one or both locations.");
+			.toHaveTextContent("We couldn't resolve one or more locations.");
 		await expect
 			.element(page.getByText("We couldn't resolve that start point."))
 			.toBeInTheDocument();
 		expect(mapInstance.addSource).not.toHaveBeenCalled();
+	});
+
+	it("supports reordering waypoints before submitting the route request", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("button", { name: "Add waypoint" }).click();
+		await page.getByRole("button", { name: "Add waypoint" }).click();
+		await page.getByRole("textbox", { name: "Waypoint 1" }).fill("Bad Tolz");
+		await page.getByRole("textbox", { name: "Waypoint 2" }).fill("Tegernsee");
+		await page.getByRole("button", { name: "Move down" }).nth(0).click();
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+		).toMatchObject({
+			waypointQueries: ["Tegernsee", "Bad Tolz"],
+		});
 	});
 });

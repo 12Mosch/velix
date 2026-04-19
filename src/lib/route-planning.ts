@@ -16,9 +16,15 @@ export type RouteDetailInterval = {
 	value: string;
 };
 
+export type RouteWaypoint = {
+	label: string;
+	coordinate: RouteCoordinate;
+};
+
 export type PlannedRoute = {
 	startLabel: string;
 	destinationLabel: string;
+	waypoints: RouteWaypoint[];
 	bounds: RouteBounds;
 	distanceMeters: number;
 	durationMs: number;
@@ -33,9 +39,15 @@ export type RouteApiSuccess = {
 	route: PlannedRoute;
 };
 
+export type RouteFieldErrors = {
+	startQuery?: string;
+	destinationQuery?: string;
+	waypointQueries?: string[];
+};
+
 export type RouteApiError = {
 	error: string;
-	fieldErrors?: Partial<Record<"startQuery" | "destinationQuery", string>>;
+	fieldErrors?: RouteFieldErrors;
 };
 
 type RouteFeatureProperties =
@@ -43,8 +55,9 @@ type RouteFeatureProperties =
 			kind: "route";
 	  }
 	| {
-			kind: "start" | "destination";
+			kind: "start" | "destination" | "waypoint";
 			label: string;
+			order?: number;
 	  };
 
 const smoothSurfaceValues = new Set([
@@ -165,11 +178,27 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 				}
 			: null;
 
+	const waypointFeatures: Feature<Point, RouteFeatureProperties>[] =
+		route.waypoints.map((waypoint, index) => ({
+			type: "Feature",
+			properties: {
+				kind: "waypoint",
+				label: waypoint.label,
+				order: index + 1,
+			},
+			geometry: {
+				type: "Point",
+				coordinates: waypoint.coordinate as Position,
+			},
+		}));
+
 	const features: Feature[] = [lineFeature];
 
 	if (startFeature) {
 		features.push(startFeature);
 	}
+
+	features.push(...waypointFeatures);
 
 	if (destinationFeature) {
 		features.push(destinationFeature);

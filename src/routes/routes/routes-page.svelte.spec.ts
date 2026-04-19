@@ -15,6 +15,9 @@ const savedRoutes = [
 		route: {
 			startLabel: "Marienplatz, Munich, Germany",
 			destinationLabel: "Schliersee, Germany",
+			waypoints: [
+				{ label: "Tegernsee, Germany", coordinate: [11.7571, 47.7123, 735] },
+			],
 			bounds: [11.5755, 47.7362, 11.8598, 48.1374],
 			distanceMeters: 61234,
 			durationMs: 9876000,
@@ -72,6 +75,9 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByText("Schliersee, Germany"))
 			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Via: Tegernsee, Germany"))
+			.toBeInTheDocument();
 		await expect.element(page.getByText("61.2 km")).toBeInTheDocument();
 		await expect.element(page.getByText("820 m up")).toBeInTheDocument();
 		await expect
@@ -125,6 +131,42 @@ describe("routes/+page.svelte", () => {
 
 		await expect
 			.element(page.getByText("No saved routes yet"))
+			.toBeInTheDocument();
+	});
+
+	it("loads legacy saved routes that do not include a waypoints array", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "legacy-route",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: {
+						startLabel: "Marienplatz, Munich, Germany",
+						destinationLabel: "Schliersee, Germany",
+						bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+						distanceMeters: 61234,
+						durationMs: 9876000,
+						ascendMeters: 820,
+						descendMeters: 740,
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.8598, 47.7362, 785],
+						],
+						surfaceDetails: [],
+						smoothnessDetails: [],
+					},
+				},
+			]),
+		);
+
+		render(RoutesPage);
+
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Schliersee, Germany"))
 			.toBeInTheDocument();
 	});
 });
