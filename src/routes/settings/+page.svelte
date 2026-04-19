@@ -7,7 +7,7 @@
 	import {
 		basemapOptions,
 		initMapStylePreference,
-		selectedBasemapId,
+		mapStylePreference,
 		setMapStylePreference,
 	} from "$lib/map-style-settings.svelte";
 	import { ArrowLeft, Check } from "lucide-svelte";
@@ -18,7 +18,7 @@
 	});
 
 	function isSelected(basemapId: string): boolean {
-		return $selectedBasemapId === basemapId;
+		return mapStylePreference.selectedBasemapId === basemapId;
 	}
 </script>
 
