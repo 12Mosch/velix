@@ -22,14 +22,11 @@ export type BasemapDefinition = {
 const attributionLinkClass =
 	'class="underline decoration-white/25 underline-offset-2 transition-colors hover:text-white/78"';
 
-const stadiaAttribution =
-	`&copy; <a ${attributionLinkClass} href="https://stadiamaps.com/" target="_blank" rel="noreferrer">Stadia Maps</a> &copy; <a ${attributionLinkClass} href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a> &copy; <a ${attributionLinkClass} href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>`;
+const stadiaAttribution = `&copy; <a ${attributionLinkClass} href="https://stadiamaps.com/" target="_blank" rel="noreferrer">Stadia Maps</a> &copy; <a ${attributionLinkClass} href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a> &copy; <a ${attributionLinkClass} href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>`;
 
-const stamenTerrainAttribution =
-	`&copy; <a ${attributionLinkClass} href="https://stadiamaps.com/" target="_blank" rel="noreferrer">Stadia Maps</a> &copy; <a ${attributionLinkClass} href="https://stamen.com/" target="_blank" rel="noreferrer">Stamen Design</a> &copy; <a ${attributionLinkClass} href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a> &copy; <a ${attributionLinkClass} href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>`;
+const stamenTerrainAttribution = `&copy; <a ${attributionLinkClass} href="https://stadiamaps.com/" target="_blank" rel="noreferrer">Stadia Maps</a> &copy; <a ${attributionLinkClass} href="https://stamen.com/" target="_blank" rel="noreferrer">Stamen Design</a> &copy; <a ${attributionLinkClass} href="https://openmaptiles.org/" target="_blank" rel="noreferrer">OpenMapTiles</a> &copy; <a ${attributionLinkClass} href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>`;
 
-const mapTilerAttribution =
-	`&copy; <a ${attributionLinkClass} href="https://www.maptiler.com/copyright/" target="_blank" rel="noreferrer">MapTiler</a> &copy; <a ${attributionLinkClass} href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>`;
+const mapTilerAttribution = `&copy; <a ${attributionLinkClass} href="https://www.maptiler.com/copyright/" target="_blank" rel="noreferrer">MapTiler</a> &copy; <a ${attributionLinkClass} href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>`;
 
 export const BASEMAPS: BasemapDefinition[] = [
 	{

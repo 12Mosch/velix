@@ -99,7 +99,9 @@ function errorResponse(
 	);
 }
 
-function normalizeDetailIntervals(detail: Array<[number, number, string]> | undefined): RouteDetailInterval[] {
+function normalizeDetailIntervals(
+	detail: Array<[number, number, string]> | undefined,
+): RouteDetailInterval[] {
 	if (!detail) {
 		return [];
 	}
@@ -114,7 +116,10 @@ function normalizeDetailIntervals(detail: Array<[number, number, string]> | unde
 }
 
 function buildResolvedLabel(hit: GeocodeHit): string {
-	const primary = [hit.name, [hit.street, hit.housenumber].filter(Boolean).join(" ").trim()]
+	const primary = [
+		hit.name,
+		[hit.street, hit.housenumber].filter(Boolean).join(" ").trim(),
+	]
 		.map((part) => part?.trim())
 		.filter(Boolean);
 	const secondary = [hit.city, hit.state, hit.country]
@@ -299,7 +304,10 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 	let payload: { startQuery?: string; destinationQuery?: string };
 
 	try {
-		payload = (await request.json()) as { startQuery?: string; destinationQuery?: string };
+		payload = (await request.json()) as {
+			startQuery?: string;
+			destinationQuery?: string;
+		};
 	} catch {
 		return errorResponse(400, "Invalid route request payload.");
 	}
@@ -317,7 +325,11 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 	}
 
 	if (Object.keys(fieldErrors).length > 0) {
-		return errorResponse(400, "Start and destination are required.", fieldErrors);
+		return errorResponse(
+			400,
+			"Start and destination are required.",
+			fieldErrors,
+		);
 	}
 
 	try {
@@ -326,8 +338,12 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 
 		if (!start || !destination) {
 			return errorResponse(422, "We couldn't resolve one or both locations.", {
-				...(start ? {} : { startQuery: "We couldn't resolve that start point." }),
-				...(destination ? {} : { destinationQuery: "We couldn't resolve that destination." }),
+				...(start
+					? {}
+					: { startQuery: "We couldn't resolve that start point." }),
+				...(destination
+					? {}
+					: { destinationQuery: "We couldn't resolve that destination." }),
 			});
 		}
 
@@ -341,10 +357,19 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 	} catch (error) {
 		console.error("Failed to generate GraphHopper route", error);
 
-		if (error instanceof Error && error.message === "Missing GRAPHHOPPER_API_KEY") {
-			return errorResponse(500, "Routing is not configured yet. Add GRAPHHOPPER_API_KEY.");
+		if (
+			error instanceof Error &&
+			error.message === "Missing GRAPHHOPPER_API_KEY"
+		) {
+			return errorResponse(
+				500,
+				"Routing is not configured yet. Add GRAPHHOPPER_API_KEY.",
+			);
 		}
 
-		return errorResponse(502, "GraphHopper could not generate a route right now.");
+		return errorResponse(
+			502,
+			"GraphHopper could not generate a route right now.",
+		);
 	}
 };

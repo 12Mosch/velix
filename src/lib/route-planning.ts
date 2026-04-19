@@ -1,4 +1,10 @@
-import type { Feature, FeatureCollection, LineString, Point, Position } from "geojson";
+import type {
+	Feature,
+	FeatureCollection,
+	LineString,
+	Point,
+	Position,
+} from "geojson";
 
 export type RouteBounds = [number, number, number, number];
 
@@ -59,10 +65,60 @@ const mixedSurfaceValues = new Set([
 	"CHIPSEAL",
 ]);
 
+const coarseSurfaceValues = new Set([
+	"DIRT",
+	"EARTH",
+	"GROUND",
+	"GRASS",
+	"GRAVEL",
+	"MUD",
+	"PEBBLESTONE",
+	"ROCK",
+	"SAND",
+	"UNPAVED",
+	"WOODCHIPS",
+]);
+
 const smoothnessSurfaceFallback = {
 	smooth: new Set(["EXCELLENT", "GOOD"]),
 	mixed: new Set(["INTERMEDIATE"]),
 };
+
+function normalizeDetailValue(value: string): string {
+	return value
+		.trim()
+		.toUpperCase()
+		.replace(/[^A-Z0-9]+/g, "_")
+		.replace(/^_+|_+$/g, "");
+}
+
+function classifySurfaceValue(
+	value: string,
+): keyof typeof smoothnessSurfaceFallback | "coarse" | null {
+	const normalizedValue = normalizeDetailValue(value);
+
+	if (
+		!normalizedValue ||
+		normalizedValue === "MISSING" ||
+		normalizedValue === "UNKNOWN"
+	) {
+		return null;
+	}
+
+	if (smoothSurfaceValues.has(normalizedValue)) {
+		return "smooth";
+	}
+
+	if (mixedSurfaceValues.has(normalizedValue)) {
+		return "mixed";
+	}
+
+	if (coarseSurfaceValues.has(normalizedValue)) {
+		return "coarse";
+	}
+
+	return null;
+}
 
 export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 	const lineFeature: Feature<LineString, RouteFeatureProperties> = {
@@ -79,19 +135,20 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 	const startCoordinate = route.coordinates[0];
 	const destinationCoordinate = route.coordinates[route.coordinates.length - 1];
 
-	const startFeature: Feature<Point, RouteFeatureProperties> | null = startCoordinate
-		? {
-				type: "Feature",
-				properties: {
-					kind: "start",
-					label: route.startLabel,
-				},
-				geometry: {
-					type: "Point",
-					coordinates: startCoordinate as Position,
-				},
-			}
-		: null;
+	const startFeature: Feature<Point, RouteFeatureProperties> | null =
+		startCoordinate
+			? {
+					type: "Feature",
+					properties: {
+						kind: "start",
+						label: route.startLabel,
+					},
+					geometry: {
+						type: "Point",
+						coordinates: startCoordinate as Position,
+					},
+				}
+			: null;
 
 	const destinationFeature: Feature<Point, RouteFeatureProperties> | null =
 		destinationCoordinate
@@ -159,18 +216,11 @@ export function getSurfaceMix(route: PlannedRoute) {
 	for (const detail of route.surfaceDetails) {
 		const span = Math.max(detail.to - detail.from, 0);
 		if (span === 0) continue;
+		const bucket = classifySurfaceValue(detail.value);
 
-		if (smoothSurfaceValues.has(detail.value)) {
-			totals.smooth += span;
-			continue;
-		}
+		if (!bucket) continue;
 
-		if (mixedSurfaceValues.has(detail.value)) {
-			totals.mixed += span;
-			continue;
-		}
-
-		totals.coarse += span;
+		totals[bucket] += span;
 	}
 
 	if (totals.smooth + totals.mixed + totals.coarse === 0) {
@@ -178,12 +228,14 @@ export function getSurfaceMix(route: PlannedRoute) {
 			const span = Math.max(detail.to - detail.from, 0);
 			if (span === 0) continue;
 
-			if (smoothnessSurfaceFallback.smooth.has(detail.value)) {
+			const normalizedValue = normalizeDetailValue(detail.value);
+
+			if (smoothnessSurfaceFallback.smooth.has(normalizedValue)) {
 				totals.smooth += span;
 				continue;
 			}
 
-			if (smoothnessSurfaceFallback.mixed.has(detail.value)) {
+			if (smoothnessSurfaceFallback.mixed.has(normalizedValue)) {
 				totals.mixed += span;
 				continue;
 			}
