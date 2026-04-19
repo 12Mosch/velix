@@ -45,6 +45,16 @@
 		});
 	}
 
+	function formatWaypointSummary(
+		waypoints: Array<{ label: string }>,
+	): string | null {
+		if (waypoints.length === 0) {
+			return null;
+		}
+
+		return `Via: ${waypoints.map((waypoint) => waypoint.label).join(" -> ")}`;
+	}
+
 	function handleDeleteSavedRoute(id: string) {
 		deleteSavedRoute(id);
 	}
@@ -110,6 +120,11 @@
 											{savedRoute.route.destinationLabel}
 										</span>
 									</div>
+									{#if formatWaypointSummary(savedRoute.route.waypoints)}
+										<p class="text-xs text-muted-foreground">
+											{formatWaypointSummary(savedRoute.route.waypoints)}
+										</p>
+									{/if}
 								</div>
 
 								<div class="flex flex-wrap gap-2.5 text-xs text-muted-foreground sm:text-sm">

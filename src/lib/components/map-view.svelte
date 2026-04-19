@@ -29,6 +29,7 @@
 	const routeCasingLayerId = "planned-route-casing";
 	const routeLineLayerId = "planned-route-line";
 	const routeStartLayerId = "planned-route-start";
+	const routeWaypointLayerId = "planned-route-waypoint";
 	const routeDestinationLayerId = "planned-route-destination";
 
 	let {
@@ -59,6 +60,7 @@
 
 		for (const layerId of [
 			routeDestinationLayerId,
+			routeWaypointLayerId,
 			routeStartLayerId,
 			routeLineLayerId,
 			routeCasingLayerId,
@@ -160,6 +162,21 @@
 					"circle-radius": 7,
 					"circle-stroke-color": "rgba(255, 255, 255, 0.95)",
 					"circle-stroke-width": 3,
+				},
+			});
+		}
+
+		if (!map.getLayer(routeWaypointLayerId)) {
+			map.addLayer({
+				id: routeWaypointLayerId,
+				type: "circle",
+				source: routeSourceId,
+				filter: ["==", ["get", "kind"], "waypoint"],
+				paint: {
+					"circle-color": "rgb(245, 158, 11)",
+					"circle-radius": 6,
+					"circle-stroke-color": "rgba(255, 255, 255, 0.95)",
+					"circle-stroke-width": 2.5,
 				},
 			});
 		}

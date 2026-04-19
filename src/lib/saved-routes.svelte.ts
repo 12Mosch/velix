@@ -1,6 +1,6 @@
 import { browser } from "$app/environment";
 
-import type { PlannedRoute } from "$lib/route-planning";
+import type { PlannedRoute, RouteWaypoint } from "$lib/route-planning";
 
 export const SAVED_ROUTES_STORAGE_KEY = "velix.savedRoutes";
 
@@ -48,6 +48,62 @@ function isRouteDetailInterval(
 	);
 }
 
+function isRouteWaypoint(value: unknown): value is RouteWaypoint {
+	if (!isRecord(value)) {
+		return false;
+	}
+
+	return typeof value.label === "string" && isRouteCoordinate(value.coordinate);
+}
+
+export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const waypointValues = value.waypoints;
+
+	if (
+		typeof value.startLabel !== "string" ||
+		typeof value.destinationLabel !== "string" ||
+		!isRouteBounds(value.bounds) ||
+		!isFiniteNumber(value.distanceMeters) ||
+		!isFiniteNumber(value.durationMs) ||
+		!isFiniteNumber(value.ascendMeters) ||
+		!isFiniteNumber(value.descendMeters) ||
+		!Array.isArray(value.coordinates) ||
+		value.coordinates.length < 2 ||
+		!value.coordinates.every(isRouteCoordinate) ||
+		!Array.isArray(value.surfaceDetails) ||
+		!value.surfaceDetails.every(isRouteDetailInterval) ||
+		!Array.isArray(value.smoothnessDetails) ||
+		!value.smoothnessDetails.every(isRouteDetailInterval)
+	) {
+		return null;
+	}
+
+	if (
+		waypointValues !== undefined &&
+		(!Array.isArray(waypointValues) || !waypointValues.every(isRouteWaypoint))
+	) {
+		return null;
+	}
+
+	return {
+		startLabel: value.startLabel,
+		destinationLabel: value.destinationLabel,
+		waypoints: Array.isArray(waypointValues) ? waypointValues : [],
+		bounds: value.bounds,
+		distanceMeters: value.distanceMeters,
+		durationMs: value.durationMs,
+		ascendMeters: value.ascendMeters,
+		descendMeters: value.descendMeters,
+		coordinates: value.coordinates,
+		surfaceDetails: value.surfaceDetails,
+		smoothnessDetails: value.smoothnessDetails,
+	};
+}
+
 export function isPlannedRoute(value: unknown): value is PlannedRoute {
 	if (!isRecord(value)) {
 		return false;
@@ -56,6 +112,8 @@ export function isPlannedRoute(value: unknown): value is PlannedRoute {
 	return (
 		typeof value.startLabel === "string" &&
 		typeof value.destinationLabel === "string" &&
+		Array.isArray(value.waypoints) &&
+		value.waypoints.every(isRouteWaypoint) &&
 		isRouteBounds(value.bounds) &&
 		isFiniteNumber(value.distanceMeters) &&
 		isFiniteNumber(value.durationMs) &&
@@ -77,13 +135,14 @@ function isSavedRoute(value: unknown): value is SavedRoute {
 	}
 
 	const candidate = value as Partial<SavedRoute>;
+	const normalizedRoute = normalizePlannedRoute(candidate.route);
 
 	return (
 		typeof candidate.id === "string" &&
 		candidate.id.length > 0 &&
 		typeof candidate.createdAt === "string" &&
 		Number.isFinite(Date.parse(candidate.createdAt)) &&
-		isPlannedRoute(candidate.route)
+		normalizedRoute !== null
 	);
 }
 
@@ -99,14 +158,38 @@ function parseSavedRoutes(rawValue: string | null): SavedRoute[] {
 			return [];
 		}
 
-		return parsedValue.filter(isSavedRoute);
+		return parsedValue.flatMap((entry) => {
+			if (!isSavedRoute(entry)) {
+				return [];
+			}
+
+			const normalizedRoute = normalizePlannedRoute(entry.route);
+
+			if (!normalizedRoute) {
+				return [];
+			}
+
+			return [
+				{
+					id: entry.id,
+					createdAt: entry.createdAt,
+					route: normalizedRoute,
+				},
+			];
+		});
 	} catch {
 		return [];
 	}
 }
 
 function cloneRoute(route: PlannedRoute): PlannedRoute {
-	return JSON.parse(JSON.stringify(route)) as PlannedRoute;
+	return {
+		...(JSON.parse(JSON.stringify(route)) as PlannedRoute),
+		waypoints: route.waypoints.map((waypoint) => ({
+			label: waypoint.label,
+			coordinate: [...waypoint.coordinate] as RouteWaypoint["coordinate"],
+		})),
+	};
 }
 
 function buildSavedRoute(route: PlannedRoute): SavedRoute {

@@ -26,30 +26,37 @@
 		type RouteApiSuccess,
 	} from "$lib/route-planning";
 	import {
+		ArrowDown,
+		ArrowUp,
 		Check,
 		ChevronDown,
 		ChevronUp,
 		MapPin,
 		MountainSnow,
 		Navigation,
+		Plus,
 		Route,
 		ShieldCheck,
 		TrendingDown,
 		TrendingUp,
 		Wind,
+		X,
 	} from "lucide-svelte";
 
 	type RouteField = "startQuery" | "destinationQuery";
 
 	const chartW = 800;
 	const padY = 5;
+	const maxRoutePoints = 5;
+	const maxWaypoints = maxRoutePoints - 2;
 	const sidebar = useSidebar();
 
 	let routeAnalysisOpen = $state(false);
 	let startQuery = $state("");
+	let waypointQueries = $state<string[]>([]);
 	let destinationQuery = $state("");
 	let routeRequestError = $state<string | null>(null);
-	let fieldErrors = $state<Partial<Record<RouteField, string>>>({});
+	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
 	let isRouting = $state(false);
 	let activeRoute = $state<PlannedRoute | null>(null);
 	let activeSavedRouteId = $state<string | null>(null);
@@ -126,6 +133,7 @@
 
 		activeRoute = savedRoute.route;
 		startQuery = savedRoute.route.startLabel;
+		waypointQueries = savedRoute.route.waypoints.map((waypoint) => waypoint.label);
 		destinationQuery = savedRoute.route.destinationLabel;
 		activeSavedRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
@@ -177,6 +185,93 @@
 		}
 	}
 
+	function getWaypointError(index: number) {
+		return fieldErrors.waypointQueries?.[index] || "";
+	}
+
+	function clearWaypointError(index: number) {
+		if (!fieldErrors.waypointQueries?.[index]) {
+			return;
+		}
+
+		fieldErrors = {
+			...fieldErrors,
+			waypointQueries: waypointQueries.map((_, waypointIndex) =>
+				waypointIndex === index ? "" : fieldErrors.waypointQueries?.[waypointIndex] || "",
+			),
+		};
+	}
+
+	function updateWaypoint(index: number, value: string) {
+		waypointQueries = waypointQueries.map((waypoint, waypointIndex) =>
+			waypointIndex === index ? value : waypoint,
+		);
+		clearWaypointError(index);
+
+		if (routeRequestError) {
+			routeRequestError = null;
+		}
+	}
+
+	function addWaypoint() {
+		if (waypointQueries.length >= maxWaypoints) {
+			return;
+		}
+
+		waypointQueries = [...waypointQueries, ""];
+		fieldErrors = {
+			...fieldErrors,
+			waypointQueries: [...(fieldErrors.waypointQueries ?? []), ""],
+		};
+
+		if (routeRequestError) {
+			routeRequestError = null;
+		}
+	}
+
+	function removeWaypoint(index: number) {
+		waypointQueries = waypointQueries.filter((_, waypointIndex) => waypointIndex !== index);
+		fieldErrors = {
+			...fieldErrors,
+			waypointQueries: (fieldErrors.waypointQueries ?? []).filter(
+				(_, waypointIndex) => waypointIndex !== index,
+			),
+		};
+
+		if (routeRequestError) {
+			routeRequestError = null;
+		}
+	}
+
+	function moveWaypoint(index: number, direction: -1 | 1) {
+		const nextIndex = index + direction;
+
+		if (nextIndex < 0 || nextIndex >= waypointQueries.length) {
+			return;
+		}
+
+		const nextWaypointQueries = [...waypointQueries];
+		[nextWaypointQueries[index], nextWaypointQueries[nextIndex]] = [
+			nextWaypointQueries[nextIndex] ?? "",
+			nextWaypointQueries[index] ?? "",
+		];
+		waypointQueries = nextWaypointQueries;
+
+		const nextWaypointErrors = [...(fieldErrors.waypointQueries ?? [])];
+		[nextWaypointErrors[index], nextWaypointErrors[nextIndex]] = [
+			nextWaypointErrors[nextIndex] ?? "",
+			nextWaypointErrors[index] ?? "",
+		];
+		fieldErrors = {
+			...fieldErrors,
+			waypointQueries: nextWaypointErrors,
+		};
+
+		if (routeRequestError) {
+			routeRequestError = null;
+		}
+	}
+
 	async function handleGenerateRoute(event: SubmitEvent) {
 		event.preventDefault();
 
@@ -203,6 +298,7 @@
 				},
 				body: JSON.stringify({
 					startQuery,
+					waypointQueries,
 					destinationQuery,
 				}),
 			});
@@ -289,105 +385,172 @@
 						</Badge>
 					</div>
 
-					<div class="flex gap-3.5">
-						<div class="flex w-[11px] shrink-0 flex-col items-center" aria-hidden="true">
-							<div class="h-[calc(1.125rem+0.5rem+1.125rem-0.25rem)] shrink-0"></div>
-							<div
-								class="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_0_2px_var(--color-background)] ring-1 ring-primary/30"
-							></div>
-							<div class="h-2.5 w-0.5 shrink-0 rounded-full bg-border/85"></div>
-							<div class="flex flex-col items-center py-2">
-								<div class="h-2 w-0.5 shrink-0 rounded-full bg-border/85"></div>
-								<div
-									class="my-1.5 size-1.5 shrink-0 rounded-full border-[1.5px] border-muted-foreground/45 bg-background shadow-[0_0_0_2px_var(--color-background)]"
-								></div>
-								<div class="h-2 w-0.5 shrink-0 rounded-full bg-border/85"></div>
+					<div class="flex min-w-0 flex-1 flex-col gap-3">
+						<div class="space-y-2">
+							<label
+								for="start-point"
+								class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+							>
+								Start
+							</label>
+							<div class="relative">
+								<MapPin
+									class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+								/>
+								<Input
+									id="start-point"
+									value={startQuery}
+									placeholder="Enter starting point..."
+									class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+									aria-invalid={fieldErrors.startQuery ? "true" : undefined}
+									oninput={(event) =>
+										updateField(
+											"startQuery",
+											(event.currentTarget as HTMLInputElement).value,
+										)}
+								/>
 							</div>
-							<div class="h-2.5 w-0.5 shrink-0 rounded-full bg-border/85"></div>
-							<div class="h-[calc(1.125rem+0.5rem+1.125rem-0.25rem)] shrink-0"></div>
-							<div
-								class="size-2 shrink-0 rounded-full border-2 border-primary bg-background shadow-[0_0_0_2px_var(--color-background)] ring-1 ring-border/40"
-							></div>
+							{#if fieldErrors.startQuery}
+								<p class="text-xs font-medium text-destructive">{fieldErrors.startQuery}</p>
+							{/if}
 						</div>
 
-						<div class="flex min-w-0 flex-1 flex-col">
-							<div class="space-y-2">
-								<label
-									for="start-point"
-									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-								>
-									Start
-								</label>
-								<div class="relative">
-									<MapPin
-										class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-									/>
-									<Input
-										id="start-point"
-										value={startQuery}
-										placeholder="Enter starting point..."
-										class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
-										aria-invalid={fieldErrors.startQuery ? "true" : undefined}
-										oninput={(event) =>
-											updateField(
-												"startQuery",
-												(event.currentTarget as HTMLInputElement).value,
-											)}
-									/>
+						<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+							<div class="flex items-center justify-between gap-3">
+								<div>
+									<div class="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+										Waypoints
+									</div>
 								</div>
-								{#if fieldErrors.startQuery}
-									<p class="text-xs font-medium text-destructive">{fieldErrors.startQuery}</p>
-								{/if}
-							</div>
-
-							<div class="flex items-center py-2">
 								<Button
 									variant="ghost"
 									size="sm"
 									type="button"
-									disabled
-									class="h-8 w-full justify-start gap-2 pl-2 text-muted-foreground"
+									class="gap-1"
+									disabled={waypointQueries.length >= maxWaypoints}
+									onclick={addWaypoint}
 								>
-									<span
-										class="flex size-5 items-center justify-center rounded-md border border-dashed border-border/70 text-xs font-semibold leading-none text-muted-foreground"
-										aria-hidden="true"
-									>
-										+
-									</span>
-									Waypoints next
+									<Plus class="size-3.5" />
+									Add waypoint
 								</Button>
 							</div>
 
-							<div class="space-y-2 pt-2.5">
-								<label
-									for="destination"
-									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-								>
-									Destination
-								</label>
-								<div class="relative">
-									<Navigation
-										class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary"
-									/>
-									<Input
-										id="destination"
-										value={destinationQuery}
-										placeholder="Destination..."
-										class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
-										aria-invalid={fieldErrors.destinationQuery ? "true" : undefined}
-										oninput={(event) =>
-											updateField(
-												"destinationQuery",
-												(event.currentTarget as HTMLInputElement).value,
-											)}
-									/>
+							{#if waypointQueries.length > 0}
+								<div class="space-y-2">
+									{#each waypointQueries as waypointQuery, index (`waypoint-${index}`)}
+										<div class="rounded-md border border-border/50 bg-background/80 p-2.5">
+											<div class="flex items-start gap-2">
+												<div class="flex h-9 w-7 shrink-0 items-center justify-center">
+													<span
+														class="flex size-6 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-[11px] font-semibold text-amber-700 dark:text-amber-300"
+													>
+														{index + 1}
+													</span>
+												</div>
+												<div class="min-w-0 flex-1 space-y-2">
+													<label
+														for={`waypoint-${index}`}
+														class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+													>
+														Waypoint {index + 1}
+													</label>
+													<div class="relative">
+														<MapPin
+															class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-amber-600 dark:text-amber-300"
+														/>
+														<Input
+															id={`waypoint-${index}`}
+															value={waypointQuery}
+															placeholder="Add a stop..."
+															class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+															aria-invalid={getWaypointError(index) ? "true" : undefined}
+															oninput={(event) =>
+																updateWaypoint(
+																	index,
+																	(event.currentTarget as HTMLInputElement).value,
+																)}
+														/>
+													</div>
+													{#if getWaypointError(index)}
+														<p class="text-xs font-medium text-destructive">
+															{getWaypointError(index)}
+														</p>
+													{/if}
+												</div>
+											</div>
+											<div class="mt-2 flex flex-wrap justify-end gap-1.5">
+												<Button
+													variant="outline"
+													size="sm"
+													type="button"
+													class="gap-1"
+													disabled={index === 0}
+													onclick={() => moveWaypoint(index, -1)}
+												>
+													<ArrowUp class="size-3.5" />
+													Move up
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													type="button"
+													class="gap-1"
+													disabled={index === waypointQueries.length - 1}
+													onclick={() => moveWaypoint(index, 1)}
+												>
+													<ArrowDown class="size-3.5" />
+													Move down
+												</Button>
+												<Button
+													variant="ghost"
+													size="sm"
+													type="button"
+													class="gap-1 text-muted-foreground hover:text-foreground"
+													onclick={() => removeWaypoint(index)}
+												>
+													<X class="size-3.5" />
+													Remove
+												</Button>
+											</div>
+										</div>
+									{/each}
 								</div>
-								{#if fieldErrors.destinationQuery}
-									<p class="text-xs font-medium text-destructive">
-										{fieldErrors.destinationQuery}
-									</p>
-								{/if}
+							{:else}
+								<p class="rounded-md bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+									No waypoints yet. Add one to force the route through intermediate stops.
+								</p>
+							{/if}
+						</div>
+
+						<div class="space-y-2">
+							<label
+								for="destination"
+								class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+							>
+								Destination
+							</label>
+							<div class="relative">
+								<Navigation
+									class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary"
+								/>
+								<Input
+									id="destination"
+									value={destinationQuery}
+									placeholder="Destination..."
+									class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+									aria-invalid={fieldErrors.destinationQuery ? "true" : undefined}
+									oninput={(event) =>
+										updateField(
+											"destinationQuery",
+											(event.currentTarget as HTMLInputElement).value,
+										)}
+								/>
 							</div>
+							{#if fieldErrors.destinationQuery}
+								<p class="text-xs font-medium text-destructive">
+									{fieldErrors.destinationQuery}
+								</p>
+							{/if}
 						</div>
 					</div>
 
@@ -688,6 +851,20 @@
 									</div>
 									<div class="font-medium text-foreground">{activeRoute.startLabel}</div>
 								</div>
+								{#if activeRoute.waypoints.length > 0}
+									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
+										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
+											Resolved waypoints
+										</div>
+										<div class="space-y-1">
+											{#each activeRoute.waypoints as waypoint, index}
+												<div class="font-medium text-foreground">
+													{index + 1}. {waypoint.label}
+												</div>
+											{/each}
+										</div>
+									</div>
+								{/if}
 								<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 									<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 										Resolved destination

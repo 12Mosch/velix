@@ -21,8 +21,41 @@ function buildEvent(body: unknown, fetchMock: typeof fetch) {
 	} as Parameters<typeof POST>[0];
 }
 
+function buildRouteResponse(points: number[][]) {
+	return new Response(
+		JSON.stringify({
+			paths: [
+				{
+					distance: 61234,
+					time: 9876000,
+					ascend: 820,
+					descend: 740,
+					bbox: [11.5755, 47.7362, 11.8598, 48.1374],
+					points: {
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.7, 48.02, 575],
+							[11.8598, 47.7362, 785],
+						],
+					},
+					snapped_waypoints: {
+						coordinates: points,
+					},
+					details: {
+						surface: [
+							[0, 2, "ASPHALT"],
+							[2, 3, "COMPACTED"],
+						],
+						smoothness: [[0, 3, "GOOD"]],
+					},
+				},
+			],
+		}),
+	);
+}
+
 describe("POST /api/route", () => {
-	it("geocodes both inputs, requests a GraphHopper bike route, and returns normalized data", async () => {
+	it("geocodes all ordered stops, requests a GraphHopper bike route, and returns snapped waypoint labels", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(
@@ -47,6 +80,22 @@ describe("POST /api/route", () => {
 					JSON.stringify({
 						hits: [
 							{
+								name: "Tegernsee",
+								country: "Germany",
+								point: {
+									lat: 47.7123,
+									lng: 11.7581,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
 								name: "Schliersee",
 								country: "Germany",
 								point: {
@@ -59,39 +108,18 @@ describe("POST /api/route", () => {
 				),
 			)
 			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						paths: [
-							{
-								distance: 61234,
-								time: 9876000,
-								ascend: 820,
-								descend: 740,
-								bbox: [11.5755, 47.7362, 11.8598, 48.1374],
-								points: {
-									coordinates: [
-										[11.5755, 48.1374, 520],
-										[11.7, 48.02, 575],
-										[11.8598, 47.7362, 785],
-									],
-								},
-								details: {
-									surface: [
-										[0, 2, "ASPHALT"],
-										[2, 3, "COMPACTED"],
-									],
-									smoothness: [[0, 3, "GOOD"]],
-								},
-							},
-						],
-					}),
-				),
+				buildRouteResponse([
+					[11.5756, 48.1375, 522],
+					[11.7582, 47.7124, 734],
+					[11.8597, 47.7361, 784],
+				]),
 			);
 
 		const response = await POST(
 			buildEvent(
 				{
 					startQuery: "Marienplatz Munich",
+					waypointQueries: ["Tegernsee"],
 					destinationQuery: "Schliersee",
 				},
 				fetchMock,
@@ -99,16 +127,18 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 		expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
 			"provider=nominatim",
 		);
-		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("locale=");
 		expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
 			"provider=nominatim",
 		);
+		expect(String(fetchMock.mock.calls[2]?.[0])).toContain(
+			"provider=nominatim",
+		);
 
-		const routeRequest = fetchMock.mock.calls[2];
+		const routeRequest = fetchMock.mock.calls[3];
 		expect(routeRequest?.[0]).toBe(
 			"https://graphhopper.com/api/1/route?key=graphhopper-test-key",
 		);
@@ -116,6 +146,11 @@ describe("POST /api/route", () => {
 		const requestOptions = routeRequest?.[1];
 		const requestBody = JSON.parse(String(requestOptions?.body));
 		expect(requestBody.profile).toBe("bike");
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.7581, 47.7123],
+			[11.8598, 47.7362],
+		]);
 		expect(requestBody.points_encoded).toBe(false);
 		expect(requestBody.elevation).toBe(true);
 		expect(requestBody.details).toEqual([
@@ -129,6 +164,10 @@ describe("POST /api/route", () => {
 			route: {
 				startLabel: string;
 				destinationLabel: string;
+				waypoints: Array<{
+					label: string;
+					coordinate: [number, number, number];
+				}>;
 				distanceMeters: number;
 				surfaceDetails: Array<{ from: number; to: number; value: string }>;
 			};
@@ -136,6 +175,12 @@ describe("POST /api/route", () => {
 
 		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
 		expect(payload.route.destinationLabel).toBe("Schliersee, Germany");
+		expect(payload.route.waypoints).toEqual([
+			{
+				label: "Tegernsee, Germany",
+				coordinate: [11.7582, 47.7124, 734],
+			},
+		]);
 		expect(payload.route.distanceMeters).toBe(61234);
 		expect(payload.route.surfaceDetails).toEqual([
 			{ from: 0, to: 2, value: "ASPHALT" },
@@ -143,13 +188,14 @@ describe("POST /api/route", () => {
 		]);
 	});
 
-	it("validates missing input before calling GraphHopper", async () => {
+	it("validates missing required input and blank waypoints before calling GraphHopper", async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 
 		const response = await POST(
 			buildEvent(
 				{
 					startQuery: "",
+					waypointQueries: ["", "Tegernsee"],
 					destinationQuery: "Berlin",
 				},
 				fetchMock,
@@ -162,15 +208,38 @@ describe("POST /api/route", () => {
 			error: "Start and destination are required.",
 			fieldErrors: {
 				startQuery: "Enter a start point.",
+				waypointQueries: ["Enter a waypoint or remove this stop.", ""],
 			},
 		});
 	});
 
-	it("returns field errors when a location cannot be resolved", async () => {
+	it("rejects routes with more than three waypoints", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					startQuery: "Munich",
+					waypointQueries: ["A", "B", "C", "D"],
+					destinationQuery: "Berlin",
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "You can add up to 3 waypoints per route.",
+			fieldErrors: {
+				waypointQueries: ["", "", "", ""],
+			},
+		});
+	});
+
+	it("returns field errors when a waypoint location cannot be resolved", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
-			.mockResolvedValueOnce(new Response(JSON.stringify({ hits: [] })))
-			.mockResolvedValueOnce(new Response(JSON.stringify({ hits: [] })))
 			.mockResolvedValueOnce(
 				new Response(
 					JSON.stringify({
@@ -186,23 +255,43 @@ describe("POST /api/route", () => {
 						],
 					}),
 				),
-			);
+			)
+			.mockResolvedValueOnce(new Response(JSON.stringify({ hits: [] })))
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Leipzig",
+								country: "Germany",
+								point: {
+									lat: 51.3397,
+									lng: 12.3731,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(new Response(JSON.stringify({ hits: [] })));
 
 		const response = await POST(
 			buildEvent(
 				{
-					startQuery: "Unknown village",
-					destinationQuery: "Berlin",
+					startQuery: "Berlin",
+					waypointQueries: ["Unknown village"],
+					destinationQuery: "Leipzig",
 				},
 				fetchMock,
 			),
 		);
 
 		expect(response.status).toBe(422);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 		await expect(response.json()).resolves.toEqual({
-			error: "We couldn't resolve one or both locations.",
+			error: "We couldn't resolve one or more locations.",
 			fieldErrors: {
-				startQuery: "We couldn't resolve that start point.",
+				waypointQueries: ["We couldn't resolve that waypoint."],
 			},
 		});
 	});
@@ -248,26 +337,10 @@ describe("POST /api/route", () => {
 				),
 			)
 			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						paths: [
-							{
-								distance: 1000,
-								time: 120000,
-								ascend: 10,
-								descend: 8,
-								bbox: [12.3731, 51.3397, 13.405, 52.52],
-								points: {
-									coordinates: [
-										[13.405, 52.52, 40],
-										[12.3731, 51.3397, 50],
-									],
-								},
-								details: {},
-							},
-						],
-					}),
-				),
+				buildRouteResponse([
+					[13.405, 52.52, 40],
+					[12.3731, 51.3397, 50],
+				]),
 			);
 
 		const response = await POST(
@@ -281,16 +354,13 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
-			"provider=nominatim",
-		);
-		expect(String(fetchMock.mock.calls[1]?.[0])).not.toContain(
-			"provider=nominatim",
-		);
-		expect(String(fetchMock.mock.calls[1]?.[0])).toContain("locale=en");
-		expect(String(fetchMock.mock.calls[2]?.[0])).toContain(
-			"provider=nominatim",
-		);
+		const geocodeCalls = fetchMock.mock.calls
+			.slice(0, 3)
+			.map((call) => String(call[0]));
+		expect(
+			geocodeCalls.filter((call) => call.includes("provider=nominatim")),
+		).toHaveLength(2);
+		expect(geocodeCalls.some((call) => call.includes("locale=en"))).toBe(true);
 	});
 
 	it("surfaces upstream routing failures as a gateway error", async () => {
@@ -350,6 +420,124 @@ describe("POST /api/route", () => {
 		});
 	});
 
+	it("converts GraphHopper point-limit errors into a user-facing validation response", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Munich",
+								country: "Germany",
+								point: {
+									lat: 48.1374,
+									lng: 11.5755,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Waypoint A",
+								country: "Germany",
+								point: {
+									lat: 48.0,
+									lng: 11.7,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Waypoint B",
+								country: "Germany",
+								point: {
+									lat: 47.9,
+									lng: 11.8,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Waypoint C",
+								country: "Germany",
+								point: {
+									lat: 47.8,
+									lng: 11.9,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Schliersee",
+								country: "Germany",
+								point: {
+									lat: 47.7362,
+									lng: 11.8598,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						message: "Too many points for Routing API: 5, allowed: 4",
+					}),
+					{ status: 400 },
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						message: "Too many points for Routing API: 5, allowed: 4",
+					}),
+					{ status: 400 },
+				),
+			);
+
+		const response = await POST(
+			buildEvent(
+				{
+					startQuery: "Munich",
+					waypointQueries: ["Waypoint A", "Waypoint B", "Waypoint C"],
+					destinationQuery: "Schliersee",
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toEqual({
+			error:
+				"Your current routing plan allows up to 5 total route points (3 waypoints plus start and destination).",
+		});
+	});
+
 	it("retries with a plain bike route when GraphHopper rejects the custom road-bike payload", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
@@ -391,26 +579,10 @@ describe("POST /api/route", () => {
 				}),
 			)
 			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						paths: [
-							{
-								distance: 190000,
-								time: 28000000,
-								ascend: 200,
-								descend: 180,
-								bbox: [12.3731, 51.3397, 13.405, 52.52],
-								points: {
-									coordinates: [
-										[13.405, 52.52, 40],
-										[12.3731, 51.3397, 50],
-									],
-								},
-								details: {},
-							},
-						],
-					}),
-				),
+				buildRouteResponse([
+					[13.405, 52.52, 40],
+					[12.3731, 51.3397, 50],
+				]),
 			);
 
 		const response = await POST(

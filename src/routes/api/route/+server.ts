@@ -7,6 +7,7 @@ import type {
 	RouteApiError,
 	RouteCoordinate,
 	RouteDetailInterval,
+	RouteWaypoint,
 } from "$lib/route-planning";
 
 type GeocodeHit = {
@@ -35,6 +36,9 @@ type GraphHopperPath = {
 	points?: {
 		coordinates?: RouteCoordinate[];
 	};
+	snapped_waypoints?: {
+		coordinates?: RouteCoordinate[];
+	};
 	details?: Record<string, Array<[number, number, string]>>;
 };
 
@@ -44,7 +48,7 @@ type GraphHopperRouteResponse = {
 
 type GraphHopperRouteRequestBody = {
 	profile: "bike";
-	points: [[number, number], [number, number]];
+	points: [number, number][];
 	points_encoded: false;
 	elevation: true;
 	instructions: false;
@@ -56,8 +60,19 @@ type GraphHopperRouteRequestBody = {
 };
 
 const graphHopperApiBaseUrl = "https://graphhopper.com/api/1";
+const maxRoutePoints = 5;
+const maxWaypoints = maxRoutePoints - 2;
 
 type GeocodeProvider = "default" | "nominatim";
+type StopField = "startQuery" | "destinationQuery" | "waypointQueries";
+type RouteStop = {
+	kind: "start" | "waypoint" | "destination";
+	query: string;
+	field: StopField;
+	index?: number;
+	label?: string;
+	point?: [number, number];
+};
 
 const roadBikeCustomModel = {
 	priority: [
@@ -199,9 +214,11 @@ async function geocodeLocation(
 
 async function requestRoute(
 	fetchFn: typeof fetch,
-	start: [number, number],
-	destination: [number, number],
-): Promise<PlannedRoute> {
+	points: [number, number][],
+): Promise<{
+	route: PlannedRoute;
+	snappedWaypoints: RouteCoordinate[];
+}> {
 	const key = env.GRAPHHOPPER_API_KEY?.trim();
 
 	if (!key) {
@@ -211,7 +228,7 @@ async function requestRoute(
 	const routeUrl = `${graphHopperApiBaseUrl}/route?key=${encodeURIComponent(key)}`;
 	const preferredRequestBody: GraphHopperRouteRequestBody = {
 		profile: "bike",
-		points: [start, destination],
+		points,
 		points_encoded: false,
 		elevation: true,
 		instructions: false,
@@ -223,7 +240,7 @@ async function requestRoute(
 	};
 	const fallbackRequestBody: GraphHopperRouteRequestBody = {
 		profile: "bike",
-		points: [start, destination],
+		points,
 		points_encoded: false,
 		elevation: true,
 		instructions: false,
@@ -270,6 +287,7 @@ async function requestRoute(
 
 	const path = payload.paths?.[0];
 	const coordinates = path?.points?.coordinates;
+	const snappedWaypoints = path?.snapped_waypoints?.coordinates;
 	const bbox = path?.bbox;
 
 	if (
@@ -278,6 +296,8 @@ async function requestRoute(
 		bbox.length < 4 ||
 		!coordinates ||
 		coordinates.length < 2 ||
+		!snappedWaypoints ||
+		snappedWaypoints.length !== points.length ||
 		typeof path.distance !== "number" ||
 		typeof path.time !== "number" ||
 		typeof path.ascend !== "number" ||
@@ -287,21 +307,29 @@ async function requestRoute(
 	}
 
 	return {
-		startLabel: "",
-		destinationLabel: "",
-		bounds: [bbox[0], bbox[1], bbox[2], bbox[3]],
-		distanceMeters: path.distance,
-		durationMs: path.time,
-		ascendMeters: path.ascend,
-		descendMeters: path.descend,
-		coordinates,
-		surfaceDetails: normalizeDetailIntervals(path.details?.surface),
-		smoothnessDetails: normalizeDetailIntervals(path.details?.smoothness),
+		route: {
+			startLabel: "",
+			destinationLabel: "",
+			waypoints: [],
+			bounds: [bbox[0], bbox[1], bbox[2], bbox[3]],
+			distanceMeters: path.distance,
+			durationMs: path.time,
+			ascendMeters: path.ascend,
+			descendMeters: path.descend,
+			coordinates,
+			surfaceDetails: normalizeDetailIntervals(path.details?.surface),
+			smoothnessDetails: normalizeDetailIntervals(path.details?.smoothness),
+		},
+		snappedWaypoints,
 	};
 }
 
 export const POST: RequestHandler = async ({ fetch, request }) => {
-	let payload: { startQuery?: string; destinationQuery?: string };
+	let payload: {
+		startQuery?: string;
+		waypointQueries?: string[];
+		destinationQuery?: string;
+	};
 
 	try {
 		payload = (await request.json()) as {
@@ -313,11 +341,35 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 	}
 
 	const startQuery = payload.startQuery?.trim() ?? "";
+	const waypointQueries = Array.isArray(payload.waypointQueries)
+		? payload.waypointQueries.map((query) =>
+				typeof query === "string" ? query.trim() : "",
+			)
+		: [];
 	const destinationQuery = payload.destinationQuery?.trim() ?? "";
 	const fieldErrors: RouteApiError["fieldErrors"] = {};
 
+	if (waypointQueries.length > maxWaypoints) {
+		fieldErrors.waypointQueries = waypointQueries.map(() => "");
+		return errorResponse(
+			400,
+			`You can add up to ${maxWaypoints} waypoints per route.`,
+			fieldErrors,
+		);
+	}
+
 	if (!startQuery) {
 		fieldErrors.startQuery = "Enter a start point.";
+	}
+
+	const waypointFieldErrors = waypointQueries.map((query) =>
+		query ? null : "Enter a waypoint or remove this stop.",
+	);
+
+	if (waypointFieldErrors.some((error) => !!error)) {
+		fieldErrors.waypointQueries = waypointFieldErrors.map(
+			(error) => error ?? "",
+		);
 	}
 
 	if (!destinationQuery) {
@@ -333,23 +385,87 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 	}
 
 	try {
-		const start = await geocodeLocation(fetch, startQuery);
-		const destination = await geocodeLocation(fetch, destinationQuery);
+		const stops: RouteStop[] = [
+			{ kind: "start", query: startQuery, field: "startQuery" },
+			...waypointQueries.map((query, index) => ({
+				kind: "waypoint" as const,
+				query,
+				field: "waypointQueries" as const,
+				index,
+			})),
+			{
+				kind: "destination",
+				query: destinationQuery,
+				field: "destinationQuery",
+			},
+		];
 
-		if (!start || !destination) {
-			return errorResponse(422, "We couldn't resolve one or both locations.", {
-				...(start
-					? {}
-					: { startQuery: "We couldn't resolve that start point." }),
-				...(destination
-					? {}
-					: { destinationQuery: "We couldn't resolve that destination." }),
-			});
+		const resolvedStops = await Promise.all(
+			stops.map(async (stop) => {
+				const resolved = await geocodeLocation(fetch, stop.query);
+				return resolved
+					? {
+							...stop,
+							label: resolved.label,
+							point: resolved.point,
+						}
+					: stop;
+			}),
+		);
+
+		const unresolvedWaypoints = waypointQueries.map(() => "");
+
+		for (const stop of resolvedStops) {
+			if (stop.label && stop.point) {
+				continue;
+			}
+
+			if (stop.field === "startQuery") {
+				fieldErrors.startQuery = "We couldn't resolve that start point.";
+				continue;
+			}
+
+			if (stop.field === "destinationQuery") {
+				fieldErrors.destinationQuery = "We couldn't resolve that destination.";
+				continue;
+			}
+
+			if (typeof stop.index === "number") {
+				unresolvedWaypoints[stop.index] = "We couldn't resolve that waypoint.";
+			}
 		}
 
-		const route = await requestRoute(fetch, start.point, destination.point);
-		route.startLabel = start.label;
-		route.destinationLabel = destination.label;
+		if (unresolvedWaypoints.some((error) => error.length > 0)) {
+			fieldErrors.waypointQueries = unresolvedWaypoints;
+		}
+
+		if (
+			fieldErrors.startQuery ||
+			fieldErrors.destinationQuery ||
+			fieldErrors.waypointQueries
+		) {
+			return errorResponse(
+				422,
+				"We couldn't resolve one or more locations.",
+				fieldErrors,
+			);
+		}
+
+		const routePoints = resolvedStops.map(
+			(stop) => stop.point as [number, number],
+		);
+		const { route, snappedWaypoints } = await requestRoute(fetch, routePoints);
+
+		route.startLabel = resolvedStops[0]?.label ?? "";
+		route.destinationLabel =
+			resolvedStops[resolvedStops.length - 1]?.label ?? "";
+		route.waypoints = resolvedStops.slice(1, -1).map(
+			(stop, index): RouteWaypoint => ({
+				label: stop.label ?? stop.query,
+				coordinate:
+					snappedWaypoints[index + 1] ?? (stop.point as [number, number]),
+			}),
+		);
 
 		return json({
 			route,
@@ -364,6 +480,16 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			return errorResponse(
 				500,
 				"Routing is not configured yet. Add GRAPHHOPPER_API_KEY.",
+			);
+		}
+
+		if (
+			error instanceof Error &&
+			error.message.includes("Too many points for Routing API")
+		) {
+			return errorResponse(
+				400,
+				`Your current routing plan allows up to ${maxRoutePoints} total route points (${maxWaypoints} waypoints plus start and destination).`,
 			);
 		}
 

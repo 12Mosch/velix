@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getSurfaceMix, type PlannedRoute } from "./route-planning";
+import {
+	buildRouteGeoJson,
+	getSurfaceMix,
+	type PlannedRoute,
+} from "./route-planning";
 
 function buildRoute(
 	surfaceDetails: PlannedRoute["surfaceDetails"],
@@ -9,6 +13,12 @@ function buildRoute(
 	return {
 		startLabel: "Start",
 		destinationLabel: "Destination",
+		waypoints: [
+			{
+				label: "Waypoint",
+				coordinate: [0.5, 0.5, 15],
+			},
+		],
 		bounds: [0, 0, 1, 1],
 		distanceMeters: 1000,
 		durationMs: 120000,
@@ -22,6 +32,22 @@ function buildRoute(
 		smoothnessDetails,
 	};
 }
+
+describe("buildRouteGeoJson", () => {
+	it("includes waypoint point features between the start and destination markers", () => {
+		const route = buildRoute([{ from: 0, to: 10, value: "ASPHALT" }]);
+		const geoJson = buildRouteGeoJson(route);
+
+		expect(geoJson.features.map((feature) => feature.properties?.kind)).toEqual(
+			["route", "start", "waypoint", "destination"],
+		);
+		expect(geoJson.features[2]?.properties).toMatchObject({
+			kind: "waypoint",
+			label: "Waypoint",
+			order: 1,
+		});
+	});
+});
 
 describe("getSurfaceMix", () => {
 	it("calculates the coarse percentage from its own share instead of subtracting from 100", () => {
