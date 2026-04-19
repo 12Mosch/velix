@@ -33,15 +33,18 @@ const successfulRoutePayload = {
 			[11.8598, 47.7362, 785],
 		],
 		surfaceDetails: [
-			{ from: 0, to: 4, value: "ASPHALT" },
-			{ from: 4, to: 5, value: "COMPACTED" },
+			{ from: 0, to: 4, value: "asphalt" },
+			{ from: 4, to: 5, value: "fine gravel" },
 		],
 		smoothnessDetails: [{ from: 0, to: 5, value: "GOOD" }],
 	},
 };
 
 const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
-	const sources = new Map<string, { data: unknown; setData: ReturnType<typeof vi.fn> }>();
+	const sources = new Map<
+		string,
+		{ data: unknown; setData: ReturnType<typeof vi.fn> }
+	>();
 	const layers = new Set<string>();
 
 	const mapInstance = {
@@ -132,9 +135,9 @@ describe("+page.svelte", () => {
 	});
 
 	it("submits the route form, updates the summary, and renders the route overlay", async () => {
-		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-			new Response(JSON.stringify(successfulRoutePayload)),
-		);
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
@@ -143,7 +146,9 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("region", { name: "Route map" }))
 			.toBeInTheDocument();
 		await expect.element(page.getByText("Basemap")).toBeInTheDocument();
-		await page.getByRole("textbox", { name: "Start" }).fill("Marienplatz Munich");
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
@@ -152,8 +157,17 @@ describe("+page.svelte", () => {
 		await expect.poll(() => document.body.textContent).toContain("820");
 		await expect.poll(() => document.body.textContent).toContain("740");
 		await expect.poll(() => document.body.textContent).toContain("2:45");
-		await expect.element(page.getByText("GraphHopper")).toBeInTheDocument();
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		await page.getByRole("button", { name: "Analysis" }).click();
+		await expect
+			.element(page.getByText(/GraphHopper bike/i))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Smooth asphalt (80%)"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Mixed / worn (20%)"))
+			.toBeInTheDocument();
 
 		expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/route");
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
@@ -165,23 +179,23 @@ describe("+page.svelte", () => {
 		expect(
 			document.querySelector('path[d*="M 0 50 C 20 20, 40 80, 60 40"]'),
 		).toBeNull();
-		expect(document.body.textContent).not.toContain("OpenStreetMap contributors");
+		expect(document.body.textContent).not.toContain(
+			"OpenStreetMap contributors",
+		);
 	});
 
 	it("shows inline routing errors without clearing the existing map", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(
-				new Response(
-					JSON.stringify({
-						error: "We couldn't resolve one or both locations.",
-						fieldErrors: {
-							startQuery: "We couldn't resolve that start point.",
-						},
-					}),
-					{ status: 422 },
-				),
-			);
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					error: "We couldn't resolve one or both locations.",
+					fieldErrors: {
+						startQuery: "We couldn't resolve that start point.",
+					},
+				}),
+				{ status: 422 },
+			),
+		);
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);

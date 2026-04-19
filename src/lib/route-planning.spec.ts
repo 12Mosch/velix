@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { getSurfaceMix, type PlannedRoute } from "./route-planning";
 
-function buildRoute(surfaceDetails: PlannedRoute["surfaceDetails"]): PlannedRoute {
+function buildRoute(
+	surfaceDetails: PlannedRoute["surfaceDetails"],
+	smoothnessDetails: PlannedRoute["smoothnessDetails"] = [],
+): PlannedRoute {
 	return {
 		startLabel: "Start",
 		destinationLabel: "Destination",
@@ -16,7 +19,7 @@ function buildRoute(surfaceDetails: PlannedRoute["surfaceDetails"]): PlannedRout
 			[1, 1, 20],
 		],
 		surfaceDetails,
-		smoothnessDetails: [],
+		smoothnessDetails,
 	};
 }
 
@@ -32,6 +35,36 @@ describe("getSurfaceMix", () => {
 			{ label: "Smooth asphalt", pct: 33, className: "bg-emerald-500" },
 			{ label: "Mixed / worn", pct: 33, className: "bg-amber-500" },
 			{ label: "Coarse / rough", pct: 33, className: "bg-orange-600" },
+		]);
+	});
+
+	it("normalizes incoming surface values before classifying them", () => {
+		const route = buildRoute([
+			{ from: 0, to: 6, value: "asphalt" },
+			{ from: 6, to: 10, value: "fine gravel" },
+		]);
+
+		expect(getSurfaceMix(route)).toEqual([
+			{ label: "Smooth asphalt", pct: 60, className: "bg-emerald-500" },
+			{ label: "Mixed / worn", pct: 40, className: "bg-amber-500" },
+		]);
+	});
+
+	it("falls back to smoothness when surface details are missing or unknown", () => {
+		const route = buildRoute(
+			[
+				{ from: 0, to: 5, value: "missing" },
+				{ from: 5, to: 10, value: "unknown" },
+			],
+			[
+				{ from: 0, to: 7, value: "good" },
+				{ from: 7, to: 10, value: "intermediate" },
+			],
+		);
+
+		expect(getSurfaceMix(route)).toEqual([
+			{ label: "Smooth asphalt", pct: 70, className: "bg-emerald-500" },
+			{ label: "Mixed / worn", pct: 30, className: "bg-amber-500" },
 		]);
 	});
 });

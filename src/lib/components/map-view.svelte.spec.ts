@@ -51,7 +51,10 @@ const testRouteGeoJson: FeatureCollection = {
 };
 
 const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
-	const sources = new Map<string, { data: unknown; setData: ReturnType<typeof vi.fn> }>();
+	const sources = new Map<
+		string,
+		{ data: unknown; setData: ReturnType<typeof vi.fn> }
+	>();
 	const layers = new Set<string>();
 
 	const mapInstance = {

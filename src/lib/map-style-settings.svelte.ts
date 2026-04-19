@@ -18,15 +18,23 @@ function getFallbackBasemapId(): BasemapId | null {
 	return getAvailableBasemaps()[0]?.id ?? null;
 }
 
-export function resolvePreferredBasemapId(preferredId: string | null): BasemapId | null {
-	if (preferredId && isBasemapId(preferredId) && isBasemapAvailable(preferredId)) {
+export function resolvePreferredBasemapId(
+	preferredId: string | null,
+): BasemapId | null {
+	if (
+		preferredId &&
+		isBasemapId(preferredId) &&
+		isBasemapAvailable(preferredId)
+	) {
 		return preferredId;
 	}
 
 	return getFallbackBasemapId();
 }
 
-export const selectedBasemapId = writable<BasemapId | null>(getFallbackBasemapId());
+export const selectedBasemapId = writable<BasemapId | null>(
+	getFallbackBasemapId(),
+);
 
 export function syncSelectedBasemap(): BasemapId | null {
 	const nextBasemapId = resolvePreferredBasemapId(get(selectedBasemapId));
@@ -96,4 +104,6 @@ export function getBasemapOptionState(id: BasemapId) {
 	};
 }
 
-export const basemapOptions = BASEMAPS.map((basemap) => getBasemapOptionState(basemap.id));
+export const basemapOptions = BASEMAPS.map((basemap) =>
+	getBasemapOptionState(basemap.id),
+);

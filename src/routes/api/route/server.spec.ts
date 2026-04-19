@@ -100,9 +100,13 @@ describe("POST /api/route", () => {
 
 		expect(response.status).toBe(200);
 		expect(fetchMock).toHaveBeenCalledTimes(3);
-		expect(String(fetchMock.mock.calls[0]?.[0])).toContain("provider=nominatim");
+		expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+			"provider=nominatim",
+		);
 		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("locale=");
-		expect(String(fetchMock.mock.calls[1]?.[0])).toContain("provider=nominatim");
+		expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
+			"provider=nominatim",
+		);
 
 		const routeRequest = fetchMock.mock.calls[2];
 		expect(routeRequest?.[0]).toBe(
@@ -207,7 +211,9 @@ describe("POST /api/route", () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(
-				new Response(JSON.stringify({ message: "bad request" }), { status: 400 }),
+				new Response(JSON.stringify({ message: "bad request" }), {
+					status: 400,
+				}),
 			)
 			.mockResolvedValueOnce(
 				new Response(
@@ -275,10 +281,16 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(String(fetchMock.mock.calls[0]?.[0])).toContain("provider=nominatim");
-		expect(String(fetchMock.mock.calls[1]?.[0])).not.toContain("provider=nominatim");
+		expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+			"provider=nominatim",
+		);
+		expect(String(fetchMock.mock.calls[1]?.[0])).not.toContain(
+			"provider=nominatim",
+		);
 		expect(String(fetchMock.mock.calls[1]?.[0])).toContain("locale=en");
-		expect(String(fetchMock.mock.calls[2]?.[0])).toContain("provider=nominatim");
+		expect(String(fetchMock.mock.calls[2]?.[0])).toContain(
+			"provider=nominatim",
+		);
 	});
 
 	it("surfaces upstream routing failures as a gateway error", async () => {
@@ -317,7 +329,9 @@ describe("POST /api/route", () => {
 				),
 			)
 			.mockResolvedValueOnce(
-				new Response(JSON.stringify({ message: "rate limited" }), { status: 429 }),
+				new Response(JSON.stringify({ message: "rate limited" }), {
+					status: 429,
+				}),
 			);
 
 		const response = await POST(

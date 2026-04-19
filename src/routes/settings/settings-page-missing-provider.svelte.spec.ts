@@ -29,16 +29,17 @@ describe("settings page with missing provider keys", () => {
 	it("falls back to the first available basemap and disables unavailable options", async () => {
 		render(SettingsPage);
 
-		await expect.element(getRadio("Stadia Alidade Smooth")).toHaveAttribute(
-			"aria-checked",
-			"true",
-		);
+		await expect
+			.element(getRadio("Stadia Alidade Smooth"))
+			.toHaveAttribute("aria-checked", "true");
 		expect(window.localStorage.getItem(MAP_STYLE_STORAGE_KEY)).toBe(
 			"stadia-alidade-smooth",
 		);
 
 		await expect.element(getRadio("MapTiler Satellite Hybrid")).toBeDisabled();
 		await expect.element(getRadio("MapTiler Outdoor")).toBeDisabled();
-		expect(document.body.textContent?.match(/PUBLIC_MAPTILER_API_KEY/g)?.length).toBe(2);
+		expect(
+			document.body.textContent?.match(/PUBLIC_MAPTILER_API_KEY/g)?.length,
+		).toBe(2);
 	});
 });

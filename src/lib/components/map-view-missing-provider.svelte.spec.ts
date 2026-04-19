@@ -52,7 +52,9 @@ describe("MapView without configured providers", () => {
 		await expect
 			.element(page.getByRole("region", { name: "Route map" }))
 			.toBeInTheDocument();
-		await expect.element(page.getByText("No map styles configured")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("No map styles configured"))
+			.toBeInTheDocument();
 		expect(mapMock).not.toHaveBeenCalled();
 
 		await view.unmount();
