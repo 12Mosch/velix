@@ -29,6 +29,16 @@ npm run dev
 npm run dev -- --open
 ```
 
+To use the route builder with live GraphHopper routing, add these environment variables before starting the app:
+
+```sh
+PUBLIC_STADIA_MAPS_API_KEY=...
+PUBLIC_MAPTILER_API_KEY=...
+GRAPHHOPPER_API_KEY=...
+```
+
+`GRAPHHOPPER_API_KEY` is server-only and should not use the `PUBLIC_` prefix.
+
 ## Building
 
 To create a production version of your app:
