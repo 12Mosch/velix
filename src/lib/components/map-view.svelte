@@ -14,7 +14,7 @@
 		syncSelectedBasemap,
 	} from "$lib/map-style-settings.svelte";
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
-	import type { RouteBounds } from "$lib/route-planning";
+	import type { RouteBounds, RouteCoordinate } from "$lib/route-planning";
 
 	type Props = {
 		initialCenter?: [number, number];
@@ -22,6 +22,7 @@
 		ariaLabel?: string;
 		routeGeoJson?: FeatureCollection | null;
 		routeBounds?: RouteBounds | null;
+		hoveredRouteCoordinate?: RouteCoordinate | null;
 	};
 
 	const defaultCenter = [11.394, 47.268] as [number, number];
@@ -31,6 +32,8 @@
 	const routeStartLayerId = "planned-route-start";
 	const routeWaypointLayerId = "planned-route-waypoint";
 	const routeDestinationLayerId = "planned-route-destination";
+	const hoveredRouteSourceId = "planned-route-hover";
+	const hoveredRouteLayerId = "planned-route-hover-point";
 
 	let {
 		initialCenter = defaultCenter,
@@ -38,6 +41,7 @@
 		ariaLabel = "Route map",
 		routeGeoJson = null,
 		routeBounds = null,
+		hoveredRouteCoordinate = null,
 	}: Props = $props();
 
 	let mapContainer = $state<HTMLDivElement | null>(null);
@@ -51,6 +55,10 @@
 
 	function getRouteSource() {
 		return map?.getSource(routeSourceId) as GeoJSONSource | undefined;
+	}
+
+	function getHoveredRouteSource() {
+		return map?.getSource(hoveredRouteSourceId) as GeoJSONSource | undefined;
 	}
 
 	function removeRouteOverlay() {
@@ -72,6 +80,20 @@
 
 		if (map.getSource(routeSourceId)) {
 			map.removeSource(routeSourceId);
+		}
+	}
+
+	function removeHoveredRouteOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		if (map.getLayer(hoveredRouteLayerId)) {
+			map.removeLayer(hoveredRouteLayerId);
+		}
+
+		if (map.getSource(hoveredRouteSourceId)) {
+			map.removeSource(hoveredRouteSourceId);
 		}
 	}
 
@@ -197,6 +219,67 @@
 		}
 	}
 
+	function ensureHoveredRouteOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		if (!hoveredRouteCoordinate) {
+			removeHoveredRouteOverlay();
+			return;
+		}
+
+		const hoveredPointGeoJson: FeatureCollection = {
+			type: "FeatureCollection",
+			features: [
+				{
+					type: "Feature",
+					properties: {
+						kind: "hovered-route-point",
+					},
+					geometry: {
+						type: "Point",
+						coordinates: hoveredRouteCoordinate,
+					},
+				},
+			],
+		};
+		const existingSource = getHoveredRouteSource();
+
+		if (existingSource) {
+			existingSource.setData(hoveredPointGeoJson);
+		} else {
+			map.addSource(hoveredRouteSourceId, {
+				type: "geojson",
+				data: hoveredPointGeoJson,
+			});
+		}
+
+		if (!map.getLayer(hoveredRouteLayerId)) {
+			map.addLayer({
+				id: hoveredRouteLayerId,
+				type: "circle",
+				source: hoveredRouteSourceId,
+				paint: {
+					"circle-color": "rgb(16, 185, 129)",
+					"circle-radius": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						6,
+						5,
+						12,
+						7,
+						16,
+						9,
+					],
+					"circle-stroke-color": "rgba(255, 255, 255, 0.96)",
+					"circle-stroke-width": 3,
+				},
+			});
+		}
+	}
+
 	function getFitPadding() {
 		if (typeof window === "undefined") {
 			return 48;
@@ -244,6 +327,7 @@
 		}
 
 		ensureRouteOverlay();
+		ensureHoveredRouteOverlay();
 
 		if (routeBounds) {
 			fitRouteBounds();
@@ -291,6 +375,7 @@
 			isLoaded = true;
 			isStyleReady = true;
 			ensureRouteOverlay();
+			ensureHoveredRouteOverlay();
 		};
 
 		let detached = false;
@@ -371,6 +456,7 @@
 					isLoaded = true;
 					isStyleReady = true;
 					ensureRouteOverlay();
+					ensureHoveredRouteOverlay();
 					fitRouteBounds();
 				});
 

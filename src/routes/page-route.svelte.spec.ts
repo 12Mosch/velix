@@ -15,6 +15,10 @@ import {
 	resetMapStylePreferenceForTests,
 } from "$lib/map-style-settings.svelte";
 import {
+	sampleElevationProfile,
+	type RouteCoordinate,
+} from "$lib/route-planning";
+import {
 	resetSavedRoutesForTests,
 	SAVED_ROUTES_STORAGE_KEY,
 } from "$lib/saved-routes.svelte";
@@ -49,6 +53,11 @@ const successfulRoutePayload = {
 		smoothnessDetails: [{ from: 0, to: 5, value: "GOOD" }],
 	},
 };
+const successfulRouteProfile = sampleElevationProfile(
+	successfulRoutePayload.route.coordinates as RouteCoordinate[],
+);
+const successfulRouteEndProfilePoint =
+	successfulRouteProfile[successfulRouteProfile.length - 1];
 
 const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 	const sources = new Map<
@@ -345,5 +354,131 @@ describe("+page.svelte", () => {
 		).toMatchObject({
 			waypointQueries: ["Tegernsee", "Bad Tolz"],
 		});
+	});
+
+	it("shows an inspected elevation readout and synced map marker while hovering the chart", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		await page
+			.getByRole("img", { name: "Elevation along route" })
+			.hover({ position: { x: 1, y: 12 } });
+
+		await expect.element(page.getByText("At 0.00 km")).toBeInTheDocument();
+		await expect.element(page.getByText(/^520 m$/)).toBeInTheDocument();
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toContain(
+			"planned-route-hover-point",
+		);
+
+		await page.getByRole("button", { name: "Analysis" }).hover();
+
+		await expect
+			.poll(() =>
+				mapInstance.removeSource.mock.calls.some(
+					(call) => call[0] === "planned-route-hover",
+				),
+			)
+			.toBe(true);
+		await expect.element(page.getByText("At 0.00 km")).not.toBeInTheDocument();
+	});
+
+	it("supports touch scrubbing across the elevation chart", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+
+		const chart = page.getByRole("img", { name: "Elevation along route" });
+		const chartElement = chart.element();
+		const chartBounds = chartElement.getBoundingClientRect();
+
+		if (!chartBounds || !successfulRouteEndProfilePoint) {
+			throw new Error("Expected chart bounds and sampled profile data");
+		}
+
+		const pointerId = 7;
+		const startY = chartBounds.y + chartBounds.height / 2;
+
+		chartElement.dispatchEvent(
+			new PointerEvent("pointerdown", {
+				bubbles: true,
+				pointerType: "touch",
+				pointerId,
+				clientX: chartBounds.x + 2,
+				clientY: startY,
+				buttons: 1,
+				isPrimary: true,
+			}),
+		);
+		chartElement.dispatchEvent(
+			new PointerEvent("pointermove", {
+				bubbles: true,
+				pointerType: "touch",
+				pointerId,
+				clientX: chartBounds.x + chartBounds.width - 2,
+				clientY: startY,
+				buttons: 1,
+				isPrimary: true,
+			}),
+		);
+
+		await expect
+			.element(
+				page.getByText(
+					`At ${(
+						(successfulRouteEndProfilePoint.distanceMeters ?? 0) / 1000
+					).toFixed(2)} km`,
+				),
+			)
+			.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText(
+					new RegExp(
+						`^${Math.round(successfulRouteEndProfilePoint.elevationMeters).toLocaleString()} m$`,
+					),
+				),
+			)
+			.toBeInTheDocument();
+
+		chartElement.dispatchEvent(
+			new PointerEvent("pointerup", {
+				bubbles: true,
+				pointerType: "touch",
+				pointerId,
+				clientX: chartBounds.x + chartBounds.width - 2,
+				clientY: startY,
+				buttons: 0,
+				isPrimary: true,
+			}),
+		);
+
+		await expect
+			.poll(() =>
+				mapInstance.removeSource.mock.calls.some(
+					(call) => call[0] === "planned-route-hover",
+				),
+			)
+			.toBe(true);
 	});
 });

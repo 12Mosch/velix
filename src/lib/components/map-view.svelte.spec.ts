@@ -57,6 +57,7 @@ const testRouteGeoJson: FeatureCollection = {
 		},
 	],
 };
+const hoveredRouteCoordinate: [number, number, number] = [11.57, 47.23, 735];
 
 const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 	const sources = new Map<
@@ -208,18 +209,66 @@ describe("MapView", () => {
 		render(MapView, {
 			routeGeoJson: testRouteGeoJson,
 			routeBounds: [11.5, 47.2, 11.6, 47.25],
+			hoveredRouteCoordinate,
 		});
 
 		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
-		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
 
 		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
 
 		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
-		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(4);
 		expect(mapMock).toHaveBeenCalledTimes(1);
 		expect(mapInstance.addLayer.mock.calls.at(-1)?.[0].id).toBe(
-			"planned-route-destination",
+			"planned-route-hover-point",
+		);
+	});
+
+	it("adds and removes the hovered route marker when the inspected point changes", async () => {
+		const view = render(MapView, {
+			routeGeoJson: testRouteGeoJson,
+			routeBounds: [11.5, 47.2, 11.6, 47.25],
+			hoveredRouteCoordinate,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
+
+		expect(mapInstance.addSource).toHaveBeenCalledWith(
+			"planned-route-hover",
+			expect.objectContaining({
+				type: "geojson",
+				data: expect.objectContaining({
+					features: [
+						expect.objectContaining({
+							geometry: expect.objectContaining({
+								type: "Point",
+								coordinates: hoveredRouteCoordinate,
+							}),
+						}),
+					],
+				}),
+			}),
+		);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toContain(
+			"planned-route-hover-point",
+		);
+
+		await view.rerender({
+			routeGeoJson: testRouteGeoJson,
+			routeBounds: [11.5, 47.2, 11.6, 47.25],
+			hoveredRouteCoordinate: null,
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.removeSource.mock.calls.some(
+					(call) => call[0] === "planned-route-hover",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
+			"planned-route-hover-point",
 		);
 	});
 
