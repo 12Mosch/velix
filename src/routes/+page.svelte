@@ -5,6 +5,7 @@
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
+	import MapView from '$lib/components/map-view.svelte';
 	import {
 		MapPin,
 		Navigation,
@@ -62,17 +63,7 @@
 </script>
 
 <div class="relative h-full w-full bg-background overflow-hidden flex flex-col">
-    <!-- Map Background Mockup -->
-    <div class="absolute inset-0 pointer-events-none z-0">
-        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--color-primary)_0%,_transparent_100%)] opacity-[0.03]"></div>
-        <div class="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:64px_64px]"></div>
-        
-        <svg aria-hidden="true" focusable="false" class="absolute top-1/2 left-1/3 w-1/2 h-1/2 overflow-visible opacity-20" viewBox="0 0 100 100">
-            <path d="M 0 50 C 20 20, 40 80, 60 40 S 80 10, 100 60" fill="none" stroke="var(--color-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-[0_0_4px_rgba(168,85,247,0.4)]" />
-            <circle cx="0" cy="50" r="2.5" fill="var(--color-background)" stroke="var(--color-primary)" stroke-width="1" />
-            <circle cx="100" cy="60" r="2.5" fill="var(--color-primary)" />
-        </svg>
-    </div>
+	<MapView />
 
     <!-- Mobile: menu trigger (desktop toggle lives in the sidebar header) -->
     <div class="pointer-events-none absolute inset-0 z-20">
@@ -212,7 +203,20 @@
         </div>
 
         <!-- Bottom strip: compact by default; map stays the hero -->
-        <div class="pointer-events-auto w-full shrink-0">
+        <div class="pointer-events-auto relative w-full shrink-0">
+            <div
+                class="absolute bottom-[calc(100%+0.5rem)] right-0 z-20 max-w-[13rem] rounded-md border border-white/10 bg-black/42 px-2 py-1 text-[10px] leading-none text-white/58 shadow-sm backdrop-blur-[6px] supports-[backdrop-filter]:bg-black/34 md:text-[11px]"
+            >
+                Basemap by
+                <a
+                    class="underline decoration-white/25 underline-offset-2 transition-colors hover:text-white/78"
+                    href="https://www.openstreetmap.org/copyright"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    OpenStreetMap contributors
+                </a>
+            </div>
             <div
                 class="rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-sm md:p-3.5"
             >
