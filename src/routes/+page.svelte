@@ -62,6 +62,8 @@
 	let activeSavedRouteId = $state<string | null>(null);
 	let isActiveRouteSaved = $state(false);
 	let clientFetch = $state<typeof window.fetch | null>(null);
+	let activeProfileIndex = $state<number | null>(null);
+	let chartScrubPointerId = $state<number | null>(null);
 
 	const selectedBasemap = $derived(
 		mapStylePreference.selectedBasemapId
@@ -73,27 +75,43 @@
 	const elevationSamples = $derived(activeRoute ? sampleElevationProfile(activeRoute.coordinates) : []);
 	const chartH = $derived(routeAnalysisOpen ? 72 : 44);
 	const elevMin = $derived(
-		elevationSamples.length > 0 ? Math.min(...elevationSamples) : 0,
+		elevationSamples.length > 0
+			? Math.min(...elevationSamples.map((point) => point.elevationMeters))
+			: 0,
 	);
 	const elevMax = $derived(
-		elevationSamples.length > 0 ? Math.max(...elevationSamples) : 0,
+		elevationSamples.length > 0
+			? Math.max(...elevationSamples.map((point) => point.elevationMeters))
+			: 0,
 	);
 	const elevRange = $derived(Math.max(elevMax - elevMin, 1));
+	const chartProfilePoints = $derived(
+		elevationSamples.map((point) => {
+			const x =
+				elevationSamples.length > 1
+					? (point.distanceMeters / (elevationSamples[elevationSamples.length - 1]?.distanceMeters || 1)) *
+						chartW
+					: chartW / 2;
+			const y = elevY(point.elevationMeters, chartH, padY);
+
+			return {
+				...point,
+				x,
+				y,
+			};
+		}),
+	);
+	const activeProfilePoint = $derived(
+		activeProfileIndex === null ? null : chartProfilePoints[activeProfileIndex] ?? null,
+	);
 	const linePoints = $derived(
-		elevationSamples
-			.map((meters, index) => {
-				const x =
-					elevationSamples.length > 1
-						? (index / (elevationSamples.length - 1)) * chartW
-						: chartW / 2;
-				const y = elevY(meters, chartH, padY);
-				return `${x},${y}`;
-			})
+		chartProfilePoints
+			.map((point) => `${point.x},${point.y}`)
 			.join(" "),
 	);
 	const areaD = $derived(
 		linePoints
-			? `M 0,${chartH} L ${linePoints.replaceAll(" ", " L ")} L ${chartW},${chartH} Z`
+			? `M ${chartProfilePoints[0]?.x ?? 0},${chartH} L ${linePoints.replaceAll(" ", " L ")} L ${chartProfilePoints[chartProfilePoints.length - 1]?.x ?? chartW},${chartH} Z`
 			: "",
 	);
 	const distanceTickLabels = $derived(
@@ -110,6 +128,21 @@
 	$effect(() => {
 		if (!activeRoute && routeAnalysisOpen) {
 			routeAnalysisOpen = false;
+		}
+	});
+
+	$effect(() => {
+		if (!activeRoute || chartProfilePoints.length === 0) {
+			activeProfileIndex = null;
+			chartScrubPointerId = null;
+			return;
+		}
+
+		if (
+			activeProfileIndex !== null &&
+			(activeProfileIndex < 0 || activeProfileIndex >= chartProfilePoints.length)
+		) {
+			activeProfileIndex = null;
 		}
 	});
 
@@ -139,6 +172,8 @@
 		isActiveRouteSaved = true;
 		routeRequestError = null;
 		fieldErrors = {};
+		activeProfileIndex = null;
+		chartScrubPointerId = null;
 	}
 
 	function elevY(meters: number, height: number, pad: number): number {
@@ -150,8 +185,113 @@
 		return `${(meters / 1000).toFixed(1)} km`;
 	}
 
+	function formatExactDistance(meters: number): string {
+		return `${(meters / 1000).toFixed(2)} km`;
+	}
+
 	function formatElevation(meters: number): string {
 		return `${Math.round(meters).toLocaleString()} m`;
+	}
+
+	function getNearestProfileIndex(chartX: number): number | null {
+		if (chartProfilePoints.length === 0) {
+			return null;
+		}
+
+		let nearestIndex = 0;
+		let nearestDistance = Math.abs((chartProfilePoints[0]?.x ?? 0) - chartX);
+
+		for (const [index, point] of chartProfilePoints.entries()) {
+			const distance = Math.abs(point.x - chartX);
+
+			if (distance < nearestDistance) {
+				nearestIndex = index;
+				nearestDistance = distance;
+			}
+		}
+
+		return nearestIndex;
+	}
+
+	function getChartPointerX(event: PointerEvent): number {
+		const bounds = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
+
+		if (bounds.width === 0) {
+			return 0;
+		}
+
+		const xRatio = (event.clientX - bounds.left) / bounds.width;
+		return Math.min(chartW, Math.max(0, xRatio * chartW));
+	}
+
+	function updateActiveProfileFromPointer(event: PointerEvent) {
+		const nextIndex = getNearestProfileIndex(getChartPointerX(event));
+
+		if (nextIndex === null) {
+			return;
+		}
+
+		activeProfileIndex = nextIndex;
+	}
+
+	function clearActiveProfilePoint() {
+		activeProfileIndex = null;
+	}
+
+	function handleChartPointerDown(event: PointerEvent) {
+		if (event.pointerType === "mouse") {
+			return;
+		}
+
+		chartScrubPointerId = event.pointerId;
+
+		try {
+			(event.currentTarget as SVGSVGElement).setPointerCapture?.(event.pointerId);
+		} catch {
+			// Synthetic test events can dispatch without an active capturable pointer.
+		}
+
+		updateActiveProfileFromPointer(event);
+	}
+
+	function handleChartPointerMove(event: PointerEvent) {
+		if (event.pointerType !== "mouse" && chartScrubPointerId !== event.pointerId) {
+			return;
+		}
+
+		updateActiveProfileFromPointer(event);
+	}
+
+	function handleChartPointerLeave() {
+		if (chartScrubPointerId !== null) {
+			return;
+		}
+
+		clearActiveProfilePoint();
+	}
+
+	function releaseChartScrub(event: PointerEvent) {
+		if (chartScrubPointerId !== event.pointerId) {
+			return;
+		}
+
+		try {
+			(event.currentTarget as SVGSVGElement).releasePointerCapture?.(event.pointerId);
+		} catch {
+			// Releasing is optional when capture was never established.
+		}
+
+		chartScrubPointerId = null;
+		clearActiveProfilePoint();
+	}
+
+	function handleChartLostPointerCapture(event: PointerEvent) {
+		if (chartScrubPointerId !== event.pointerId) {
+			return;
+		}
+
+		chartScrubPointerId = null;
+		clearActiveProfilePoint();
 	}
 
 	function formatDuration(durationMs: number): string {
@@ -315,6 +455,8 @@
 			activeSavedRouteId = null;
 			isActiveRouteSaved = false;
 			routeRequestError = null;
+			activeProfileIndex = null;
+			chartScrubPointerId = null;
 		} catch (error) {
 			console.error("Failed to generate route", error);
 			routeRequestError = "The route request failed before we heard back from GraphHopper.";
@@ -342,7 +484,11 @@
 </script>
 
 <div class="relative flex h-full w-full flex-col overflow-hidden bg-background">
-	<MapView routeGeoJson={routeGeoJson} routeBounds={activeRoute?.bounds ?? null} />
+	<MapView
+		routeGeoJson={routeGeoJson}
+		routeBounds={activeRoute?.bounds ?? null}
+		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
+	/>
 
 	<div class="pointer-events-none absolute inset-0 z-20">
 		{#if sidebar.isMobile}
@@ -721,6 +867,15 @@
 							<div
 								class="flex flex-wrap items-center justify-end gap-x-2 gap-y-0 text-xs tabular-nums text-muted-foreground"
 							>
+								{#if activeProfilePoint}
+									<span class="font-semibold text-foreground">
+										At {formatExactDistance(activeProfilePoint.distanceMeters)}
+									</span>
+									<span class="font-semibold text-foreground">
+										{formatElevation(activeProfilePoint.elevationMeters)}
+									</span>
+									<span class="text-border">|</span>
+								{/if}
 								<span>min {formatElevation(elevMin)}</span>
 								<span class="text-border">|</span>
 								<span>max {formatElevation(elevMax)}</span>
@@ -734,11 +889,17 @@
 					<div class="px-2 pb-1.5 pt-1">
 						{#if elevationSamples.length > 0}
 							<svg
-								class="block w-full"
+								class="block w-full touch-none"
 								viewBox="0 0 {chartW} {chartH}"
 								preserveAspectRatio="none"
 								role="img"
 								aria-label="Elevation along route"
+								onpointerdown={handleChartPointerDown}
+								onpointermove={handleChartPointerMove}
+								onpointerleave={handleChartPointerLeave}
+								onpointerup={releaseChartScrub}
+								onpointercancel={releaseChartScrub}
+								onlostpointercapture={handleChartLostPointerCapture}
 							>
 								<defs>
 									<linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
@@ -759,6 +920,18 @@
 									/>
 								{/each}
 								<path d={areaD} fill="url(#elevFill)" class="text-emerald-500" />
+								{#if activeProfilePoint}
+									<line
+										x1={activeProfilePoint.x}
+										y1="0"
+										x2={activeProfilePoint.x}
+										y2={chartH}
+										stroke="rgb(16 185 129 / 0.45)"
+										stroke-width="1.5"
+										stroke-dasharray="3 4"
+										vector-effect="non-scaling-stroke"
+									/>
+								{/if}
 								<polyline
 									fill="none"
 									stroke="rgb(16 185 129)"
@@ -767,6 +940,30 @@
 									stroke-linecap="round"
 									points={linePoints}
 									vector-effect="non-scaling-stroke"
+								/>
+								{#if activeProfilePoint}
+									<circle
+										cx={activeProfilePoint.x}
+										cy={activeProfilePoint.y}
+										r="5.75"
+										fill="rgba(16, 185, 129, 0.22)"
+									/>
+									<circle
+										cx={activeProfilePoint.x}
+										cy={activeProfilePoint.y}
+										r="3.5"
+										fill="rgb(16 185 129)"
+										stroke="rgba(255, 255, 255, 0.96)"
+										stroke-width="2"
+									/>
+								{/if}
+								<rect
+									x="0"
+									y="0"
+									width={chartW}
+									height={chartH}
+									fill="transparent"
+									pointer-events="all"
 								/>
 							</svg>
 							<div

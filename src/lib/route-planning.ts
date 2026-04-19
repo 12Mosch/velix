@@ -21,6 +21,12 @@ export type RouteWaypoint = {
 	coordinate: RouteCoordinate;
 };
 
+export type ElevationProfilePoint = {
+	distanceMeters: number;
+	elevationMeters: number;
+	coordinate: RouteCoordinate;
+};
+
 export type PlannedRoute = {
 	startLabel: string;
 	destinationLabel: string;
@@ -96,6 +102,8 @@ const smoothnessSurfaceFallback = {
 	smooth: new Set(["EXCELLENT", "GOOD"]),
 	mixed: new Set(["INTERMEDIATE"]),
 };
+
+const earthRadiusMeters = 6371008.8;
 
 function normalizeDetailValue(value: string): string {
 	return value
@@ -210,28 +218,92 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 	};
 }
 
+function toRadians(value: number) {
+	return (value * Math.PI) / 180;
+}
+
+function getCoordinateDistanceMeters(
+	from: RouteCoordinate,
+	to: RouteCoordinate,
+): number {
+	const [fromLon, fromLat] = from;
+	const [toLon, toLat] = to;
+	const latitudeDelta = toRadians(toLat - fromLat);
+	const longitudeDelta = toRadians(toLon - fromLon);
+	const fromLatitudeRadians = toRadians(fromLat);
+	const toLatitudeRadians = toRadians(toLat);
+	const haversineA =
+		Math.sin(latitudeDelta / 2) ** 2 +
+		Math.cos(fromLatitudeRadians) *
+			Math.cos(toLatitudeRadians) *
+			Math.sin(longitudeDelta / 2) ** 2;
+	const haversineC =
+		2 * Math.atan2(Math.sqrt(haversineA), Math.sqrt(1 - haversineA));
+
+	return earthRadiusMeters * haversineC;
+}
+
 export function sampleElevationProfile(
 	coordinates: RouteCoordinate[],
 	targetSamples = 40,
-): number[] {
-	const elevations = coordinates
-		.map((coordinate) => coordinate[2])
-		.filter((value): value is number => Number.isFinite(value));
-
-	if (elevations.length === 0) {
+): ElevationProfilePoint[] {
+	if (coordinates.length === 0) {
 		return [];
 	}
 
-	if (elevations.length <= targetSamples) {
-		return elevations;
+	let totalDistanceMeters = 0;
+	let previousCoordinate = coordinates[0];
+	const profilePoints: ElevationProfilePoint[] = [];
+
+	for (const [index, coordinate] of coordinates.entries()) {
+		if (index > 0 && previousCoordinate) {
+			totalDistanceMeters += getCoordinateDistanceMeters(
+				previousCoordinate,
+				coordinate,
+			);
+		}
+
+		previousCoordinate = coordinate;
+
+		const elevationMeters = coordinate[2];
+
+		if (elevationMeters === undefined || !Number.isFinite(elevationMeters)) {
+			continue;
+		}
+
+		profilePoints.push({
+			distanceMeters: totalDistanceMeters,
+			elevationMeters,
+			coordinate,
+		});
 	}
 
-	const lastIndex = elevations.length - 1;
-	const step = lastIndex / (targetSamples - 1);
+	if (profilePoints.length === 0) {
+		return [];
+	}
 
-	return Array.from({ length: targetSamples }, (_, index) => {
+	const lastProfilePoint = profilePoints[profilePoints.length - 1];
+
+	if (!lastProfilePoint) {
+		return [];
+	}
+
+	const sampleCount = Math.max(targetSamples, 1);
+
+	if (profilePoints.length <= sampleCount) {
+		return profilePoints;
+	}
+
+	if (sampleCount === 1) {
+		return [profilePoints[0] ?? lastProfilePoint];
+	}
+
+	const lastIndex = profilePoints.length - 1;
+	const step = lastIndex / (sampleCount - 1);
+
+	return Array.from({ length: sampleCount }, (_, index) => {
 		const sampleIndex = Math.min(lastIndex, Math.round(index * step));
-		return elevations[sampleIndex] ?? elevations[lastIndex];
+		return profilePoints[sampleIndex] ?? lastProfilePoint;
 	});
 }
 

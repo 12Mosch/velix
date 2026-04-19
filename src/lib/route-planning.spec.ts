@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildRouteGeoJson,
 	getSurfaceMix,
+	sampleElevationProfile,
 	type PlannedRoute,
 } from "./route-planning";
 
@@ -92,5 +93,57 @@ describe("getSurfaceMix", () => {
 			{ label: "Smooth asphalt", pct: 70, className: "bg-emerald-500" },
 			{ label: "Mixed / worn", pct: 30, className: "bg-amber-500" },
 		]);
+	});
+});
+
+describe("sampleElevationProfile", () => {
+	it("preserves the exact start and end distances when downsampling", () => {
+		const profilePoints = sampleElevationProfile(
+			[
+				[11.5, 47.2, 520],
+				[11.51, 47.205, 540],
+				[11.53, 47.215, 580],
+				[11.56, 47.23, 610],
+			],
+			2,
+		);
+
+		expect(profilePoints).toHaveLength(2);
+		expect(profilePoints[0]).toMatchObject({
+			distanceMeters: 0,
+			elevationMeters: 520,
+			coordinate: [11.5, 47.2, 520],
+		});
+		expect(profilePoints[1]?.distanceMeters).toBeGreaterThan(0);
+		expect(profilePoints[1]).toMatchObject({
+			elevationMeters: 610,
+			coordinate: [11.56, 47.23, 610],
+		});
+	});
+
+	it("uses cumulative route distance instead of distributing samples evenly by index", () => {
+		const profilePoints = sampleElevationProfile([
+			[0, 0, 10],
+			[0, 0.01, 20],
+			[0, 1, 30],
+		]);
+
+		expect(profilePoints).toHaveLength(3);
+		expect(profilePoints[0]?.distanceMeters).toBe(0);
+		expect(profilePoints[1]?.distanceMeters).toBeGreaterThan(1000);
+		expect(profilePoints[1]?.distanceMeters).toBeLessThan(2000);
+		expect(profilePoints[2]?.distanceMeters).toBeGreaterThan(100000);
+		expect(profilePoints[1]?.distanceMeters).toBeLessThan(
+			(profilePoints[2]?.distanceMeters ?? 0) / 10,
+		);
+	});
+
+	it("skips coordinates without elevation values", () => {
+		expect(
+			sampleElevationProfile([
+				[11.5, 47.2],
+				[11.6, 47.25],
+			]),
+		).toEqual([]);
 	});
 });
