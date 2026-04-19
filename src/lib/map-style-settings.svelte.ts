@@ -1,8 +1,8 @@
 import { browser } from "$app/environment";
-import { get, writable } from "svelte/store";
 
 import {
 	BASEMAPS,
+	type BasemapDefinition,
 	getAvailableBasemaps,
 	getBasemapById,
 	isBasemapAvailable,
@@ -11,8 +11,6 @@ import {
 } from "$lib/map/basemaps";
 
 export const MAP_STYLE_STORAGE_KEY = "velix.mapStyle";
-
-let initialized = false;
 
 function getFallbackBasemapId(): BasemapId | null {
 	return getAvailableBasemaps()[0]?.id ?? null;
@@ -32,67 +30,91 @@ export function resolvePreferredBasemapId(
 	return getFallbackBasemapId();
 }
 
-export const selectedBasemapId = writable<BasemapId | null>(
-	getFallbackBasemapId(),
-);
+class MapStylePreferenceState {
+	initialized = $state(false);
+	selectedBasemapId = $state<BasemapId | null>(getFallbackBasemapId());
+
+	syncSelectedBasemap(): BasemapId | null {
+		const nextBasemapId = resolvePreferredBasemapId(this.selectedBasemapId);
+		this.selectedBasemapId = nextBasemapId;
+		return nextBasemapId;
+	}
+
+	initMapStylePreference(): BasemapId | null {
+		if (!browser) {
+			return this.syncSelectedBasemap();
+		}
+
+		if (this.initialized) {
+			return this.selectedBasemapId;
+		}
+
+		this.initialized = true;
+
+		const storedBasemapId = window.localStorage.getItem(MAP_STYLE_STORAGE_KEY);
+		const nextBasemapId = resolvePreferredBasemapId(storedBasemapId);
+
+		this.selectedBasemapId = nextBasemapId;
+
+		if (nextBasemapId) {
+			window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, nextBasemapId);
+		} else {
+			window.localStorage.removeItem(MAP_STYLE_STORAGE_KEY);
+		}
+
+		return nextBasemapId;
+	}
+
+	setMapStylePreference(id: BasemapId): boolean {
+		if (!isBasemapAvailable(id)) {
+			return false;
+		}
+
+		this.selectedBasemapId = id;
+
+		if (browser) {
+			window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, id);
+		}
+
+		return true;
+	}
+
+	getSelectedBasemap(): BasemapDefinition | null {
+		return this.selectedBasemapId
+			? getBasemapById(this.selectedBasemapId)
+			: null;
+	}
+
+	resetMapStylePreferenceForTests() {
+		this.initialized = false;
+		this.selectedBasemapId = getFallbackBasemapId();
+
+		if (browser) {
+			window.localStorage.removeItem(MAP_STYLE_STORAGE_KEY);
+		}
+	}
+}
+
+export const mapStylePreference = new MapStylePreferenceState();
 
 export function syncSelectedBasemap(): BasemapId | null {
-	const nextBasemapId = resolvePreferredBasemapId(get(selectedBasemapId));
-	selectedBasemapId.set(nextBasemapId);
-	return nextBasemapId;
+	return mapStylePreference.syncSelectedBasemap();
 }
 
 export function initMapStylePreference(): BasemapId | null {
-	if (!browser) {
-		return syncSelectedBasemap();
-	}
-
-	if (initialized) {
-		return get(selectedBasemapId);
-	}
-
-	initialized = true;
-
-	const storedBasemapId = window.localStorage.getItem(MAP_STYLE_STORAGE_KEY);
-	const nextBasemapId = resolvePreferredBasemapId(storedBasemapId);
-
-	selectedBasemapId.set(nextBasemapId);
-
-	if (nextBasemapId) {
-		window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, nextBasemapId);
-	} else {
-		window.localStorage.removeItem(MAP_STYLE_STORAGE_KEY);
-	}
-
-	return nextBasemapId;
+	return mapStylePreference.initMapStylePreference();
 }
 
 export function setMapStylePreference(id: BasemapId): boolean {
-	if (!isBasemapAvailable(id)) {
-		return false;
-	}
-
-	selectedBasemapId.set(id);
-
-	if (browser) {
-		window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, id);
-	}
-
-	return true;
+	return mapStylePreference.setMapStylePreference(id);
 }
 
 export function getSelectedBasemap() {
-	const basemapId = get(selectedBasemapId);
-	return basemapId ? getBasemapById(basemapId) : null;
+	return mapStylePreference.getSelectedBasemap();
 }
 
 export function resetMapStylePreferenceForTests() {
-	initialized = false;
-	selectedBasemapId.set(getFallbackBasemapId());
-
-	if (browser) {
-		window.localStorage.removeItem(MAP_STYLE_STORAGE_KEY);
-	}
+	mapStylePreference.resetMapStylePreferenceForTests();
 }
 
 export function getBasemapOptionState(id: BasemapId) {

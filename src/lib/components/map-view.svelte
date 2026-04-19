@@ -10,7 +10,7 @@
 
 	import {
 		initMapStylePreference,
-		selectedBasemapId,
+		mapStylePreference,
 		syncSelectedBasemap,
 	} from "$lib/map-style-settings.svelte";
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
@@ -45,6 +45,8 @@
 	let isStyleReady = $state(false);
 	let loadError = $state<string | null>(null);
 	let lastFittedBoundsKey = $state<string | null>(null);
+	let currentStyleUrl = $state<string | null>(null);
+	let detachStyleLoadListener = () => {};
 
 	function getRouteSource() {
 		return map?.getSource(routeSourceId) as GeoJSONSource | undefined;
@@ -233,11 +235,85 @@
 		}
 	});
 
+	$effect(() => {
+		const basemapId = mapStylePreference.selectedBasemapId;
+		let cancelled = false;
+
+		if (!map) {
+			return;
+		}
+
+		const currentMap = map;
+		const nextStyleUrl = basemapId ? getBasemapStyleUrl(basemapId) : null;
+
+		if (!nextStyleUrl) {
+			loadError = "No map styles configured";
+			isLoaded = false;
+			isStyleReady = false;
+			return () => {
+				cancelled = true;
+			};
+		}
+
+		if (nextStyleUrl === currentStyleUrl) {
+			return () => {
+				cancelled = true;
+			};
+		}
+
+		currentStyleUrl = nextStyleUrl;
+		loadError = null;
+		isLoaded = false;
+		isStyleReady = false;
+		const handleStyleLoad = () => {
+			if (cancelled) {
+				return;
+			}
+
+			loadError = null;
+			isLoaded = true;
+			isStyleReady = true;
+			ensureRouteOverlay();
+		};
+
+		let detached = false;
+		let detachCurrentStyleLoad = () => {
+			if (detached) {
+				return;
+			}
+
+			detached = true;
+			detachStyleLoadListener = () => {};
+		};
+
+		if (typeof currentMap.on === "function" && typeof currentMap.off === "function") {
+			currentMap.on("style.load", handleStyleLoad);
+			detachCurrentStyleLoad = () => {
+				if (detached) {
+					return;
+				}
+
+				detached = true;
+				detachStyleLoadListener = () => {};
+				currentMap.off("style.load", handleStyleLoad);
+			};
+			detachStyleLoadListener = detachCurrentStyleLoad;
+		} else {
+			detachStyleLoadListener = detachCurrentStyleLoad;
+			currentMap.once("style.load", handleStyleLoad);
+		}
+
+		currentMap.setStyle(nextStyleUrl);
+
+		return () => {
+			cancelled = true;
+			detachCurrentStyleLoad();
+		};
+	});
+
 	onMount(() => {
 		let cancelled = false;
 		let resizeObserver: ResizeObserver | undefined;
-		let currentStyleUrl: string | null = null;
-		let unsubscribe = () => {};
 
 		initMapStylePreference();
 
@@ -285,34 +361,6 @@
 					map?.resize();
 				});
 				resizeObserver.observe(mapContainer);
-
-				unsubscribe = selectedBasemapId.subscribe((basemapId) => {
-					const nextStyleUrl = basemapId ? getBasemapStyleUrl(basemapId) : null;
-
-					if (!nextStyleUrl) {
-						loadError = "No map styles configured";
-						isLoaded = false;
-						isStyleReady = false;
-						return;
-					}
-
-					if (!map || nextStyleUrl === currentStyleUrl) {
-						return;
-					}
-
-					currentStyleUrl = nextStyleUrl;
-					loadError = null;
-					isLoaded = false;
-					isStyleReady = false;
-					map.once("style.load", () => {
-						if (cancelled) return;
-						loadError = null;
-						isLoaded = true;
-						isStyleReady = true;
-						ensureRouteOverlay();
-					});
-					map.setStyle(nextStyleUrl);
-				});
 			} catch (error) {
 				if (cancelled) return;
 				loadError = "Map failed to load";
@@ -326,10 +374,11 @@
 
 		return () => {
 			cancelled = true;
-			unsubscribe();
+			detachStyleLoadListener();
 			resizeObserver?.disconnect();
 			map?.remove();
 			map = null;
+			currentStyleUrl = null;
 			isStyleReady = false;
 		};
 	});

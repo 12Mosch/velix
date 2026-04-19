@@ -9,7 +9,7 @@
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 	import MapView from "$lib/components/map-view.svelte";
 	import { getBasemapById } from "$lib/map/basemaps";
-	import { selectedBasemapId } from "$lib/map-style-settings.svelte";
+	import { mapStylePreference } from "$lib/map-style-settings.svelte";
 	import {
 		buildRouteGeoJson,
 		getSurfaceMix,
@@ -46,7 +46,11 @@
 	let activeRoute = $state<PlannedRoute | null>(null);
 	let clientFetch = $state<typeof window.fetch | null>(null);
 
-	const selectedBasemap = $derived($selectedBasemapId ? getBasemapById($selectedBasemapId) : null);
+	const selectedBasemap = $derived(
+		mapStylePreference.selectedBasemapId
+			? getBasemapById(mapStylePreference.selectedBasemapId)
+			: null,
+	);
 	const routeGeoJson = $derived(activeRoute ? buildRouteGeoJson(activeRoute) : null);
 	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
 	const elevationSamples = $derived(activeRoute ? sampleElevationProfile(activeRoute.coordinates) : []);
