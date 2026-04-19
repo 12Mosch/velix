@@ -1,19 +1,26 @@
 import { page } from "vitest/browser";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
+
+vi.mock("$env/dynamic/public", () => ({
+	env: {
+		PUBLIC_MAPTILER_API_KEY: "maptiler-test-key",
+		PUBLIC_STADIA_MAPS_API_KEY: "stadia-test-key",
+	},
+}));
+
 import MapView from "./map-view.svelte";
+import {
+	MAP_STYLE_STORAGE_KEY,
+	resetMapStylePreferenceForTests,
+	setMapStylePreference,
+} from "$lib/map-style-settings.svelte";
 
 type MockMapOptions = {
 	attributionControl: boolean;
 	center: [number, number];
 	container: HTMLElement;
-	style: {
-		sources: {
-			osm: {
-				tiles: string[];
-			};
-		};
-	};
+	style: string;
 	zoom: number;
 };
 
@@ -23,15 +30,23 @@ const { mapInstance, mapMock } = vi.hoisted(() => {
 			once: vi.fn(),
 			remove: vi.fn(),
 			resize: vi.fn(),
+			setStyle: vi.fn(),
 		},
-		mapMock: vi.fn((_options: MockMapOptions) => {}),
+		mapMock: vi.fn(function MockMap(_options: MockMapOptions) {
+			return mapInstance;
+		}),
 	};
 });
 
 vi.mock("maplibre-gl", () => {
-	mapMock.mockImplementation(() => mapInstance);
+	mapMock.mockImplementation(function MockMap(_options: MockMapOptions) {
+		return mapInstance;
+	});
 	mapInstance.once.mockImplementation((event: string, callback: () => void) => {
-		if (event === "load") callback();
+		if (event === "load" || event === "style.load") {
+			callback();
+		}
+
 		return mapInstance;
 	});
 
@@ -47,15 +62,22 @@ describe("MapView", () => {
 	const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
 	beforeEach(() => {
+		window.localStorage.clear();
+		resetMapStylePreferenceForTests();
 		mapMock.mockClear();
-		mapMock.mockImplementation(() => mapInstance);
+		mapMock.mockImplementation(function MockMap(_options: MockMapOptions) {
+			return mapInstance;
+		});
 		mapInstance.once.mockClear();
 		mapInstance.remove.mockClear();
 		mapInstance.resize.mockClear();
+		mapInstance.setStyle.mockClear();
 		consoleError.mockClear();
 	});
 
-	it("creates a map with the expected viewport and tears it down", async () => {
+	it("creates a map with the selected provider style and tears it down", async () => {
+		window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, "maptiler-outdoor");
+
 		const view = render(MapView, {
 			ariaLabel: "Test map",
 			initialCenter: [11.5, 47.2],
@@ -76,14 +98,30 @@ describe("MapView", () => {
 		expect(options.attributionControl).toBe(false);
 		expect(options.center).toEqual([11.5, 47.2]);
 		expect(options.zoom).toBe(9);
-		expect(options.style.sources.osm.tiles).toEqual([
-			"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-		]);
+		expect(options.style).toBe(
+			"https://api.maptiler.com/maps/outdoor-v2/style.json?key=maptiler-test-key",
+		);
 		expect(options.container).toBeInstanceOf(HTMLElement);
 
 		await view.unmount();
 
 		expect(mapInstance.remove).toHaveBeenCalledTimes(1);
+	});
+
+	it("updates the active map style without recreating the map", async () => {
+		render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		expect(mapInstance.setStyle).not.toHaveBeenCalled();
+
+		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
+
+		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
+		expect(mapInstance.setStyle).toHaveBeenCalledWith(
+			"https://api.maptiler.com/maps/hybrid/style.json?key=maptiler-test-key",
+		);
+		expect(mapMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("handles constructor failures without throwing unhandled rejections", async () => {

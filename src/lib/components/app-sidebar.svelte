@@ -18,7 +18,7 @@
 			label: 'Account',
 			items: [
 				{ title: 'Connected devices', url: '#', icon: Smartphone },
-				{ title: 'Settings', url: '#', icon: Settings }
+				{ title: 'Settings', url: '/settings', icon: Settings }
 			]
 		}
 	];
