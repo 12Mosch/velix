@@ -11,6 +11,13 @@
 	import { getBasemapById } from "$lib/map/basemaps";
 	import { mapStylePreference } from "$lib/map-style-settings.svelte";
 	import {
+		addSavedRoute,
+		deleteSavedRoute,
+		getSavedRouteById,
+		initSavedRoutes,
+		isPlannedRoute,
+	} from "$lib/saved-routes.svelte";
+	import {
 		buildRouteGeoJson,
 		getSurfaceMix,
 		sampleElevationProfile,
@@ -19,6 +26,7 @@
 		type RouteApiSuccess,
 	} from "$lib/route-planning";
 	import {
+		Check,
 		ChevronDown,
 		ChevronUp,
 		MapPin,
@@ -44,6 +52,8 @@
 	let fieldErrors = $state<Partial<Record<RouteField, string>>>({});
 	let isRouting = $state(false);
 	let activeRoute = $state<PlannedRoute | null>(null);
+	let activeSavedRouteId = $state<string | null>(null);
+	let isActiveRouteSaved = $state(false);
 	let clientFetch = $state<typeof window.fetch | null>(null);
 
 	const selectedBasemap = $derived(
@@ -98,7 +108,30 @@
 
 	onMount(() => {
 		clientFetch = window.fetch.bind(window);
+		initSavedRoutes();
+		restoreSavedRouteFromLocation();
 	});
+
+	function restoreSavedRouteFromLocation() {
+		const savedRouteId = new URLSearchParams(window.location.search).get("savedRoute");
+		const savedRoute = getSavedRouteById(savedRouteId);
+
+		if (!savedRoute) {
+			return;
+		}
+
+		if (!isPlannedRoute(savedRoute.route)) {
+			return;
+		}
+
+		activeRoute = savedRoute.route;
+		startQuery = savedRoute.route.startLabel;
+		destinationQuery = savedRoute.route.destinationLabel;
+		activeSavedRouteId = savedRoute.id;
+		isActiveRouteSaved = true;
+		routeRequestError = null;
+		fieldErrors = {};
+	}
 
 	function elevY(meters: number, height: number, pad: number): number {
 		const normalized = (meters - elevMin) / elevRange;
@@ -157,6 +190,8 @@
 		}
 
 		isRouting = true;
+		activeSavedRouteId = null;
+		isActiveRouteSaved = false;
 		routeRequestError = null;
 		fieldErrors = {};
 
@@ -181,6 +216,8 @@
 
 			const payload = (await response.json()) as RouteApiSuccess;
 			activeRoute = payload.route;
+			activeSavedRouteId = null;
+			isActiveRouteSaved = false;
 			routeRequestError = null;
 		} catch (error) {
 			console.error("Failed to generate route", error);
@@ -188,6 +225,23 @@
 		} finally {
 			isRouting = false;
 		}
+	}
+
+	function handleSaveDraft() {
+		if (!activeRoute) {
+			return;
+		}
+
+		if (isActiveRouteSaved && activeSavedRouteId) {
+			deleteSavedRoute(activeSavedRouteId);
+			activeSavedRouteId = null;
+			isActiveRouteSaved = false;
+			return;
+		}
+
+		const savedRoute = addSavedRoute(activeRoute);
+		activeSavedRouteId = savedRoute.id;
+		isActiveRouteSaved = true;
 	}
 </script>
 
@@ -451,29 +505,42 @@
 						</div>
 					{/if}
 
-					<div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-						<Button variant="outline" size="sm" class="font-semibold" disabled={!activeRoute}>
-							Save Draft
-						</Button>
-						<Button size="sm" class="font-semibold" disabled={!activeRoute}>
-							Send to Wahoo
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							class="gap-1 font-semibold"
-							disabled={!activeRoute}
-							onclick={() => (routeAnalysisOpen = !routeAnalysisOpen)}
-							aria-expanded={activeRoute ? routeAnalysisOpen : false}
-							aria-controls="route-analysis-panel"
-						>
-							{routeAnalysisOpen ? "Less" : "Analysis"}
-							{#if routeAnalysisOpen}
-								<ChevronUp class="size-3.5 opacity-70" />
-							{:else}
-								<ChevronDown class="size-3.5 opacity-70" />
-							{/if}
-						</Button>
+					<div class="flex shrink-0 flex-col items-end gap-1.5">
+						<div class="flex flex-wrap items-center justify-end gap-2">
+							<Button
+								variant={isActiveRouteSaved ? "secondary" : "outline"}
+								size="sm"
+								class="gap-1 font-semibold"
+								disabled={!activeRoute}
+								onclick={handleSaveDraft}
+							>
+								{#if isActiveRouteSaved}
+									<Check class="size-3.5" />
+									Saved
+								{:else}
+									Save Draft
+								{/if}
+							</Button>
+							<Button size="sm" class="font-semibold" disabled={!activeRoute}>
+								Send to Wahoo
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								class="gap-1 font-semibold"
+								disabled={!activeRoute}
+								onclick={() => (routeAnalysisOpen = !routeAnalysisOpen)}
+								aria-expanded={activeRoute ? routeAnalysisOpen : false}
+								aria-controls="route-analysis-panel"
+							>
+								{routeAnalysisOpen ? "Less" : "Analysis"}
+								{#if routeAnalysisOpen}
+									<ChevronUp class="size-3.5 opacity-70" />
+								{:else}
+									<ChevronDown class="size-3.5 opacity-70" />
+								{/if}
+							</Button>
+						</div>
 					</div>
 				</div>
 

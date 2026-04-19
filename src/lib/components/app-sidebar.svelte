@@ -10,7 +10,7 @@
 			label: 'Planning',
 			items: [
 				{ title: 'Route planner', url: '/', icon: MapIcon },
-				{ title: 'My routes', url: '#', icon: Bookmark },
+				{ title: 'My routes', url: '/routes', icon: Bookmark },
 				{ title: 'Explore', url: '#', icon: Compass }
 			]
 		},
