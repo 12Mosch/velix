@@ -38,7 +38,7 @@
 		ref = $bindable(null),
 		class: className,
 		children,
-		child,
+		child: childSnippet,
 		variant = "default",
 		size = "default",
 		type = "button",
@@ -71,8 +71,8 @@
 </script>
 
 {#if !tooltipContent}
-	{#if child}
-		{@render child({ props: buttonProps })}
+	{#if childSnippet}
+		{@render childSnippet({ props: buttonProps })}
 	{:else}
 		<button bind:this={ref} {type} {...buttonProps}>
 			{@render children?.()}
@@ -82,8 +82,8 @@
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
-				{#if child}
-					{@render child({ props: getMergedButtonProps(props) })}
+				{#if childSnippet}
+					{@render childSnippet({ props: getMergedButtonProps(props) })}
 				{:else}
 					<button bind:this={ref} {type} {...getMergedButtonProps(props)}>
 						{@render children?.()}
