@@ -6,6 +6,8 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { useSidebar } from '$lib/components/ui/sidebar/index.js';
 	import MapView from '$lib/components/map-view.svelte';
+	import { selectedBasemapId } from '$lib/map-style-settings.svelte';
+	import { getBasemapById } from '$lib/map/basemaps';
 	import {
 		MapPin,
 		Navigation,
@@ -60,6 +62,8 @@
 		{ label: 'Mixed / worn', pct: 24, class: 'bg-amber-500' },
 		{ label: 'Coarse / chip', pct: 8, class: 'bg-orange-600' }
 	] as const;
+
+	const selectedBasemap = $derived($selectedBasemapId ? getBasemapById($selectedBasemapId) : null);
 </script>
 
 <div class="relative h-full w-full bg-background overflow-hidden flex flex-col">
@@ -204,19 +208,14 @@
 
         <!-- Bottom strip: compact by default; map stays the hero -->
         <div class="pointer-events-auto relative w-full shrink-0">
-            <div
-                class="absolute bottom-[calc(100%+0.5rem)] right-0 z-20 max-w-[13rem] rounded-md border border-white/10 bg-black/42 px-2 py-1 text-[10px] leading-none text-white/58 shadow-sm backdrop-blur-[6px] supports-[backdrop-filter]:bg-black/34 md:text-[11px]"
-            >
-                Basemap by
-                <a
-                    class="underline decoration-white/25 underline-offset-2 transition-colors hover:text-white/78"
-                    href="https://www.openstreetmap.org/copyright"
-                    target="_blank"
-                    rel="noreferrer"
+            {#if selectedBasemap}
+                <div
+                    class="absolute bottom-[calc(100%+0.5rem)] right-0 z-20 max-w-[23rem] rounded-md border border-white/10 bg-black/42 px-2 py-1 text-[10px] leading-none text-white/58 shadow-sm backdrop-blur-[6px] supports-[backdrop-filter]:bg-black/34 md:text-[11px]"
                 >
-                    OpenStreetMap contributors
-                </a>
-            </div>
+                    <span class="mr-1 uppercase tracking-wide text-white/42">Basemap</span>
+                    {@html selectedBasemap.attributionHtml}
+                </div>
+            {/if}
             <div
                 class="rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-sm md:p-3.5"
             >
