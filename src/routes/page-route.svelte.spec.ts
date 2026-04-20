@@ -58,6 +58,18 @@ const successfulRouteProfile = sampleElevationProfile(
 );
 const successfulRouteEndProfilePoint =
 	successfulRouteProfile[successfulRouteProfile.length - 1];
+const suggestionPayload = {
+	suggestions: [
+		{
+			label: "Marienplatz, Munich, Germany",
+			point: [11.5755, 48.1374],
+		},
+		{
+			label: "Marienplatz station, Munich, Germany",
+			point: [11.576, 48.138],
+		},
+	],
+};
 
 const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 	const sources = new Map<
@@ -354,6 +366,148 @@ describe("+page.svelte", () => {
 		).toMatchObject({
 			waypointQueries: ["Tegernsee", "Bad Tolz"],
 		});
+	});
+
+	it("shows start suggestions only after the minimum query length", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest?")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			throw new Error(`Unexpected fetch request: ${String(input)}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		const startInput = page.getByRole("textbox", { name: "Start" });
+
+		await startInput.fill("Ma");
+		await new Promise((resolve) => setTimeout(resolve, 350));
+		expect(fetchMock).not.toHaveBeenCalled();
+
+		await startInput.fill("Mari");
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.element(
+				page.getByRole("option", { name: "Marienplatz, Munich, Germany" }),
+			)
+			.toBeInTheDocument();
+	});
+
+	it("selects a keyboard-highlighted suggestion into the start field", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest?")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			throw new Error(`Unexpected fetch request: ${String(input)}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		const startInput = page.getByRole("textbox", { name: "Start" });
+
+		await startInput.fill("Mari");
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		const startInputElement = startInput.element();
+		startInputElement.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "ArrowDown",
+				bubbles: true,
+			}),
+		);
+		startInputElement.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "Enter",
+				bubbles: true,
+			}),
+		);
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz station, Munich, Germany");
+	});
+
+	it("shows suggestions for dynamically added waypoint inputs", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							suggestions: [
+								{
+									label: "Tegernsee, Germany",
+									point: [11.7581, 47.7123],
+								},
+							],
+						}),
+					),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${String(input)}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: "Add waypoint" }).click();
+		const waypointInput = page.getByRole("textbox", { name: "Waypoint 1" });
+		await waypointInput.fill("Teg");
+
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.element(page.getByRole("option", { name: "Tegernsee, Germany" }))
+			.toBeInTheDocument();
+	});
+
+	it("keeps manual route submission available when suggestions return no matches", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							suggestions: [],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		const startInput = page.getByRole("textbox", { name: "Start" });
+		await startInput.fill("Muni");
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.element(page.getByText("No matches found."))
+			.toBeInTheDocument();
+
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		await expect.poll(() => document.body.textContent).toContain("61.2");
 	});
 
 	it("shows an inspected elevation readout and synced map marker while hovering the chart", async () => {

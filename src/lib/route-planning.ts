@@ -10,6 +10,11 @@ export type RouteBounds = [number, number, number, number];
 
 export type RouteCoordinate = [number, number] | [number, number, number];
 
+export type RouteSuggestion = {
+	label: string;
+	point: [number, number];
+};
+
 export type RouteDetailInterval = {
 	from: number;
 	to: number;
@@ -43,6 +48,10 @@ export type PlannedRoute = {
 
 export type RouteApiSuccess = {
 	route: PlannedRoute;
+};
+
+export type RouteSuggestionsApiSuccess = {
+	suggestions: RouteSuggestion[];
 };
 
 export type RouteFieldErrors = {

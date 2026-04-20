@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from "svelte";
+	import { onDestroy, onMount } from "svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
@@ -24,6 +24,8 @@
 		type PlannedRoute,
 		type RouteApiError,
 		type RouteApiSuccess,
+		type RouteSuggestion,
+		type RouteSuggestionsApiSuccess,
 	} from "$lib/route-planning";
 	import {
 		ArrowDown,
@@ -44,12 +46,22 @@
 	} from "lucide-svelte";
 
 	type RouteField = "startQuery" | "destinationQuery";
+	type CompletionTarget =
+		| { kind: "startQuery" }
+		| { kind: "destinationQuery" }
+		| { kind: "waypoint"; index: number };
 
 	const chartW = 800;
 	const padY = 5;
 	const maxRoutePoints = 5;
 	const maxWaypoints = maxRoutePoints - 2;
+	const minCompletionQueryLength = 3;
+	const completionDebounceMs = 250;
 	const sidebar = useSidebar();
+	const startCompletionTarget: CompletionTarget = { kind: "startQuery" };
+	const destinationCompletionTarget: CompletionTarget = {
+		kind: "destinationQuery",
+	};
 
 	let routeAnalysisOpen = $state(false);
 	let startQuery = $state("");
@@ -64,6 +76,16 @@
 	let clientFetch = $state<typeof window.fetch | null>(null);
 	let activeProfileIndex = $state<number | null>(null);
 	let chartScrubPointerId = $state<number | null>(null);
+	let activeCompletionTarget = $state<CompletionTarget | null>(null);
+	let completionSuggestions = $state<RouteSuggestion[]>([]);
+	let isCompletionLoading = $state(false);
+	let isCompletionEmpty = $state(false);
+	let completionHighlightedIndex = $state(-1);
+
+	let completionAbortController: AbortController | null = null;
+	let completionBlurTimer: ReturnType<typeof setTimeout> | null = null;
+	let completionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let completionRequestId = 0;
 
 	const selectedBasemap = $derived(
 		mapStylePreference.selectedBasemapId
@@ -150,6 +172,12 @@
 		clientFetch = window.fetch.bind(window);
 		initSavedRoutes();
 		restoreSavedRouteFromLocation();
+	});
+
+	onDestroy(() => {
+		cancelCompletionBlur();
+		cancelCompletionDebounce();
+		cancelCompletionRequest();
 	});
 
 	function restoreSavedRouteFromLocation() {
@@ -306,6 +334,279 @@
 		return `${hours}:${minutes.toString().padStart(2, "0")} h`;
 	}
 
+	function getWaypointCompletionTarget(index: number): CompletionTarget {
+		return {
+			kind: "waypoint",
+			index,
+		};
+	}
+
+	function isSameCompletionTarget(
+		left: CompletionTarget | null,
+		right: CompletionTarget | null,
+	): boolean {
+		if (!left || !right || left.kind !== right.kind) {
+			return false;
+		}
+
+		if (left.kind !== "waypoint" || right.kind !== "waypoint") {
+			return true;
+		}
+
+		return left.index === right.index;
+	}
+
+	function getCompletionTargetKey(target: CompletionTarget): string {
+		return target.kind === "waypoint" ? `waypoint-${target.index}` : target.kind;
+	}
+
+	function getCompletionListId(target: CompletionTarget): string {
+		return `route-completions-${getCompletionTargetKey(target)}`;
+	}
+
+	function getCompletionOptionId(target: CompletionTarget, index: number): string {
+		return `${getCompletionListId(target)}-option-${index}`;
+	}
+
+	function getValueForCompletionTarget(target: CompletionTarget): string {
+		if (target.kind === "startQuery") {
+			return startQuery;
+		}
+
+		if (target.kind === "destinationQuery") {
+			return destinationQuery;
+		}
+
+		return waypointQueries[target.index] ?? "";
+	}
+
+	function isCompletionMenuVisible(target: CompletionTarget): boolean {
+		return (
+			isSameCompletionTarget(activeCompletionTarget, target) &&
+			(isCompletionLoading || isCompletionEmpty || completionSuggestions.length > 0)
+		);
+	}
+
+	function getCompletionActiveDescendant(target: CompletionTarget): string | undefined {
+		if (
+			!isSameCompletionTarget(activeCompletionTarget, target) ||
+			completionHighlightedIndex < 0 ||
+			completionHighlightedIndex >= completionSuggestions.length
+		) {
+			return undefined;
+		}
+
+		return getCompletionOptionId(target, completionHighlightedIndex);
+	}
+
+	function clearCompletionResults() {
+		completionSuggestions = [];
+		completionHighlightedIndex = -1;
+		isCompletionLoading = false;
+		isCompletionEmpty = false;
+	}
+
+	function cancelCompletionDebounce() {
+		if (completionDebounceTimer === null) {
+			return;
+		}
+
+		clearTimeout(completionDebounceTimer);
+		completionDebounceTimer = null;
+	}
+
+	function cancelCompletionBlur() {
+		if (completionBlurTimer === null) {
+			return;
+		}
+
+		clearTimeout(completionBlurTimer);
+		completionBlurTimer = null;
+	}
+
+	function cancelCompletionRequest() {
+		completionAbortController?.abort();
+		completionAbortController = null;
+	}
+
+	function closeCompletionMenu() {
+		cancelCompletionBlur();
+		cancelCompletionDebounce();
+		cancelCompletionRequest();
+		clearCompletionResults();
+		activeCompletionTarget = null;
+	}
+
+	function selectCompletion(target: CompletionTarget, suggestion: RouteSuggestion) {
+		if (target.kind === "waypoint") {
+			updateWaypoint(target.index, suggestion.label);
+		} else {
+			updateField(target.kind, suggestion.label);
+		}
+
+		closeCompletionMenu();
+	}
+
+	function handleCompletionSelection(
+		event: PointerEvent,
+		target: CompletionTarget,
+		suggestion: RouteSuggestion,
+	) {
+		event.preventDefault();
+		cancelCompletionBlur();
+		selectCompletion(target, suggestion);
+	}
+
+	function scheduleCompletionLookup(target: CompletionTarget, value: string) {
+		activeCompletionTarget = target;
+		cancelCompletionDebounce();
+		cancelCompletionRequest();
+		completionSuggestions = [];
+		completionHighlightedIndex = -1;
+		isCompletionEmpty = false;
+
+		const trimmedValue = value.trim();
+		const fetchFn = clientFetch;
+
+		if (!fetchFn || trimmedValue.length < minCompletionQueryLength) {
+			isCompletionLoading = false;
+			return;
+		}
+
+		isCompletionLoading = true;
+		const requestId = ++completionRequestId;
+
+		completionDebounceTimer = setTimeout(async () => {
+			completionDebounceTimer = null;
+			const abortController = new AbortController();
+			completionAbortController = abortController;
+
+			try {
+				const response = await fetchFn(
+					`/api/route/suggest?q=${encodeURIComponent(trimmedValue)}`,
+					{
+						signal: abortController.signal,
+					},
+				);
+
+				if (!response.ok) {
+					throw new Error(`Suggestions failed with status ${response.status}`);
+				}
+
+				const payload = (await response.json()) as Partial<RouteSuggestionsApiSuccess>;
+				const suggestions = Array.isArray(payload.suggestions) ? payload.suggestions : [];
+
+				if (!isSameCompletionTarget(activeCompletionTarget, target) || requestId !== completionRequestId) {
+					return;
+				}
+
+				completionSuggestions = suggestions;
+				completionHighlightedIndex = suggestions.length > 0 ? 0 : -1;
+				isCompletionEmpty = suggestions.length === 0;
+			} catch (error) {
+				if (abortController.signal.aborted) {
+					return;
+				}
+
+				console.error("Failed to load route suggestions", error);
+
+				if (!isSameCompletionTarget(activeCompletionTarget, target) || requestId !== completionRequestId) {
+					return;
+				}
+
+				completionSuggestions = [];
+				completionHighlightedIndex = -1;
+				isCompletionEmpty = false;
+			} finally {
+				if (
+					isSameCompletionTarget(activeCompletionTarget, target) &&
+					requestId === completionRequestId
+				) {
+					isCompletionLoading = false;
+
+					if (completionAbortController === abortController) {
+						completionAbortController = null;
+					}
+				}
+			}
+		}, completionDebounceMs);
+	}
+
+	function handleCompletionFocus(target: CompletionTarget) {
+		cancelCompletionBlur();
+		activeCompletionTarget = target;
+		const value = getValueForCompletionTarget(target);
+
+		if (value.trim().length >= minCompletionQueryLength) {
+			scheduleCompletionLookup(target, value);
+			return;
+		}
+
+		cancelCompletionDebounce();
+		cancelCompletionRequest();
+		clearCompletionResults();
+	}
+
+	function handleCompletionBlur(target: CompletionTarget) {
+		if (!isSameCompletionTarget(activeCompletionTarget, target)) {
+			return;
+		}
+
+		cancelCompletionBlur();
+		completionBlurTimer = setTimeout(() => {
+			if (isSameCompletionTarget(activeCompletionTarget, target)) {
+				closeCompletionMenu();
+			}
+		}, 120);
+	}
+
+	function handleCompletionKeydown(event: KeyboardEvent, target: CompletionTarget) {
+		if (!isSameCompletionTarget(activeCompletionTarget, target)) {
+			return;
+		}
+
+		if (event.key === "Escape" && isCompletionMenuVisible(target)) {
+			event.preventDefault();
+			closeCompletionMenu();
+			return;
+		}
+
+		if (completionSuggestions.length === 0) {
+			return;
+		}
+
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			completionHighlightedIndex = (completionHighlightedIndex + 1) % completionSuggestions.length;
+			return;
+		}
+
+		if (event.key === "ArrowUp") {
+			event.preventDefault();
+			completionHighlightedIndex =
+				(completionHighlightedIndex - 1 + completionSuggestions.length) %
+				completionSuggestions.length;
+			return;
+		}
+
+		if (event.key === "Enter" && completionHighlightedIndex >= 0) {
+			event.preventDefault();
+			const suggestion = completionSuggestions[completionHighlightedIndex];
+
+			if (suggestion) {
+				selectCompletion(target, suggestion);
+			}
+		}
+	}
+
+	function handleFieldInput(field: RouteField, value: string) {
+		updateField(field, value);
+		scheduleCompletionLookup(
+			field === "startQuery" ? startCompletionTarget : destinationCompletionTarget,
+			value,
+		);
+	}
+
 	function updateField(field: RouteField, value: string) {
 		if (field === "startQuery") {
 			startQuery = value;
@@ -353,6 +654,11 @@
 		}
 	}
 
+	function handleWaypointInput(index: number, value: string) {
+		updateWaypoint(index, value);
+		scheduleCompletionLookup(getWaypointCompletionTarget(index), value);
+	}
+
 	function addWaypoint() {
 		if (waypointQueries.length >= maxWaypoints) {
 			return;
@@ -370,6 +676,14 @@
 	}
 
 	function removeWaypoint(index: number) {
+		if (activeCompletionTarget?.kind === "waypoint") {
+			if (activeCompletionTarget.index === index) {
+				closeCompletionMenu();
+			} else if (activeCompletionTarget.index > index) {
+				activeCompletionTarget = getWaypointCompletionTarget(activeCompletionTarget.index - 1);
+			}
+		}
+
 		waypointQueries = waypointQueries.filter((_, waypointIndex) => waypointIndex !== index);
 		fieldErrors = {
 			...fieldErrors,
@@ -407,6 +721,14 @@
 			waypointQueries: nextWaypointErrors,
 		};
 
+		if (activeCompletionTarget?.kind === "waypoint") {
+			if (activeCompletionTarget.index === index) {
+				activeCompletionTarget = getWaypointCompletionTarget(nextIndex);
+			} else if (activeCompletionTarget.index === nextIndex) {
+				activeCompletionTarget = getWaypointCompletionTarget(index);
+			}
+		}
+
 		if (routeRequestError) {
 			routeRequestError = null;
 		}
@@ -424,6 +746,7 @@
 			return;
 		}
 
+		closeCompletionMenu();
 		isRouting = true;
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
@@ -549,13 +872,62 @@
 									value={startQuery}
 									placeholder="Enter starting point..."
 									class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+									autocomplete="off"
+									aria-autocomplete="list"
+									aria-controls={getCompletionListId(startCompletionTarget)}
+									aria-expanded={isCompletionMenuVisible(startCompletionTarget)}
+									aria-activedescendant={getCompletionActiveDescendant(startCompletionTarget)}
 									aria-invalid={fieldErrors.startQuery ? "true" : undefined}
+									onfocus={() => handleCompletionFocus(startCompletionTarget)}
+									onblur={() => handleCompletionBlur(startCompletionTarget)}
+									onkeydown={(event) => handleCompletionKeydown(event, startCompletionTarget)}
 									oninput={(event) =>
-										updateField(
+										handleFieldInput(
 											"startQuery",
 											(event.currentTarget as HTMLInputElement).value,
 										)}
 								/>
+								{#if isCompletionMenuVisible(startCompletionTarget)}
+									<div
+										class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
+									>
+										<div
+											id={getCompletionListId(startCompletionTarget)}
+											role="listbox"
+											aria-label="Start suggestions"
+											class="max-h-64 overflow-y-auto py-1"
+										>
+											{#if isCompletionLoading}
+												<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+													Searching places...
+												</div>
+											{:else if completionSuggestions.length > 0}
+												{#each completionSuggestions as suggestion, index (`start-${suggestion.label}-${index}`)}
+													<button
+														id={getCompletionOptionId(startCompletionTarget, index)}
+														type="button"
+														role="option"
+														class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
+															completionHighlightedIndex === index
+																? "bg-primary/10 text-foreground"
+																: "text-foreground/90 hover:bg-secondary/65"
+														}`}
+														aria-selected={completionHighlightedIndex === index}
+														onpointerdown={(event) =>
+															handleCompletionSelection(event, startCompletionTarget, suggestion)}
+													>
+														<span class="min-w-0 truncate">{suggestion.label}</span>
+														<MapPin class="size-3.5 shrink-0 text-muted-foreground" />
+													</button>
+												{/each}
+											{:else if isCompletionEmpty}
+												<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+													No matches found.
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/if}
 							</div>
 							{#if fieldErrors.startQuery}
 								<p class="text-xs font-medium text-destructive">{fieldErrors.startQuery}</p>
@@ -610,13 +982,72 @@
 															value={waypointQuery}
 															placeholder="Add a stop..."
 															class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+															autocomplete="off"
+															aria-autocomplete="list"
+															aria-controls={getCompletionListId(getWaypointCompletionTarget(index))}
+															aria-expanded={isCompletionMenuVisible(getWaypointCompletionTarget(index))}
+															aria-activedescendant={getCompletionActiveDescendant(
+																getWaypointCompletionTarget(index),
+															)}
 															aria-invalid={getWaypointError(index) ? "true" : undefined}
+															onfocus={() => handleCompletionFocus(getWaypointCompletionTarget(index))}
+															onblur={() => handleCompletionBlur(getWaypointCompletionTarget(index))}
+															onkeydown={(event) =>
+																handleCompletionKeydown(event, getWaypointCompletionTarget(index))}
 															oninput={(event) =>
-																updateWaypoint(
+																handleWaypointInput(
 																	index,
 																	(event.currentTarget as HTMLInputElement).value,
 																)}
 														/>
+														{#if isCompletionMenuVisible(getWaypointCompletionTarget(index))}
+															<div
+																class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
+															>
+																<div
+																	id={getCompletionListId(getWaypointCompletionTarget(index))}
+																	role="listbox"
+																	aria-label={`Waypoint ${index + 1} suggestions`}
+																	class="max-h-64 overflow-y-auto py-1"
+																>
+																	{#if isCompletionLoading}
+																		<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+																			Searching places...
+																		</div>
+																	{:else if completionSuggestions.length > 0}
+																		{#each completionSuggestions as suggestion, suggestionIndex (`waypoint-${index}-${suggestion.label}-${suggestionIndex}`)}
+																			<button
+																				id={getCompletionOptionId(
+																					getWaypointCompletionTarget(index),
+																					suggestionIndex,
+																				)}
+																				type="button"
+																				role="option"
+																				class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
+																					completionHighlightedIndex === suggestionIndex
+																						? "bg-primary/10 text-foreground"
+																						: "text-foreground/90 hover:bg-secondary/65"
+																				}`}
+																				aria-selected={completionHighlightedIndex === suggestionIndex}
+																				onpointerdown={(event) =>
+																					handleCompletionSelection(
+																						event,
+																						getWaypointCompletionTarget(index),
+																						suggestion,
+																					)}
+																			>
+																				<span class="min-w-0 truncate">{suggestion.label}</span>
+																				<MapPin class="size-3.5 shrink-0 text-muted-foreground" />
+																			</button>
+																		{/each}
+																	{:else if isCompletionEmpty}
+																		<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+																			No matches found.
+																		</div>
+																	{/if}
+																</div>
+															</div>
+														{/if}
 													</div>
 													{#if getWaypointError(index)}
 														<p class="text-xs font-medium text-destructive">
@@ -685,13 +1116,67 @@
 									value={destinationQuery}
 									placeholder="Destination..."
 									class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+									autocomplete="off"
+									aria-autocomplete="list"
+									aria-controls={getCompletionListId(destinationCompletionTarget)}
+									aria-expanded={isCompletionMenuVisible(destinationCompletionTarget)}
+									aria-activedescendant={getCompletionActiveDescendant(destinationCompletionTarget)}
 									aria-invalid={fieldErrors.destinationQuery ? "true" : undefined}
+									onfocus={() => handleCompletionFocus(destinationCompletionTarget)}
+									onblur={() => handleCompletionBlur(destinationCompletionTarget)}
+									onkeydown={(event) =>
+										handleCompletionKeydown(event, destinationCompletionTarget)}
 									oninput={(event) =>
-										updateField(
+										handleFieldInput(
 											"destinationQuery",
 											(event.currentTarget as HTMLInputElement).value,
 										)}
 								/>
+								{#if isCompletionMenuVisible(destinationCompletionTarget)}
+									<div
+										class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
+									>
+										<div
+											id={getCompletionListId(destinationCompletionTarget)}
+											role="listbox"
+											aria-label="Destination suggestions"
+											class="max-h-64 overflow-y-auto py-1"
+										>
+											{#if isCompletionLoading}
+												<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+													Searching places...
+												</div>
+											{:else if completionSuggestions.length > 0}
+												{#each completionSuggestions as suggestion, index (`destination-${suggestion.label}-${index}`)}
+													<button
+														id={getCompletionOptionId(destinationCompletionTarget, index)}
+														type="button"
+														role="option"
+														class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
+															completionHighlightedIndex === index
+																? "bg-primary/10 text-foreground"
+																: "text-foreground/90 hover:bg-secondary/65"
+														}`}
+														aria-selected={completionHighlightedIndex === index}
+														onpointerdown={(event) =>
+															handleCompletionSelection(
+																event,
+																destinationCompletionTarget,
+																suggestion,
+															)}
+													>
+														<span class="min-w-0 truncate">{suggestion.label}</span>
+														<Navigation class="size-3.5 shrink-0 text-muted-foreground" />
+													</button>
+												{/each}
+											{:else if isCompletionEmpty}
+												<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+													No matches found.
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/if}
 							</div>
 							{#if fieldErrors.destinationQuery}
 								<p class="text-xs font-medium text-destructive">
