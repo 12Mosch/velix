@@ -9,23 +9,11 @@ import type {
 	RouteDetailInterval,
 	RouteWaypoint,
 } from "$lib/route-planning";
-
-type GeocodeHit = {
-	name?: string;
-	street?: string;
-	housenumber?: string;
-	city?: string;
-	state?: string;
-	country?: string;
-	point?: {
-		lat?: number;
-		lng?: number;
-	};
-};
-
-type GraphHopperGeocodeResponse = {
-	hits?: GeocodeHit[];
-};
+import {
+	geocodeLocation,
+	graphHopperApiBaseUrl,
+	missingGraphHopperApiKeyMessage,
+} from "$lib/server/graphhopper";
 
 type GraphHopperPath = {
 	bbox?: number[];
@@ -59,11 +47,9 @@ type GraphHopperRouteRequestBody = {
 	custom_model?: typeof roadBikeCustomModel;
 };
 
-const graphHopperApiBaseUrl = "https://graphhopper.com/api/1";
 const maxRoutePoints = 5;
 const maxWaypoints = maxRoutePoints - 2;
 
-type GeocodeProvider = "default" | "nominatim";
 type StopField = "startQuery" | "destinationQuery" | "waypointQueries";
 type RouteStop = {
 	kind: "start" | "waypoint" | "destination";
@@ -130,88 +116,6 @@ function normalizeDetailIntervals(
 		}));
 }
 
-function buildResolvedLabel(hit: GeocodeHit): string {
-	const primary = [
-		hit.name,
-		[hit.street, hit.housenumber].filter(Boolean).join(" ").trim(),
-	]
-		.map((part) => part?.trim())
-		.filter(Boolean);
-	const secondary = [hit.city, hit.state, hit.country]
-		.map((part) => part?.trim())
-		.filter(Boolean);
-
-	return [...new Set([...primary, ...secondary])].join(", ");
-}
-
-async function geocodeLocation(
-	fetchFn: typeof fetch,
-	query: string,
-): Promise<{ label: string; point: [number, number] } | null> {
-	const key = env.GRAPHHOPPER_API_KEY?.trim();
-
-	if (!key) {
-		throw new Error("Missing GRAPHHOPPER_API_KEY");
-	}
-
-	const providers: GeocodeProvider[] = ["nominatim", "default"];
-	let lastError: Error | null = null;
-
-	for (const provider of providers) {
-		const searchParams = new URLSearchParams({
-			q: query,
-			limit: "1",
-			key,
-		});
-
-		if (provider === "nominatim") {
-			searchParams.set("provider", provider);
-		} else {
-			searchParams.set("locale", "en");
-		}
-
-		const response = await fetchFn(
-			`${graphHopperApiBaseUrl}/geocode?${searchParams.toString()}`,
-		);
-
-		if (!response.ok) {
-			const details = await response.text();
-			lastError = new Error(
-				`Geocoding failed with status ${response.status} using ${provider}${
-					details ? `: ${details}` : ""
-				}`,
-			);
-			continue;
-		}
-
-		const payload = (await response.json()) as GraphHopperGeocodeResponse;
-		const hit = payload.hits?.[0];
-		const lat = hit?.point?.lat;
-		const lng = hit?.point?.lng;
-
-		if (
-			!hit ||
-			typeof lat !== "number" ||
-			!Number.isFinite(lat) ||
-			typeof lng !== "number" ||
-			!Number.isFinite(lng)
-		) {
-			continue;
-		}
-
-		return {
-			label: buildResolvedLabel(hit) || query,
-			point: [lng, lat],
-		};
-	}
-
-	if (lastError) {
-		throw lastError;
-	}
-
-	return null;
-}
-
 async function requestRoute(
 	fetchFn: typeof fetch,
 	points: [number, number][],
@@ -222,7 +126,7 @@ async function requestRoute(
 	const key = env.GRAPHHOPPER_API_KEY?.trim();
 
 	if (!key) {
-		throw new Error("Missing GRAPHHOPPER_API_KEY");
+		throw new Error(missingGraphHopperApiKeyMessage);
 	}
 
 	const routeUrl = `${graphHopperApiBaseUrl}/route?key=${encodeURIComponent(key)}`;
@@ -475,7 +379,7 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 
 		if (
 			error instanceof Error &&
-			error.message === "Missing GRAPHHOPPER_API_KEY"
+			error.message === missingGraphHopperApiKeyMessage
 		) {
 			return errorResponse(
 				500,
