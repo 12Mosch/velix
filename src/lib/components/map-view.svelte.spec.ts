@@ -1,5 +1,5 @@
 import { page } from "vitest/browser";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 import type { FeatureCollection } from "geojson";
 
@@ -140,7 +140,7 @@ vi.mock("maplibre-gl", () => {
 });
 
 describe("MapView", () => {
-	const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+	let consoleError: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
 		window.localStorage.clear();
@@ -159,7 +159,11 @@ describe("MapView", () => {
 		mapInstance.getLayer.mockClear();
 		mapInstance.removeLayer.mockClear();
 		mapInstance.fitBounds.mockClear();
-		consoleError.mockClear();
+		consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
 	});
 
 	it("creates a map, adds the route overlay, and fits to the route bounds", async () => {

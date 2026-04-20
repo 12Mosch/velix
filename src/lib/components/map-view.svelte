@@ -14,6 +14,7 @@
 		syncSelectedBasemap,
 	} from "$lib/map-style-settings.svelte";
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
+	import type { SidebarLayoutState } from "$lib/components/ui/sidebar/context.svelte.js";
 	import type { RouteBounds, RouteCoordinate } from "$lib/route-planning";
 
 	type Props = {
@@ -23,6 +24,7 @@
 		routeGeoJson?: FeatureCollection | null;
 		routeBounds?: RouteBounds | null;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
+		layoutState?: SidebarLayoutState | null;
 	};
 
 	const defaultCenter = [11.394, 47.268] as [number, number];
@@ -34,6 +36,8 @@
 	const routeDestinationLayerId = "planned-route-destination";
 	const hoveredRouteSourceId = "planned-route-hover";
 	const hoveredRouteLayerId = "planned-route-hover-point";
+	// Matches the 200ms sidebar width transition plus a small buffer for interrupted toggles.
+	const layoutTransitionBufferMs = 260;
 
 	let {
 		initialCenter = defaultCenter,
@@ -42,6 +46,7 @@
 		routeGeoJson = null,
 		routeBounds = null,
 		hoveredRouteCoordinate = null,
+		layoutState = null,
 	}: Props = $props();
 
 	let mapContainer = $state<HTMLDivElement | null>(null);
@@ -52,6 +57,70 @@
 	let lastFittedBoundsKey = $state<string | null>(null);
 	let currentStyleUrl = $state<string | null>(null);
 	let detachStyleLoadListener = () => {};
+	let resizeAnimationFrameId: number | null = null;
+	let resizeLoopUntil = 0;
+
+	function cancelSmoothResize() {
+		resizeLoopUntil = 0;
+
+		if (resizeAnimationFrameId === null || typeof window === "undefined") {
+			return;
+		}
+
+		window.cancelAnimationFrame(resizeAnimationFrameId);
+		resizeAnimationFrameId = null;
+	}
+
+	function resizeMap() {
+		map?.resize();
+	}
+
+	function repaintMap() {
+		map?.triggerRepaint?.();
+	}
+
+	function syncMapFrame() {
+		resizeMap();
+		repaintMap();
+	}
+
+	function keepMapResized() {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		syncMapFrame();
+
+		if (resizeLoopUntil <= window.performance.now()) {
+			resizeLoopUntil = 0;
+			resizeAnimationFrameId = null;
+			return;
+		}
+
+		resizeAnimationFrameId = window.requestAnimationFrame(() => {
+			keepMapResized();
+		});
+	}
+
+	function scheduleSmoothResize(durationMs = layoutTransitionBufferMs) {
+		if (!map || typeof window === "undefined") {
+			return;
+		}
+
+		const nextDeadline = window.performance.now() + durationMs;
+
+		if (nextDeadline <= resizeLoopUntil) {
+			return;
+		}
+
+		resizeLoopUntil = nextDeadline;
+
+		if (resizeAnimationFrameId !== null) {
+			return;
+		}
+
+		keepMapResized();
+	}
 
 	function getRouteSource() {
 		return map?.getSource(routeSourceId) as GeoJSONSource | undefined;
@@ -337,6 +406,16 @@
 	});
 
 	$effect(() => {
+		const nextLayoutState = layoutState;
+
+		if (!nextLayoutState || !map || !isStyleReady) {
+			return;
+		}
+
+		scheduleSmoothResize();
+	});
+
+	$effect(() => {
 		const basemapId = mapStylePreference.selectedBasemapId;
 		let cancelled = false;
 
@@ -374,6 +453,7 @@
 			loadError = null;
 			isLoaded = true;
 			isStyleReady = true;
+			scheduleSmoothResize();
 			ensureRouteOverlay();
 			ensureHoveredRouteOverlay();
 		};
@@ -455,13 +535,14 @@
 					loadError = null;
 					isLoaded = true;
 					isStyleReady = true;
+					scheduleSmoothResize();
 					ensureRouteOverlay();
 					ensureHoveredRouteOverlay();
 					fitRouteBounds();
 				});
 
 				resizeObserver = new ResizeObserver(() => {
-					map?.resize();
+					scheduleSmoothResize();
 				});
 				resizeObserver.observe(mapContainer);
 			} catch (error) {
@@ -478,6 +559,7 @@
 		return () => {
 			cancelled = true;
 			detachStyleLoadListener();
+			cancelSmoothResize();
 			resizeObserver?.disconnect();
 			map?.remove();
 			map = null;
