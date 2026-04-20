@@ -25,6 +25,23 @@
 		routeBounds?: RouteBounds | null;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
 		layoutState?: SidebarLayoutState | null;
+		onMapClick?: ((detail: {
+			point: [number, number];
+			screenPoint: {
+				x: number;
+				y: number;
+			};
+			selectedStop?:
+				| {
+						kind: "start" | "destination";
+						label?: string;
+				  }
+				| {
+						kind: "waypoint";
+						label?: string;
+						index: number;
+				  };
+		}) => void) | null;
 	};
 
 	const defaultCenter = [11.394, 47.268] as [number, number];
@@ -47,6 +64,7 @@
 		routeBounds = null,
 		hoveredRouteCoordinate = null,
 		layoutState = null,
+		onMapClick = null,
 	}: Props = $props();
 
 	let mapContainer = $state<HTMLDivElement | null>(null);
@@ -57,8 +75,65 @@
 	let lastFittedBoundsKey = $state<string | null>(null);
 	let currentStyleUrl = $state<string | null>(null);
 	let detachStyleLoadListener = () => {};
+	let detachMapClickListener = () => {};
 	let resizeAnimationFrameId: number | null = null;
 	let resizeLoopUntil = 0;
+
+	function getSelectedStopAtPoint(screenPoint: { x: number; y: number }) {
+		if (!map || typeof map.queryRenderedFeatures !== "function") {
+			return undefined;
+		}
+
+		const matchingFeature = map
+			.queryRenderedFeatures([screenPoint.x, screenPoint.y], {
+				layers: [
+					routeStartLayerId,
+					routeWaypointLayerId,
+					routeDestinationLayerId,
+				],
+			})
+			.find((feature) => {
+				const kind = feature.properties?.kind;
+				return (
+					kind === "start" || kind === "waypoint" || kind === "destination"
+				);
+			});
+
+		if (!matchingFeature) {
+			return undefined;
+		}
+
+		const kind = matchingFeature?.properties?.kind;
+
+		if (kind === "start" || kind === "destination") {
+			return {
+				kind,
+				label:
+					typeof matchingFeature.properties?.label === "string"
+						? matchingFeature.properties.label
+						: undefined,
+			};
+		}
+
+		if (kind === "waypoint") {
+			const order = Number(matchingFeature.properties?.order);
+
+			if (!Number.isFinite(order) || order < 1) {
+				return undefined;
+			}
+
+			return {
+				kind,
+				label:
+					typeof matchingFeature.properties?.label === "string"
+						? matchingFeature.properties.label
+						: undefined,
+				index: order - 1,
+			};
+		}
+
+		return undefined;
+	}
 
 	function cancelSmoothResize() {
 		resizeLoopUntil = 0;
@@ -530,6 +605,44 @@
 				};
 
 				map = new maplibregl.Map(options);
+				if (typeof map.on === "function" && typeof map.off === "function") {
+					const handleMapClick = (event: {
+						lngLat?: { lng?: number; lat?: number };
+						point?: { x?: number; y?: number };
+					}) => {
+						const longitude = event.lngLat?.lng;
+						const latitude = event.lngLat?.lat;
+						const clickX = event.point?.x;
+						const clickY = event.point?.y;
+
+						if (
+							typeof longitude !== "number" ||
+							typeof latitude !== "number" ||
+							typeof clickX !== "number" ||
+							typeof clickY !== "number"
+						) {
+							return;
+						}
+
+						onMapClick?.({
+							point: [longitude, latitude],
+							screenPoint: {
+								x: clickX,
+								y: clickY,
+							},
+							selectedStop: getSelectedStopAtPoint({
+								x: clickX,
+								y: clickY,
+							}),
+						});
+					};
+
+					map.on("click", handleMapClick);
+					detachMapClickListener = () => {
+						map?.off("click", handleMapClick);
+						detachMapClickListener = () => {};
+					};
+				}
 				map.once("load", () => {
 					if (cancelled) return;
 					loadError = null;
@@ -559,6 +672,7 @@
 		return () => {
 			cancelled = true;
 			detachStyleLoadListener();
+			detachMapClickListener();
 			cancelSmoothResize();
 			resizeObserver?.disconnect();
 			map?.remove();

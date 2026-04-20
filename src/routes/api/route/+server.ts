@@ -7,6 +7,8 @@ import type {
 	RouteApiError,
 	RouteCoordinate,
 	RouteDetailInterval,
+	RouteRequestPayload,
+	RouteStopInput,
 	RouteWaypoint,
 } from "$lib/route-planning";
 import {
@@ -49,11 +51,16 @@ type GraphHopperRouteRequestBody = {
 
 const maxRoutePoints = 5;
 const maxWaypoints = maxRoutePoints - 2;
+type LegacyRouteRequestPayload = {
+	startQuery?: string;
+	waypointQueries?: string[];
+	destinationQuery?: string;
+};
 
 type StopField = "startQuery" | "destinationQuery" | "waypointQueries";
 type RouteStop = {
 	kind: "start" | "waypoint" | "destination";
-	query: string;
+	input: RouteStopInput;
 	field: StopField;
 	index?: number;
 	label?: string;
@@ -114,6 +121,39 @@ function normalizeDetailIntervals(
 			to,
 			value,
 		}));
+}
+
+function normalizeStopInput(value: unknown): RouteStopInput {
+	if (typeof value === "string") {
+		return {
+			label: value.trim(),
+		};
+	}
+
+	if (!value || typeof value !== "object") {
+		return {
+			label: "",
+		};
+	}
+
+	const candidate = value as {
+		label?: unknown;
+		point?: unknown;
+	};
+	const point = Array.isArray(candidate.point) ? candidate.point : undefined;
+
+	return {
+		label: typeof candidate.label === "string" ? candidate.label.trim() : "",
+		point:
+			point &&
+			point.length >= 2 &&
+			typeof point[0] === "number" &&
+			Number.isFinite(point[0]) &&
+			typeof point[1] === "number" &&
+			Number.isFinite(point[1])
+				? [point[0], point[1]]
+				: undefined,
+	};
 }
 
 async function requestRoute(
@@ -229,32 +269,46 @@ async function requestRoute(
 }
 
 export const POST: RequestHandler = async ({ fetch, request }) => {
-	let payload: {
-		startQuery?: string;
-		waypointQueries?: string[];
-		destinationQuery?: string;
-	};
+	let payload: Partial<RouteRequestPayload> | LegacyRouteRequestPayload;
 
 	try {
-		payload = (await request.json()) as {
-			startQuery?: string;
-			destinationQuery?: string;
-		};
+		payload = (await request.json()) as typeof payload;
 	} catch {
 		return errorResponse(400, "Invalid route request payload.");
 	}
 
-	const startQuery = payload.startQuery?.trim() ?? "";
-	const waypointQueries = Array.isArray(payload.waypointQueries)
-		? payload.waypointQueries.map((query) =>
-				typeof query === "string" ? query.trim() : "",
+	const payloadRecord = payload as Record<string, unknown>;
+	const hasStructuredPayload =
+		"start" in payloadRecord ||
+		"waypoints" in payloadRecord ||
+		"destination" in payloadRecord;
+	const structuredPayload = hasStructuredPayload
+		? (payload as Partial<RouteRequestPayload>)
+		: null;
+	const legacyPayload = hasStructuredPayload
+		? null
+		: (payload as LegacyRouteRequestPayload);
+	const rawWaypointInputs =
+		(structuredPayload
+			? structuredPayload.waypoints
+			: legacyPayload?.waypointQueries) ?? [];
+	const startInput = normalizeStopInput(
+		structuredPayload ? structuredPayload.start : legacyPayload?.startQuery,
+	);
+	const waypointInputs = Array.isArray(rawWaypointInputs)
+		? rawWaypointInputs.map((input: RouteStopInput | string | undefined) =>
+				normalizeStopInput(input),
 			)
 		: [];
-	const destinationQuery = payload.destinationQuery?.trim() ?? "";
+	const destinationInput = normalizeStopInput(
+		structuredPayload
+			? structuredPayload.destination
+			: legacyPayload?.destinationQuery,
+	);
 	const fieldErrors: RouteApiError["fieldErrors"] = {};
 
-	if (waypointQueries.length > maxWaypoints) {
-		fieldErrors.waypointQueries = waypointQueries.map(() => "");
+	if (waypointInputs.length > maxWaypoints) {
+		fieldErrors.waypointQueries = waypointInputs.map(() => "");
 		return errorResponse(
 			400,
 			`You can add up to ${maxWaypoints} waypoints per route.`,
@@ -262,21 +316,21 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 		);
 	}
 
-	if (!startQuery) {
+	if (!startInput.label) {
 		fieldErrors.startQuery = "Enter a start point.";
 	}
 
-	const waypointFieldErrors = waypointQueries.map((query) =>
-		query ? null : "Enter a waypoint or remove this stop.",
+	const waypointFieldErrors = waypointInputs.map((waypoint: RouteStopInput) =>
+		waypoint.label ? null : "Enter a waypoint or remove this stop.",
 	);
 
-	if (waypointFieldErrors.some((error) => !!error)) {
+	if (waypointFieldErrors.some((error: string | null) => !!error)) {
 		fieldErrors.waypointQueries = waypointFieldErrors.map(
-			(error) => error ?? "",
+			(error: string | null) => error ?? "",
 		);
 	}
 
-	if (!destinationQuery) {
+	if (!destinationInput.label) {
 		fieldErrors.destinationQuery = "Enter a destination.";
 	}
 
@@ -290,23 +344,31 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 
 	try {
 		const stops: RouteStop[] = [
-			{ kind: "start", query: startQuery, field: "startQuery" },
-			...waypointQueries.map((query, index) => ({
+			{ kind: "start", input: startInput, field: "startQuery" },
+			...waypointInputs.map((input: RouteStopInput, index: number) => ({
 				kind: "waypoint" as const,
-				query,
+				input,
 				field: "waypointQueries" as const,
 				index,
 			})),
 			{
 				kind: "destination",
-				query: destinationQuery,
+				input: destinationInput,
 				field: "destinationQuery",
 			},
 		];
 
 		const resolvedStops = await Promise.all(
 			stops.map(async (stop) => {
-				const resolved = await geocodeLocation(fetch, stop.query);
+				if (stop.input.point) {
+					return {
+						...stop,
+						label: stop.input.label,
+						point: stop.input.point,
+					};
+				}
+
+				const resolved = await geocodeLocation(fetch, stop.input.label);
 				return resolved
 					? {
 							...stop,
@@ -317,7 +379,7 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			}),
 		);
 
-		const unresolvedWaypoints = waypointQueries.map(() => "");
+		const unresolvedWaypoints = waypointInputs.map(() => "");
 
 		for (const stop of resolvedStops) {
 			if (stop.label && stop.point) {
@@ -339,7 +401,7 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			}
 		}
 
-		if (unresolvedWaypoints.some((error) => error.length > 0)) {
+		if (unresolvedWaypoints.some((error: string) => error.length > 0)) {
 			fieldErrors.waypointQueries = unresolvedWaypoints;
 		}
 
@@ -365,7 +427,7 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			resolvedStops[resolvedStops.length - 1]?.label ?? "";
 		route.waypoints = resolvedStops.slice(1, -1).map(
 			(stop, index): RouteWaypoint => ({
-				label: stop.label ?? stop.query,
+				label: stop.label ?? stop.input.label,
 				coordinate:
 					snappedWaypoints[index + 1] ?? (stop.point as [number, number]),
 			}),

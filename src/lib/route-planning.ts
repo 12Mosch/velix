@@ -15,6 +15,17 @@ export type RouteSuggestion = {
 	point: [number, number];
 };
 
+export type RouteStopInput = {
+	label: string;
+	point?: [number, number];
+};
+
+export type RouteRequestPayload = {
+	start: RouteStopInput;
+	waypoints: RouteStopInput[];
+	destination: RouteStopInput;
+};
+
 export type RouteDetailInterval = {
 	from: number;
 	to: number;
@@ -113,6 +124,12 @@ const smoothnessSurfaceFallback = {
 };
 
 const earthRadiusMeters = 6371008.8;
+
+function toStopPoint(
+	coordinate: RouteCoordinate | [number, number],
+): [number, number] {
+	return [coordinate[0], coordinate[1]];
+}
 
 function normalizeDetailValue(value: string): string {
 	return value
@@ -250,6 +267,271 @@ function getCoordinateDistanceMeters(
 		2 * Math.atan2(Math.sqrt(haversineA), Math.sqrt(1 - haversineA));
 
 	return earthRadiusMeters * haversineC;
+}
+
+function projectCoordinate(
+	coordinate: [number, number],
+	referenceLatitude: number,
+): [number, number] {
+	const [longitude, latitude] = coordinate;
+	const latitudeRadians = toRadians(referenceLatitude);
+
+	return [
+		toRadians(longitude) * Math.cos(latitudeRadians) * earthRadiusMeters,
+		toRadians(latitude) * earthRadiusMeters,
+	];
+}
+
+function getPointToSegmentDistanceMeters(
+	point: [number, number],
+	segmentStart: [number, number],
+	segmentEnd: [number, number],
+): number {
+	const referenceLatitude = (point[1] + segmentStart[1] + segmentEnd[1]) / 3;
+	const [pointX, pointY] = projectCoordinate(point, referenceLatitude);
+	const [startX, startY] = projectCoordinate(segmentStart, referenceLatitude);
+	const [endX, endY] = projectCoordinate(segmentEnd, referenceLatitude);
+	const deltaX = endX - startX;
+	const deltaY = endY - startY;
+	const segmentLengthSquared = deltaX ** 2 + deltaY ** 2;
+
+	if (segmentLengthSquared === 0) {
+		return Math.hypot(pointX - startX, pointY - startY);
+	}
+
+	const projection =
+		((pointX - startX) * deltaX + (pointY - startY) * deltaY) /
+		segmentLengthSquared;
+	const clampedProjection = Math.min(1, Math.max(0, projection));
+	const closestX = startX + deltaX * clampedProjection;
+	const closestY = startY + deltaY * clampedProjection;
+
+	return Math.hypot(pointX - closestX, pointY - closestY);
+}
+
+function getLegDistanceMeters(
+	point: [number, number],
+	coordinates: [number, number][],
+): number {
+	if (coordinates.length === 0) {
+		return Number.POSITIVE_INFINITY;
+	}
+
+	if (coordinates.length === 1) {
+		return getPointToSegmentDistanceMeters(
+			point,
+			coordinates[0],
+			coordinates[0],
+		);
+	}
+
+	let nearestDistance = Number.POSITIVE_INFINITY;
+
+	for (let index = 0; index < coordinates.length - 1; index += 1) {
+		const from = coordinates[index];
+		const to = coordinates[index + 1];
+
+		if (!from || !to) {
+			continue;
+		}
+
+		nearestDistance = Math.min(
+			nearestDistance,
+			getPointToSegmentDistanceMeters(point, from, to),
+		);
+	}
+
+	return nearestDistance;
+}
+
+function getNearestPolylineIndex(
+	coordinates: RouteCoordinate[],
+	target: [number, number],
+	searchStartIndex: number,
+): number {
+	let nearestIndex = searchStartIndex;
+	let nearestDistance = Number.POSITIVE_INFINITY;
+
+	for (let index = searchStartIndex; index < coordinates.length; index += 1) {
+		const coordinate = coordinates[index];
+
+		if (!coordinate) {
+			continue;
+		}
+
+		const distance = getCoordinateDistanceMeters(coordinate, target);
+
+		if (distance < nearestDistance) {
+			nearestDistance = distance;
+			nearestIndex = index;
+		}
+	}
+
+	return nearestIndex;
+}
+
+export function getRouteStopInputs(route: PlannedRoute): RouteStopInput[] {
+	const startCoordinate = route.coordinates[0];
+	const destinationCoordinate = route.coordinates[route.coordinates.length - 1];
+
+	return [
+		{
+			label: route.startLabel,
+			point: startCoordinate ? toStopPoint(startCoordinate) : undefined,
+		},
+		...route.waypoints.map((waypoint) => ({
+			label: waypoint.label,
+			point: toStopPoint(waypoint.coordinate),
+		})),
+		{
+			label: route.destinationLabel,
+			point: destinationCoordinate
+				? toStopPoint(destinationCoordinate)
+				: undefined,
+		},
+	];
+}
+
+function getRouteLegInsertionIndex(
+	stops: RouteStopInput[],
+	point: [number, number],
+	route: PlannedRoute,
+): number | null {
+	const routeStops = getRouteStopInputs(route);
+
+	if (routeStops.length !== stops.length || route.coordinates.length === 0) {
+		return null;
+	}
+
+	for (let index = 0; index < stops.length; index += 1) {
+		const stop = stops[index];
+		const routeStop = routeStops[index];
+
+		if (!stop || !routeStop) {
+			return null;
+		}
+
+		if (stop.label !== routeStop.label) {
+			return null;
+		}
+
+		if (
+			(stop.point && !routeStop.point) ||
+			(!stop.point && routeStop.point) ||
+			(stop.point &&
+				routeStop.point &&
+				(stop.point[0] !== routeStop.point[0] ||
+					stop.point[1] !== routeStop.point[1]))
+		) {
+			return null;
+		}
+	}
+
+	const routeStopPoints = routeStops
+		.map((stop) => stop.point)
+		.filter((stopPoint): stopPoint is [number, number] => !!stopPoint);
+
+	if (routeStopPoints.length !== routeStops.length) {
+		return null;
+	}
+
+	const stopIndices: number[] = [];
+	let searchStartIndex = 0;
+
+	for (const stopPoint of routeStopPoints) {
+		const stopIndex = getNearestPolylineIndex(
+			route.coordinates,
+			stopPoint,
+			searchStartIndex,
+		);
+		stopIndices.push(stopIndex);
+		searchStartIndex = stopIndex;
+	}
+
+	for (let index = 0; index < stopIndices.length - 1; index += 1) {
+		const currentIndex = stopIndices[index];
+		const nextIndex = stopIndices[index + 1];
+
+		if (
+			currentIndex === undefined ||
+			nextIndex === undefined ||
+			nextIndex <= currentIndex
+		) {
+			return null;
+		}
+	}
+
+	let bestLegIndex = 0;
+	let bestLegDistance = Number.POSITIVE_INFINITY;
+
+	for (let index = 0; index < stopIndices.length - 1; index += 1) {
+		const fromIndex = stopIndices[index];
+		const toIndex = stopIndices[index + 1];
+
+		if (fromIndex === undefined || toIndex === undefined) {
+			continue;
+		}
+
+		const legCoordinates = route.coordinates
+			.slice(fromIndex, toIndex + 1)
+			.map((coordinate) => toStopPoint(coordinate));
+		const distance = getLegDistanceMeters(
+			point,
+			legCoordinates.length > 0
+				? legCoordinates
+				: [routeStopPoints[index], routeStopPoints[index + 1]],
+		);
+
+		if (distance < bestLegDistance) {
+			bestLegDistance = distance;
+			bestLegIndex = index;
+		}
+	}
+
+	return bestLegIndex;
+}
+
+export function getWaypointInsertionIndex(
+	stops: RouteStopInput[],
+	point: [number, number],
+	route: PlannedRoute | null = null,
+): number {
+	const routedLegIndex = route
+		? getRouteLegInsertionIndex(stops, point, route)
+		: null;
+
+	if (typeof routedLegIndex === "number") {
+		return routedLegIndex;
+	}
+
+	const resolvedStops = stops.filter(
+		(stop) => stop.label.trim().length > 0 && !!stop.point,
+	);
+
+	if (resolvedStops.length < 2) {
+		return Math.max(0, Math.min(stops.length - 1, resolvedStops.length - 1));
+	}
+
+	let bestLegIndex = 0;
+	let bestLegDistance = Number.POSITIVE_INFINITY;
+
+	for (let index = 0; index < resolvedStops.length - 1; index += 1) {
+		const from = resolvedStops[index]?.point;
+		const to = resolvedStops[index + 1]?.point;
+
+		if (!from || !to) {
+			continue;
+		}
+
+		const distance = getLegDistanceMeters(point, [from, to]);
+
+		if (distance < bestLegDistance) {
+			bestLegDistance = distance;
+			bestLegIndex = index;
+		}
+	}
+
+	return bestLegIndex;
 }
 
 export function sampleElevationProfile(
