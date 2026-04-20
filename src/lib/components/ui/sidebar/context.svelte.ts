@@ -4,6 +4,8 @@ import { SIDEBAR_KEYBOARD_SHORTCUT } from "./constants.js";
 
 type Getter<T> = () => T;
 
+export type SidebarLayoutState = "expanded" | "collapsed";
+
 export type SidebarStateProps = {
 	/**
 	 * A getter function that returns the current open state of the sidebar.
@@ -26,7 +28,9 @@ class SidebarState {
 	openMobile = $state(false);
 	setOpen: SidebarStateProps["setOpen"];
 	#isMobile: IsMobile;
-	state = $derived.by(() => (this.open ? "expanded" : "collapsed"));
+	state = $derived.by(
+		(): SidebarLayoutState => (this.open ? "expanded" : "collapsed"),
+	);
 
 	constructor(props: SidebarStateProps) {
 		this.setOpen = props.setOpen;

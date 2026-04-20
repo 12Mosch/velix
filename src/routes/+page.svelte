@@ -485,6 +485,7 @@
 
 <div class="relative flex h-full w-full flex-col overflow-hidden bg-background">
 	<MapView
+		layoutState={sidebar.state}
 		routeGeoJson={routeGeoJson}
 		routeBounds={activeRoute?.bounds ?? null}
 		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
