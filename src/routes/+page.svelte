@@ -159,6 +159,7 @@
 	const isRoundCourseMode = $derived(plannerMode === "round_course");
 	const routeGeoJson = $derived(activeRoute ? buildRouteGeoJson(activeRoute) : null);
 	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
+	const activeRoutingWarnings = $derived(activeRoute?.routingWarnings ?? []);
 	const elevationSamples = $derived(activeRoute ? sampleElevationProfile(activeRoute.coordinates) : []);
 	const chartH = $derived(routeAnalysisOpen ? 72 : 44);
 	const elevMin = $derived(
@@ -494,6 +495,32 @@
 		}
 
 		return `${hours}:${minutes.toString().padStart(2, "0")} h`;
+	}
+
+	function getRoutingProfileLabel(route: PlannedRoute | null): string {
+		if (!route) {
+			return "Road-bike planner";
+		}
+
+		if (route.routingStrategy) {
+			return route.routingStrategy;
+		}
+
+		if (route.routingProfile === "racingbike") {
+			return "GraphHopper racingbike profile.";
+		}
+
+		return "GraphHopper bike profile.";
+	}
+
+	function getRoutingBadgeLabel(route: PlannedRoute | null): string {
+		if (!route) {
+			return "Road-bike";
+		}
+
+		return route.routingProfile === "racingbike"
+			? "Racingbike profile"
+			: "Bike fallback";
 	}
 
 	function getWaypointCompletionTarget(index: number): CompletionTarget {
@@ -1290,14 +1317,14 @@
 							<p class="text-xs text-muted-foreground">
 								{isRoundCourseMode
 									? "Plan a loop ride from one start point and let GraphHopper bring it back home."
-									: "Build a road-bike route with optional intermediate stops."}
+									: "Build an asphalt-first road-bike route with optional intermediate stops."}
 							</p>
 						</div>
 						<Badge
 							variant="secondary"
 							class="h-5 shrink-0 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold text-primary"
 						>
-							Road bike bias
+							Asphalt first
 						</Badge>
 					</div>
 
@@ -1709,7 +1736,7 @@
 								variant="secondary"
 								class="h-5 shrink-0 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold text-primary"
 							>
-								Paved and smooth
+								Lower traffic bias
 							</Badge>
 						</div>
 
@@ -1726,6 +1753,12 @@
 							>
 								Penalize rough surface
 							</Badge>
+							<Badge
+								variant="outline"
+								class="h-6 border-border/50 bg-secondary/30 px-2 text-[10px] font-medium"
+							>
+								Avoid busy roads when possible
+							</Badge>
 						</div>
 					</div>
 
@@ -1735,6 +1768,15 @@
 							role="alert"
 						>
 							{routeRequestError}
+						</div>
+					{/if}
+
+					{#if activeRoutingWarnings.length > 0}
+						<div
+							class="rounded-lg border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
+							role="status"
+						>
+							{activeRoutingWarnings[0]}
 						</div>
 					{/if}
 
@@ -2042,7 +2084,7 @@
 										variant="secondary"
 										class="h-5 shrink-0 px-2 text-[10px] font-semibold"
 									>
-										Paved bias active
+										{getRoutingBadgeLabel(activeRoute)}
 									</Badge>
 								</div>
 
@@ -2129,9 +2171,19 @@
 										Routing profile
 									</div>
 									<div class="font-medium text-foreground">
-										GraphHopper bike with road-bike friendly surface penalties.
+										{getRoutingProfileLabel(activeRoute)}
 									</div>
 								</div>
+								{#if activeRoutingWarnings.length > 0}
+									<div class="rounded-md border border-amber-500/20 bg-amber-500/8 px-2.5 py-2 text-amber-900 dark:text-amber-100">
+										<div class="mb-1 font-semibold uppercase tracking-wide text-amber-900/70 dark:text-amber-100/70">
+											Routing fallback
+										</div>
+										<div class="font-medium">
+											{activeRoutingWarnings[0]}
+										</div>
+									</div>
+								{/if}
 							</div>
 						</div>
 					</div>

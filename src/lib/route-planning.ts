@@ -61,6 +61,9 @@ export type PlannedRoute = {
 	startLabel: string;
 	destinationLabel: string;
 	requestedDistanceMeters?: number;
+	routingProfile?: string;
+	routingStrategy?: string;
+	routingWarnings?: string[];
 	waypoints: RouteWaypoint[];
 	bounds: RouteBounds;
 	distanceMeters: number;
