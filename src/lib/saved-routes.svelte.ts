@@ -82,6 +82,15 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		typeof value.startLabel !== "string" ||
 		typeof value.destinationLabel !== "string" ||
 		requestedDistanceMeters === null ||
+		(value.routingProfile !== undefined &&
+			typeof value.routingProfile !== "string") ||
+		(value.routingStrategy !== undefined &&
+			typeof value.routingStrategy !== "string") ||
+		(value.routingWarnings !== undefined &&
+			(!Array.isArray(value.routingWarnings) ||
+				!value.routingWarnings.every(
+					(warning) => typeof warning === "string",
+				))) ||
 		!isRouteBounds(value.bounds) ||
 		!isFiniteNumber(value.distanceMeters) ||
 		!isFiniteNumber(value.durationMs) ||
@@ -110,6 +119,19 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		startLabel: value.startLabel,
 		destinationLabel: value.destinationLabel,
 		requestedDistanceMeters: requestedDistanceMeters ?? undefined,
+		routingProfile:
+			typeof value.routingProfile === "string"
+				? value.routingProfile
+				: undefined,
+		routingStrategy:
+			typeof value.routingStrategy === "string"
+				? value.routingStrategy
+				: undefined,
+		routingWarnings: Array.isArray(value.routingWarnings)
+			? value.routingWarnings.filter(
+					(warning): warning is string => typeof warning === "string",
+				)
+			: undefined,
 		waypoints: Array.isArray(waypointValues) ? waypointValues : [],
 		bounds: value.bounds,
 		distanceMeters: value.distanceMeters,
@@ -133,6 +155,15 @@ export function isPlannedRoute(value: unknown): value is PlannedRoute {
 		typeof value.destinationLabel === "string" &&
 		(value.requestedDistanceMeters === undefined ||
 			isFiniteNumber(value.requestedDistanceMeters)) &&
+		(value.routingProfile === undefined ||
+			typeof value.routingProfile === "string") &&
+		(value.routingStrategy === undefined ||
+			typeof value.routingStrategy === "string") &&
+		(value.routingWarnings === undefined ||
+			(Array.isArray(value.routingWarnings) &&
+				value.routingWarnings.every(
+					(warning) => typeof warning === "string",
+				))) &&
 		Array.isArray(value.waypoints) &&
 		value.waypoints.every(isRouteWaypoint) &&
 		isRouteBounds(value.bounds) &&

@@ -162,7 +162,7 @@ describe("POST /api/route", () => {
 		expect(requestBody.algorithm).toBeUndefined();
 	});
 
-	it("geocodes all ordered stops, requests a GraphHopper bike route, and returns snapped waypoint labels", async () => {
+	it("geocodes all ordered stops, requests a road-bike biased route, and returns snapped waypoint labels", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(
@@ -252,7 +252,7 @@ describe("POST /api/route", () => {
 
 		const requestOptions = routeRequest?.[1];
 		const requestBody = JSON.parse(String(requestOptions?.body));
-		expect(requestBody.profile).toBe("bike");
+		expect(requestBody.profile).toBe("racingbike");
 		expect(requestBody.points).toEqual([
 			[11.5755, 48.1374],
 			[11.7581, 47.7123],
@@ -260,11 +260,15 @@ describe("POST /api/route", () => {
 		]);
 		expect(requestBody.points_encoded).toBe(false);
 		expect(requestBody.elevation).toBe(true);
+		expect(requestBody["ch.disable"]).toBe(true);
+		expect(requestBody.custom_model).toBeDefined();
 		expect(requestBody.details).toEqual([
 			"surface",
 			"smoothness",
 			"road_class",
 			"road_environment",
+			"road_access",
+			"bike_network",
 		]);
 
 		const payload = (await response.json()) as {
@@ -277,6 +281,9 @@ describe("POST /api/route", () => {
 					coordinate: [number, number, number];
 				}>;
 				distanceMeters: number;
+				routingProfile?: string;
+				routingStrategy?: string;
+				routingWarnings?: string[];
 				surfaceDetails: Array<{ from: number; to: number; value: string }>;
 			};
 		};
@@ -291,6 +298,9 @@ describe("POST /api/route", () => {
 			},
 		]);
 		expect(payload.route.distanceMeters).toBe(61234);
+		expect(payload.route.routingProfile).toBe("racingbike");
+		expect(payload.route.routingStrategy).toContain("racingbike");
+		expect(payload.route.routingWarnings).toEqual([]);
 		expect(payload.route.surfaceDetails).toEqual([
 			{ from: 0, to: 2, value: "ASPHALT" },
 			{ from: 2, to: 3, value: "COMPACTED" },
@@ -361,6 +371,8 @@ describe("POST /api/route", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		const routeRequest = fetchMock.mock.calls[1];
 		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
+		expect(requestBody.profile).toBe("racingbike");
+		expect(requestBody.custom_model).toBeDefined();
 		expect(requestBody.points).toEqual([[11.5755, 48.1374]]);
 		expect(requestBody.algorithm).toBe("round_trip");
 		expect(requestBody["round_trip.distance"]).toBe(50000);
@@ -380,6 +392,7 @@ describe("POST /api/route", () => {
 		expect(payload.route.destinationLabel).toBe("Marienplatz, Munich, Germany");
 		expect(payload.route.requestedDistanceMeters).toBe(50000);
 		expect(payload.route.waypoints).toEqual([]);
+		expect(payload.route.routingProfile).toBe("racingbike");
 	});
 
 	it("validates the required target distance for round-course requests", async () => {
@@ -781,7 +794,7 @@ describe("POST /api/route", () => {
 		});
 	});
 
-	it("retries with a plain bike route when GraphHopper rejects the custom road-bike payload", async () => {
+	it("falls back through the road-bike routing ladder when GraphHopper rejects earlier strategies", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(
@@ -822,6 +835,11 @@ describe("POST /api/route", () => {
 				}),
 			)
 			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ message: "profile unsupported" }), {
+					status: 400,
+				}),
+			)
+			.mockResolvedValueOnce(
 				buildRouteResponse([
 					[13.405, 52.52, 40],
 					[12.3731, 51.3397, 50],
@@ -839,19 +857,35 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(fetchMock).toHaveBeenCalledTimes(5);
 
-		const tunedRouteRequest = JSON.parse(
+		const racingbikeTunedRouteRequest = JSON.parse(
 			String(fetchMock.mock.calls[2]?.[1]?.body),
 		) as Record<string, unknown>;
-		const fallbackRouteRequest = JSON.parse(
+		const racingbikeBaseRouteRequest = JSON.parse(
 			String(fetchMock.mock.calls[3]?.[1]?.body),
 		) as Record<string, unknown>;
+		const bikeTunedRouteRequest = JSON.parse(
+			String(fetchMock.mock.calls[4]?.[1]?.body),
+		) as Record<string, unknown>;
 
-		expect(tunedRouteRequest.custom_model).toBeDefined();
-		expect(tunedRouteRequest["ch.disable"]).toBe(true);
-		expect(fallbackRouteRequest.custom_model).toBeUndefined();
-		expect(fallbackRouteRequest["ch.disable"]).toBeUndefined();
-		expect(fallbackRouteRequest.snap_preventions).toBeUndefined();
+		expect(racingbikeTunedRouteRequest.profile).toBe("racingbike");
+		expect(racingbikeTunedRouteRequest.custom_model).toBeDefined();
+		expect(racingbikeTunedRouteRequest["ch.disable"]).toBe(true);
+		expect(racingbikeBaseRouteRequest.profile).toBe("racingbike");
+		expect(racingbikeBaseRouteRequest.custom_model).toBeUndefined();
+		expect(racingbikeBaseRouteRequest["ch.disable"]).toBeUndefined();
+		expect(racingbikeBaseRouteRequest.snap_preventions).toBeUndefined();
+		expect(bikeTunedRouteRequest.profile).toBe("bike");
+		expect(bikeTunedRouteRequest.custom_model).toBeDefined();
+		expect(bikeTunedRouteRequest["ch.disable"]).toBe(true);
+
+		await expect(response.json()).resolves.toMatchObject({
+			route: {
+				routingProfile: "bike",
+				routingStrategy: expect.stringContaining("bike"),
+				routingWarnings: [expect.stringContaining("racingbike profile")],
+			},
+		});
 	});
 });

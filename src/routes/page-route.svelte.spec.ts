@@ -28,6 +28,10 @@ const successfulRoutePayload = {
 		mode: "point_to_point",
 		startLabel: "Marienplatz, Munich, Germany",
 		destinationLabel: "Schliersee, Germany",
+		routingProfile: "racingbike",
+		routingStrategy:
+			"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
+		routingWarnings: [],
 		waypoints: [
 			{
 				label: "Tegernsee, Germany",
@@ -60,6 +64,10 @@ const successfulRoundCoursePayload = {
 		startLabel: "Marienplatz, Munich, Germany",
 		destinationLabel: "Marienplatz, Munich, Germany",
 		requestedDistanceMeters: 50000,
+		routingProfile: "racingbike",
+		routingStrategy:
+			"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
+		routingWarnings: [],
 		waypoints: [],
 		bounds: [11.55, 48.08, 11.69, 48.17],
 		distanceMeters: 50123,
@@ -228,9 +236,17 @@ describe("+page.svelte", () => {
 	});
 
 	it("submits the route form, updates the summary, and renders the route overlay", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(successfulRoutePayload)),
+			);
+		});
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
@@ -247,7 +263,14 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
-		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
 		await expect.poll(() => document.body.textContent).toContain("61.2");
 		await expect.poll(() => document.body.textContent).toContain("820");
 		await expect.poll(() => document.body.textContent).toContain("740");
@@ -255,7 +278,7 @@ describe("+page.svelte", () => {
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 		await page.getByRole("button", { name: "Analysis" }).click();
 		await expect
-			.element(page.getByText(/GraphHopper bike/i))
+			.element(page.getByText(/GraphHopper racingbike/i))
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByText("1. Tegernsee, Germany"))
@@ -271,7 +294,10 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("button", { name: "Saved" }))
 			.toBeInTheDocument();
 
-		expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/route");
+		const routeCalls = fetchMock.mock.calls.filter(
+			(call) => String(call[0]) === "/api/route",
+		);
+		expect(routeCalls[0]?.[0]).toBe("/api/route");
 		const savedRoutes = JSON.parse(
 			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
 		);
@@ -286,9 +312,7 @@ describe("+page.svelte", () => {
 				coordinate: [11.7581, 47.7123, 734],
 			},
 		]);
-		expect(
-			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
-		).toMatchObject({
+		expect(JSON.parse(String(routeCalls[0]?.[1]?.body))).toMatchObject({
 			mode: "point_to_point",
 			start: {
 				label: "Marienplatz Munich",
@@ -468,17 +492,25 @@ describe("+page.svelte", () => {
 	});
 
 	it("shows inline routing errors without clearing the existing map", async () => {
-		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-			new Response(
-				JSON.stringify({
-					error: "We couldn't resolve one or more locations.",
-					fieldErrors: {
-						startQuery: "We couldn't resolve that start point.",
-					},
-				}),
-				{ status: 422 },
-			),
-		);
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(
+					JSON.stringify({
+						error: "We couldn't resolve one or more locations.",
+						fieldErrors: {
+							startQuery: "We couldn't resolve that start point.",
+						},
+					}),
+					{ status: 422 },
+				),
+			);
+		});
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
@@ -487,7 +519,14 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Munich");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
-		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
 		await expect
 			.element(page.getByRole("alert"))
 			.toHaveTextContent("We couldn't resolve one or more locations.");
@@ -498,9 +537,17 @@ describe("+page.svelte", () => {
 	});
 
 	it("supports reordering waypoints before submitting the route request", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(successfulRoutePayload)),
+			);
+		});
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
@@ -514,10 +561,18 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
-		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
-		expect(
-			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
-		).toMatchObject({
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		const routeCalls = fetchMock.mock.calls.filter(
+			(call) => String(call[0]) === "/api/route",
+		);
+		expect(JSON.parse(String(routeCalls[0]?.[1]?.body))).toMatchObject({
 			waypoints: [{ label: "Tegernsee" }, { label: "Bad Tolz" }],
 		});
 	});
@@ -880,7 +935,9 @@ describe("+page.svelte", () => {
 	it("shows an inspected elevation readout and synced map marker while hovering the chart", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+			.mockImplementation(() =>
+				Promise.resolve(new Response(JSON.stringify(successfulRoutePayload))),
+			);
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
@@ -916,9 +973,17 @@ describe("+page.svelte", () => {
 	});
 
 	it("supports touch scrubbing across the elevation chart", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(successfulRoutePayload)),
+			);
+		});
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
@@ -927,7 +992,14 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
-		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
 
 		const chart = page.getByRole("img", { name: "Elevation along route" });
 		const chartElement = chart.element();

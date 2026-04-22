@@ -38,13 +38,13 @@ type GraphHopperRouteResponse = {
 };
 
 type GraphHopperRouteRequestBody = {
-	profile: "bike";
+	profile: "bike" | "racingbike";
 	points: [number, number][];
 	points_encoded: false;
 	elevation: true;
 	instructions: false;
 	calc_points: true;
-	details: ["surface", "smoothness", "road_class", "road_environment"];
+	details: typeof routeDetailKeys;
 	snap_preventions?: string[];
 	"ch.disable"?: true;
 	custom_model?: typeof roadBikeCustomModel;
@@ -52,9 +52,24 @@ type GraphHopperRouteRequestBody = {
 	"round_trip.distance"?: number;
 	"round_trip.seed"?: number;
 };
+type GraphHopperProfile = GraphHopperRouteRequestBody["profile"];
+type RouteRequestStrategy = {
+	profile: GraphHopperProfile;
+	useCustomModel: boolean;
+	routingStrategy: string;
+	routingWarnings: string[];
+};
 
 const maxRoutePoints = 5;
 const maxWaypoints = maxRoutePoints - 2;
+const routeDetailKeys = [
+	"surface",
+	"smoothness",
+	"road_class",
+	"road_environment",
+	"road_access",
+	"bike_network",
+] as const;
 type LegacyRouteRequestPayload = {
 	startQuery?: string;
 	waypointQueries?: string[];
@@ -80,28 +95,74 @@ type RouteStop = {
 const roadBikeCustomModel = {
 	priority: [
 		{
+			if: "road_access == PRIVATE",
+			multiply_by: "0",
+		},
+		{
 			if: "road_environment == FERRY || road_environment == TUNNEL",
-			multiply_by: "0.1",
+			multiply_by: "0.05",
 		},
 		{
 			if: "road_class == TRACK || road_class == PATH || road_class == FOOTWAY || road_class == STEPS",
-			multiply_by: "0.15",
+			multiply_by: "0.02",
 		},
 		{
-			if: "surface == DIRT || surface == GROUND || surface == GRAVEL || surface == SAND || surface == MUD || surface == GRASS",
-			multiply_by: "0.15",
+			if: "road_class == TRUNK || road_class == PRIMARY",
+			multiply_by: "0.3",
+		},
+		{
+			if: "road_class == LIVING_STREET || road_class == RESIDENTIAL || road_class == SERVICE",
+			multiply_by: "0.7",
+		},
+		{
+			if: "surface == DIRT || surface == GROUND || surface == GRAVEL || surface == SAND || surface == MUD || surface == GRASS || surface == EARTH || surface == UNPAVED",
+			multiply_by: "0.02",
 		},
 		{
 			if: "surface == COBBLESTONE || surface == SETT || surface == UNHEWN_COBBLESTONE || surface == PAVING_STONES",
-			multiply_by: "0.45",
+			multiply_by: "0.2",
 		},
 		{
 			if: "smoothness == BAD || smoothness == VERY_BAD || smoothness == HORRIBLE || smoothness == VERY_HORRIBLE || smoothness == IMPASSABLE",
-			multiply_by: "0.2",
+			multiply_by: "0.1",
 		},
 	],
-	distance_influence: 45,
+	distance_influence: 55,
 } as const;
+const routeRequestStrategies: RouteRequestStrategy[] = [
+	{
+		profile: "racingbike",
+		useCustomModel: true,
+		routingStrategy:
+			"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
+		routingWarnings: [],
+	},
+	{
+		profile: "racingbike",
+		useCustomModel: false,
+		routingStrategy: "GraphHopper racingbike base profile.",
+		routingWarnings: [
+			"Advanced paved-road tuning was unavailable, so the built-in racingbike profile was used.",
+		],
+	},
+	{
+		profile: "bike",
+		useCustomModel: true,
+		routingStrategy:
+			"GraphHopper bike with asphalt-first, lower-traffic road-bike tuning.",
+		routingWarnings: [
+			"GraphHopper did not accept the racingbike profile for this route, so tuned bike routing was used instead.",
+		],
+	},
+	{
+		profile: "bike",
+		useCustomModel: false,
+		routingStrategy: "GraphHopper default bike profile.",
+		routingWarnings: [
+			"Advanced road-bike routing was unavailable for this route, so GraphHopper's default bike profile was used.",
+		],
+	},
+];
 
 function errorResponse(
 	status: number,
@@ -184,37 +245,33 @@ async function requestRoute(
 	}
 
 	const routeUrl = `${graphHopperApiBaseUrl}/route?key=${encodeURIComponent(key)}`;
-	const preferredRequestBody: GraphHopperRouteRequestBody = {
-		profile: "bike",
-		points,
-		points_encoded: false,
-		elevation: true,
-		instructions: false,
-		calc_points: true,
-		details: ["surface", "smoothness", "road_class", "road_environment"],
-		snap_preventions: ["ferry", "tunnel"],
-		"ch.disable": true,
-		custom_model: roadBikeCustomModel,
-	};
-	const fallbackRequestBody: GraphHopperRouteRequestBody = {
-		profile: "bike",
-		points,
-		points_encoded: false,
-		elevation: true,
-		instructions: false,
-		calc_points: true,
-		details: ["surface", "smoothness", "road_class", "road_environment"],
-	};
+	function buildRouteRequestBody(
+		strategy: RouteRequestStrategy,
+	): GraphHopperRouteRequestBody {
+		const requestBody: GraphHopperRouteRequestBody = {
+			profile: strategy.profile,
+			points,
+			points_encoded: false,
+			elevation: true,
+			instructions: false,
+			calc_points: true,
+			details: routeDetailKeys,
+		};
 
-	if (options.mode === "round_course") {
-		preferredRequestBody.algorithm = "round_trip";
-		preferredRequestBody["round_trip.distance"] = Math.round(
-			options.requestedDistanceMeters ?? 0,
-		);
-		fallbackRequestBody.algorithm = "round_trip";
-		fallbackRequestBody["round_trip.distance"] = Math.round(
-			options.requestedDistanceMeters ?? 0,
-		);
+		if (strategy.useCustomModel) {
+			requestBody.snap_preventions = ["ferry", "tunnel"];
+			requestBody["ch.disable"] = true;
+			requestBody.custom_model = roadBikeCustomModel;
+		}
+
+		if (options.mode === "round_course") {
+			requestBody.algorithm = "round_trip";
+			requestBody["round_trip.distance"] = Math.round(
+				options.requestedDistanceMeters ?? 0,
+			);
+		}
+
+		return requestBody;
 	}
 
 	async function sendRouteRequest(body: GraphHopperRouteRequestBody) {
@@ -236,22 +293,38 @@ async function requestRoute(
 		return (await response.json()) as GraphHopperRouteResponse;
 	}
 
-	let payload: GraphHopperRouteResponse;
+	let payload: GraphHopperRouteResponse | null = null;
+	let selectedStrategy: RouteRequestStrategy | null = null;
+	let lastError: unknown = null;
 
-	try {
-		payload = await sendRouteRequest(preferredRequestBody);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+	for (const strategy of routeRequestStrategies) {
+		try {
+			payload = await sendRouteRequest(buildRouteRequestBody(strategy));
+			selectedStrategy = strategy;
+			break;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
 
-		if (!message.includes("Routing failed with status 400")) {
-			throw error;
+			if (message.includes("Too many points for Routing API")) {
+				throw error;
+			}
+
+			if (!message.includes("Routing failed with status 400")) {
+				throw error;
+			}
+
+			lastError = error;
+			console.warn(
+				`GraphHopper rejected ${strategy.profile}${strategy.useCustomModel ? " with road-bike tuning" : " routing"}. Trying the next routing strategy.`,
+				error,
+			);
 		}
+	}
 
-		console.warn(
-			"GraphHopper rejected the road-bike tuning. Retrying with the plain bike profile.",
-			error,
-		);
-		payload = await sendRouteRequest(fallbackRequestBody);
+	if (!payload || !selectedStrategy) {
+		throw lastError instanceof Error
+			? lastError
+			: new Error("GraphHopper did not accept any routing strategy");
 	}
 
 	const path = payload.paths?.[0];
@@ -289,6 +362,9 @@ async function requestRoute(
 				options.mode === "round_course"
 					? options.requestedDistanceMeters
 					: undefined,
+			routingProfile: selectedStrategy.profile,
+			routingStrategy: selectedStrategy.routingStrategy,
+			routingWarnings: [...selectedStrategy.routingWarnings],
 			waypoints: [],
 			bounds: [bbox[0], bbox[1], bbox[2], bbox[3]],
 			distanceMeters: path.distance,
