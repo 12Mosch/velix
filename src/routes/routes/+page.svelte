@@ -3,11 +3,13 @@
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
+	import { downloadRouteGpx } from "$lib/route-export";
 	import {
 		deleteSavedRoute,
 		savedRoutesState,
 		initSavedRoutes,
 	} from "$lib/saved-routes.svelte";
+	import type { PlannedRoute } from "$lib/route-planning";
 	import {
 		ArrowLeft,
 		Bookmark,
@@ -21,6 +23,8 @@
 	onMount(() => {
 		initSavedRoutes();
 	});
+
+	let exportError = $state<string | null>(null);
 
 	function formatDistance(meters: number): string {
 		return `${(meters / 1000).toFixed(1)} km`;
@@ -62,6 +66,19 @@
 	function handleDeleteSavedRoute(id: string) {
 		deleteSavedRoute(id);
 	}
+
+	function handleExportSavedRoute(route: PlannedRoute) {
+		exportError = null;
+
+		try {
+			downloadRouteGpx(route);
+		} catch (error) {
+			exportError =
+				error instanceof Error
+					? `Could not export GPX: ${error.message}`
+					: "Could not export GPX.";
+		}
+	}
 </script>
 
 <div class="relative h-full w-full overflow-y-auto bg-background">
@@ -74,6 +91,15 @@
 				<h1 class="font-heading text-lg font-semibold tracking-tight md:text-xl">My routes</h1>
 			</div>
 		</div>
+
+		{#if exportError}
+			<div
+				class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+				role="alert"
+			>
+				{exportError}
+			</div>
+		{/if}
 
 		{#if savedRoutesState.savedRoutes.length === 0}
 			<div class="rounded-xl border border-border bg-background p-6 shadow-lg md:p-8">
@@ -169,6 +195,13 @@
 							</div>
 
 							<div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+								<Button
+									variant="outline"
+									class="font-semibold"
+									onclick={() => handleExportSavedRoute(savedRoute.route)}
+								>
+									Export GPX
+								</Button>
 								<Button
 									variant="outline"
 									class="gap-1 font-semibold text-destructive hover:text-destructive"

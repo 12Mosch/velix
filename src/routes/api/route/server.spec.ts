@@ -7,6 +7,7 @@ vi.mock("$env/dynamic/private", () => ({
 }));
 
 import { POST } from "./+server";
+import type { RouteApiSuccess } from "$lib/route-planning";
 
 function buildEvent(body: unknown, fetchMock: typeof fetch) {
 	return {
@@ -377,15 +378,7 @@ describe("POST /api/route", () => {
 		expect(requestBody.algorithm).toBe("round_trip");
 		expect(requestBody["round_trip.distance"]).toBe(50000);
 
-		const payload = (await response.json()) as {
-			route: {
-				mode: string;
-				startLabel: string;
-				destinationLabel: string;
-				requestedDistanceMeters?: number;
-				waypoints: unknown[];
-			};
-		};
+		const payload = (await response.json()) as RouteApiSuccess;
 
 		expect(payload.route.mode).toBe("round_course");
 		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
