@@ -54,6 +54,69 @@ function buildRouteResponse(points: number[][]) {
 	);
 }
 
+function buildRoundCourseResponse(point: number[]) {
+	return new Response(
+		JSON.stringify({
+			paths: [
+				{
+					distance: 50123,
+					time: 7420000,
+					ascend: 540,
+					descend: 540,
+					bbox: [11.55, 48.08, 11.69, 48.17],
+					points: {
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.66, 48.12, 610],
+							[11.5755, 48.1374, 520],
+						],
+					},
+					snapped_waypoints: {
+						coordinates: [point],
+					},
+					details: {
+						surface: [
+							[0, 2, "ASPHALT"],
+							[2, 3, "COMPACTED"],
+						],
+						smoothness: [[0, 3, "GOOD"]],
+					},
+				},
+			],
+		}),
+	);
+}
+
+function buildRoundCourseResponseWithoutSnappedWaypoints() {
+	return new Response(
+		JSON.stringify({
+			paths: [
+				{
+					distance: 50123,
+					time: 7420000,
+					ascend: 540,
+					descend: 540,
+					bbox: [11.55, 48.08, 11.69, 48.17],
+					points: {
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.66, 48.12, 610],
+							[11.5755, 48.1374, 520],
+						],
+					},
+					details: {
+						surface: [
+							[0, 2, "ASPHALT"],
+							[2, 3, "COMPACTED"],
+						],
+						smoothness: [[0, 3, "GOOD"]],
+					},
+				},
+			],
+		}),
+	);
+}
+
 describe("POST /api/route", () => {
 	it("uses exact stop coordinates without forward-geocoding them again", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
@@ -67,6 +130,7 @@ describe("POST /api/route", () => {
 		const response = await POST(
 			buildEvent(
 				{
+					mode: "point_to_point",
 					start: {
 						label: "Marienplatz, Munich, Germany",
 						point: [11.5755, 48.1374],
@@ -95,6 +159,7 @@ describe("POST /api/route", () => {
 			[11.7581, 47.7123],
 			[11.8598, 47.7362],
 		]);
+		expect(requestBody.algorithm).toBeUndefined();
 	});
 
 	it("geocodes all ordered stops, requests a GraphHopper bike route, and returns snapped waypoint labels", async () => {
@@ -204,6 +269,7 @@ describe("POST /api/route", () => {
 
 		const payload = (await response.json()) as {
 			route: {
+				mode: string;
 				startLabel: string;
 				destinationLabel: string;
 				waypoints: Array<{
@@ -216,6 +282,7 @@ describe("POST /api/route", () => {
 		};
 
 		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
+		expect(payload.route.mode).toBe("point_to_point");
 		expect(payload.route.destinationLabel).toBe("Schliersee, Germany");
 		expect(payload.route.waypoints).toEqual([
 			{
@@ -253,6 +320,140 @@ describe("POST /api/route", () => {
 				waypointQueries: ["Enter a waypoint or remove this stop.", ""],
 			},
 		});
+	});
+
+	it("requests a GraphHopper round trip from one resolved start point", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Marienplatz",
+								city: "Munich",
+								country: "Germany",
+								point: {
+									lat: 48.1374,
+									lng: 11.5755,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(buildRoundCourseResponse([11.5756, 48.1375, 522]));
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					requestedDistanceMeters: 50000,
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		const routeRequest = fetchMock.mock.calls[1];
+		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
+		expect(requestBody.points).toEqual([[11.5755, 48.1374]]);
+		expect(requestBody.algorithm).toBe("round_trip");
+		expect(requestBody["round_trip.distance"]).toBe(50000);
+
+		const payload = (await response.json()) as {
+			route: {
+				mode: string;
+				startLabel: string;
+				destinationLabel: string;
+				requestedDistanceMeters?: number;
+				waypoints: unknown[];
+			};
+		};
+
+		expect(payload.route.mode).toBe("round_course");
+		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
+		expect(payload.route.destinationLabel).toBe("Marienplatz, Munich, Germany");
+		expect(payload.route.requestedDistanceMeters).toBe(50000);
+		expect(payload.route.waypoints).toEqual([]);
+	});
+
+	it("validates the required target distance for round-course requests", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Munich",
+					},
+					requestedDistanceMeters: 0,
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Start and target distance are required.",
+			fieldErrors: {
+				requestedDistanceKm: "Enter a target distance.",
+			},
+		});
+	});
+
+	it("accepts round-course responses even when GraphHopper omits snapped waypoints", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Marienplatz",
+								city: "Munich",
+								country: "Germany",
+								point: {
+									lat: 48.1374,
+									lng: 11.5755,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(buildRoundCourseResponseWithoutSnappedWaypoints());
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					requestedDistanceMeters: 50000,
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as {
+			route: {
+				mode: string;
+				startLabel: string;
+				destinationLabel: string;
+			};
+		};
+		expect(payload.route.mode).toBe("round_course");
+		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
+		expect(payload.route.destinationLabel).toBe("Marienplatz, Munich, Germany");
 	});
 
 	it("rejects routes with more than three waypoints", async () => {

@@ -13,6 +13,7 @@ const savedRoutes = [
 		id: "saved-route-1",
 		createdAt: "2026-04-19T09:30:00.000Z",
 		route: {
+			mode: "point_to_point",
 			startLabel: "Marienplatz, Munich, Germany",
 			destinationLabel: "Schliersee, Germany",
 			waypoints: [
@@ -83,6 +84,52 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByRole("link", { name: "Open route" }))
 			.toHaveAttribute("href", "/?savedRoute=saved-route-1");
+	});
+
+	it("renders round-course saved routes without showing a destination leg", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-round-course",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: {
+						mode: "round_course",
+						startLabel: "Marienplatz, Munich, Germany",
+						destinationLabel: "Marienplatz, Munich, Germany",
+						requestedDistanceMeters: 50000,
+						waypoints: [],
+						bounds: [11.55, 48.08, 11.69, 48.17],
+						distanceMeters: 50123,
+						durationMs: 7420000,
+						ascendMeters: 540,
+						descendMeters: 540,
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.62, 48.15, 580],
+							[11.67, 48.11, 610],
+							[11.5755, 48.1374, 520],
+						],
+						surfaceDetails: [],
+						smoothnessDetails: [],
+					},
+				},
+			]),
+		);
+
+		render(RoutesPage);
+
+		await expect.element(page.getByText("Round course")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Returns to start"))
+			.toBeInTheDocument();
+		await expect.element(page.getByText("Target 50.0 km")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Schliersee, Germany"))
+			.not.toBeInTheDocument();
 	});
 
 	it("deletes a saved route from the list and localStorage", async () => {

@@ -1,6 +1,10 @@
 import { browser } from "$app/environment";
 
-import type { PlannedRoute, RouteWaypoint } from "$lib/route-planning";
+import type {
+	PlannedRoute,
+	RouteMode,
+	RouteWaypoint,
+} from "$lib/route-planning";
 
 export const SAVED_ROUTES_STORAGE_KEY = "velix.savedRoutes";
 
@@ -16,6 +20,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value);
+}
+
+function isRouteMode(value: unknown): value is RouteMode {
+	return value === "point_to_point" || value === "round_course";
 }
 
 function isRouteCoordinate(
@@ -62,10 +70,18 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 	}
 
 	const waypointValues = value.waypoints;
+	const mode = isRouteMode(value.mode) ? value.mode : "point_to_point";
+	const requestedDistanceMeters =
+		value.requestedDistanceMeters === undefined
+			? undefined
+			: isFiniteNumber(value.requestedDistanceMeters)
+				? value.requestedDistanceMeters
+				: null;
 
 	if (
 		typeof value.startLabel !== "string" ||
 		typeof value.destinationLabel !== "string" ||
+		requestedDistanceMeters === null ||
 		!isRouteBounds(value.bounds) ||
 		!isFiniteNumber(value.distanceMeters) ||
 		!isFiniteNumber(value.durationMs) ||
@@ -90,8 +106,10 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 	}
 
 	return {
+		mode,
 		startLabel: value.startLabel,
 		destinationLabel: value.destinationLabel,
+		requestedDistanceMeters: requestedDistanceMeters ?? undefined,
 		waypoints: Array.isArray(waypointValues) ? waypointValues : [],
 		bounds: value.bounds,
 		distanceMeters: value.distanceMeters,
@@ -110,8 +128,11 @@ export function isPlannedRoute(value: unknown): value is PlannedRoute {
 	}
 
 	return (
+		(value.mode === undefined || isRouteMode(value.mode)) &&
 		typeof value.startLabel === "string" &&
 		typeof value.destinationLabel === "string" &&
+		(value.requestedDistanceMeters === undefined ||
+			isFiniteNumber(value.requestedDistanceMeters)) &&
 		Array.isArray(value.waypoints) &&
 		value.waypoints.every(isRouteWaypoint) &&
 		isRouteBounds(value.bounds) &&

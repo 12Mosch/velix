@@ -15,6 +15,7 @@ function buildRoute(
 	smoothnessDetails: PlannedRoute["smoothnessDetails"] = [],
 ): PlannedRoute {
 	return {
+		mode: "point_to_point",
 		startLabel: "Start",
 		destinationLabel: "Destination",
 		waypoints: [
@@ -50,6 +51,28 @@ describe("buildRouteGeoJson", () => {
 			label: "Waypoint",
 			order: 1,
 		});
+	});
+
+	it("omits the destination marker for round-course routes", () => {
+		const route: PlannedRoute = {
+			...buildRoute([{ from: 0, to: 10, value: "ASPHALT" }]),
+			mode: "round_course",
+			startLabel: "Loop start",
+			destinationLabel: "Loop start",
+			requestedDistanceMeters: 50000,
+			waypoints: [],
+			coordinates: [
+				[11.5, 47.2, 520],
+				[11.6, 47.25, 560],
+				[11.5, 47.2, 520],
+			],
+		};
+
+		const geoJson = buildRouteGeoJson(route);
+
+		expect(geoJson.features.map((feature) => feature.properties?.kind)).toEqual(
+			["route", "start"],
+		);
 	});
 });
 
@@ -118,11 +141,35 @@ describe("getRouteStopInputs", () => {
 			},
 		]);
 	});
+
+	it("returns only the start stop for round-course routes", () => {
+		const route: PlannedRoute = {
+			...buildRoute([{ from: 0, to: 10, value: "ASPHALT" }]),
+			mode: "round_course",
+			startLabel: "Loop start",
+			destinationLabel: "Loop start",
+			requestedDistanceMeters: 65000,
+			waypoints: [],
+			coordinates: [
+				[11.5, 47.2, 520],
+				[11.6, 47.25, 560],
+				[11.5, 47.2, 520],
+			],
+		};
+
+		expect(getRouteStopInputs(route)).toEqual([
+			{
+				label: "Loop start",
+				point: [11.5, 47.2],
+			},
+		]);
+	});
 });
 
 describe("getWaypointInsertionIndex", () => {
 	it("uses the routed leg when the active route still matches the current stops", () => {
 		const route: PlannedRoute = {
+			mode: "point_to_point",
 			startLabel: "Start",
 			destinationLabel: "Destination",
 			waypoints: [

@@ -25,6 +25,7 @@ import {
 
 const successfulRoutePayload = {
 	route: {
+		mode: "point_to_point",
 		startLabel: "Marienplatz, Munich, Germany",
 		destinationLabel: "Schliersee, Germany",
 		waypoints: [
@@ -51,6 +52,31 @@ const successfulRoutePayload = {
 			{ from: 4, to: 5, value: "fine gravel" },
 		],
 		smoothnessDetails: [{ from: 0, to: 5, value: "GOOD" }],
+	},
+};
+const successfulRoundCoursePayload = {
+	route: {
+		mode: "round_course",
+		startLabel: "Marienplatz, Munich, Germany",
+		destinationLabel: "Marienplatz, Munich, Germany",
+		requestedDistanceMeters: 50000,
+		waypoints: [],
+		bounds: [11.55, 48.08, 11.69, 48.17],
+		distanceMeters: 50123,
+		durationMs: 7420000,
+		ascendMeters: 540,
+		descendMeters: 540,
+		coordinates: [
+			[11.5755, 48.1374, 520],
+			[11.62, 48.15, 580],
+			[11.67, 48.11, 610],
+			[11.5755, 48.1374, 520],
+		],
+		surfaceDetails: [
+			{ from: 0, to: 3, value: "asphalt" },
+			{ from: 3, to: 4, value: "fine gravel" },
+		],
+		smoothnessDetails: [{ from: 0, to: 4, value: "GOOD" }],
 	},
 };
 const successfulRouteProfile = sampleElevationProfile(
@@ -263,6 +289,7 @@ describe("+page.svelte", () => {
 		expect(
 			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
 		).toMatchObject({
+			mode: "point_to_point",
 			start: {
 				label: "Marienplatz Munich",
 			},
@@ -327,6 +354,91 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("button", { name: "Saved" }))
 			.toBeInTheDocument();
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("switches into round-course mode, submits the loop payload, and saves it", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Target distance" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("textbox", { name: "Destination" }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Add waypoint" }))
+			.not.toBeInTheDocument();
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("spinbutton", { name: "Target distance" }).fill("50");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+		).toMatchObject({
+			mode: "round_course",
+			start: {
+				label: "Marienplatz Munich",
+			},
+			requestedDistanceMeters: 50000,
+		});
+
+		await expect
+			.element(page.getByText("Returns to start"))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Save Draft" }).click();
+
+		const savedRoutes = JSON.parse(
+			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
+		);
+		expect(savedRoutes[0]?.route.mode).toBe("round_course");
+		expect(savedRoutes[0]?.route.requestedDistanceMeters).toBe(50000);
+	});
+
+	it("restores a saved round course from the query string", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-round-course",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulRoundCoursePayload.route,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-round-course");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect.poll(() => document.body.textContent).toContain("50.1");
+		await expect
+			.element(
+				page.getByRole("button", { name: /Round course Loop from one/i }),
+			)
+			.toHaveAttribute("aria-pressed", "true");
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Target distance" }))
+			.toHaveValue(50);
+		await expect
+			.element(page.getByText("Returns to start"))
+			.toBeInTheDocument();
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
