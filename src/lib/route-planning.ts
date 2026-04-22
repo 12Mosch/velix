@@ -15,16 +15,29 @@ export type RouteSuggestion = {
 	point: [number, number];
 };
 
+export type RouteMode = "point_to_point" | "round_course";
+
 export type RouteStopInput = {
 	label: string;
 	point?: [number, number];
 };
 
-export type RouteRequestPayload = {
+export type PointToPointRouteRequestPayload = {
+	mode: "point_to_point";
 	start: RouteStopInput;
 	waypoints: RouteStopInput[];
 	destination: RouteStopInput;
 };
+
+export type RoundCourseRouteRequestPayload = {
+	mode: "round_course";
+	start: RouteStopInput;
+	requestedDistanceMeters: number;
+};
+
+export type RouteRequestPayload =
+	| PointToPointRouteRequestPayload
+	| RoundCourseRouteRequestPayload;
 
 export type RouteDetailInterval = {
 	from: number;
@@ -44,8 +57,10 @@ export type ElevationProfilePoint = {
 };
 
 export type PlannedRoute = {
+	mode: RouteMode;
 	startLabel: string;
 	destinationLabel: string;
+	requestedDistanceMeters?: number;
 	waypoints: RouteWaypoint[];
 	bounds: RouteBounds;
 	distanceMeters: number;
@@ -69,6 +84,7 @@ export type RouteFieldErrors = {
 	startQuery?: string;
 	destinationQuery?: string;
 	waypointQueries?: string[];
+	requestedDistanceKm?: string;
 };
 
 export type RouteApiError = {
@@ -198,7 +214,7 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 			: null;
 
 	const destinationFeature: Feature<Point, RouteFeatureProperties> | null =
-		destinationCoordinate
+		route.mode !== "round_course" && destinationCoordinate
 			? {
 					type: "Feature",
 					properties: {
@@ -373,6 +389,15 @@ function getNearestPolylineIndex(
 export function getRouteStopInputs(route: PlannedRoute): RouteStopInput[] {
 	const startCoordinate = route.coordinates[0];
 	const destinationCoordinate = route.coordinates[route.coordinates.length - 1];
+
+	if (route.mode === "round_course") {
+		return [
+			{
+				label: route.startLabel,
+				point: startCoordinate ? toStopPoint(startCoordinate) : undefined,
+			},
+		];
+	}
 
 	return [
 		{

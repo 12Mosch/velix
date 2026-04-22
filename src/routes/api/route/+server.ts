@@ -7,6 +7,7 @@ import type {
 	RouteApiError,
 	RouteCoordinate,
 	RouteDetailInterval,
+	RouteMode,
 	RouteRequestPayload,
 	RouteStopInput,
 	RouteWaypoint,
@@ -47,6 +48,9 @@ type GraphHopperRouteRequestBody = {
 	snap_preventions?: string[];
 	"ch.disable"?: true;
 	custom_model?: typeof roadBikeCustomModel;
+	algorithm?: "round_trip";
+	"round_trip.distance"?: number;
+	"round_trip.seed"?: number;
 };
 
 const maxRoutePoints = 5;
@@ -55,6 +59,12 @@ type LegacyRouteRequestPayload = {
 	startQuery?: string;
 	waypointQueries?: string[];
 	destinationQuery?: string;
+};
+
+type RoundCourseRouteRequestPayloadInput = {
+	mode?: "round_course";
+	start?: RouteStopInput;
+	requestedDistanceMeters?: unknown;
 };
 
 type StopField = "startQuery" | "destinationQuery" | "waypointQueries";
@@ -159,6 +169,10 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 async function requestRoute(
 	fetchFn: typeof fetch,
 	points: [number, number][],
+	options: {
+		mode: RouteMode;
+		requestedDistanceMeters?: number;
+	},
 ): Promise<{
 	route: PlannedRoute;
 	snappedWaypoints: RouteCoordinate[];
@@ -191,6 +205,17 @@ async function requestRoute(
 		calc_points: true,
 		details: ["surface", "smoothness", "road_class", "road_environment"],
 	};
+
+	if (options.mode === "round_course") {
+		preferredRequestBody.algorithm = "round_trip";
+		preferredRequestBody["round_trip.distance"] = Math.round(
+			options.requestedDistanceMeters ?? 0,
+		);
+		fallbackRequestBody.algorithm = "round_trip";
+		fallbackRequestBody["round_trip.distance"] = Math.round(
+			options.requestedDistanceMeters ?? 0,
+		);
+	}
 
 	async function sendRouteRequest(body: GraphHopperRouteRequestBody) {
 		const response = await fetchFn(routeUrl, {
@@ -233,6 +258,12 @@ async function requestRoute(
 	const coordinates = path?.points?.coordinates;
 	const snappedWaypoints = path?.snapped_waypoints?.coordinates;
 	const bbox = path?.bbox;
+	const normalizedSnappedWaypoints =
+		snappedWaypoints && snappedWaypoints.length === points.length
+			? snappedWaypoints
+			: options.mode === "round_course"
+				? points.map((point): RouteCoordinate => [point[0], point[1]])
+				: null;
 
 	if (
 		!path ||
@@ -240,8 +271,7 @@ async function requestRoute(
 		bbox.length < 4 ||
 		!coordinates ||
 		coordinates.length < 2 ||
-		!snappedWaypoints ||
-		snappedWaypoints.length !== points.length ||
+		!normalizedSnappedWaypoints ||
 		typeof path.distance !== "number" ||
 		typeof path.time !== "number" ||
 		typeof path.ascend !== "number" ||
@@ -252,8 +282,13 @@ async function requestRoute(
 
 	return {
 		route: {
+			mode: options.mode,
 			startLabel: "",
 			destinationLabel: "",
+			requestedDistanceMeters:
+				options.mode === "round_course"
+					? options.requestedDistanceMeters
+					: undefined,
 			waypoints: [],
 			bounds: [bbox[0], bbox[1], bbox[2], bbox[3]],
 			distanceMeters: path.distance,
@@ -264,12 +299,15 @@ async function requestRoute(
 			surfaceDetails: normalizeDetailIntervals(path.details?.surface),
 			smoothnessDetails: normalizeDetailIntervals(path.details?.smoothness),
 		},
-		snappedWaypoints,
+		snappedWaypoints: normalizedSnappedWaypoints,
 	};
 }
 
 export const POST: RequestHandler = async ({ fetch, request }) => {
-	let payload: Partial<RouteRequestPayload> | LegacyRouteRequestPayload;
+	let payload:
+		| Partial<RouteRequestPayload>
+		| RoundCourseRouteRequestPayloadInput
+		| LegacyRouteRequestPayload;
 
 	try {
 		payload = (await request.json()) as typeof payload;
@@ -278,34 +316,115 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 	}
 
 	const payloadRecord = payload as Record<string, unknown>;
+	const requestedMode =
+		payloadRecord.mode === "round_course" ? "round_course" : "point_to_point";
 	const hasStructuredPayload =
 		"start" in payloadRecord ||
 		"waypoints" in payloadRecord ||
-		"destination" in payloadRecord;
+		"destination" in payloadRecord ||
+		"requestedDistanceMeters" in payloadRecord ||
+		"mode" in payloadRecord;
 	const structuredPayload = hasStructuredPayload
 		? (payload as Partial<RouteRequestPayload>)
 		: null;
+	const structuredPointToPointPayload =
+		structuredPayload && requestedMode === "point_to_point"
+			? (structuredPayload as Partial<
+					Extract<RouteRequestPayload, { mode: "point_to_point" }>
+				>)
+			: null;
 	const legacyPayload = hasStructuredPayload
 		? null
 		: (payload as LegacyRouteRequestPayload);
-	const rawWaypointInputs =
-		(structuredPayload
-			? structuredPayload.waypoints
-			: legacyPayload?.waypointQueries) ?? [];
 	const startInput = normalizeStopInput(
 		structuredPayload ? structuredPayload.start : legacyPayload?.startQuery,
 	);
+	const fieldErrors: RouteApiError["fieldErrors"] = {};
+
+	if (requestedMode === "round_course") {
+		const requestedDistanceMeters = Number(
+			(payloadRecord.requestedDistanceMeters as number | string | undefined) ??
+				NaN,
+		);
+
+		if (!startInput.label) {
+			fieldErrors.startQuery = "Enter a start point.";
+		}
+
+		if (
+			!Number.isFinite(requestedDistanceMeters) ||
+			requestedDistanceMeters <= 0
+		) {
+			fieldErrors.requestedDistanceKm = "Enter a target distance.";
+		}
+
+		if (Object.keys(fieldErrors).length > 0) {
+			return errorResponse(
+				400,
+				"Start and target distance are required.",
+				fieldErrors,
+			);
+		}
+
+		try {
+			const resolvedStart = startInput.point
+				? {
+						label: startInput.label,
+						point: startInput.point,
+					}
+				: await geocodeLocation(fetch, startInput.label);
+
+			if (!resolvedStart?.point || !resolvedStart.label) {
+				return errorResponse(422, "We couldn't resolve the start point.", {
+					startQuery: "We couldn't resolve that start point.",
+				});
+			}
+
+			const { route } = await requestRoute(fetch, [resolvedStart.point], {
+				mode: "round_course",
+				requestedDistanceMeters,
+			});
+			route.startLabel = resolvedStart.label;
+			route.destinationLabel = resolvedStart.label;
+			route.waypoints = [];
+
+			return json({
+				route,
+			});
+		} catch (error) {
+			console.error("Failed to generate GraphHopper round course", error);
+
+			if (
+				error instanceof Error &&
+				error.message === missingGraphHopperApiKeyMessage
+			) {
+				return errorResponse(
+					500,
+					"Routing is not configured yet. Add GRAPHHOPPER_API_KEY.",
+				);
+			}
+
+			return errorResponse(
+				502,
+				"GraphHopper could not generate a round course right now.",
+			);
+		}
+	}
+
+	const rawWaypointInputs =
+		(structuredPointToPointPayload
+			? structuredPointToPointPayload.waypoints
+			: legacyPayload?.waypointQueries) ?? [];
 	const waypointInputs = Array.isArray(rawWaypointInputs)
 		? rawWaypointInputs.map((input: RouteStopInput | string | undefined) =>
 				normalizeStopInput(input),
 			)
 		: [];
 	const destinationInput = normalizeStopInput(
-		structuredPayload
-			? structuredPayload.destination
+		structuredPointToPointPayload
+			? structuredPointToPointPayload.destination
 			: legacyPayload?.destinationQuery,
 	);
-	const fieldErrors: RouteApiError["fieldErrors"] = {};
 
 	if (waypointInputs.length > maxWaypoints) {
 		fieldErrors.waypointQueries = waypointInputs.map(() => "");
@@ -420,7 +539,9 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 		const routePoints = resolvedStops.map(
 			(stop) => stop.point as [number, number],
 		);
-		const { route, snappedWaypoints } = await requestRoute(fetch, routePoints);
+		const { route, snappedWaypoints } = await requestRoute(fetch, routePoints, {
+			mode: "point_to_point",
+		});
 
 		route.startLabel = resolvedStops[0]?.label ?? "";
 		route.destinationLabel =

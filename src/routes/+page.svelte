@@ -26,6 +26,7 @@
 		type PlannedRoute,
 		type RouteApiError,
 		type RouteApiSuccess,
+		type RouteMode,
 		type RouteRequestPayload,
 		type RouteStopInput,
 		type RouteSuggestion,
@@ -54,6 +55,7 @@
 		source: StopSource;
 	};
 	type RouteField = "startQuery" | "destinationQuery";
+	type PlannerMode = RouteMode;
 	type CompletionTarget =
 		| { kind: "startQuery" }
 		| { kind: "destinationQuery" }
@@ -92,6 +94,22 @@
 	const destinationCompletionTarget: CompletionTarget = {
 		kind: "destinationQuery",
 	};
+	const plannerModeOptions: Array<{
+		mode: PlannerMode;
+		label: string;
+		description: string;
+	}> = [
+		{
+			mode: "point_to_point",
+			label: "Point to point",
+			description: "Start, optional waypoints, and a destination.",
+		},
+		{
+			mode: "round_course",
+			label: "Round course",
+			description: "Loop from one start point with a target ride distance.",
+		},
+	];
 
 	function createPlannerStop(
 		label = "",
@@ -106,9 +124,11 @@
 	}
 
 	let routeAnalysisOpen = $state(false);
+	let plannerMode = $state<PlannerMode>("point_to_point");
 	let startStop = $state<PlannerStop>(createPlannerStop());
 	let waypointStops = $state<PlannerStop[]>([]);
 	let destinationStop = $state<PlannerStop>(createPlannerStop());
+	let roundCourseDistanceKm = $state("");
 	let routeRequestError = $state<string | null>(null);
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
 	let isRouting = $state(false);
@@ -136,6 +156,7 @@
 			? getBasemapById(mapStylePreference.selectedBasemapId)
 			: null,
 	);
+	const isRoundCourseMode = $derived(plannerMode === "round_course");
 	const routeGeoJson = $derived(activeRoute ? buildRouteGeoJson(activeRoute) : null);
 	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
 	const elevationSamples = $derived(activeRoute ? sampleElevationProfile(activeRoute.coordinates) : []);
@@ -235,7 +256,17 @@
 		};
 	}
 
+	function formatRequestedDistanceKm(distanceMeters: number | undefined): string {
+		if (!distanceMeters || !Number.isFinite(distanceMeters)) {
+			return "";
+		}
+
+		return Number((distanceMeters / 1000).toFixed(1)).toString();
+	}
+
 	function syncStopsFromRoute(route: PlannedRoute) {
+		plannerMode = route.mode;
+		roundCourseDistanceKm = formatRequestedDistanceKm(route.requestedDistanceMeters);
 		const [start, ...restStops] = getRouteStopInputs(route);
 		const destination = restStops.pop();
 
@@ -244,13 +275,16 @@
 			start?.point,
 			start?.point ? "suggestion" : "typed",
 		);
-		waypointStops = restStops.map((waypoint) =>
-			createPlannerStop(
-				waypoint.label,
-				waypoint.point,
-				waypoint.point ? "suggestion" : "typed",
-			),
-		);
+		waypointStops =
+			route.mode === "round_course"
+				? []
+				: restStops.map((waypoint) =>
+						createPlannerStop(
+							waypoint.label,
+							waypoint.point,
+							waypoint.point ? "suggestion" : "typed",
+						),
+					);
 		destinationStop = createPlannerStop(
 			destination?.label ?? "",
 			destination?.point,
@@ -265,6 +299,36 @@
 
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
+	}
+
+	function clearModeSpecificFieldErrors(nextMode: PlannerMode) {
+		fieldErrors = {
+			...fieldErrors,
+			destinationQuery: nextMode === "round_course" ? undefined : fieldErrors.destinationQuery,
+			waypointQueries: nextMode === "round_course" ? [] : fieldErrors.waypointQueries,
+			requestedDistanceKm:
+				nextMode === "point_to_point" ? undefined : fieldErrors.requestedDistanceKm,
+		};
+	}
+
+	function setPlannerMode(nextMode: PlannerMode) {
+		if (plannerMode === nextMode) {
+			return;
+		}
+
+		plannerMode = nextMode;
+		closeMapClickMenu();
+		clearModeSpecificFieldErrors(nextMode);
+
+		if (
+			nextMode === "round_course" &&
+			activeCompletionTarget &&
+			activeCompletionTarget.kind !== "startQuery"
+		) {
+			closeCompletionMenu();
+		}
+
+		markPlannerEdited();
 	}
 
 	function restoreSavedRouteFromLocation() {
@@ -304,6 +368,19 @@
 
 	function formatElevation(meters: number): string {
 		return `${Math.round(meters).toLocaleString()} m`;
+	}
+
+	function updateRoundCourseDistanceKm(value: string) {
+		roundCourseDistanceKm = value;
+
+		if (fieldErrors.requestedDistanceKm) {
+			fieldErrors = {
+				...fieldErrors,
+				requestedDistanceKm: undefined,
+			};
+		}
+
+		markPlannerEdited();
 	}
 
 	function getNearestProfileIndex(chartX: number): number | null {
@@ -1028,11 +1105,20 @@
 		fieldErrors = {};
 
 		try {
-			const routeRequest: RouteRequestPayload = {
-				start: getRouteStopInput(startStop),
-				waypoints: waypointStops.map((waypoint) => getRouteStopInput(waypoint)),
-				destination: getRouteStopInput(destinationStop),
-			};
+			const routeRequest: RouteRequestPayload =
+				plannerMode === "round_course"
+					? {
+							mode: "round_course",
+							start: getRouteStopInput(startStop),
+							requestedDistanceMeters:
+								Number(roundCourseDistanceKm.replace(",", ".")) * 1000,
+						}
+					: {
+							mode: "point_to_point",
+							start: getRouteStopInput(startStop),
+							waypoints: waypointStops.map((waypoint) => getRouteStopInput(waypoint)),
+							destination: getRouteStopInput(destinationStop),
+						};
 			const response = await clientFetch("/api/route", {
 				method: "POST",
 				headers: {
@@ -1058,7 +1144,10 @@
 			chartScrubPointerId = null;
 		} catch (error) {
 			console.error("Failed to generate route", error);
-			routeRequestError = "The route request failed before we heard back from GraphHopper.";
+			routeRequestError =
+				plannerMode === "round_course"
+					? "The round-course request failed before we heard back from GraphHopper."
+					: "The route request failed before we heard back from GraphHopper.";
 		} finally {
 			isRouting = false;
 		}
@@ -1133,26 +1222,28 @@
 					>
 						Set as start
 					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						class="justify-start"
-						type="button"
-						disabled={isResolvingMapSelection || waypointStops.length >= maxWaypoints}
-						onclick={() => applyMapPointAsStop({ kind: "waypoint" })}
-					>
-						Add waypoint here
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						class="justify-start"
-						type="button"
-						disabled={isResolvingMapSelection}
-						onclick={() => applyMapPointAsStop({ kind: "destinationQuery" })}
-					>
-						Set as destination
-					</Button>
+					{#if !isRoundCourseMode}
+						<Button
+							variant="ghost"
+							size="sm"
+							class="justify-start"
+							type="button"
+							disabled={isResolvingMapSelection || waypointStops.length >= maxWaypoints}
+							onclick={() => applyMapPointAsStop({ kind: "waypoint" })}
+						>
+							Add waypoint here
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							class="justify-start"
+							type="button"
+							disabled={isResolvingMapSelection}
+							onclick={() => applyMapPointAsStop({ kind: "destinationQuery" })}
+						>
+							Set as destination
+						</Button>
+					{/if}
 					{#if mapClickSelection.selectedStop}
 						<Button
 							variant="ghost"
@@ -1194,13 +1285,44 @@
 					onsubmit={handleGenerateRoute}
 				>
 					<div class="flex items-center justify-between gap-3">
-						<h2 class="text-base font-semibold tracking-tight md:text-lg">Route Builder</h2>
+						<div class="space-y-1">
+							<h2 class="text-base font-semibold tracking-tight md:text-lg">Route Builder</h2>
+							<p class="text-xs text-muted-foreground">
+								{isRoundCourseMode
+									? "Plan a loop ride from one start point and let GraphHopper bring it back home."
+									: "Build a road-bike route with optional intermediate stops."}
+							</p>
+						</div>
 						<Badge
 							variant="secondary"
 							class="h-5 shrink-0 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold text-primary"
 						>
 							Road bike bias
 						</Badge>
+					</div>
+
+					<div class="grid grid-cols-2 gap-1 rounded-lg border border-border/60 bg-secondary/15 p-1">
+						{#each plannerModeOptions as option}
+							<Button
+								type="button"
+								variant={plannerMode === option.mode ? "secondary" : "ghost"}
+								size="sm"
+								class={`h-auto min-w-0 whitespace-normal flex-col items-start justify-start gap-0.5 rounded-md px-3 py-2 text-left ${
+									plannerMode === option.mode
+										? "border-primary/20 bg-background shadow-sm"
+										: "text-muted-foreground"
+								}`}
+								aria-pressed={plannerMode === option.mode}
+								onclick={() => setPlannerMode(option.mode)}
+							>
+								<span class="text-xs font-semibold uppercase tracking-wide">
+									{option.label}
+								</span>
+								<span class="text-[11px] leading-relaxed opacity-80">
+									{option.description}
+								</span>
+							</Button>
+						{/each}
 					</div>
 
 					<div class="flex min-w-0 flex-1 flex-col gap-3">
@@ -1282,256 +1404,298 @@
 							{/if}
 						</div>
 
-						<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
-							<div class="flex items-center justify-between gap-3">
-								<div>
-									<div class="text-xs font-semibold uppercase tracking-wide text-foreground/80">
-										Waypoints
-									</div>
-								</div>
-								<Button
-									variant="ghost"
-									size="sm"
-									type="button"
-									class="gap-1"
-									disabled={waypointStops.length >= maxWaypoints}
-									onclick={() => addWaypoint()}
+						{#if isRoundCourseMode}
+							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+								<label
+									for="round-course-distance"
+									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
 								>
-									<Plus class="size-3.5" />
-									Add waypoint
-								</Button>
-							</div>
-
-							{#if waypointStops.length > 0}
-								<div class="space-y-2">
-									{#each waypointStops as waypointStop, index (`waypoint-${index}`)}
-										<div class="rounded-md border border-border/50 bg-background/80 p-2.5">
-											<div class="flex items-start gap-2">
-												<div class="flex h-9 w-7 shrink-0 items-center justify-center">
-													<span
-														class="flex size-6 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-[11px] font-semibold text-amber-700 dark:text-amber-300"
-													>
-														{index + 1}
-													</span>
-												</div>
-												<div class="min-w-0 flex-1 space-y-2">
-													<label
-														for={`waypoint-${index}`}
-														class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-													>
-														Waypoint {index + 1}
-													</label>
-													<div class="relative">
-														<MapPin
-															class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-amber-600 dark:text-amber-300"
-														/>
-														<Input
-															id={`waypoint-${index}`}
-															value={waypointStop.label}
-															placeholder="Add a stop..."
-															class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
-															autocomplete="off"
-															aria-autocomplete="list"
-															aria-controls={getCompletionListId(getWaypointCompletionTarget(index))}
-															aria-expanded={isCompletionMenuVisible(getWaypointCompletionTarget(index))}
-															aria-activedescendant={getCompletionActiveDescendant(
-																getWaypointCompletionTarget(index),
-															)}
-															aria-invalid={getWaypointError(index) ? "true" : undefined}
-															onfocus={() => handleCompletionFocus(getWaypointCompletionTarget(index))}
-															onblur={() => handleCompletionBlur(getWaypointCompletionTarget(index))}
-															onkeydown={(event) =>
-																handleCompletionKeydown(event, getWaypointCompletionTarget(index))}
-															oninput={(event) =>
-																handleWaypointInput(
-																	index,
-																	(event.currentTarget as HTMLInputElement).value,
-																)}
-														/>
-														{#if isCompletionMenuVisible(getWaypointCompletionTarget(index))}
-															<div
-																class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
-															>
-																<div
-																	id={getCompletionListId(getWaypointCompletionTarget(index))}
-																	role="listbox"
-																	aria-label={`Waypoint ${index + 1} suggestions`}
-																	class="max-h-64 overflow-y-auto py-1"
-																>
-																	{#if isCompletionLoading}
-																		<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-																			Searching places...
-																		</div>
-																	{:else if completionSuggestions.length > 0}
-																		{#each completionSuggestions as suggestion, suggestionIndex (`waypoint-${index}-${suggestion.label}-${suggestionIndex}`)}
-																			<button
-																				id={getCompletionOptionId(
-																					getWaypointCompletionTarget(index),
-																					suggestionIndex,
-																				)}
-																				type="button"
-																				role="option"
-																				class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
-																					completionHighlightedIndex === suggestionIndex
-																						? "bg-primary/10 text-foreground"
-																						: "text-foreground/90 hover:bg-secondary/65"
-																				}`}
-																				aria-selected={completionHighlightedIndex === suggestionIndex}
-																				onpointerdown={(event) =>
-																					handleCompletionSelection(
-																						event,
-																						getWaypointCompletionTarget(index),
-																						suggestion,
-																					)}
-																			>
-																				<span class="min-w-0 truncate">{suggestion.label}</span>
-																				<MapPin class="size-3.5 shrink-0 text-muted-foreground" />
-																			</button>
-																		{/each}
-																	{:else if isCompletionEmpty}
-																		<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-																			No matches found.
-																		</div>
-																	{/if}
-																</div>
-															</div>
-														{/if}
-													</div>
-													{#if getWaypointError(index)}
-														<p class="text-xs font-medium text-destructive">
-															{getWaypointError(index)}
-														</p>
-													{/if}
-												</div>
-											</div>
-											<div class="mt-2 flex flex-wrap justify-end gap-1.5">
-												<Button
-													variant="outline"
-													size="sm"
-													type="button"
-													class="gap-1"
-													disabled={index === 0}
-													onclick={() => moveWaypoint(index, -1)}
-												>
-													<ArrowUp class="size-3.5" />
-													Move up
-												</Button>
-												<Button
-													variant="outline"
-													size="sm"
-													type="button"
-													class="gap-1"
-													disabled={index === waypointStops.length - 1}
-													onclick={() => moveWaypoint(index, 1)}
-												>
-													<ArrowDown class="size-3.5" />
-													Move down
-												</Button>
-												<Button
-													variant="ghost"
-													size="sm"
-													type="button"
-													class="gap-1 text-muted-foreground hover:text-foreground"
-													onclick={() => removeWaypoint(index)}
-												>
-													<X class="size-3.5" />
-													Remove
-												</Button>
-											</div>
-										</div>
-									{/each}
-								</div>
-							{:else}
-								<p class="rounded-md bg-background/60 px-3 py-2 text-xs text-muted-foreground">
-									No waypoints yet. Add one to force the route through intermediate stops.
-								</p>
-							{/if}
-						</div>
-
-						<div class="space-y-2">
-							<label
-								for="destination"
-								class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-							>
-								Destination
-							</label>
-							<div class="relative">
-								<Navigation
-									class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary"
-								/>
-								<Input
-									id="destination"
-									value={destinationStop.label}
-									placeholder="Destination..."
-									class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
-									autocomplete="off"
-									aria-autocomplete="list"
-									aria-controls={getCompletionListId(destinationCompletionTarget)}
-									aria-expanded={isCompletionMenuVisible(destinationCompletionTarget)}
-									aria-activedescendant={getCompletionActiveDescendant(destinationCompletionTarget)}
-									aria-invalid={fieldErrors.destinationQuery ? "true" : undefined}
-									onfocus={() => handleCompletionFocus(destinationCompletionTarget)}
-									onblur={() => handleCompletionBlur(destinationCompletionTarget)}
-									onkeydown={(event) =>
-										handleCompletionKeydown(event, destinationCompletionTarget)}
-									oninput={(event) =>
-										handleFieldInput(
-											"destinationQuery",
-											(event.currentTarget as HTMLInputElement).value,
-										)}
-								/>
-								{#if isCompletionMenuVisible(destinationCompletionTarget)}
-									<div
-										class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
+									Target distance
+								</label>
+								<div class="relative">
+									<Input
+										id="round-course-distance"
+										type="number"
+										min="1"
+										step="0.5"
+										inputmode="decimal"
+										value={roundCourseDistanceKm}
+										placeholder="e.g. 60"
+										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
+										aria-invalid={fieldErrors.requestedDistanceKm ? "true" : undefined}
+										oninput={(event) =>
+											updateRoundCourseDistanceKm(
+												(event.currentTarget as HTMLInputElement).value,
+											)}
+									/>
+									<span
+										class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
 									>
-										<div
-											id={getCompletionListId(destinationCompletionTarget)}
-											role="listbox"
-											aria-label="Destination suggestions"
-											class="max-h-64 overflow-y-auto py-1"
-										>
-											{#if isCompletionLoading}
-												<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-													Searching places...
-												</div>
-											{:else if completionSuggestions.length > 0}
-												{#each completionSuggestions as suggestion, index (`destination-${suggestion.label}-${index}`)}
-													<button
-														id={getCompletionOptionId(destinationCompletionTarget, index)}
-														type="button"
-														role="option"
-														class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
-															completionHighlightedIndex === index
-																? "bg-primary/10 text-foreground"
-																: "text-foreground/90 hover:bg-secondary/65"
-														}`}
-														aria-selected={completionHighlightedIndex === index}
-														onpointerdown={(event) =>
-															handleCompletionSelection(
-																event,
-																destinationCompletionTarget,
-																suggestion,
-															)}
-													>
-														<span class="min-w-0 truncate">{suggestion.label}</span>
-														<Navigation class="size-3.5 shrink-0 text-muted-foreground" />
-													</button>
-												{/each}
-											{:else if isCompletionEmpty}
-												<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-													No matches found.
-												</div>
-											{/if}
-										</div>
-									</div>
+										km
+									</span>
+								</div>
+								<p class="text-xs text-muted-foreground">
+									GraphHopper will generate a loop that starts and ends at the same place.
+								</p>
+								{#if fieldErrors.requestedDistanceKm}
+									<p class="text-xs font-medium text-destructive">
+										{fieldErrors.requestedDistanceKm}
+									</p>
 								{/if}
 							</div>
-							{#if fieldErrors.destinationQuery}
-								<p class="text-xs font-medium text-destructive">
-									{fieldErrors.destinationQuery}
-								</p>
-							{/if}
-						</div>
+						{:else}
+							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+								<div class="flex items-center justify-between gap-3">
+									<div>
+										<div class="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+											Waypoints
+										</div>
+									</div>
+									<Button
+										variant="ghost"
+										size="sm"
+										type="button"
+										class="gap-1"
+										disabled={waypointStops.length >= maxWaypoints}
+										onclick={() => addWaypoint()}
+									>
+										<Plus class="size-3.5" />
+										Add waypoint
+									</Button>
+								</div>
+
+								{#if waypointStops.length > 0}
+									<div class="space-y-2">
+										{#each waypointStops as waypointStop, index (`waypoint-${index}`)}
+											<div class="rounded-md border border-border/50 bg-background/80 p-2.5">
+												<div class="flex items-start gap-2">
+													<div class="flex h-9 w-7 shrink-0 items-center justify-center">
+														<span
+															class="flex size-6 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-[11px] font-semibold text-amber-700 dark:text-amber-300"
+														>
+															{index + 1}
+														</span>
+													</div>
+													<div class="min-w-0 flex-1 space-y-2">
+														<label
+															for={`waypoint-${index}`}
+															class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+														>
+															Waypoint {index + 1}
+														</label>
+														<div class="relative">
+															<MapPin
+																class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-amber-600 dark:text-amber-300"
+															/>
+															<Input
+																id={`waypoint-${index}`}
+																value={waypointStop.label}
+																placeholder="Add a stop..."
+																class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+																autocomplete="off"
+																aria-autocomplete="list"
+																aria-controls={getCompletionListId(getWaypointCompletionTarget(index))}
+																aria-expanded={isCompletionMenuVisible(getWaypointCompletionTarget(index))}
+																aria-activedescendant={getCompletionActiveDescendant(
+																	getWaypointCompletionTarget(index),
+																)}
+																aria-invalid={getWaypointError(index) ? "true" : undefined}
+																onfocus={() =>
+																	handleCompletionFocus(getWaypointCompletionTarget(index))}
+																onblur={() => handleCompletionBlur(getWaypointCompletionTarget(index))}
+																onkeydown={(event) =>
+																	handleCompletionKeydown(event, getWaypointCompletionTarget(index))}
+																oninput={(event) =>
+																	handleWaypointInput(
+																		index,
+																		(event.currentTarget as HTMLInputElement).value,
+																	)}
+															/>
+															{#if isCompletionMenuVisible(getWaypointCompletionTarget(index))}
+																<div
+																	class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
+																>
+																	<div
+																		id={getCompletionListId(getWaypointCompletionTarget(index))}
+																		role="listbox"
+																		aria-label={`Waypoint ${index + 1} suggestions`}
+																		class="max-h-64 overflow-y-auto py-1"
+																	>
+																		{#if isCompletionLoading}
+																			<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+																				Searching places...
+																			</div>
+																		{:else if completionSuggestions.length > 0}
+																			{#each completionSuggestions as suggestion, suggestionIndex (`waypoint-${index}-${suggestion.label}-${suggestionIndex}`)}
+																				<button
+																					id={getCompletionOptionId(
+																						getWaypointCompletionTarget(index),
+																						suggestionIndex,
+																					)}
+																					type="button"
+																					role="option"
+																					class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
+																						completionHighlightedIndex === suggestionIndex
+																							? "bg-primary/10 text-foreground"
+																							: "text-foreground/90 hover:bg-secondary/65"
+																					}`}
+																					aria-selected={completionHighlightedIndex === suggestionIndex}
+																					onpointerdown={(event) =>
+																						handleCompletionSelection(
+																							event,
+																							getWaypointCompletionTarget(index),
+																							suggestion,
+																						)}
+																				>
+																					<span class="min-w-0 truncate">{suggestion.label}</span>
+																					<MapPin class="size-3.5 shrink-0 text-muted-foreground" />
+																				</button>
+																			{/each}
+																		{:else if isCompletionEmpty}
+																			<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+																				No matches found.
+																			</div>
+																		{/if}
+																	</div>
+																</div>
+															{/if}
+														</div>
+														{#if getWaypointError(index)}
+															<p class="text-xs font-medium text-destructive">
+																{getWaypointError(index)}
+															</p>
+														{/if}
+													</div>
+												</div>
+												<div class="mt-2 flex flex-wrap justify-end gap-1.5">
+													<Button
+														variant="outline"
+														size="sm"
+														type="button"
+														class="gap-1"
+														disabled={index === 0}
+														onclick={() => moveWaypoint(index, -1)}
+													>
+														<ArrowUp class="size-3.5" />
+														Move up
+													</Button>
+													<Button
+														variant="outline"
+														size="sm"
+														type="button"
+														class="gap-1"
+														disabled={index === waypointStops.length - 1}
+														onclick={() => moveWaypoint(index, 1)}
+													>
+														<ArrowDown class="size-3.5" />
+														Move down
+													</Button>
+													<Button
+														variant="ghost"
+														size="sm"
+														type="button"
+														class="gap-1 text-muted-foreground hover:text-foreground"
+														onclick={() => removeWaypoint(index)}
+													>
+														<X class="size-3.5" />
+														Remove
+													</Button>
+												</div>
+											</div>
+										{/each}
+									</div>
+								{:else}
+									<p class="rounded-md bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+										No waypoints yet. Add one to force the route through intermediate stops.
+									</p>
+								{/if}
+							</div>
+
+							<div class="space-y-2">
+								<label
+									for="destination"
+									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+								>
+									Destination
+								</label>
+								<div class="relative">
+									<Navigation
+										class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary"
+									/>
+									<Input
+										id="destination"
+										value={destinationStop.label}
+										placeholder="Destination..."
+										class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+										autocomplete="off"
+										aria-autocomplete="list"
+										aria-controls={getCompletionListId(destinationCompletionTarget)}
+										aria-expanded={isCompletionMenuVisible(destinationCompletionTarget)}
+										aria-activedescendant={getCompletionActiveDescendant(destinationCompletionTarget)}
+										aria-invalid={fieldErrors.destinationQuery ? "true" : undefined}
+										onfocus={() => handleCompletionFocus(destinationCompletionTarget)}
+										onblur={() => handleCompletionBlur(destinationCompletionTarget)}
+										onkeydown={(event) =>
+											handleCompletionKeydown(event, destinationCompletionTarget)}
+										oninput={(event) =>
+											handleFieldInput(
+												"destinationQuery",
+												(event.currentTarget as HTMLInputElement).value,
+											)}
+									/>
+									{#if isCompletionMenuVisible(destinationCompletionTarget)}
+										<div
+											class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
+										>
+											<div
+												id={getCompletionListId(destinationCompletionTarget)}
+												role="listbox"
+												aria-label="Destination suggestions"
+												class="max-h-64 overflow-y-auto py-1"
+											>
+												{#if isCompletionLoading}
+													<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+														Searching places...
+													</div>
+												{:else if completionSuggestions.length > 0}
+													{#each completionSuggestions as suggestion, index (`destination-${suggestion.label}-${index}`)}
+														<button
+															id={getCompletionOptionId(destinationCompletionTarget, index)}
+															type="button"
+															role="option"
+															class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
+																completionHighlightedIndex === index
+																	? "bg-primary/10 text-foreground"
+																	: "text-foreground/90 hover:bg-secondary/65"
+															}`}
+															aria-selected={completionHighlightedIndex === index}
+															onpointerdown={(event) =>
+																handleCompletionSelection(
+																	event,
+																	destinationCompletionTarget,
+																	suggestion,
+																)}
+														>
+															<span class="min-w-0 truncate">{suggestion.label}</span>
+															<Navigation class="size-3.5 shrink-0 text-muted-foreground" />
+														</button>
+													{/each}
+												{:else if isCompletionEmpty}
+													<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+														No matches found.
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/if}
+								</div>
+								{#if fieldErrors.destinationQuery}
+									<p class="text-xs font-medium text-destructive">
+										{fieldErrors.destinationQuery}
+									</p>
+								{/if}
+							</div>
+						{/if}
 					</div>
 
 					<Separator class="my-0.5" />
@@ -1575,7 +1739,11 @@
 					{/if}
 
 					<Button size="lg" type="submit" class="mt-1 w-full font-semibold shadow-sm">
-						{isRouting ? "Calculating route..." : "Generate Route"}
+						{#if isRouting}
+							{isRoundCourseMode ? "Calculating round course..." : "Calculating route..."}
+						{:else}
+							{isRoundCourseMode ? "Generate Round Course" : "Generate Route"}
+						{/if}
 					</Button>
 				</form>
 			</div>
@@ -1637,13 +1805,21 @@
 						<div class="flex min-w-0 flex-col gap-1">
 							<span class="text-sm font-semibold text-foreground">
 								{isRouting
-									? "Calculating the road-bike route..."
-									: "Generate a route to see live distance, climbing, and elevation."}
+									? isRoundCourseMode
+										? "Calculating the round course..."
+										: "Calculating the road-bike route..."
+									: isRoundCourseMode
+										? "Generate a round course to see live distance, climbing, and elevation."
+										: "Generate a route to see live distance, climbing, and elevation."}
 							</span>
 							<span class="text-xs text-muted-foreground">
 								{isRouting
-									? "GraphHopper is resolving locations and building the route."
-									: "The map overlay and summary will update once a route is found."}
+									? isRoundCourseMode
+										? "GraphHopper is resolving the start point and building a loop ride."
+										: "GraphHopper is resolving locations and building the route."
+									: isRoundCourseMode
+										? "The map overlay and summary will update once a loop route is found."
+										: "The map overlay and summary will update once a route is found."}
 							</span>
 						</div>
 					{/if}
@@ -1688,6 +1864,33 @@
 				</div>
 
 				<div class="mt-2.5 min-w-0 rounded-md border border-border/40 bg-secondary/10">
+					{#if activeRoute}
+						<div class="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 px-3 py-2">
+							<div class="flex min-w-0 flex-wrap items-center gap-2">
+								<span class="text-xs font-semibold uppercase tracking-wide text-foreground/75">
+									{activeRoute.startLabel}
+								</span>
+								{#if activeRoute.mode === "round_course"}
+									<Badge
+										variant="secondary"
+										class="h-5 border-emerald-500/20 bg-emerald-500/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+									>
+										Round course
+									</Badge>
+									<span class="text-xs text-muted-foreground">Returns to start</span>
+								{:else}
+									<span class="text-xs text-muted-foreground">
+										to {activeRoute.destinationLabel}
+									</span>
+								{/if}
+							</div>
+							{#if activeRoute.mode === "round_course" && activeRoute.requestedDistanceMeters}
+								<span class="text-xs text-muted-foreground">
+									Target {formatDistance(activeRoute.requestedDistanceMeters)}
+								</span>
+							{/if}
+						</div>
+					{/if}
 					<div
 						class="flex items-center justify-between gap-2 border-b border-border/30 px-3 py-1.5"
 					>
@@ -1896,12 +2099,31 @@
 										</div>
 									</div>
 								{/if}
-								<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
-									<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
-										Resolved destination
+								{#if activeRoute.mode === "round_course"}
+									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
+										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
+											Loop finish
+										</div>
+										<div class="font-medium text-foreground">Returns to {activeRoute.startLabel}</div>
 									</div>
-									<div class="font-medium text-foreground">{activeRoute.destinationLabel}</div>
-								</div>
+									{#if activeRoute.requestedDistanceMeters}
+										<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
+											<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
+												Requested distance
+											</div>
+											<div class="font-medium text-foreground">
+												{formatDistance(activeRoute.requestedDistanceMeters)}
+											</div>
+										</div>
+									{/if}
+								{:else}
+									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
+										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
+											Resolved destination
+										</div>
+										<div class="font-medium text-foreground">{activeRoute.destinationLabel}</div>
+									</div>
+								{/if}
 								<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 									<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 										Routing profile

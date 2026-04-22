@@ -55,6 +55,10 @@
 		return `Via: ${waypoints.map((waypoint) => waypoint.label).join(" -> ")}`;
 	}
 
+	function isRoundCourseRoute(route: { mode: string }) {
+		return route.mode === "round_course";
+	}
+
 	function handleDeleteSavedRoute(id: string) {
 		deleteSavedRoute(id);
 	}
@@ -109,17 +113,32 @@
 								<div class="space-y-1">
 									<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 										<span>Saved {formatSavedAt(savedRoute.createdAt)}</span>
+										{#if isRoundCourseRoute(savedRoute.route)}
+											<Badge
+												variant="secondary"
+												class="h-5 border-emerald-500/20 bg-emerald-500/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+											>
+												Round course
+											</Badge>
+										{/if}
 									</div>
 									<h2 class="font-heading text-lg font-semibold tracking-tight text-foreground">
 										{savedRoute.route.startLabel}
 									</h2>
-									<div class="flex items-center gap-2 text-sm text-muted-foreground">
-										<Route class="size-4 shrink-0" />
-										<span>to</span>
-										<span class="font-medium text-foreground">
-											{savedRoute.route.destinationLabel}
-										</span>
-									</div>
+									{#if isRoundCourseRoute(savedRoute.route)}
+										<div class="flex items-center gap-2 text-sm text-muted-foreground">
+											<Route class="size-4 shrink-0" />
+											<span>Returns to start</span>
+										</div>
+									{:else}
+										<div class="flex items-center gap-2 text-sm text-muted-foreground">
+											<Route class="size-4 shrink-0" />
+											<span>to</span>
+											<span class="font-medium text-foreground">
+												{savedRoute.route.destinationLabel}
+											</span>
+										</div>
+									{/if}
 									{#if formatWaypointSummary(savedRoute.route.waypoints)}
 										<p class="text-xs text-muted-foreground">
 											{formatWaypointSummary(savedRoute.route.waypoints)}
@@ -132,6 +151,12 @@
 										<MapPinned class="size-3.5 shrink-0 text-primary" />
 										<span>{formatDistance(savedRoute.route.distanceMeters)}</span>
 									</div>
+									{#if isRoundCourseRoute(savedRoute.route) && savedRoute.route.requestedDistanceMeters}
+										<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">
+											<Route class="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+											<span>Target {formatDistance(savedRoute.route.requestedDistanceMeters)}</span>
+										</div>
+									{/if}
 									<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">
 										<MountainSnow class="size-3.5 shrink-0 text-emerald-500" />
 										<span>{Math.round(savedRoute.route.ascendMeters).toLocaleString()} m up</span>
