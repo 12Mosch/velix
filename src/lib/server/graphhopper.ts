@@ -142,3 +142,61 @@ export async function geocodeLocation(
 	const [firstSuggestion] = await suggestLocations(fetchFn, query, 1);
 	return firstSuggestion ?? null;
 }
+
+export async function reverseGeocodeLocation(
+	fetchFn: typeof fetch,
+	point: [number, number],
+): Promise<RouteSuggestion | null> {
+	const key = env.GRAPHHOPPER_API_KEY?.trim();
+
+	if (!key) {
+		throw new Error(missingGraphHopperApiKeyMessage);
+	}
+
+	const providers: GeocodeProvider[] = ["nominatim", "default"];
+	let lastError: Error | null = null;
+
+	for (const provider of providers) {
+		const searchParams = new URLSearchParams({
+			key,
+			limit: "1",
+			point: `${point[1]},${point[0]}`,
+			reverse: "true",
+		});
+
+		if (provider === "nominatim") {
+			searchParams.set("provider", provider);
+		} else {
+			searchParams.set("locale", "en");
+		}
+
+		const response = await fetchFn(
+			`${graphHopperApiBaseUrl}/geocode?${searchParams.toString()}`,
+		);
+
+		if (!response.ok) {
+			const details = await response.text();
+			lastError = new Error(
+				`Reverse geocoding failed with status ${response.status} using ${provider}${
+					details ? `: ${details}` : ""
+				}`,
+			);
+			continue;
+		}
+
+		const payload = (await response.json()) as GraphHopperGeocodeResponse;
+		const suggestion = (payload.hits ?? [])
+			.map((hit) => toSuggestion(hit, ""))
+			.find((candidate): candidate is RouteSuggestion => !!candidate);
+
+		if (suggestion) {
+			return suggestion;
+		}
+	}
+
+	if (lastError) {
+		throw lastError;
+	}
+
+	return null;
+}

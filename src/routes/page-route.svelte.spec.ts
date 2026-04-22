@@ -77,11 +77,38 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 		{ data: unknown; setData: ReturnType<typeof vi.fn> }
 	>();
 	const layers = new Set<string>();
+	const eventHandlers = new Map<string, ((event: unknown) => void)[]>();
+	const renderedFeatures = new Map<string, unknown[]>();
+
+	function getRenderedFeatureKey(point: { x?: number; y?: number } | number[]) {
+		if (Array.isArray(point)) {
+			return `${point[0] ?? 0},${point[1] ?? 0}`;
+		}
+
+		return `${point.x ?? 0},${point.y ?? 0}`;
+	}
 
 	const mapInstance = {
+		on: vi.fn((event: string, callback: (event: unknown) => void) => {
+			eventHandlers.set(event, [...(eventHandlers.get(event) ?? []), callback]);
+			return mapInstance;
+		}),
+		off: vi.fn((event: string, callback: (event: unknown) => void) => {
+			eventHandlers.set(
+				event,
+				(eventHandlers.get(event) ?? []).filter(
+					(handler) => handler !== callback,
+				),
+			);
+			return mapInstance;
+		}),
 		once: vi.fn(),
 		remove: vi.fn(),
 		resize: vi.fn(),
+		queryRenderedFeatures: vi.fn(
+			(point: { x?: number; y?: number } | number[]) =>
+				renderedFeatures.get(getRenderedFeatureKey(point)) ?? [],
+		),
 		setStyle: vi.fn(),
 		addSource: vi.fn((id: string, spec: { data: unknown }) => {
 			sources.set(id, {
@@ -117,6 +144,8 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 		mockState: {
 			sources,
 			layers,
+			eventHandlers,
+			renderedFeatures,
 		},
 	};
 });
@@ -154,8 +183,11 @@ describe("+page.svelte", () => {
 		mockState.layers.clear();
 		mapMock.mockClear();
 		mapInstance.once.mockClear();
+		mapInstance.on.mockClear();
+		mapInstance.off.mockClear();
 		mapInstance.remove.mockClear();
 		mapInstance.resize.mockClear();
+		mapInstance.queryRenderedFeatures.mockClear();
 		mapInstance.setStyle.mockClear();
 		mapInstance.addSource.mockClear();
 		mapInstance.getSource.mockClear();
@@ -164,6 +196,8 @@ describe("+page.svelte", () => {
 		mapInstance.getLayer.mockClear();
 		mapInstance.removeLayer.mockClear();
 		mapInstance.fitBounds.mockClear();
+		mockState.eventHandlers.clear();
+		mockState.renderedFeatures.clear();
 		vi.unstubAllGlobals();
 	});
 
@@ -229,9 +263,17 @@ describe("+page.svelte", () => {
 		expect(
 			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
 		).toMatchObject({
-			startQuery: "Marienplatz Munich",
-			waypointQueries: ["Tegernsee"],
-			destinationQuery: "Schliersee",
+			start: {
+				label: "Marienplatz Munich",
+			},
+			waypoints: [
+				{
+					label: "Tegernsee",
+				},
+			],
+			destination: {
+				label: "Schliersee",
+			},
 		});
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
 			"planned-route-casing",
@@ -364,8 +406,221 @@ describe("+page.svelte", () => {
 		expect(
 			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
 		).toMatchObject({
-			waypointQueries: ["Tegernsee", "Bad Tolz"],
+			waypoints: [{ label: "Tegernsee" }, { label: "Bad Tolz" }],
 		});
+	});
+
+	it("can set start and destination from map clicks and submit exact coordinates", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				const searchParams = new URL(`http://localhost${url}`).searchParams;
+				const lat = Number(searchParams.get("lat"));
+				const lng = Number(searchParams.get("lng"));
+
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label:
+								lat > 48
+									? "Marienplatz, Munich, Germany"
+									: "Schliersee, Germany",
+							point: [lng, lat],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		await expect
+			.poll(() => (mockState.eventHandlers.get("click") ?? []).length)
+			.toBe(1);
+
+		mockState.eventHandlers.get("click")?.[0]?.({
+			lngLat: {
+				lng: 11.5755,
+				lat: 48.1374,
+			},
+			point: {
+				x: 320,
+				y: 180,
+			},
+		});
+		await page.getByRole("button", { name: "Set as start" }).click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+
+		mockState.eventHandlers.get("click")?.[0]?.({
+			lngLat: {
+				lng: 11.8598,
+				lat: 47.7362,
+			},
+			point: {
+				x: 520,
+				y: 260,
+			},
+		});
+		await page.getByRole("button", { name: "Set as destination" }).click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Destination" }))
+			.toHaveValue("Schliersee, Germany");
+
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+
+		expect(
+			JSON.parse(
+				String(
+					fetchMock.mock.calls.find(
+						(call) => String(call[0]) === "/api/route",
+					)?.[1]?.body,
+				),
+			),
+		).toMatchObject({
+			start: {
+				label: "Marienplatz, Munich, Germany",
+				point: [11.5755, 48.1374],
+			},
+			destination: {
+				label: "Schliersee, Germany",
+				point: [11.8598, 47.7362],
+			},
+		});
+	});
+
+	it("inserts a map-picked waypoint on the nearest routed leg", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulRoutePayload.route,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-route-1");
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label: "Fischhausen, Germany",
+							point: [11.82, 47.725],
+						}),
+					),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.poll(() => (mockState.eventHandlers.get("click") ?? []).length)
+			.toBe(1);
+
+		mockState.eventHandlers.get("click")?.[0]?.({
+			lngLat: {
+				lng: 11.82,
+				lat: 47.725,
+			},
+			point: {
+				x: 540,
+				y: 220,
+			},
+		});
+		await page.getByRole("button", { name: "Add waypoint here" }).click();
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.toHaveValue("Tegernsee, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 2" }))
+			.toHaveValue("Fischhausen, Germany");
+	});
+
+	it("allows removing an already selected waypoint from the map click menu", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulRoutePayload.route,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-route-1");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.poll(() => (mockState.eventHandlers.get("click") ?? []).length)
+			.toBe(1);
+
+		mockState.renderedFeatures.set("360,200", [
+			{
+				properties: {
+					kind: "waypoint",
+					label: "Tegernsee, Germany",
+					order: 1,
+				},
+			},
+		]);
+		mockState.eventHandlers.get("click")?.[0]?.({
+			lngLat: {
+				lng: 11.7581,
+				lat: 47.7123,
+			},
+			point: {
+				x: 360,
+				y: 200,
+			},
+		});
+
+		await expect
+			.element(page.getByRole("button", { name: "Remove waypoint 1" }))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Remove waypoint 1" }).click();
+
+		await expect
+			.element(
+				page.getByText(
+					"No waypoints yet. Add one to force the route through intermediate stops.",
+				),
+			)
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.not.toBeInTheDocument();
 	});
 
 	it("shows start suggestions only after the minimum query length", async () => {

@@ -65,11 +65,38 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 		{ data: unknown; setData: ReturnType<typeof vi.fn> }
 	>();
 	const layers = new Set<string>();
+	const eventHandlers = new Map<string, ((event: unknown) => void)[]>();
+	const renderedFeatures = new Map<string, unknown[]>();
+
+	function getRenderedFeatureKey(point: { x?: number; y?: number } | number[]) {
+		if (Array.isArray(point)) {
+			return `${point[0] ?? 0},${point[1] ?? 0}`;
+		}
+
+		return `${point.x ?? 0},${point.y ?? 0}`;
+	}
 
 	const mapInstance = {
+		on: vi.fn((event: string, callback: (event: unknown) => void) => {
+			eventHandlers.set(event, [...(eventHandlers.get(event) ?? []), callback]);
+			return mapInstance;
+		}),
+		off: vi.fn((event: string, callback: (event: unknown) => void) => {
+			eventHandlers.set(
+				event,
+				(eventHandlers.get(event) ?? []).filter(
+					(handler) => handler !== callback,
+				),
+			);
+			return mapInstance;
+		}),
 		once: vi.fn(),
 		remove: vi.fn(),
 		resize: vi.fn(),
+		queryRenderedFeatures: vi.fn(
+			(point: { x?: number; y?: number } | number[]) =>
+				renderedFeatures.get(getRenderedFeatureKey(point)) ?? [],
+		),
 		setStyle: vi.fn(),
 		addSource: vi.fn((id: string, spec: { data: unknown }) => {
 			sources.set(id, {
@@ -110,6 +137,8 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 		mockState: {
 			sources,
 			layers,
+			eventHandlers,
+			renderedFeatures,
 		},
 	};
 });
@@ -128,6 +157,9 @@ vi.mock("maplibre-gl", () => {
 	mapInstance.setStyle.mockImplementation(() => {
 		mockState.sources.clear();
 		mockState.layers.clear();
+		for (const callback of mockState.eventHandlers.get("style.load") ?? []) {
+			callback({});
+		}
 		return mapInstance;
 	});
 
@@ -149,8 +181,11 @@ describe("MapView", () => {
 		mockState.layers.clear();
 		mapMock.mockClear();
 		mapInstance.once.mockClear();
+		mapInstance.on.mockClear();
+		mapInstance.off.mockClear();
 		mapInstance.remove.mockClear();
 		mapInstance.resize.mockClear();
+		mapInstance.queryRenderedFeatures.mockClear();
 		mapInstance.setStyle.mockClear();
 		mapInstance.addSource.mockClear();
 		mapInstance.getSource.mockClear();
@@ -159,6 +194,8 @@ describe("MapView", () => {
 		mapInstance.getLayer.mockClear();
 		mapInstance.removeLayer.mockClear();
 		mapInstance.fitBounds.mockClear();
+		mockState.eventHandlers.clear();
+		mockState.renderedFeatures.clear();
 		consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 	});
 
@@ -227,6 +264,82 @@ describe("MapView", () => {
 		expect(mapInstance.addLayer.mock.calls.at(-1)?.[0].id).toBe(
 			"planned-route-hover-point",
 		);
+	});
+
+	it("forwards map clicks through the callback prop", async () => {
+		const onMapClick = vi.fn();
+
+		render(MapView, {
+			onMapClick,
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		const clickHandlers = mockState.eventHandlers.get("click") ?? [];
+		expect(clickHandlers).toHaveLength(1);
+		clickHandlers[0]?.({
+			lngLat: {
+				lng: 11.5755,
+				lat: 48.1374,
+			},
+			point: {
+				x: 320,
+				y: 180,
+			},
+		});
+
+		expect(onMapClick).toHaveBeenCalledWith({
+			point: [11.5755, 48.1374],
+			screenPoint: {
+				x: 320,
+				y: 180,
+			},
+		});
+	});
+
+	it("includes the clicked route stop metadata when a marker is hit", async () => {
+		const onMapClick = vi.fn();
+		mockState.renderedFeatures.set("320,180", [
+			{
+				properties: {
+					kind: "waypoint",
+					label: "Waypoint 1",
+					order: 1,
+				},
+			},
+		]);
+
+		render(MapView, {
+			onMapClick,
+			routeGeoJson: testRouteGeoJson,
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		const clickHandlers = mockState.eventHandlers.get("click") ?? [];
+		clickHandlers[0]?.({
+			lngLat: {
+				lng: 11.55,
+				lat: 47.225,
+			},
+			point: {
+				x: 320,
+				y: 180,
+			},
+		});
+
+		expect(onMapClick).toHaveBeenCalledWith({
+			point: [11.55, 47.225],
+			screenPoint: {
+				x: 320,
+				y: 180,
+			},
+			selectedStop: {
+				kind: "waypoint",
+				label: "Waypoint 1",
+				index: 0,
+			},
+		});
 	});
 
 	it("adds and removes the hovered route marker when the inspected point changes", async () => {

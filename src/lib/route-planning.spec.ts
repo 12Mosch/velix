@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildRouteGeoJson,
+	getRouteStopInputs,
 	getSurfaceMix,
+	getWaypointInsertionIndex,
 	sampleElevationProfile,
 	type PlannedRoute,
+	type RouteStopInput,
 } from "./route-planning";
 
 function buildRoute(
@@ -93,6 +96,82 @@ describe("getSurfaceMix", () => {
 			{ label: "Smooth asphalt", pct: 70, className: "bg-emerald-500" },
 			{ label: "Mixed / worn", pct: 30, className: "bg-amber-500" },
 		]);
+	});
+});
+
+describe("getRouteStopInputs", () => {
+	it("derives exact stop points from the planned route geometry", () => {
+		const route = buildRoute([{ from: 0, to: 10, value: "ASPHALT" }]);
+
+		expect(getRouteStopInputs(route)).toEqual([
+			{
+				label: "Start",
+				point: [0, 0],
+			},
+			{
+				label: "Waypoint",
+				point: [0.5, 0.5],
+			},
+			{
+				label: "Destination",
+				point: [1, 1],
+			},
+		]);
+	});
+});
+
+describe("getWaypointInsertionIndex", () => {
+	it("uses the routed leg when the active route still matches the current stops", () => {
+		const route: PlannedRoute = {
+			startLabel: "Start",
+			destinationLabel: "Destination",
+			waypoints: [
+				{
+					label: "Waypoint 1",
+					coordinate: [0, 1, 10],
+				},
+			],
+			bounds: [0, 0, 2, 2],
+			distanceMeters: 1000,
+			durationMs: 1000,
+			ascendMeters: 10,
+			descendMeters: 10,
+			coordinates: [
+				[0, 0, 0],
+				[0, 0.5, 0],
+				[0, 1, 0],
+				[1, 1, 0],
+				[2, 1, 0],
+				[2, 2, 0],
+			],
+			surfaceDetails: [],
+			smoothnessDetails: [],
+		};
+
+		const stops = getRouteStopInputs(route);
+
+		expect(getWaypointInsertionIndex(stops, [1.9, 1.2], route)).toBe(1);
+		expect(getWaypointInsertionIndex(stops, [0.1, 0.6], route)).toBe(0);
+	});
+
+	it("falls back to straight-line legs when the current stops no longer match the route", () => {
+		const route = buildRoute([{ from: 0, to: 10, value: "ASPHALT" }]);
+		const stops: RouteStopInput[] = [
+			{
+				label: "Edited start",
+				point: [0, 0],
+			},
+			{
+				label: "Waypoint",
+				point: [0.5, 0.5],
+			},
+			{
+				label: "Destination",
+				point: [1, 1],
+			},
+		];
+
+		expect(getWaypointInsertionIndex(stops, [0.8, 0.9], route)).toBe(1);
 	});
 });
 

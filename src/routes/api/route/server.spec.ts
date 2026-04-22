@@ -55,6 +55,48 @@ function buildRouteResponse(points: number[][]) {
 }
 
 describe("POST /api/route", () => {
+	it("uses exact stop coordinates without forward-geocoding them again", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.7582, 47.7124, 734],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [
+						{
+							label: "Tegernsee, Germany",
+							point: [11.7581, 47.7123],
+						},
+					],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const routeRequest = fetchMock.mock.calls[0];
+		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.7581, 47.7123],
+			[11.8598, 47.7362],
+		]);
+	});
+
 	it("geocodes all ordered stops, requests a GraphHopper bike route, and returns snapped waypoint labels", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()

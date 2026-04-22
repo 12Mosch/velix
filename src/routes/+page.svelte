@@ -19,11 +19,15 @@
 	} from "$lib/saved-routes.svelte";
 	import {
 		buildRouteGeoJson,
+		getRouteStopInputs,
 		getSurfaceMix,
+		getWaypointInsertionIndex,
 		sampleElevationProfile,
 		type PlannedRoute,
 		type RouteApiError,
 		type RouteApiSuccess,
+		type RouteRequestPayload,
+		type RouteStopInput,
 		type RouteSuggestion,
 		type RouteSuggestionsApiSuccess,
 	} from "$lib/route-planning";
@@ -45,11 +49,37 @@
 		X,
 	} from "lucide-svelte";
 
+	type StopSource = "typed" | "suggestion" | "map";
+	type PlannerStop = RouteStopInput & {
+		source: StopSource;
+	};
 	type RouteField = "startQuery" | "destinationQuery";
 	type CompletionTarget =
 		| { kind: "startQuery" }
 		| { kind: "destinationQuery" }
 		| { kind: "waypoint"; index: number };
+	type SelectedMapStop =
+		| {
+				kind: "start" | "destination";
+				label?: string;
+		  }
+		| {
+				kind: "waypoint";
+				label?: string;
+				index: number;
+		  };
+	type MapClickSelection = {
+		point: [number, number];
+		screenPoint: {
+			x: number;
+			y: number;
+		};
+		selectedStop?: SelectedMapStop;
+	};
+	type ReverseGeocodeApiSuccess = {
+		label: string;
+		point: [number, number];
+	};
 
 	const chartW = 800;
 	const padY = 5;
@@ -63,10 +93,22 @@
 		kind: "destinationQuery",
 	};
 
+	function createPlannerStop(
+		label = "",
+		point?: [number, number],
+		source: StopSource = "typed",
+	): PlannerStop {
+		return {
+			label,
+			point,
+			source,
+		};
+	}
+
 	let routeAnalysisOpen = $state(false);
-	let startQuery = $state("");
-	let waypointQueries = $state<string[]>([]);
-	let destinationQuery = $state("");
+	let startStop = $state<PlannerStop>(createPlannerStop());
+	let waypointStops = $state<PlannerStop[]>([]);
+	let destinationStop = $state<PlannerStop>(createPlannerStop());
 	let routeRequestError = $state<string | null>(null);
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
 	let isRouting = $state(false);
@@ -81,6 +123,8 @@
 	let isCompletionLoading = $state(false);
 	let isCompletionEmpty = $state(false);
 	let completionHighlightedIndex = $state(-1);
+	let mapClickSelection = $state<MapClickSelection | null>(null);
+	let isResolvingMapSelection = $state(false);
 
 	let completionAbortController: AbortController | null = null;
 	let completionBlurTimer: ReturnType<typeof setTimeout> | null = null;
@@ -180,6 +224,49 @@
 		cancelCompletionRequest();
 	});
 
+	function formatCoordinateLabel(point: [number, number]) {
+		return `${point[1].toFixed(5)}, ${point[0].toFixed(5)}`;
+	}
+
+	function getRouteStopInput(stop: PlannerStop): RouteStopInput {
+		return {
+			label: stop.label.trim(),
+			point: stop.point,
+		};
+	}
+
+	function syncStopsFromRoute(route: PlannedRoute) {
+		const [start, ...restStops] = getRouteStopInputs(route);
+		const destination = restStops.pop();
+
+		startStop = createPlannerStop(
+			start?.label ?? "",
+			start?.point,
+			start?.point ? "suggestion" : "typed",
+		);
+		waypointStops = restStops.map((waypoint) =>
+			createPlannerStop(
+				waypoint.label,
+				waypoint.point,
+				waypoint.point ? "suggestion" : "typed",
+			),
+		);
+		destinationStop = createPlannerStop(
+			destination?.label ?? "",
+			destination?.point,
+			destination?.point ? "suggestion" : "typed",
+		);
+	}
+
+	function markPlannerEdited() {
+		if (routeRequestError) {
+			routeRequestError = null;
+		}
+
+		activeSavedRouteId = null;
+		isActiveRouteSaved = false;
+	}
+
 	function restoreSavedRouteFromLocation() {
 		const savedRouteId = new URLSearchParams(window.location.search).get("savedRoute");
 		const savedRoute = getSavedRouteById(savedRouteId);
@@ -193,9 +280,7 @@
 		}
 
 		activeRoute = savedRoute.route;
-		startQuery = savedRoute.route.startLabel;
-		waypointQueries = savedRoute.route.waypoints.map((waypoint) => waypoint.label);
-		destinationQuery = savedRoute.route.destinationLabel;
+		syncStopsFromRoute(savedRoute.route);
 		activeSavedRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
 		routeRequestError = null;
@@ -370,14 +455,14 @@
 
 	function getValueForCompletionTarget(target: CompletionTarget): string {
 		if (target.kind === "startQuery") {
-			return startQuery;
+			return startStop.label;
 		}
 
 		if (target.kind === "destinationQuery") {
-			return destinationQuery;
+			return destinationStop.label;
 		}
 
-		return waypointQueries[target.index] ?? "";
+		return waypointStops[target.index]?.label ?? "";
 	}
 
 	function isCompletionMenuVisible(target: CompletionTarget): boolean {
@@ -437,11 +522,48 @@
 		activeCompletionTarget = null;
 	}
 
-	function selectCompletion(target: CompletionTarget, suggestion: RouteSuggestion) {
-		if (target.kind === "waypoint") {
-			updateWaypoint(target.index, suggestion.label);
+	function setFieldStop(
+		field: RouteField,
+		stop: PlannerStop,
+		options: {
+			clearFieldError?: boolean;
+		} = {},
+	) {
+		if (field === "startQuery") {
+			startStop = stop;
 		} else {
-			updateField(target.kind, suggestion.label);
+			destinationStop = stop;
+		}
+
+		if (options.clearFieldError !== false && fieldErrors[field]) {
+			fieldErrors = {
+				...fieldErrors,
+				[field]: undefined,
+			};
+		}
+
+		markPlannerEdited();
+	}
+
+	function setWaypointStop(index: number, stop: PlannerStop) {
+		waypointStops = waypointStops.map((waypoint, waypointIndex) =>
+			waypointIndex === index ? stop : waypoint,
+		);
+		clearWaypointError(index);
+		markPlannerEdited();
+	}
+
+	function selectCompletion(target: CompletionTarget, suggestion: RouteSuggestion) {
+		const selectedStop = createPlannerStop(
+			suggestion.label,
+			suggestion.point,
+			"suggestion",
+		);
+
+		if (target.kind === "waypoint") {
+			setWaypointStop(target.index, selectedStop);
+		} else {
+			setFieldStop(target.kind, selectedStop);
 		}
 
 		closeCompletionMenu();
@@ -608,22 +730,7 @@
 	}
 
 	function updateField(field: RouteField, value: string) {
-		if (field === "startQuery") {
-			startQuery = value;
-		} else {
-			destinationQuery = value;
-		}
-
-		if (fieldErrors[field]) {
-			fieldErrors = {
-				...fieldErrors,
-				[field]: undefined,
-			};
-		}
-
-		if (routeRequestError) {
-			routeRequestError = null;
-		}
+		setFieldStop(field, createPlannerStop(value));
 	}
 
 	function getWaypointError(index: number) {
@@ -637,21 +744,14 @@
 
 		fieldErrors = {
 			...fieldErrors,
-			waypointQueries: waypointQueries.map((_, waypointIndex) =>
+			waypointQueries: waypointStops.map((_, waypointIndex) =>
 				waypointIndex === index ? "" : fieldErrors.waypointQueries?.[waypointIndex] || "",
 			),
 		};
 	}
 
 	function updateWaypoint(index: number, value: string) {
-		waypointQueries = waypointQueries.map((waypoint, waypointIndex) =>
-			waypointIndex === index ? value : waypoint,
-		);
-		clearWaypointError(index);
-
-		if (routeRequestError) {
-			routeRequestError = null;
-		}
+		setWaypointStop(index, createPlannerStop(value));
 	}
 
 	function handleWaypointInput(index: number, value: string) {
@@ -659,20 +759,29 @@
 		scheduleCompletionLookup(getWaypointCompletionTarget(index), value);
 	}
 
-	function addWaypoint() {
-		if (waypointQueries.length >= maxWaypoints) {
+	function addWaypoint(stop = createPlannerStop(), index = waypointStops.length) {
+		if (waypointStops.length >= maxWaypoints) {
 			return;
 		}
 
-		waypointQueries = [...waypointQueries, ""];
+		const nextIndex = Math.max(0, Math.min(index, waypointStops.length));
+		waypointStops = [
+			...waypointStops.slice(0, nextIndex),
+			stop,
+			...waypointStops.slice(nextIndex),
+		];
+		const nextWaypointErrors = [...(fieldErrors.waypointQueries ?? [])];
+		nextWaypointErrors.splice(nextIndex, 0, "");
 		fieldErrors = {
 			...fieldErrors,
-			waypointQueries: [...(fieldErrors.waypointQueries ?? []), ""],
+			waypointQueries: nextWaypointErrors,
 		};
 
-		if (routeRequestError) {
-			routeRequestError = null;
+		if (activeCompletionTarget?.kind === "waypoint" && activeCompletionTarget.index >= nextIndex) {
+			activeCompletionTarget = getWaypointCompletionTarget(activeCompletionTarget.index + 1);
 		}
+
+		markPlannerEdited();
 	}
 
 	function removeWaypoint(index: number) {
@@ -684,7 +793,7 @@
 			}
 		}
 
-		waypointQueries = waypointQueries.filter((_, waypointIndex) => waypointIndex !== index);
+		waypointStops = waypointStops.filter((_, waypointIndex) => waypointIndex !== index);
 		fieldErrors = {
 			...fieldErrors,
 			waypointQueries: (fieldErrors.waypointQueries ?? []).filter(
@@ -692,24 +801,22 @@
 			),
 		};
 
-		if (routeRequestError) {
-			routeRequestError = null;
-		}
+		markPlannerEdited();
 	}
 
 	function moveWaypoint(index: number, direction: -1 | 1) {
 		const nextIndex = index + direction;
 
-		if (nextIndex < 0 || nextIndex >= waypointQueries.length) {
+		if (nextIndex < 0 || nextIndex >= waypointStops.length) {
 			return;
 		}
 
-		const nextWaypointQueries = [...waypointQueries];
-		[nextWaypointQueries[index], nextWaypointQueries[nextIndex]] = [
-			nextWaypointQueries[nextIndex] ?? "",
-			nextWaypointQueries[index] ?? "",
+		const nextWaypointStops = [...waypointStops];
+		[nextWaypointStops[index], nextWaypointStops[nextIndex]] = [
+			nextWaypointStops[nextIndex] ?? createPlannerStop(),
+			nextWaypointStops[index] ?? createPlannerStop(),
 		];
-		waypointQueries = nextWaypointQueries;
+		waypointStops = nextWaypointStops;
 
 		const nextWaypointErrors = [...(fieldErrors.waypointQueries ?? [])];
 		[nextWaypointErrors[index], nextWaypointErrors[nextIndex]] = [
@@ -729,9 +836,176 @@
 			}
 		}
 
-		if (routeRequestError) {
-			routeRequestError = null;
+		markPlannerEdited();
+	}
+
+	function closeMapClickMenu() {
+		mapClickSelection = null;
+		isResolvingMapSelection = false;
+	}
+
+	function handleMapClick(selection: MapClickSelection) {
+		closeCompletionMenu();
+		mapClickSelection = selection;
+	}
+
+	function getMapClickMenuTitle(selection: MapClickSelection) {
+		return selection.selectedStop ? "Selected point" : "Use clicked point";
+	}
+
+	function getMapClickMenuSubtitle(selection: MapClickSelection) {
+		return selection.selectedStop?.label || formatCoordinateLabel(selection.point);
+	}
+
+	function getRemoveActionLabel(selectedStop: SelectedMapStop) {
+		if (selectedStop.kind === "start") {
+			return "Remove start";
 		}
+
+		if (selectedStop.kind === "destination") {
+			return "Remove destination";
+		}
+
+		if (selectedStop.kind === "waypoint") {
+			return `Remove waypoint ${selectedStop.index + 1}`;
+		}
+
+		return "Remove stop";
+	}
+
+	function removeSelectedMapStop(selectedStop: SelectedMapStop) {
+		if (selectedStop.kind === "start") {
+			setFieldStop("startQuery", createPlannerStop());
+			closeMapClickMenu();
+			return;
+		}
+
+		if (selectedStop.kind === "destination") {
+			setFieldStop("destinationQuery", createPlannerStop());
+			closeMapClickMenu();
+			return;
+		}
+
+		if (selectedStop.kind === "waypoint") {
+			removeWaypoint(selectedStop.index);
+			closeMapClickMenu();
+		}
+	}
+
+	function getWaypointInsertionTarget(point: [number, number]) {
+		const hasCompleteOrderedStops =
+			!!startStop.point &&
+			startStop.label.trim().length > 0 &&
+			!!destinationStop.point &&
+			destinationStop.label.trim().length > 0 &&
+			waypointStops.every(
+				(waypoint) => waypoint.label.trim().length > 0 && !!waypoint.point,
+			);
+
+		if (hasCompleteOrderedStops) {
+			return getWaypointInsertionIndex(
+				[startStop, ...waypointStops, destinationStop],
+				point,
+				activeRoute,
+			);
+		}
+
+		return waypointStops.length;
+	}
+
+	async function resolveMapStopLabel(point: [number, number]) {
+		if (!clientFetch) {
+			return formatCoordinateLabel(point);
+		}
+
+		try {
+			const response = await clientFetch(
+				`/api/route/reverse?lat=${encodeURIComponent(String(point[1]))}&lng=${encodeURIComponent(String(point[0]))}`,
+			);
+
+			if (!response.ok) {
+				throw new Error(`Reverse geocoding failed with status ${response.status}`);
+			}
+
+			const payload = (await response.json()) as Partial<ReverseGeocodeApiSuccess>;
+			return typeof payload.label === "string" && payload.label.trim().length > 0
+				? payload.label
+				: formatCoordinateLabel(point);
+		} catch (error) {
+			console.error("Failed to reverse geocode clicked map point", error);
+			return formatCoordinateLabel(point);
+		}
+	}
+
+	async function applyMapPointAsStop(
+		target:
+			| { kind: "startQuery" }
+			| { kind: "destinationQuery" }
+			| { kind: "waypoint" },
+	) {
+		const selection = mapClickSelection;
+
+		if (!selection) {
+			return;
+		}
+
+		isResolvingMapSelection = true;
+		closeCompletionMenu();
+		const fallbackStop = createPlannerStop(
+			formatCoordinateLabel(selection.point),
+			selection.point,
+			"map",
+		);
+
+		if (target.kind === "startQuery") {
+			setFieldStop("startQuery", fallbackStop);
+		} else if (target.kind === "destinationQuery") {
+			setFieldStop("destinationQuery", fallbackStop);
+		} else {
+			addWaypoint(fallbackStop, getWaypointInsertionTarget(selection.point));
+		}
+
+		closeMapClickMenu();
+		const resolvedLabel = await resolveMapStopLabel(selection.point);
+
+		if (target.kind === "startQuery") {
+			if (
+				startStop.source === "map" &&
+				startStop.point?.[0] === selection.point[0] &&
+				startStop.point?.[1] === selection.point[1]
+			) {
+				startStop = {
+					...startStop,
+					label: resolvedLabel,
+				};
+			}
+			return;
+		}
+
+		if (target.kind === "destinationQuery") {
+			if (
+				destinationStop.source === "map" &&
+				destinationStop.point?.[0] === selection.point[0] &&
+				destinationStop.point?.[1] === selection.point[1]
+			) {
+				destinationStop = {
+					...destinationStop,
+					label: resolvedLabel,
+				};
+			}
+			return;
+		}
+
+		waypointStops = waypointStops.map((waypoint) =>
+			waypoint.source === "map" &&
+			waypoint.point?.[0] === selection.point[0] &&
+			waypoint.point?.[1] === selection.point[1]
+				? {
+						...waypoint,
+						label: resolvedLabel,
+					}
+				: waypoint,
+		);
 	}
 
 	async function handleGenerateRoute(event: SubmitEvent) {
@@ -754,16 +1028,17 @@
 		fieldErrors = {};
 
 		try {
+			const routeRequest: RouteRequestPayload = {
+				start: getRouteStopInput(startStop),
+				waypoints: waypointStops.map((waypoint) => getRouteStopInput(waypoint)),
+				destination: getRouteStopInput(destinationStop),
+			};
 			const response = await clientFetch("/api/route", {
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
 				},
-				body: JSON.stringify({
-					startQuery,
-					waypointQueries,
-					destinationQuery,
-				}),
+				body: JSON.stringify(routeRequest),
 			});
 
 			if (!response.ok) {
@@ -775,6 +1050,7 @@
 
 			const payload = (await response.json()) as RouteApiSuccess;
 			activeRoute = payload.route;
+			syncStopsFromRoute(payload.route);
 			activeSavedRouteId = null;
 			isActiveRouteSaved = false;
 			routeRequestError = null;
@@ -809,6 +1085,7 @@
 <div class="relative flex h-full w-full flex-col overflow-hidden bg-background">
 	<MapView
 		layoutState={sidebar.state}
+		onMapClick={handleMapClick}
 		routeGeoJson={routeGeoJson}
 		routeBounds={activeRoute?.bounds ?? null}
 		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
@@ -832,6 +1109,77 @@
 				<Wind class="size-4" />
 			</Button>
 		</div>
+		{#if mapClickSelection}
+			<div
+				class="pointer-events-auto absolute z-30 w-52 -translate-x-1/2 -translate-y-[calc(100%+0.85rem)] rounded-xl border border-border/70 bg-background/95 p-2 shadow-xl backdrop-blur-sm"
+				style={`left: ${mapClickSelection.screenPoint.x}px; top: ${mapClickSelection.screenPoint.y}px;`}
+				role="menu"
+				aria-label="Set clicked map point"
+			>
+				<div class="px-2 pb-1.5 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
+					{getMapClickMenuTitle(mapClickSelection)}
+				</div>
+				<div class="px-2 pb-2 text-xs text-muted-foreground">
+					{getMapClickMenuSubtitle(mapClickSelection)}
+				</div>
+				<div class="flex flex-col gap-1">
+					<Button
+						variant="ghost"
+						size="sm"
+						class="justify-start"
+						type="button"
+						disabled={isResolvingMapSelection}
+						onclick={() => applyMapPointAsStop({ kind: "startQuery" })}
+					>
+						Set as start
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						class="justify-start"
+						type="button"
+						disabled={isResolvingMapSelection || waypointStops.length >= maxWaypoints}
+						onclick={() => applyMapPointAsStop({ kind: "waypoint" })}
+					>
+						Add waypoint here
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						class="justify-start"
+						type="button"
+						disabled={isResolvingMapSelection}
+						onclick={() => applyMapPointAsStop({ kind: "destinationQuery" })}
+					>
+						Set as destination
+					</Button>
+					{#if mapClickSelection.selectedStop}
+						<Button
+							variant="ghost"
+							size="sm"
+							class="justify-start text-destructive hover:text-destructive"
+							type="button"
+							disabled={isResolvingMapSelection}
+							onclick={() =>
+								mapClickSelection?.selectedStop &&
+								removeSelectedMapStop(mapClickSelection.selectedStop)}
+						>
+							{getRemoveActionLabel(mapClickSelection.selectedStop)}
+						</Button>
+					{/if}
+					<Button
+						variant="ghost"
+						size="sm"
+						class="justify-start text-muted-foreground"
+						type="button"
+						disabled={isResolvingMapSelection}
+						onclick={closeMapClickMenu}
+					>
+						Cancel
+					</Button>
+				</div>
+			</div>
+		{/if}
 	</div>
 
 	<div
@@ -869,7 +1217,7 @@
 								/>
 								<Input
 									id="start-point"
-									value={startQuery}
+									value={startStop.label}
 									placeholder="Enter starting point..."
 									class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
 									autocomplete="off"
@@ -946,17 +1294,17 @@
 									size="sm"
 									type="button"
 									class="gap-1"
-									disabled={waypointQueries.length >= maxWaypoints}
-									onclick={addWaypoint}
+									disabled={waypointStops.length >= maxWaypoints}
+									onclick={() => addWaypoint()}
 								>
 									<Plus class="size-3.5" />
 									Add waypoint
 								</Button>
 							</div>
 
-							{#if waypointQueries.length > 0}
+							{#if waypointStops.length > 0}
 								<div class="space-y-2">
-									{#each waypointQueries as waypointQuery, index (`waypoint-${index}`)}
+									{#each waypointStops as waypointStop, index (`waypoint-${index}`)}
 										<div class="rounded-md border border-border/50 bg-background/80 p-2.5">
 											<div class="flex items-start gap-2">
 												<div class="flex h-9 w-7 shrink-0 items-center justify-center">
@@ -979,7 +1327,7 @@
 														/>
 														<Input
 															id={`waypoint-${index}`}
-															value={waypointQuery}
+															value={waypointStop.label}
 															placeholder="Add a stop..."
 															class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
 															autocomplete="off"
@@ -1073,7 +1421,7 @@
 													size="sm"
 													type="button"
 													class="gap-1"
-													disabled={index === waypointQueries.length - 1}
+													disabled={index === waypointStops.length - 1}
 													onclick={() => moveWaypoint(index, 1)}
 												>
 													<ArrowDown class="size-3.5" />
@@ -1113,7 +1461,7 @@
 								/>
 								<Input
 									id="destination"
-									value={destinationQuery}
+									value={destinationStop.label}
 									placeholder="Destination..."
 									class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
 									autocomplete="off"
