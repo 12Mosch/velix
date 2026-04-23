@@ -168,7 +168,10 @@ describe("POST /api/route", () => {
 			[11.7581, 47.7123],
 			[11.8598, 47.7362],
 		]);
-		expect(requestBody.algorithm).toBeUndefined();
+		expect(requestBody.algorithm).toBe("alternative_route");
+		expect(requestBody["alternative_route.max_paths"]).toBe(3);
+		expect(requestBody["alternative_route.max_weight_factor"]).toBe(1.4);
+		expect(requestBody["alternative_route.max_share_factor"]).toBe(0.6);
 	});
 
 	it("geocodes all ordered stops, requests a road-bike biased route, and returns snapped waypoint labels", async () => {
@@ -271,6 +274,8 @@ describe("POST /api/route", () => {
 		expect(requestBody.elevation).toBe(true);
 		expect(requestBody["ch.disable"]).toBe(true);
 		expect(requestBody.custom_model).toBeDefined();
+		expect(requestBody.algorithm).toBe("alternative_route");
+		expect(requestBody["alternative_route.max_paths"]).toBe(3);
 		expect(requestBody.details).toEqual([
 			"surface",
 			"smoothness",
@@ -281,26 +286,123 @@ describe("POST /api/route", () => {
 		]);
 
 		const payload = (await response.json()) as RouteApiSuccess;
-
-		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
-		expect(payload.route.mode).toBe("point_to_point");
-		expect(payload.route.destinationLabel).toBe("Schliersee, Germany");
-		expect(payload.route.waypoints).toEqual([
+		const route = payload.routes[0];
+		expect(payload.selectedRouteIndex).toBe(0);
+		expect(route?.startLabel).toBe("Marienplatz, Munich, Germany");
+		expect(route?.mode).toBe("point_to_point");
+		expect(route?.destinationLabel).toBe("Schliersee, Germany");
+		expect(route?.waypoints).toEqual([
 			{
 				label: "Tegernsee, Germany",
 				coordinate: [11.7582, 47.7124, 734],
 			},
 		]);
-		expect(payload.route.distanceMeters).toBe(61234);
-		expect(payload.route.source).toEqual({
+		expect(route?.distanceMeters).toBe(61234);
+		expect(route?.source).toEqual({
 			kind: "graphhopper",
 		});
-		expect(payload.route.routingProfile).toBe("racingbike");
-		expect(payload.route.routingStrategy).toContain("racingbike");
-		expect(payload.route.routingWarnings).toEqual([]);
-		expect(payload.route.surfaceDetails).toEqual([
+		expect(route?.routingProfile).toBe("racingbike");
+		expect(route?.routingStrategy).toContain("racingbike");
+		expect(route?.routingWarnings).toEqual([]);
+		expect(route?.surfaceDetails).toEqual([
 			{ from: 0, to: 2, value: "ASPHALT" },
 			{ from: 2, to: 3, value: "COMPACTED" },
+		]);
+	});
+
+	it("returns multiple point-to-point alternatives when GraphHopper provides distinct paths", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					paths: [
+						{
+							distance: 61234,
+							time: 9876000,
+							ascend: 820,
+							descend: 740,
+							bbox: [11.5755, 47.7362, 11.8598, 48.1374],
+							points: {
+								coordinates: [
+									[11.5755, 48.1374, 520],
+									[11.7, 48.02, 575],
+									[11.8598, 47.7362, 785],
+								],
+							},
+							snapped_waypoints: {
+								coordinates: [
+									[11.5756, 48.1375, 522],
+									[11.7582, 47.7124, 734],
+									[11.8597, 47.7361, 784],
+								],
+							},
+							details: {
+								surface: [[0, 3, "ASPHALT"]],
+								smoothness: [[0, 3, "GOOD"]],
+							},
+						},
+						{
+							distance: 64500,
+							time: 10320000,
+							ascend: 910,
+							descend: 860,
+							bbox: [11.5755, 47.7362, 11.8598, 48.1374],
+							points: {
+								coordinates: [
+									[11.5755, 48.1374, 520],
+									[11.66, 48.07, 610],
+									[11.8598, 47.7362, 790],
+								],
+							},
+							snapped_waypoints: {
+								coordinates: [
+									[11.5756, 48.1375, 522],
+									[11.751, 47.721, 750],
+									[11.8597, 47.7361, 784],
+								],
+							},
+							details: {
+								surface: [[0, 3, "COMPACTED"]],
+								smoothness: [[0, 3, "INTERMEDIATE"]],
+							},
+						},
+					],
+				}),
+			),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [
+						{
+							label: "Tegernsee, Germany",
+							point: [11.7581, 47.7123],
+						},
+					],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes).toHaveLength(2);
+		expect(payload.selectedRouteIndex).toBe(0);
+		expect(payload.routes[1]?.distanceMeters).toBe(64500);
+		expect(payload.routes[1]?.waypoints).toEqual([
+			{
+				label: "Tegernsee, Germany",
+				coordinate: [11.751, 47.721, 750],
+			},
 		]);
 	});
 
@@ -330,26 +432,29 @@ describe("POST /api/route", () => {
 	});
 
 	it("requests a GraphHopper round trip from one resolved start point", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						hits: [
-							{
-								name: "Marienplatz",
-								city: "Munich",
-								country: "Germany",
-								point: {
-									lat: 48.1374,
-									lng: 11.5755,
-								},
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
 							},
-						],
-					}),
-				),
-			)
-			.mockResolvedValueOnce(buildRoundCourseResponse([11.5756, 48.1375, 522]));
+						},
+					],
+				}),
+			),
+		);
+
+		for (let index = 0; index < 6; index += 1) {
+			fetchMock.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522]),
+			);
+		}
 
 		const response = await POST(
 			buildEvent(
@@ -365,29 +470,30 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenCalledTimes(7);
 		const routeRequest = fetchMock.mock.calls[1];
 		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
 		expect(requestBody.profile).toBe("racingbike");
 		expect(requestBody.custom_model).toBeDefined();
 		expect(requestBody.points).toEqual([[11.5755, 48.1374]]);
 		expect(requestBody.algorithm).toBe("round_trip");
-		expect(requestBody["round_trip.distance"]).toBe(50000);
+		expect(requestBody["round_trip.distance"]).toBe(45000);
 
 		const payload = (await response.json()) as RouteApiSuccess;
-
-		expect(payload.route.mode).toBe("round_course");
-		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
-		expect(payload.route.destinationLabel).toBe("Marienplatz, Munich, Germany");
-		expect(payload.route.roundCourseTarget).toEqual({
+		const route = payload.routes[0];
+		expect(payload.selectedRouteIndex).toBe(0);
+		expect(route?.mode).toBe("round_course");
+		expect(route?.startLabel).toBe("Marienplatz, Munich, Germany");
+		expect(route?.destinationLabel).toBe("Marienplatz, Munich, Germany");
+		expect(route?.roundCourseTarget).toEqual({
 			kind: "distance",
 			distanceMeters: 50000,
 		});
-		expect(payload.route.waypoints).toEqual([]);
-		expect(payload.route.source).toEqual({
+		expect(route?.waypoints).toEqual([]);
+		expect(route?.source).toEqual({
 			kind: "graphhopper",
 		});
-		expect(payload.route.routingProfile).toBe("racingbike");
+		expect(route?.routingProfile).toBe("racingbike");
 	});
 
 	it("validates the required target distance for round-course requests", async () => {
@@ -556,12 +662,12 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(200);
 		expect(fetchMock).toHaveBeenCalledTimes(7);
 		const payload = (await response.json()) as RouteApiSuccess;
-		expect(payload.route.durationMs).toBe(12600000);
-		expect(payload.route.roundCourseTarget).toEqual({
+		expect(payload.routes[0]?.durationMs).toBe(12600000);
+		expect(payload.routes[0]?.roundCourseTarget).toEqual({
 			kind: "duration",
 			durationMs: 12600000,
 		});
-		expect(payload.route.routingWarnings).toEqual([]);
+		expect(payload.routes[0]?.routingWarnings).toEqual([]);
 	});
 
 	it("searches round-course candidates for climb targets and returns the closest match", async () => {
@@ -645,8 +751,8 @@ describe("POST /api/route", () => {
 
 		expect(response.status).toBe(200);
 		const payload = (await response.json()) as RouteApiSuccess;
-		expect(payload.route.ascendMeters).toBe(790);
-		expect(payload.route.roundCourseTarget).toEqual({
+		expect(payload.routes[0]?.ascendMeters).toBe(790);
+		expect(payload.routes[0]?.roundCourseTarget).toEqual({
 			kind: "ascend",
 			ascendMeters: 800,
 		});
@@ -702,7 +808,7 @@ describe("POST /api/route", () => {
 
 		expect(response.status).toBe(200);
 		const payload = (await response.json()) as RouteApiSuccess;
-		expect(payload.route.durationMs).toBe(12600000);
+		expect(payload.routes[0]?.durationMs).toBe(12600000);
 	});
 
 	it("adds a warning when the closest duration target still misses badly", async () => {
@@ -752,32 +858,35 @@ describe("POST /api/route", () => {
 
 		expect(response.status).toBe(200);
 		const payload = (await response.json()) as RouteApiSuccess;
-		expect(payload.route.routingWarnings).toEqual([
+		expect(payload.routes[0]?.routingWarnings).toEqual([
 			"Requested 3:30 h, but the closest round course came out to 2:55 h.",
 		]);
 	});
 
 	it("accepts round-course responses even when GraphHopper omits snapped waypoints", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						hits: [
-							{
-								name: "Marienplatz",
-								city: "Munich",
-								country: "Germany",
-								point: {
-									lat: 48.1374,
-									lng: 11.5755,
-								},
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
 							},
-						],
-					}),
-				),
-			)
-			.mockResolvedValueOnce(buildRoundCourseResponseWithoutSnappedWaypoints());
+						},
+					],
+				}),
+			),
+		);
+
+		for (let index = 0; index < 6; index += 1) {
+			fetchMock.mockResolvedValueOnce(
+				buildRoundCourseResponseWithoutSnappedWaypoints(),
+			);
+		}
 
 		const response = await POST(
 			buildEvent(
@@ -793,16 +902,12 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		const payload = (await response.json()) as {
-			route: {
-				mode: string;
-				startLabel: string;
-				destinationLabel: string;
-			};
-		};
-		expect(payload.route.mode).toBe("round_course");
-		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
-		expect(payload.route.destinationLabel).toBe("Marienplatz, Munich, Germany");
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.mode).toBe("round_course");
+		expect(payload.routes[0]?.startLabel).toBe("Marienplatz, Munich, Germany");
+		expect(payload.routes[0]?.destinationLabel).toBe(
+			"Marienplatz, Munich, Germany",
+		);
 	});
 
 	it("rejects routes with more than three waypoints", async () => {
@@ -1208,20 +1313,26 @@ describe("POST /api/route", () => {
 		expect(racingbikeTunedRouteRequest.profile).toBe("racingbike");
 		expect(racingbikeTunedRouteRequest.custom_model).toBeDefined();
 		expect(racingbikeTunedRouteRequest["ch.disable"]).toBe(true);
+		expect(racingbikeTunedRouteRequest.algorithm).toBe("alternative_route");
 		expect(racingbikeBaseRouteRequest.profile).toBe("racingbike");
 		expect(racingbikeBaseRouteRequest.custom_model).toBeUndefined();
 		expect(racingbikeBaseRouteRequest["ch.disable"]).toBeUndefined();
 		expect(racingbikeBaseRouteRequest.snap_preventions).toBeUndefined();
+		expect(racingbikeBaseRouteRequest.algorithm).toBe("alternative_route");
 		expect(bikeTunedRouteRequest.profile).toBe("bike");
 		expect(bikeTunedRouteRequest.custom_model).toBeDefined();
 		expect(bikeTunedRouteRequest["ch.disable"]).toBe(true);
+		expect(bikeTunedRouteRequest.algorithm).toBe("alternative_route");
 
 		await expect(response.json()).resolves.toMatchObject({
-			route: {
-				routingProfile: "bike",
-				routingStrategy: expect.stringContaining("bike"),
-				routingWarnings: [expect.stringContaining("racingbike profile")],
-			},
+			routes: [
+				{
+					routingProfile: "bike",
+					routingStrategy: expect.stringContaining("bike"),
+					routingWarnings: [expect.stringContaining("racingbike profile")],
+				},
+			],
+			selectedRouteIndex: 0,
 		});
 	});
 });
