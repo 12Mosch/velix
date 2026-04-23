@@ -14,6 +14,7 @@ import {
 	MAP_STYLE_STORAGE_KEY,
 	resetMapStylePreferenceForTests,
 } from "$lib/map-style-settings.svelte";
+import { parseRouteGpx } from "$lib/route-gpx-import";
 import {
 	sampleElevationProfile,
 	type RouteCoordinate,
@@ -26,6 +27,9 @@ import {
 const successfulRoutePayload = {
 	route: {
 		mode: "point_to_point",
+		source: {
+			kind: "graphhopper",
+		},
 		startLabel: "Marienplatz, Munich, Germany",
 		destinationLabel: "Schliersee, Germany",
 		routingProfile: "racingbike",
@@ -61,6 +65,9 @@ const successfulRoutePayload = {
 const successfulRoundCoursePayload = {
 	route: {
 		mode: "round_course",
+		source: {
+			kind: "graphhopper",
+		},
 		startLabel: "Marienplatz, Munich, Germany",
 		destinationLabel: "Marienplatz, Munich, Germany",
 		requestedDistanceMeters: 50000,
@@ -104,6 +111,38 @@ const suggestionPayload = {
 		},
 	],
 };
+const importedWaypointGpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Test" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="48.1374" lon="11.5755"><name>Marienplatz, Munich, Germany</name></wpt>
+  <wpt lat="47.7123" lon="11.7581"><name>Tegernsee, Germany</name></wpt>
+  <wpt lat="47.7362" lon="11.8598"><name>Schliersee, Germany</name></wpt>
+  <trk>
+    <name>Imported Ride</name>
+    <trkseg>
+      <trkpt lat="48.1374" lon="11.5755"><ele>520</ele><time>2026-04-22T08:00:00Z</time></trkpt>
+      <trkpt lat="47.7123" lon="11.7581"><ele>734</ele><time>2026-04-22T09:15:00Z</time></trkpt>
+      <trkpt lat="47.7362" lon="11.8598"><ele>785</ele><time>2026-04-22T10:45:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`;
+const importedTrackOnlyGpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Test" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Track only</name>
+    <trkseg>
+      <trkpt lat="48.1374" lon="11.5755"><ele>520</ele></trkpt>
+      <trkpt lat="48.1" lon="11.62"><ele>545</ele></trkpt>
+      <trkpt lat="47.7362" lon="11.8598"><ele>785</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`;
+const invalidGpx = `<gpx><trk><trkseg><trkpt lat="48.1374" lon="11.5755"></gpx>`;
+
+async function importGpxFile(name: string, contents: string) {
+	await page
+		.getByLabelText("Import GPX file")
+		.upload(new File([contents], name, { type: "application/gpx+xml" }));
+}
 
 function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
 	const createObjectUrl = vi.fn((blob: Blob) => {
@@ -422,10 +461,170 @@ describe("+page.svelte", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("imports a GPX file, fills the planner, and saves the imported metadata", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await importGpxFile("alpine-import.gpx", importedWaypointGpx);
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.toHaveValue("Tegernsee, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Destination" }))
+			.toHaveValue("Schliersee, Germany");
+		await expect.element(page.getByText("Imported GPX")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("alpine-import.gpx"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Stops loaded from GPX waypoints."))
+			.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText("Edit stops, then Generate Route to recalculate."),
+			)
+			.toBeInTheDocument();
+		await expect.element(page.getByText("2:45 h")).toBeInTheDocument();
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		await page.getByRole("button", { name: "Save Draft" }).click();
+
+		const savedRoutes = JSON.parse(
+			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
+		);
+		expect(savedRoutes[0]?.route.source).toEqual({
+			kind: "gpx_import",
+			filename: "alpine-import.gpx",
+			stopDerivation: "wpt",
+			hasDuration: true,
+		});
+	});
+
+	it("imports a track-only GPX, shows duration fallback, and replaces it after re-routing", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input) === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${String(input)}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await importGpxFile("track-only.gpx", importedTrackOnlyGpx);
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("48.13740, 11.57550");
+		await expect
+			.element(page.getByRole("textbox", { name: "Destination" }))
+			.toHaveValue("47.73620, 11.85980");
+		await expect
+			.element(page.getByText("Stops inferred from track."))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Time unavailable"))
+			.toBeInTheDocument();
+
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.element(page.getByText("Time unavailable"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText("Edit stops, then Generate Route to recalculate."),
+			)
+			.not.toBeInTheDocument();
+	});
+
+	it("shows an alert when GPX import fails", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await importGpxFile("broken.gpx", invalidGpx);
+
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent("The selected file is not valid GPX XML.");
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("restores a saved imported GPX route with its metadata and stop values", async () => {
+		const importedRoute = parseRouteGpx(importedWaypointGpx, {
+			filename: "saved-import.gpx",
+		});
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-import",
+					createdAt: "2026-04-23T08:00:00.000Z",
+					route: importedRoute,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-import");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.toHaveValue("Tegernsee, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Destination" }))
+			.toHaveValue("Schliersee, Germany");
+		await expect
+			.element(page.getByText("saved-import.gpx"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Stops loaded from GPX waypoints."))
+			.toBeInTheDocument();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("exports the active route as a GPX download", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
 		vi.stubGlobal("fetch", fetchMock);
 		const downloadSpy = setupGpxDownloadSpies();
 
@@ -437,7 +636,14 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
-		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
 		await page.getByRole("button", { name: "Export GPX" }).click();
 
 		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
@@ -462,9 +668,21 @@ describe("+page.svelte", () => {
 	});
 
 	it("shows an alert when GPX export fails", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
 		vi.stubGlobal("fetch", fetchMock);
 		const downloadSpy = setupGpxDownloadSpies({
 			clickError: new Error("Download blocked"),
@@ -478,7 +696,14 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
-		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
 		await page.getByRole("button", { name: "Export GPX" }).click();
 
 		await expect

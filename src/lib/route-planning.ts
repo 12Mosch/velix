@@ -15,6 +15,19 @@ export type RouteSuggestion = {
 	point: [number, number];
 };
 
+export type ImportedRouteStopDerivation = "rtept" | "wpt" | "track";
+
+export type RouteSource =
+	| {
+			kind: "graphhopper";
+	  }
+	| {
+			kind: "gpx_import";
+			filename: string;
+			stopDerivation: ImportedRouteStopDerivation;
+			hasDuration: boolean;
+	  };
+
 export type RouteMode = "point_to_point" | "round_course";
 
 export type RouteStopInput = {
@@ -58,6 +71,7 @@ export type ElevationProfilePoint = {
 
 export type PlannedRoute = {
 	mode: RouteMode;
+	source: RouteSource;
 	startLabel: string;
 	destinationLabel: string;
 	requestedDistanceMeters?: number;
@@ -261,6 +275,14 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 		type: "FeatureCollection",
 		features,
 	};
+}
+
+export function isImportedRoute(
+	route: Pick<PlannedRoute, "source"> | null | undefined,
+): route is {
+	source: Extract<RouteSource, { kind: "gpx_import" }>;
+} {
+	return route?.source.kind === "gpx_import";
 }
 
 function toRadians(value: number) {

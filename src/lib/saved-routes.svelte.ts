@@ -1,7 +1,9 @@
 import { browser } from "$app/environment";
 
 import type {
+	ImportedRouteStopDerivation,
 	PlannedRoute,
+	RouteSource,
 	RouteMode,
 	RouteWaypoint,
 } from "$lib/route-planning";
@@ -24,6 +26,12 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isRouteMode(value: unknown): value is RouteMode {
 	return value === "point_to_point" || value === "round_course";
+}
+
+function isImportedRouteStopDerivation(
+	value: unknown,
+): value is ImportedRouteStopDerivation {
+	return value === "rtept" || value === "wpt" || value === "track";
 }
 
 function isRouteCoordinate(
@@ -64,6 +72,36 @@ function isRouteWaypoint(value: unknown): value is RouteWaypoint {
 	return typeof value.label === "string" && isRouteCoordinate(value.coordinate);
 }
 
+function normalizeRouteSource(value: unknown): RouteSource | null {
+	if (value === undefined) {
+		return { kind: "graphhopper" };
+	}
+
+	if (!isRecord(value) || typeof value.kind !== "string") {
+		return null;
+	}
+
+	if (value.kind === "graphhopper") {
+		return { kind: "graphhopper" };
+	}
+
+	if (
+		value.kind === "gpx_import" &&
+		typeof value.filename === "string" &&
+		isImportedRouteStopDerivation(value.stopDerivation) &&
+		typeof value.hasDuration === "boolean"
+	) {
+		return {
+			kind: "gpx_import",
+			filename: value.filename,
+			stopDerivation: value.stopDerivation,
+			hasDuration: value.hasDuration,
+		};
+	}
+
+	return null;
+}
+
 export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 	if (!isRecord(value)) {
 		return null;
@@ -71,6 +109,7 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 
 	const waypointValues = value.waypoints;
 	const mode = isRouteMode(value.mode) ? value.mode : "point_to_point";
+	const source = normalizeRouteSource(value.source);
 	const requestedDistanceMeters =
 		value.requestedDistanceMeters === undefined
 			? undefined
@@ -79,6 +118,7 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 				: null;
 
 	if (
+		source === null ||
 		typeof value.startLabel !== "string" ||
 		typeof value.destinationLabel !== "string" ||
 		requestedDistanceMeters === null ||
@@ -116,6 +156,7 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 
 	return {
 		mode,
+		source,
 		startLabel: value.startLabel,
 		destinationLabel: value.destinationLabel,
 		requestedDistanceMeters: requestedDistanceMeters ?? undefined,
@@ -150,6 +191,7 @@ export function isPlannedRoute(value: unknown): value is PlannedRoute {
 	}
 
 	return (
+		normalizeRouteSource(value.source) !== null &&
 		(value.mode === undefined || isRouteMode(value.mode)) &&
 		typeof value.startLabel === "string" &&
 		typeof value.destinationLabel === "string" &&

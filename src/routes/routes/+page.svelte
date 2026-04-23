@@ -9,7 +9,7 @@
 		savedRoutesState,
 		initSavedRoutes,
 	} from "$lib/saved-routes.svelte";
-	import type { PlannedRoute } from "$lib/route-planning";
+	import { isImportedRoute, type PlannedRoute } from "$lib/route-planning";
 	import {
 		ArrowLeft,
 		Bookmark,
@@ -61,6 +61,14 @@
 
 	function isRoundCourseRoute(route: { mode: string }) {
 		return route.mode === "round_course";
+	}
+
+	function getRouteDurationText(route: PlannedRoute): string {
+		if (isImportedRoute(route) && !route.source.hasDuration) {
+			return "Time unavailable";
+		}
+
+		return formatDuration(route.durationMs);
 	}
 
 	function handleDeleteSavedRoute(id: string) {
@@ -147,6 +155,14 @@
 												Round course
 											</Badge>
 										{/if}
+										{#if isImportedRoute(savedRoute.route)}
+											<Badge
+												variant="secondary"
+												class="h-5 border-sky-500/20 bg-sky-500/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300"
+											>
+												Imported GPX
+											</Badge>
+										{/if}
 									</div>
 									<h2 class="font-heading text-lg font-semibold tracking-tight text-foreground">
 										{savedRoute.route.startLabel}
@@ -189,7 +205,7 @@
 									</div>
 									<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">
 										<Clock3 class="size-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
-										<span>{formatDuration(savedRoute.route.durationMs)}</span>
+										<span>{getRouteDurationText(savedRoute.route)}</span>
 									</div>
 								</div>
 							</div>

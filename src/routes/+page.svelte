@@ -9,6 +9,10 @@
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 	import MapView from "$lib/components/map-view.svelte";
 	import { getBasemapById } from "$lib/map/basemaps";
+	import {
+		parseRouteGpx,
+		RouteGpxImportError,
+	} from "$lib/route-gpx-import";
 	import { downloadRouteGpx } from "$lib/route-export";
 	import { mapStylePreference } from "$lib/map-style-settings.svelte";
 	import {
@@ -23,6 +27,7 @@
 		getRouteStopInputs,
 		getSurfaceMix,
 		getWaypointInsertionIndex,
+		isImportedRoute,
 		sampleElevationProfile,
 		type PlannedRoute,
 		type RouteApiError,
@@ -90,6 +95,7 @@
 	const maxWaypoints = maxRoutePoints - 2;
 	const minCompletionQueryLength = 3;
 	const completionDebounceMs = 250;
+	const gpxFileAccept = ".gpx,application/gpx+xml,application/xml,text/xml";
 	const sidebar = useSidebar();
 	const startCompletionTarget: CompletionTarget = { kind: "startQuery" };
 	const destinationCompletionTarget: CompletionTarget = {
@@ -131,8 +137,10 @@
 	let destinationStop = $state<PlannerStop>(createPlannerStop());
 	let roundCourseDistanceKm = $state("");
 	let routeRequestError = $state<string | null>(null);
+	let routeImportError = $state<string | null>(null);
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
 	let isRouting = $state(false);
+	let isImportingGpx = $state(false);
 	let activeRoute = $state<PlannedRoute | null>(null);
 	let routeExportError = $state<string | null>(null);
 	let activeSavedRouteId = $state<string | null>(null);
@@ -147,6 +155,7 @@
 	let completionHighlightedIndex = $state(-1);
 	let mapClickSelection = $state<MapClickSelection | null>(null);
 	let isResolvingMapSelection = $state(false);
+	let gpxImportInput = $state<HTMLInputElement | null>(null);
 
 	let completionAbortController: AbortController | null = null;
 	let completionBlurTimer: ReturnType<typeof setTimeout> | null = null;
@@ -162,6 +171,9 @@
 	const routeGeoJson = $derived(activeRoute ? buildRouteGeoJson(activeRoute) : null);
 	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
 	const activeRoutingWarnings = $derived(activeRoute?.routingWarnings ?? []);
+	const activeImportedRouteSource = $derived(
+		isImportedRoute(activeRoute) ? activeRoute.source : null,
+	);
 	const elevationSamples = $derived(activeRoute ? sampleElevationProfile(activeRoute.coordinates) : []);
 	const chartH = $derived(routeAnalysisOpen ? 72 : 44);
 	const elevMin = $derived(
@@ -298,6 +310,10 @@
 	function markPlannerEdited() {
 		if (routeRequestError) {
 			routeRequestError = null;
+		}
+
+		if (routeImportError) {
+			routeImportError = null;
 		}
 
 		activeSavedRouteId = null;
@@ -504,6 +520,10 @@
 			return "Road-bike planner";
 		}
 
+		if (isImportedRoute(route)) {
+			return "Imported GPX track";
+		}
+
 		if (route.routingStrategy) {
 			return route.routingStrategy;
 		}
@@ -520,9 +540,41 @@
 			return "Road-bike";
 		}
 
+		if (isImportedRoute(route)) {
+			return "Imported GPX";
+		}
+
 		return route.routingProfile === "racingbike"
 			? "Racingbike profile"
 			: "Bike fallback";
+	}
+
+	function getRouteDurationText(route: PlannedRoute | null): string {
+		if (!route) {
+			return "";
+		}
+
+		if (isImportedRoute(route) && !route.source.hasDuration) {
+			return "Time unavailable";
+		}
+
+		return formatDuration(route.durationMs);
+	}
+
+	function getImportedRouteStopSummary(route: PlannedRoute | null): string | null {
+		if (!route || !isImportedRoute(route)) {
+			return null;
+		}
+
+		if (route.source.stopDerivation === "rtept") {
+			return "Stops loaded from GPX route points.";
+		}
+
+		if (route.source.stopDerivation === "wpt") {
+			return "Stops loaded from GPX waypoints.";
+		}
+
+		return "Stops inferred from track.";
 	}
 
 	function getWaypointCompletionTarget(index: number): CompletionTarget {
@@ -1215,9 +1267,61 @@
 					: "Could not export GPX.";
 		}
 	}
+
+	function openGpxImportPicker() {
+		routeImportError = null;
+		gpxImportInput?.click();
+	}
+
+	async function handleGpxImportSelection(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const selectedFile = input.files?.[0];
+
+		if (!selectedFile) {
+			return;
+		}
+
+		isImportingGpx = true;
+		routeImportError = null;
+
+		try {
+			const importedRoute = parseRouteGpx(await selectedFile.text(), {
+				filename: selectedFile.name,
+			});
+
+			closeCompletionMenu();
+			closeMapClickMenu();
+			activeRoute = importedRoute;
+			syncStopsFromRoute(importedRoute);
+			activeSavedRouteId = null;
+			isActiveRouteSaved = false;
+			routeRequestError = null;
+			routeExportError = null;
+			fieldErrors = {};
+			activeProfileIndex = null;
+			chartScrubPointerId = null;
+		} catch (error) {
+			console.error("Failed to import GPX", error);
+			routeImportError =
+				error instanceof RouteGpxImportError
+					? error.message
+					: "Could not import the selected GPX file.";
+		} finally {
+			isImportingGpx = false;
+			input.value = "";
+		}
+	}
 </script>
 
 <div class="relative flex h-full w-full flex-col overflow-hidden bg-background">
+	<input
+		bind:this={gpxImportInput}
+		type="file"
+		accept={gpxFileAccept}
+		class="sr-only"
+		aria-label="Import GPX file"
+		onchange={handleGpxImportSelection}
+	/>
 	<MapView
 		layoutState={sidebar.state}
 		onMapClick={handleMapClick}
@@ -1790,6 +1894,15 @@
 						</div>
 					{/if}
 
+					{#if routeImportError}
+						<div
+							class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+							role="alert"
+						>
+							{routeImportError}
+						</div>
+					{/if}
+
 					{#if activeRoutingWarnings.length > 0}
 						<div
 							class="rounded-lg border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
@@ -1855,12 +1968,7 @@
 								</span>
 							</span>
 							<span class="hidden text-border md:inline" aria-hidden="true">·</span>
-							<span class="font-semibold text-foreground">
-								<span class="font-heading text-base sm:text-lg">
-									{formatDuration(activeRoute.durationMs).replace(" h", "")}
-								</span>
-								{formatDuration(activeRoute.durationMs).endsWith(" h") ? " h" : ""}
-							</span>
+							<span class="font-semibold text-foreground">{getRouteDurationText(activeRoute)}</span>
 						</div>
 					{:else}
 						<div class="flex min-w-0 flex-col gap-1">
@@ -1887,6 +1995,15 @@
 
 					<div class="flex shrink-0 flex-col items-end gap-1.5">
 						<div class="flex flex-wrap items-center justify-end gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								class="font-semibold"
+								disabled={isImportingGpx}
+								onclick={openGpxImportPicker}
+							>
+								{isImportingGpx ? "Importing GPX..." : "Import GPX"}
+							</Button>
 							<Button
 								variant={isActiveRouteSaved ? "secondary" : "outline"}
 								size="sm"
@@ -1935,6 +2052,18 @@
 						role="alert"
 					>
 						{routeExportError}
+					</div>
+				{/if}
+
+				{#if activeImportedRouteSource}
+					<div
+						class="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/8 px-3 py-2 text-sm text-sky-900 dark:text-sky-100"
+						role="status"
+					>
+						<div class="font-semibold">Imported GPX</div>
+						<div>{activeImportedRouteSource.filename}</div>
+						<div>{getImportedRouteStopSummary(activeRoute)}</div>
+						<div>Edit stops, then Generate Route to recalculate.</div>
 					</div>
 				{/if}
 
@@ -2147,7 +2276,9 @@
 										</div>
 									{:else}
 										<p class="text-xs text-muted-foreground">
-											Surface details were not available for this route.
+											{isImportedRoute(activeRoute)
+												? "Surface analysis becomes available after re-routing this imported track."
+												: "Surface details were not available for this route."}
 										</p>
 									{/if}
 								</div>
