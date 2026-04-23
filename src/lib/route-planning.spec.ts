@@ -16,6 +16,9 @@ function buildRoute(
 ): PlannedRoute {
 	return {
 		mode: "point_to_point",
+		source: {
+			kind: "graphhopper",
+		},
 		startLabel: "Start",
 		destinationLabel: "Destination",
 		waypoints: [
@@ -170,6 +173,9 @@ describe("getWaypointInsertionIndex", () => {
 	it("uses the routed leg when the active route still matches the current stops", () => {
 		const route: PlannedRoute = {
 			mode: "point_to_point",
+			source: {
+				kind: "graphhopper",
+			},
 			startLabel: "Start",
 			destinationLabel: "Destination",
 			waypoints: [

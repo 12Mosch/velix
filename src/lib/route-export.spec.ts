@@ -5,6 +5,9 @@ import type { PlannedRoute } from "$lib/route-planning";
 
 const pointToPointRoute: PlannedRoute = {
 	mode: "point_to_point",
+	source: {
+		kind: "graphhopper",
+	},
 	startLabel: "Marienplatz, Munich, Germany",
 	destinationLabel: "Schliersee, Germany",
 	waypoints: [

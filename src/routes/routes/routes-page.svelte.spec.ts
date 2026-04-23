@@ -14,6 +14,9 @@ const savedRoutes = [
 		createdAt: "2026-04-19T09:30:00.000Z",
 		route: {
 			mode: "point_to_point",
+			source: {
+				kind: "graphhopper",
+			},
 			startLabel: "Marienplatz, Munich, Germany",
 			destinationLabel: "Schliersee, Germany",
 			waypoints: [
@@ -137,6 +140,9 @@ describe("routes/+page.svelte", () => {
 					createdAt: "2026-04-19T09:30:00.000Z",
 					route: {
 						mode: "round_course",
+						source: {
+							kind: "graphhopper",
+						},
 						startLabel: "Marienplatz, Munich, Germany",
 						destinationLabel: "Marienplatz, Munich, Germany",
 						requestedDistanceMeters: 50000,
@@ -172,6 +178,49 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByText("Schliersee, Germany"))
 			.not.toBeInTheDocument();
+	});
+
+	it("shows imported GPX badges and duration fallback for saved imports", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-import",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: {
+						mode: "point_to_point",
+						source: {
+							kind: "gpx_import",
+							filename: "saved-import.gpx",
+							stopDerivation: "track",
+							hasDuration: false,
+						},
+						startLabel: "48.13740, 11.57550",
+						destinationLabel: "47.73620, 11.85980",
+						waypoints: [],
+						bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+						distanceMeters: 61234,
+						durationMs: 0,
+						ascendMeters: 820,
+						descendMeters: 740,
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.62, 48.1, 545],
+							[11.8598, 47.7362, 785],
+						],
+						surfaceDetails: [],
+						smoothnessDetails: [],
+					},
+				},
+			]),
+		);
+
+		render(RoutesPage);
+
+		await expect.element(page.getByText("Imported GPX")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Time unavailable"))
+			.toBeInTheDocument();
 	});
 
 	it("deletes a saved route from the list and localStorage", async () => {

@@ -356,6 +356,9 @@ async function requestRoute(
 	return {
 		route: {
 			mode: options.mode,
+			source: {
+				kind: "graphhopper",
+			},
 			startLabel: "",
 			destinationLabel: "",
 			requestedDistanceMeters:

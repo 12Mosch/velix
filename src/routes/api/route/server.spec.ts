@@ -299,6 +299,9 @@ describe("POST /api/route", () => {
 			},
 		]);
 		expect(payload.route.distanceMeters).toBe(61234);
+		expect(payload.route.source).toEqual({
+			kind: "graphhopper",
+		});
 		expect(payload.route.routingProfile).toBe("racingbike");
 		expect(payload.route.routingStrategy).toContain("racingbike");
 		expect(payload.route.routingWarnings).toEqual([]);
@@ -385,6 +388,9 @@ describe("POST /api/route", () => {
 		expect(payload.route.destinationLabel).toBe("Marienplatz, Munich, Germany");
 		expect(payload.route.requestedDistanceMeters).toBe(50000);
 		expect(payload.route.waypoints).toEqual([]);
+		expect(payload.route.source).toEqual({
+			kind: "graphhopper",
+		});
 		expect(payload.route.routingProfile).toBe("racingbike");
 	});
 
