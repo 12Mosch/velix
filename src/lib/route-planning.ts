@@ -105,11 +105,19 @@ export type PlannedRoute = {
 };
 
 export type RouteApiSuccess = {
-	route: PlannedRoute;
+	routes: PlannedRoute[];
+	selectedRouteIndex: number;
 };
 
 export type RouteSuggestionsApiSuccess = {
 	suggestions: RouteSuggestion[];
+};
+
+export type RouteMapOverlay = {
+	id: string;
+	geoJson: FeatureCollection;
+	bounds: RouteBounds;
+	isSelected: boolean;
 };
 
 export type RouteFieldErrors = {
@@ -290,6 +298,27 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 		type: "FeatureCollection",
 		features,
 	};
+}
+
+export function mergeRouteBounds(routes: PlannedRoute[]): RouteBounds | null {
+	if (routes.length === 0) {
+		return null;
+	}
+
+	let minLng = Number.POSITIVE_INFINITY;
+	let minLat = Number.POSITIVE_INFINITY;
+	let maxLng = Number.NEGATIVE_INFINITY;
+	let maxLat = Number.NEGATIVE_INFINITY;
+
+	for (const route of routes) {
+		const [routeMinLng, routeMinLat, routeMaxLng, routeMaxLat] = route.bounds;
+		minLng = Math.min(minLng, routeMinLng);
+		minLat = Math.min(minLat, routeMinLat);
+		maxLng = Math.max(maxLng, routeMaxLng);
+		maxLat = Math.max(maxLat, routeMaxLat);
+	}
+
+	return [minLng, minLat, maxLng, maxLat];
 }
 
 export function isImportedRoute(

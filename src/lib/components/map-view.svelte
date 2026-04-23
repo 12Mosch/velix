@@ -15,14 +15,18 @@
 	} from "$lib/map-style-settings.svelte";
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
 	import type { SidebarLayoutState } from "$lib/components/ui/sidebar/context.svelte.js";
-	import type { RouteBounds, RouteCoordinate } from "$lib/route-planning";
+	import type {
+		RouteBounds,
+		RouteCoordinate,
+		RouteMapOverlay,
+	} from "$lib/route-planning";
 
 	type Props = {
 		initialCenter?: [number, number];
 		initialZoom?: number;
 		ariaLabel?: string;
-		routeGeoJson?: FeatureCollection | null;
-		routeBounds?: RouteBounds | null;
+		routeOverlays?: RouteMapOverlay[] | null;
+		fitBounds?: RouteBounds | null;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
 		layoutState?: SidebarLayoutState | null;
 		onMapClick?: ((detail: {
@@ -45,14 +49,14 @@
 	};
 
 	const defaultCenter = [11.394, 47.268] as [number, number];
-	const routeSourceId = "planned-route";
-	const routeCasingLayerId = "planned-route-casing";
-	const routeLineLayerId = "planned-route-line";
-	const routeStartLayerId = "planned-route-start";
-	const routeWaypointLayerId = "planned-route-waypoint";
-	const routeDestinationLayerId = "planned-route-destination";
+	const routeSourcePrefix = "planned-route";
 	const hoveredRouteSourceId = "planned-route-hover";
 	const hoveredRouteLayerId = "planned-route-hover-point";
+	const alternativeRoutePalette = [
+		"rgba(15, 23, 42, 0.34)",
+		"rgba(71, 85, 105, 0.34)",
+		"rgba(100, 116, 139, 0.34)",
+	] as const;
 	// Matches the 200ms sidebar width transition plus a small buffer for interrupted toggles.
 	const layoutTransitionBufferMs = 260;
 
@@ -60,8 +64,8 @@
 		initialCenter = defaultCenter,
 		initialZoom = 10,
 		ariaLabel = "Route map",
-		routeGeoJson = null,
-		routeBounds = null,
+		routeOverlays = null,
+		fitBounds = null,
 		hoveredRouteCoordinate = null,
 		layoutState = null,
 		onMapClick = null,
@@ -72,24 +76,63 @@
 	let isLoaded = $state(false);
 	let isStyleReady = $state(false);
 	let loadError = $state<string | null>(null);
-	let lastFittedBoundsKey = $state<string | null>(null);
-	let currentStyleUrl = $state<string | null>(null);
+	let lastFittedBoundsKey: string | null = null;
+	let currentStyleUrl: string | null = null;
 	let detachStyleLoadListener = () => {};
 	let detachMapClickListener = () => {};
 	let resizeAnimationFrameId: number | null = null;
 	let resizeLoopUntil = 0;
+	let renderedRouteOverlayIds: string[] = [];
+
+	function getRouteSourceId(overlayId: string) {
+		return `${routeSourcePrefix}-${overlayId}`;
+	}
+
+	function getRouteLineLayerId(overlayId: string) {
+		return `${getRouteSourceId(overlayId)}-line`;
+	}
+
+	function getRouteCasingLayerId(overlayId: string) {
+		return `${getRouteSourceId(overlayId)}-casing`;
+	}
+
+	function getRouteStartLayerId(overlayId: string) {
+		return `${getRouteSourceId(overlayId)}-start`;
+	}
+
+	function getRouteWaypointLayerId(overlayId: string) {
+		return `${getRouteSourceId(overlayId)}-waypoint`;
+	}
+
+	function getRouteDestinationLayerId(overlayId: string) {
+		return `${getRouteSourceId(overlayId)}-destination`;
+	}
+
+	function getSelectedOverlay() {
+		if (!routeOverlays || routeOverlays.length === 0) {
+			return null;
+		}
+
+		return routeOverlays.find((overlay) => overlay.isSelected) ?? routeOverlays[0];
+	}
 
 	function getSelectedStopAtPoint(screenPoint: { x: number; y: number }) {
 		if (!map || typeof map.queryRenderedFeatures !== "function") {
 			return undefined;
 		}
 
+		const selectedOverlay = getSelectedOverlay();
+
+		if (!selectedOverlay) {
+			return undefined;
+		}
+
 		const matchingFeature = map
 			.queryRenderedFeatures([screenPoint.x, screenPoint.y], {
 				layers: [
-					routeStartLayerId,
-					routeWaypointLayerId,
-					routeDestinationLayerId,
+					getRouteStartLayerId(selectedOverlay.id),
+					getRouteWaypointLayerId(selectedOverlay.id),
+					getRouteDestinationLayerId(selectedOverlay.id),
 				],
 			})
 			.find((feature) => {
@@ -197,34 +240,40 @@
 		keepMapResized();
 	}
 
-	function getRouteSource() {
-		return map?.getSource(routeSourceId) as GeoJSONSource | undefined;
-	}
-
 	function getHoveredRouteSource() {
 		return map?.getSource(hoveredRouteSourceId) as GeoJSONSource | undefined;
 	}
 
-	function removeRouteOverlay() {
+	function removeRouteOverlayById(overlayId: string) {
 		if (!map || !isStyleReady) {
 			return;
 		}
 
 		for (const layerId of [
-			routeDestinationLayerId,
-			routeWaypointLayerId,
-			routeStartLayerId,
-			routeLineLayerId,
-			routeCasingLayerId,
+			getRouteDestinationLayerId(overlayId),
+			getRouteWaypointLayerId(overlayId),
+			getRouteStartLayerId(overlayId),
+			getRouteLineLayerId(overlayId),
+			getRouteCasingLayerId(overlayId),
 		]) {
 			if (map.getLayer(layerId)) {
 				map.removeLayer(layerId);
 			}
 		}
 
-		if (map.getSource(routeSourceId)) {
-			map.removeSource(routeSourceId);
+		const sourceId = getRouteSourceId(overlayId);
+
+		if (map.getSource(sourceId)) {
+			map.removeSource(sourceId);
 		}
+	}
+
+	function removeRouteOverlays() {
+		for (const overlayId of renderedRouteOverlayIds) {
+			removeRouteOverlayById(overlayId);
+		}
+
+		renderedRouteOverlayIds = [];
 	}
 
 	function removeHoveredRouteOverlay() {
@@ -241,87 +290,122 @@
 		}
 	}
 
-	function ensureRouteOverlay() {
+	function ensureRouteOverlays() {
 		if (!map || !isStyleReady) {
 			return;
 		}
 
-		if (!routeGeoJson) {
-			removeRouteOverlay();
+		if (!routeOverlays || routeOverlays.length === 0) {
+			removeRouteOverlays();
 			return;
 		}
 
-		const existingSource = getRouteSource();
+		removeRouteOverlays();
 
-		if (existingSource) {
-			existingSource.setData(routeGeoJson);
-		} else {
-			map.addSource(routeSourceId, {
+		for (const [index, overlay] of routeOverlays.entries()) {
+			const sourceId = getRouteSourceId(overlay.id);
+			const casingLayerId = getRouteCasingLayerId(overlay.id);
+			const lineLayerId = getRouteLineLayerId(overlay.id);
+			const startLayerId = getRouteStartLayerId(overlay.id);
+			const waypointLayerId = getRouteWaypointLayerId(overlay.id);
+			const destinationLayerId = getRouteDestinationLayerId(overlay.id);
+			const alternativeColor =
+				alternativeRoutePalette[index % alternativeRoutePalette.length];
+
+			map.addSource(sourceId, {
 				type: "geojson",
-				data: routeGeoJson,
+				data: overlay.geoJson,
 			});
-		}
 
-		if (!map.getLayer(routeCasingLayerId)) {
 			map.addLayer({
-				id: routeCasingLayerId,
+				id: casingLayerId,
 				type: "line",
-				source: routeSourceId,
+				source: sourceId,
 				filter: ["==", ["get", "kind"], "route"],
 				layout: {
 					"line-cap": "round",
 					"line-join": "round",
 				},
-				paint: {
-					"line-color": "rgba(255, 255, 255, 0.88)",
-					"line-width": [
-						"interpolate",
-						["linear"],
-						["zoom"],
-						6,
-						5,
-						12,
-						8,
-						16,
-						11,
-					],
-					"line-opacity": 0.95,
-				},
+				paint: overlay.isSelected
+					? {
+							"line-color": "rgba(255, 255, 255, 0.88)",
+							"line-width": [
+								"interpolate",
+								["linear"],
+								["zoom"],
+								6,
+								5,
+								12,
+								8,
+								16,
+								11,
+							],
+							"line-opacity": 0.95,
+						}
+					: {
+							"line-color": "rgba(255, 255, 255, 0.32)",
+							"line-width": [
+								"interpolate",
+								["linear"],
+								["zoom"],
+								6,
+								2.5,
+								12,
+								4,
+								16,
+								5.5,
+							],
+							"line-opacity": 0.55,
+						},
 			});
-		}
-
-		if (!map.getLayer(routeLineLayerId)) {
 			map.addLayer({
-				id: routeLineLayerId,
+				id: lineLayerId,
 				type: "line",
-				source: routeSourceId,
+				source: sourceId,
 				filter: ["==", ["get", "kind"], "route"],
 				layout: {
 					"line-cap": "round",
 					"line-join": "round",
 				},
-				paint: {
-					"line-color": "rgb(37, 99, 235)",
-					"line-width": [
-						"interpolate",
-						["linear"],
-						["zoom"],
-						6,
-						3,
-						12,
-						5,
-						16,
-						7,
-					],
-				},
+				paint: overlay.isSelected
+					? {
+							"line-color": "rgb(37, 99, 235)",
+							"line-width": [
+								"interpolate",
+								["linear"],
+								["zoom"],
+								6,
+								3,
+								12,
+								5,
+								16,
+								7,
+							],
+						}
+					: {
+							"line-color": alternativeColor,
+							"line-width": [
+								"interpolate",
+								["linear"],
+								["zoom"],
+								6,
+								1.5,
+								12,
+								2.5,
+								16,
+								3.5,
+							],
+						},
 			});
-		}
 
-		if (!map.getLayer(routeStartLayerId)) {
+			if (!overlay.isSelected) {
+				continue;
+			}
+
 			map.addLayer({
-				id: routeStartLayerId,
+				id: startLayerId,
 				type: "circle",
-				source: routeSourceId,
+				source: sourceId,
 				filter: ["==", ["get", "kind"], "start"],
 				paint: {
 					"circle-color": "rgb(15, 118, 110)",
@@ -330,13 +414,10 @@
 					"circle-stroke-width": 3,
 				},
 			});
-		}
-
-		if (!map.getLayer(routeWaypointLayerId)) {
 			map.addLayer({
-				id: routeWaypointLayerId,
+				id: waypointLayerId,
 				type: "circle",
-				source: routeSourceId,
+				source: sourceId,
 				filter: ["==", ["get", "kind"], "waypoint"],
 				paint: {
 					"circle-color": "rgb(245, 158, 11)",
@@ -345,13 +426,10 @@
 					"circle-stroke-width": 2.5,
 				},
 			});
-		}
-
-		if (!map.getLayer(routeDestinationLayerId)) {
 			map.addLayer({
-				id: routeDestinationLayerId,
+				id: destinationLayerId,
 				type: "circle",
-				source: routeSourceId,
+				source: sourceId,
 				filter: ["==", ["get", "kind"], "destination"],
 				paint: {
 					"circle-color": "rgb(37, 99, 235)",
@@ -361,6 +439,8 @@
 				},
 			});
 		}
+
+		renderedRouteOverlayIds = routeOverlays.map((overlay) => overlay.id);
 	}
 
 	function ensureHoveredRouteOverlay() {
@@ -447,17 +527,17 @@
 	}
 
 	function fitRouteBounds() {
-		if (!map || !isStyleReady || !routeBounds) {
+		if (!map || !isStyleReady || !fitBounds) {
 			return;
 		}
 
-		const nextBoundsKey = routeBounds.join(",");
+		const nextBoundsKey = fitBounds.join(",");
 
 		if (nextBoundsKey === lastFittedBoundsKey) {
 			return;
 		}
 
-		map.fitBounds(routeBounds as LngLatBoundsLike, {
+		map.fitBounds(fitBounds as LngLatBoundsLike, {
 			padding: getFitPadding(),
 			duration: 700,
 			maxZoom: 14,
@@ -470,14 +550,21 @@
 			return;
 		}
 
-		ensureRouteOverlay();
-		ensureHoveredRouteOverlay();
+		ensureRouteOverlays();
 
-		if (routeBounds) {
+		if (fitBounds) {
 			fitRouteBounds();
 		} else {
 			lastFittedBoundsKey = null;
 		}
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		ensureHoveredRouteOverlay();
 	});
 
 	$effect(() => {
@@ -529,8 +616,6 @@
 			isLoaded = true;
 			isStyleReady = true;
 			scheduleSmoothResize();
-			ensureRouteOverlay();
-			ensureHoveredRouteOverlay();
 		};
 
 		let detached = false;
@@ -649,9 +734,6 @@
 					isLoaded = true;
 					isStyleReady = true;
 					scheduleSmoothResize();
-					ensureRouteOverlay();
-					ensureHoveredRouteOverlay();
-					fitRouteBounds();
 				});
 
 				resizeObserver = new ResizeObserver(() => {
@@ -675,6 +757,7 @@
 			detachMapClickListener();
 			cancelSmoothResize();
 			resizeObserver?.disconnect();
+			removeRouteOverlays();
 			map?.remove();
 			map = null;
 			currentStyleUrl = null;

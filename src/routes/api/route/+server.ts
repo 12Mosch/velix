@@ -49,9 +49,12 @@ type GraphHopperRouteRequestBody = {
 	snap_preventions?: string[];
 	"ch.disable"?: true;
 	custom_model?: typeof roadBikeCustomModel;
-	algorithm?: "round_trip";
+	algorithm?: "round_trip" | "alternative_route";
 	"round_trip.distance"?: number;
 	"round_trip.seed"?: number;
+	"alternative_route.max_paths"?: number;
+	"alternative_route.max_weight_factor"?: number;
+	"alternative_route.max_share_factor"?: number;
 };
 type GraphHopperProfile = GraphHopperRouteRequestBody["profile"];
 type RouteRequestStrategy = {
@@ -100,12 +103,30 @@ type CandidateRouteResult = {
 	sequence: number;
 };
 
+type RouteRequestOptions = {
+	mode: RouteMode;
+	roundTripDistanceMeters?: number;
+	roundTripSeed?: number;
+	roundCourseTarget?: RoundCourseTarget;
+	alternativeMaxPaths?: number;
+	alternativeMaxWeightFactor?: number;
+	alternativeMaxShareFactor?: number;
+};
+
+type NormalizedGraphHopperRoute = {
+	route: PlannedRoute;
+	snappedWaypoints: RouteCoordinate[];
+};
+
 const minRoundCourseDurationMs = 15 * 60 * 1000;
 const minRoundCourseAscendMeters = 50;
 const minRoundCourseDistanceMeters = 10_000;
 const maxRoundCourseDistanceMeters = 220_000;
 const durationTargetSpeedMetersPerHour = 22_000;
 const ascendTargetMetersPerKm = 12;
+const desiredAlternativeRoutes = 3;
+const alternativeRouteMaxWeightFactor = 1.4;
+const alternativeRouteMaxShareFactor = 0.6;
 const roundCourseSearchDistanceMultipliers = [0.9, 1, 1.1] as const;
 const roundCourseSearchSeeds = [
 	[11, 37, 73],
@@ -425,11 +446,123 @@ function buildRoundCourseMissWarning(
 	return `Requested ${Math.round(target.ascendMeters).toLocaleString()} m up, but the closest round course came out to ${Math.round(route.ascendMeters).toLocaleString()} m up.`;
 }
 
-async function searchRoundCourseRoute(
+function buildRouteUniquenessKey(route: PlannedRoute): string {
+	const sampleCount = Math.min(route.coordinates.length, 12);
+	const sampledCoordinates =
+		sampleCount === 0
+			? []
+			: Array.from({ length: sampleCount }, (_, index) => {
+					const coordinateIndex =
+						sampleCount === 1
+							? 0
+							: Math.round(
+									(index * (route.coordinates.length - 1)) / (sampleCount - 1),
+								);
+					const coordinate = route.coordinates[coordinateIndex];
+
+					return coordinate
+						? `${coordinate[0].toFixed(4)},${coordinate[1].toFixed(4)}`
+						: "";
+				});
+
+	return [
+		Math.round(route.distanceMeters / 250),
+		Math.round(route.durationMs / 60000),
+		Math.round(route.ascendMeters / 25),
+		...sampledCoordinates,
+	].join("|");
+}
+
+function dedupeRoutes(routes: PlannedRoute[]): PlannedRoute[] {
+	const uniqueRoutes = new Map<string, PlannedRoute>();
+
+	for (const route of routes) {
+		const key = buildRouteUniquenessKey(route);
+
+		if (!uniqueRoutes.has(key)) {
+			uniqueRoutes.set(key, route);
+		}
+	}
+
+	return [...uniqueRoutes.values()];
+}
+
+function dedupeCandidateRoutes(
+	candidates: CandidateRouteResult[],
+): CandidateRouteResult[] {
+	const uniqueCandidates = new Map<string, CandidateRouteResult>();
+
+	for (const candidate of candidates) {
+		const key = buildRouteUniquenessKey(candidate.route);
+
+		if (!uniqueCandidates.has(key)) {
+			uniqueCandidates.set(key, candidate);
+		}
+	}
+
+	return [...uniqueCandidates.values()];
+}
+
+function normalizeGraphHopperPath(
+	path: GraphHopperPath,
+	points: [number, number][],
+	options: RouteRequestOptions,
+	selectedStrategy: RouteRequestStrategy,
+): NormalizedGraphHopperRoute | null {
+	const coordinates = path.points?.coordinates;
+	const snappedWaypoints = path.snapped_waypoints?.coordinates;
+	const bbox = path.bbox;
+	const normalizedSnappedWaypoints =
+		snappedWaypoints && snappedWaypoints.length === points.length
+			? snappedWaypoints
+			: points.map((point): RouteCoordinate => [point[0], point[1]]);
+
+	if (
+		!bbox ||
+		bbox.length < 4 ||
+		!coordinates ||
+		coordinates.length < 2 ||
+		typeof path.distance !== "number" ||
+		typeof path.time !== "number" ||
+		typeof path.ascend !== "number" ||
+		typeof path.descend !== "number"
+	) {
+		return null;
+	}
+
+	return {
+		route: {
+			mode: options.mode,
+			source: {
+				kind: "graphhopper",
+			},
+			startLabel: "",
+			destinationLabel: "",
+			roundCourseTarget:
+				options.mode === "round_course" ? options.roundCourseTarget : undefined,
+			routingProfile: selectedStrategy.profile,
+			routingStrategy: selectedStrategy.routingStrategy,
+			routingWarnings: [...selectedStrategy.routingWarnings],
+			waypoints: [],
+			bounds: [bbox[0], bbox[1], bbox[2], bbox[3]],
+			distanceMeters: path.distance,
+			durationMs: path.time,
+			ascendMeters: path.ascend,
+			descendMeters: path.descend,
+			coordinates,
+			surfaceDetails: normalizeDetailIntervals(path.details?.surface),
+			smoothnessDetails: normalizeDetailIntervals(path.details?.smoothness),
+		},
+		snappedWaypoints: normalizedSnappedWaypoints,
+	};
+}
+
+async function searchRoundCourseRoutes(
 	fetchFn: typeof fetch,
 	startPoint: [number, number],
 	target: RoundCourseTarget,
-): Promise<PlannedRoute> {
+	desiredCount = desiredAlternativeRoutes,
+): Promise<PlannedRoute[]> {
 	let baseDistanceMeters = clampRoundCourseDistanceMeters(
 		estimateRoundCourseDistanceMeters(target),
 	);
@@ -445,30 +578,34 @@ async function searchRoundCourseRoute(
 		const candidateResults = await Promise.allSettled(
 			requestedDistances.map((requestedDistanceMeters, candidateIndex) => {
 				const candidateSequence = sequence++;
-				return requestRoute(fetchFn, [startPoint], {
+				return requestRoutes(fetchFn, [startPoint], {
 					mode: "round_course",
 					roundTripDistanceMeters: requestedDistanceMeters,
 					roundTripSeed: seeds[candidateIndex],
 					roundCourseTarget: target,
-				}).then(({ route }) => ({
-					route,
-					requestedDistanceMeters,
-					sequence: candidateSequence,
-				}));
+				}).then(({ routes }) =>
+					routes.map((route, routeIndex) => ({
+						route,
+						requestedDistanceMeters,
+						sequence: candidateSequence * desiredAlternativeRoutes + routeIndex,
+					})),
+				);
 			}),
 		);
 
 		for (const candidateResult of candidateResults) {
 			if (candidateResult.status === "fulfilled") {
-				successfulCandidates.push(candidateResult.value);
+				successfulCandidates.push(...candidateResult.value);
 				continue;
 			}
 
 			lastError = candidateResult.reason;
 		}
 
-		if (roundIndex === 0 && successfulCandidates.length > 0) {
-			const bestCandidate = [...successfulCandidates].sort((left, right) =>
+		const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
+
+		if (roundIndex === 0 && uniqueCandidates.length > 0) {
+			const bestCandidate = [...uniqueCandidates].sort((left, right) =>
 				compareCandidateRoutes(left, right, target),
 			)[0];
 
@@ -486,30 +623,33 @@ async function searchRoundCourseRoute(
 		}
 	}
 
-	if (successfulCandidates.length === 0) {
+	const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
+
+	if (uniqueCandidates.length === 0) {
 		throw lastError instanceof Error
 			? lastError
 			: new Error("GraphHopper could not generate a round course right now.");
 	}
 
-	const bestCandidate = [...successfulCandidates].sort((left, right) =>
+	const rankedCandidates = [...uniqueCandidates].sort((left, right) =>
 		compareCandidateRoutes(left, right, target),
-	)[0];
+	);
 
-	if (!bestCandidate) {
-		throw new Error("GraphHopper could not generate a round course right now.");
-	}
+	return rankedCandidates.slice(0, desiredCount).map((candidate) => {
+		const missWarning = buildRoundCourseMissWarning(candidate.route, target);
 
-	const missWarning = buildRoundCourseMissWarning(bestCandidate.route, target);
+		if (!missWarning) {
+			return candidate.route;
+		}
 
-	if (missWarning) {
-		bestCandidate.route.routingWarnings = [
-			...(bestCandidate.route.routingWarnings ?? []),
-			missWarning,
-		];
-	}
-
-	return bestCandidate.route;
+		return {
+			...candidate.route,
+			routingWarnings: [
+				...(candidate.route.routingWarnings ?? []),
+				missWarning,
+			],
+		};
+	});
 }
 
 function normalizeStopInput(value: unknown): RouteStopInput {
@@ -545,18 +685,13 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 	};
 }
 
-async function requestRoute(
+async function requestRoutes(
 	fetchFn: typeof fetch,
 	points: [number, number][],
-	options: {
-		mode: RouteMode;
-		roundTripDistanceMeters?: number;
-		roundTripSeed?: number;
-		roundCourseTarget?: RoundCourseTarget;
-	},
+	options: RouteRequestOptions,
 ): Promise<{
-	route: PlannedRoute;
-	snappedWaypoints: RouteCoordinate[];
+	routes: PlannedRoute[];
+	snappedWaypointSets: RouteCoordinate[][];
 }> {
 	const key = env.GRAPHHOPPER_API_KEY?.trim();
 
@@ -593,6 +728,13 @@ async function requestRoute(
 			if (typeof options.roundTripSeed === "number") {
 				requestBody["round_trip.seed"] = options.roundTripSeed;
 			}
+		} else if ((options.alternativeMaxPaths ?? 1) > 1) {
+			requestBody.algorithm = "alternative_route";
+			requestBody["alternative_route.max_paths"] = options.alternativeMaxPaths;
+			requestBody["alternative_route.max_weight_factor"] =
+				options.alternativeMaxWeightFactor;
+			requestBody["alternative_route.max_share_factor"] =
+				options.alternativeMaxShareFactor;
 		}
 
 		return requestBody;
@@ -651,56 +793,21 @@ async function requestRoute(
 			: new Error("GraphHopper did not accept any routing strategy");
 	}
 
-	const path = payload.paths?.[0];
-	const coordinates = path?.points?.coordinates;
-	const snappedWaypoints = path?.snapped_waypoints?.coordinates;
-	const bbox = path?.bbox;
-	const normalizedSnappedWaypoints =
-		snappedWaypoints && snappedWaypoints.length === points.length
-			? snappedWaypoints
-			: options.mode === "round_course"
-				? points.map((point): RouteCoordinate => [point[0], point[1]])
-				: null;
+	const normalizedRoutes = (payload.paths ?? [])
+		.map((path) =>
+			normalizeGraphHopperPath(path, points, options, selectedStrategy),
+		)
+		.filter((route): route is NormalizedGraphHopperRoute => route !== null);
 
-	if (
-		!path ||
-		!bbox ||
-		bbox.length < 4 ||
-		!coordinates ||
-		coordinates.length < 2 ||
-		!normalizedSnappedWaypoints ||
-		typeof path.distance !== "number" ||
-		typeof path.time !== "number" ||
-		typeof path.ascend !== "number" ||
-		typeof path.descend !== "number"
-	) {
+	if (normalizedRoutes.length === 0) {
 		throw new Error("GraphHopper route response was incomplete");
 	}
 
 	return {
-		route: {
-			mode: options.mode,
-			source: {
-				kind: "graphhopper",
-			},
-			startLabel: "",
-			destinationLabel: "",
-			roundCourseTarget:
-				options.mode === "round_course" ? options.roundCourseTarget : undefined,
-			routingProfile: selectedStrategy.profile,
-			routingStrategy: selectedStrategy.routingStrategy,
-			routingWarnings: [...selectedStrategy.routingWarnings],
-			waypoints: [],
-			bounds: [bbox[0], bbox[1], bbox[2], bbox[3]],
-			distanceMeters: path.distance,
-			durationMs: path.time,
-			ascendMeters: path.ascend,
-			descendMeters: path.descend,
-			coordinates,
-			surfaceDetails: normalizeDetailIntervals(path.details?.surface),
-			smoothnessDetails: normalizeDetailIntervals(path.details?.smoothness),
-		},
-		snappedWaypoints: normalizedSnappedWaypoints,
+		routes: normalizedRoutes.map(({ route }) => route),
+		snappedWaypointSets: normalizedRoutes.map(
+			({ snappedWaypoints }) => snappedWaypoints,
+		),
 	};
 }
 
@@ -789,29 +896,27 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 				});
 			}
 
-			const route =
-				roundCourseTarget?.kind === "distance"
-					? (
-							await requestRoute(fetch, [resolvedStart.point], {
-								mode: "round_course",
-								roundTripDistanceMeters: roundCourseTarget.distanceMeters,
-								roundCourseTarget,
-							})
-						).route
-					: await searchRoundCourseRoute(
-							fetch,
-							resolvedStart.point,
-							roundCourseTarget as Exclude<
-								RoundCourseTarget,
-								{ kind: "distance" }
-							>,
-						);
-			route.startLabel = resolvedStart.label;
-			route.destinationLabel = resolvedStart.label;
-			route.waypoints = [];
+			const routes = await searchRoundCourseRoutes(
+				fetch,
+				resolvedStart.point,
+				roundCourseTarget as RoundCourseTarget,
+			);
+			const normalizedRoutes = dedupeRoutes(routes).map((route) => ({
+				...route,
+				startLabel: resolvedStart.label,
+				destinationLabel: resolvedStart.label,
+				waypoints: [],
+			}));
+
+			if (normalizedRoutes.length === 0) {
+				throw new Error(
+					"GraphHopper could not generate a round course right now.",
+				);
+			}
 
 			return json({
-				route,
+				routes: normalizedRoutes,
+				selectedRouteIndex: 0,
 			});
 		} catch (error) {
 			console.error("Failed to generate GraphHopper round course", error);
@@ -961,23 +1066,43 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 		const routePoints = resolvedStops.map(
 			(stop) => stop.point as [number, number],
 		);
-		const { route, snappedWaypoints } = await requestRoute(fetch, routePoints, {
-			mode: "point_to_point",
-		});
+		const { routes, snappedWaypointSets } = await requestRoutes(
+			fetch,
+			routePoints,
+			{
+				mode: "point_to_point",
+				alternativeMaxPaths: desiredAlternativeRoutes,
+				alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
+				alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
+			},
+		);
+		const normalizedRoutes = dedupeRoutes(
+			routes.map((route, routeIndex) => {
+				const snappedWaypoints = snappedWaypointSets[routeIndex] ?? [];
 
-		route.startLabel = resolvedStops[0]?.label ?? "";
-		route.destinationLabel =
-			resolvedStops[resolvedStops.length - 1]?.label ?? "";
-		route.waypoints = resolvedStops.slice(1, -1).map(
-			(stop, index): RouteWaypoint => ({
-				label: stop.label ?? stop.input.label,
-				coordinate:
-					snappedWaypoints[index + 1] ?? (stop.point as [number, number]),
+				return {
+					...route,
+					startLabel: resolvedStops[0]?.label ?? "",
+					destinationLabel:
+						resolvedStops[resolvedStops.length - 1]?.label ?? "",
+					waypoints: resolvedStops.slice(1, -1).map(
+						(stop, index): RouteWaypoint => ({
+							label: stop.label ?? stop.input.label,
+							coordinate:
+								snappedWaypoints[index + 1] ?? (stop.point as [number, number]),
+						}),
+					),
+				};
 			}),
 		);
 
+		if (normalizedRoutes.length === 0) {
+			throw new Error("GraphHopper could not generate a route right now.");
+		}
+
 		return json({
-			route,
+			routes: normalizedRoutes,
+			selectedRouteIndex: 0,
 		});
 	} catch (error) {
 		console.error("Failed to generate GraphHopper route", error);

@@ -28,11 +28,13 @@
 		getSurfaceMix,
 		getWaypointInsertionIndex,
 		isImportedRoute,
+		mergeRouteBounds,
 		sampleElevationProfile,
 		type PlannedRoute,
 		type RoundCourseTarget,
 		type RouteApiError,
 		type RouteApiSuccess,
+		type RouteMapOverlay,
 		type RouteMode,
 		type RouteRequestPayload,
 		type RouteStopInput,
@@ -97,6 +99,7 @@
 	const maxWaypoints = maxRoutePoints - 2;
 	const minCompletionQueryLength = 3;
 	const completionDebounceMs = 250;
+	const desiredAlternativeRoutes = 3;
 	const gpxFileAccept = ".gpx,application/gpx+xml,application/xml,text/xml";
 	const sidebar = useSidebar();
 	const startCompletionTarget: CompletionTarget = { kind: "startQuery" };
@@ -146,7 +149,9 @@
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
 	let isRouting = $state(false);
 	let isImportingGpx = $state(false);
-	let activeRoute = $state<PlannedRoute | null>(null);
+	let routeAlternatives = $state<PlannedRoute[]>([]);
+	let selectedRouteIndex = $state<number | null>(null);
+	let lastGeneratedRouteCount = $state<number | null>(null);
 	let routeExportError = $state<string | null>(null);
 	let activeSavedRouteId = $state<string | null>(null);
 	let isActiveRouteSaved = $state(false);
@@ -173,12 +178,28 @@
 			: null,
 	);
 	const isRoundCourseMode = $derived(plannerMode === "round_course");
+	const activeRoute = $derived(
+		selectedRouteIndex === null ? null : routeAlternatives[selectedRouteIndex] ?? null,
+	);
 	const activeRoundCourseTarget = $derived(getRoundCourseTarget(activeRoute));
-	const routeGeoJson = $derived(activeRoute ? buildRouteGeoJson(activeRoute) : null);
+	const routeOverlays = $derived<RouteMapOverlay[]>(
+		routeAlternatives.map((route, index) => ({
+			id: `route-${index}`,
+			geoJson: buildRouteGeoJson(route),
+			bounds: route.bounds,
+			isSelected: index === selectedRouteIndex,
+		})),
+	);
+	const combinedRouteBounds = $derived(mergeRouteBounds(routeAlternatives));
 	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
 	const activeRoutingWarnings = $derived(activeRoute?.routingWarnings ?? []);
 	const activeImportedRouteSource = $derived(
 		isImportedRoute(activeRoute) ? activeRoute.source : null,
+	);
+	const alternativeInfoMessage = $derived(
+		lastGeneratedRouteCount !== null && lastGeneratedRouteCount < desiredAlternativeRoutes
+			? `Found ${lastGeneratedRouteCount} distinct route${lastGeneratedRouteCount === 1 ? "" : "s"} for this request.`
+			: null,
 	);
 	const elevationSamples = $derived(activeRoute ? sampleElevationProfile(activeRoute.coordinates) : []);
 	const chartH = $derived(routeAnalysisOpen ? 72 : 44);
@@ -433,6 +454,31 @@
 		);
 	}
 
+	function setRouteAlternativesState(
+		routes: PlannedRoute[],
+		nextSelectedRouteIndex: number,
+	) {
+		routeAlternatives = routes;
+		selectedRouteIndex =
+			routes.length === 0
+				? null
+				: Math.min(Math.max(nextSelectedRouteIndex, 0), routes.length - 1);
+	}
+
+	function setSingleRouteState(route: PlannedRoute) {
+		setRouteAlternativesState([route], 0);
+	}
+
+	function selectRouteAlternative(index: number) {
+		if (index < 0 || index >= routeAlternatives.length) {
+			return;
+		}
+
+		selectedRouteIndex = index;
+		activeProfileIndex = null;
+		chartScrubPointerId = null;
+	}
+
 	function markPlannerEdited() {
 		if (routeRequestError) {
 			routeRequestError = null;
@@ -491,7 +537,8 @@
 			return;
 		}
 
-		activeRoute = savedRoute.route;
+		setSingleRouteState(savedRoute.route);
+		lastGeneratedRouteCount = null;
 		syncStopsFromRoute(savedRoute.route);
 		activeSavedRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
@@ -1366,11 +1413,21 @@
 			}
 
 			const payload = (await response.json()) as RouteApiSuccess;
-			activeRoute = payload.route;
-			syncStopsFromRoute(payload.route);
+			const nextRoutes = payload.routes ?? [];
+			const nextSelectedRoute =
+				nextRoutes[payload.selectedRouteIndex] ?? nextRoutes[0] ?? null;
+
+			if (!nextSelectedRoute) {
+				throw new Error("Route API returned no routes.");
+			}
+
+			setRouteAlternativesState(nextRoutes, payload.selectedRouteIndex);
+			lastGeneratedRouteCount = nextRoutes.length;
+			syncStopsFromRoute(nextSelectedRoute);
 			activeSavedRouteId = null;
 			isActiveRouteSaved = false;
 			routeRequestError = null;
+			routeExportError = null;
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
 		} catch (error) {
@@ -1441,7 +1498,8 @@
 
 			closeCompletionMenu();
 			closeMapClickMenu();
-			activeRoute = importedRoute;
+			setSingleRouteState(importedRoute);
+			lastGeneratedRouteCount = null;
 			syncStopsFromRoute(importedRoute);
 			activeSavedRouteId = null;
 			isActiveRouteSaved = false;
@@ -1475,8 +1533,8 @@
 	<MapView
 		layoutState={sidebar.state}
 		onMapClick={handleMapClick}
-		routeGeoJson={routeGeoJson}
-		routeBounds={activeRoute?.bounds ?? null}
+		routeOverlays={routeOverlays}
+		fitBounds={combinedRouteBounds}
 		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
 	/>
 
@@ -2303,6 +2361,94 @@
 						<div>{activeImportedRouteSource.filename}</div>
 						<div>{getImportedRouteStopSummary(activeRoute)}</div>
 						<div>Edit stops, then Generate Route to recalculate.</div>
+					</div>
+				{/if}
+
+				{#if routeAlternatives.length > 1}
+					<div class="mt-3 rounded-lg border border-border/50 bg-secondary/10 p-3">
+						<div class="mb-2 flex items-center justify-between gap-3">
+							<div class="text-xs font-semibold uppercase tracking-wide text-foreground/75">
+								Alternatives
+							</div>
+							<div class="text-xs text-muted-foreground">
+								Select the route you want to inspect, save, or export.
+							</div>
+						</div>
+						<div class="grid gap-2 md:grid-cols-3">
+							{#each routeAlternatives as route, index (`alternative-${index}`)}
+								<button
+									type="button"
+									class={`rounded-lg border p-3 text-left transition-colors ${
+										index === selectedRouteIndex
+											? "border-primary/40 bg-background shadow-sm"
+											: "border-border/50 bg-background/70 hover:border-border hover:bg-background"
+									}`}
+									aria-pressed={index === selectedRouteIndex}
+									onclick={() => selectRouteAlternative(index)}
+								>
+									<div class="mb-2 flex items-center justify-between gap-2">
+										<div class="text-sm font-semibold text-foreground">
+											Route {index + 1}
+										</div>
+										<div class="flex flex-wrap justify-end gap-1">
+											{#if index === 0}
+												<Badge
+													variant="secondary"
+													class="h-5 border-emerald-500/20 bg-emerald-500/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+												>
+													Recommended
+												</Badge>
+											{/if}
+											{#if index === selectedRouteIndex}
+												<Badge
+													variant="secondary"
+													class="h-5 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-primary"
+												>
+													Selected
+												</Badge>
+											{/if}
+											{#if route.mode === "round_course"}
+												<Badge
+													variant="outline"
+													class="h-5 px-2 text-[10px] font-semibold uppercase tracking-wide"
+												>
+													Round course
+												</Badge>
+											{/if}
+										</div>
+									</div>
+									<div class="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+										<div>
+											<div class="font-semibold text-foreground">
+												{formatDistance(route.distanceMeters)}
+											</div>
+											<div>Distance</div>
+										</div>
+										<div>
+											<div class="font-semibold text-foreground">
+												{getRouteDurationText(route)}
+											</div>
+											<div>Duration</div>
+										</div>
+										<div>
+											<div class="font-semibold text-foreground">
+												{Math.round(route.ascendMeters).toLocaleString()} m
+											</div>
+											<div>Climb</div>
+										</div>
+									</div>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				{#if alternativeInfoMessage}
+					<div
+						class="mt-3 rounded-lg border border-border/50 bg-secondary/10 px-3 py-2 text-sm text-muted-foreground"
+						role="status"
+					>
+						{alternativeInfoMessage}
 					</div>
 				{/if}
 

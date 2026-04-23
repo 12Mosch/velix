@@ -24,81 +24,107 @@ import {
 	SAVED_ROUTES_STORAGE_KEY,
 } from "$lib/saved-routes.svelte";
 
-const successfulRoutePayload = {
-	route: {
-		mode: "point_to_point",
-		source: {
-			kind: "graphhopper",
-		},
-		startLabel: "Marienplatz, Munich, Germany",
-		destinationLabel: "Schliersee, Germany",
-		routingProfile: "racingbike",
-		routingStrategy:
-			"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
-		routingWarnings: [],
-		waypoints: [
-			{
-				label: "Tegernsee, Germany",
-				coordinate: [11.7581, 47.7123, 734],
-			},
-		],
-		bounds: [11.5755, 47.7362, 11.8598, 48.1374],
-		distanceMeters: 61234,
-		durationMs: 9876000,
-		ascendMeters: 820,
-		descendMeters: 740,
-		coordinates: [
-			[11.5755, 48.1374, 520],
-			[11.62, 48.1, 545],
-			[11.68, 48.05, 600],
-			[11.75, 47.98, 655],
-			[11.81, 47.88, 720],
-			[11.8598, 47.7362, 785],
-		],
-		surfaceDetails: [
-			{ from: 0, to: 4, value: "asphalt" },
-			{ from: 4, to: 5, value: "fine gravel" },
-		],
-		smoothnessDetails: [{ from: 0, to: 5, value: "GOOD" }],
+const successfulRoute = {
+	mode: "point_to_point",
+	source: {
+		kind: "graphhopper",
 	},
+	startLabel: "Marienplatz, Munich, Germany",
+	destinationLabel: "Schliersee, Germany",
+	routingProfile: "racingbike",
+	routingStrategy:
+		"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
+	routingWarnings: [],
+	waypoints: [
+		{
+			label: "Tegernsee, Germany",
+			coordinate: [11.7581, 47.7123, 734],
+		},
+	],
+	bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+	distanceMeters: 61234,
+	durationMs: 9876000,
+	ascendMeters: 820,
+	descendMeters: 740,
+	coordinates: [
+		[11.5755, 48.1374, 520],
+		[11.62, 48.1, 545],
+		[11.68, 48.05, 600],
+		[11.75, 47.98, 655],
+		[11.81, 47.88, 720],
+		[11.8598, 47.7362, 785],
+	],
+	surfaceDetails: [
+		{ from: 0, to: 4, value: "asphalt" },
+		{ from: 4, to: 5, value: "fine gravel" },
+	],
+	smoothnessDetails: [{ from: 0, to: 5, value: "GOOD" }],
+};
+const successfulRoutePayload = {
+	routes: [successfulRoute],
+	selectedRouteIndex: 0,
+};
+const alternativeRoutePayload = {
+	routes: [
+		successfulRoute,
+		{
+			...successfulRoute,
+			distanceMeters: 68450,
+			durationMs: 10500000,
+			ascendMeters: 940,
+			descendMeters: 860,
+			coordinates: [
+				[11.5755, 48.1374, 520],
+				[11.6, 48.11, 540],
+				[11.7, 48.03, 610],
+				[11.82, 47.89, 740],
+				[11.8598, 47.7362, 790],
+			],
+			routingWarnings: ["Alternative route warning."],
+			bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+		},
+	],
+	selectedRouteIndex: 0,
+};
+const successfulRoundCourseRoute = {
+	mode: "round_course",
+	source: {
+		kind: "graphhopper",
+	},
+	startLabel: "Marienplatz, Munich, Germany",
+	destinationLabel: "Marienplatz, Munich, Germany",
+	roundCourseTarget: {
+		kind: "distance",
+		distanceMeters: 50000,
+	},
+	routingProfile: "racingbike",
+	routingStrategy:
+		"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
+	routingWarnings: [],
+	waypoints: [],
+	bounds: [11.55, 48.08, 11.69, 48.17],
+	distanceMeters: 50123,
+	durationMs: 7420000,
+	ascendMeters: 540,
+	descendMeters: 540,
+	coordinates: [
+		[11.5755, 48.1374, 520],
+		[11.62, 48.15, 580],
+		[11.67, 48.11, 610],
+		[11.5755, 48.1374, 520],
+	],
+	surfaceDetails: [
+		{ from: 0, to: 3, value: "asphalt" },
+		{ from: 3, to: 4, value: "fine gravel" },
+	],
+	smoothnessDetails: [{ from: 0, to: 4, value: "GOOD" }],
 };
 const successfulRoundCoursePayload = {
-	route: {
-		mode: "round_course",
-		source: {
-			kind: "graphhopper",
-		},
-		startLabel: "Marienplatz, Munich, Germany",
-		destinationLabel: "Marienplatz, Munich, Germany",
-		roundCourseTarget: {
-			kind: "distance",
-			distanceMeters: 50000,
-		},
-		routingProfile: "racingbike",
-		routingStrategy:
-			"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
-		routingWarnings: [],
-		waypoints: [],
-		bounds: [11.55, 48.08, 11.69, 48.17],
-		distanceMeters: 50123,
-		durationMs: 7420000,
-		ascendMeters: 540,
-		descendMeters: 540,
-		coordinates: [
-			[11.5755, 48.1374, 520],
-			[11.62, 48.15, 580],
-			[11.67, 48.11, 610],
-			[11.5755, 48.1374, 520],
-		],
-		surfaceDetails: [
-			{ from: 0, to: 3, value: "asphalt" },
-			{ from: 3, to: 4, value: "fine gravel" },
-		],
-		smoothnessDetails: [{ from: 0, to: 4, value: "GOOD" }],
-	},
+	routes: [successfulRoundCourseRoute],
+	selectedRouteIndex: 0,
 };
 const successfulRouteProfile = sampleElevationProfile(
-	successfulRoutePayload.route.coordinates as RouteCoordinate[],
+	successfulRoute.coordinates as RouteCoordinate[],
 );
 const successfulRouteEndProfilePoint =
 	successfulRouteProfile[successfulRouteProfile.length - 1];
@@ -410,11 +436,11 @@ describe("+page.svelte", () => {
 			},
 		});
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
-			"planned-route-casing",
-			"planned-route-line",
-			"planned-route-start",
-			"planned-route-waypoint",
-			"planned-route-destination",
+			"planned-route-route-0-casing",
+			"planned-route-route-0-line",
+			"planned-route-route-0-start",
+			"planned-route-route-0-waypoint",
+			"planned-route-route-0-destination",
 		]);
 		expect(
 			document.querySelector('path[d*="M 0 50 C 20 20, 40 80, 60 40"]'),
@@ -437,7 +463,7 @@ describe("+page.svelte", () => {
 				{
 					id: "saved-route-1",
 					createdAt: "2026-04-19T09:30:00.000Z",
-					route: successfulRoutePayload.route,
+					route: successfulRoute,
 				},
 			]),
 		);
@@ -462,6 +488,46 @@ describe("+page.svelte", () => {
 			.toBeInTheDocument();
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("lets the user switch between generated route alternatives", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(alternativeRoutePayload)),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		await expect.element(page.getByText("Alternatives")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Found 2 distinct routes for this request."))
+			.toBeInTheDocument();
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await page.getByRole("button", { name: /Route 2/i }).click();
+		await expect.poll(() => document.body.textContent).toContain("68.5");
+		await expect
+			.element(page.getByText("Alternative route warning."))
+			.toBeInTheDocument();
 	});
 
 	it("imports a GPX file, fills the planner, and saves the imported metadata", async () => {
@@ -804,7 +870,7 @@ describe("+page.svelte", () => {
 				new Response(
 					JSON.stringify({
 						route: {
-							...successfulRoundCoursePayload.route,
+							...successfulRoundCourseRoute,
 							roundCourseTarget: {
 								kind: "duration",
 								durationMs: 3.5 * 60 * 60 * 1000,
@@ -862,7 +928,7 @@ describe("+page.svelte", () => {
 				new Response(
 					JSON.stringify({
 						route: {
-							...successfulRoundCoursePayload.route,
+							...successfulRoundCourseRoute,
 							roundCourseTarget: {
 								kind: "ascend",
 								ascendMeters: 800,
@@ -917,7 +983,7 @@ describe("+page.svelte", () => {
 				{
 					id: "saved-round-course",
 					createdAt: "2026-04-19T09:30:00.000Z",
-					route: successfulRoundCoursePayload.route,
+					route: successfulRoundCourseRoute,
 				},
 			]),
 		);
@@ -949,7 +1015,7 @@ describe("+page.svelte", () => {
 				{
 					id: "saved-route-1",
 					createdAt: "2026-04-19T09:30:00.000Z",
-					route: successfulRoutePayload.route,
+					route: successfulRoute,
 				},
 			]),
 		);
@@ -1159,7 +1225,7 @@ describe("+page.svelte", () => {
 				{
 					id: "saved-route-1",
 					createdAt: "2026-04-19T09:30:00.000Z",
-					route: successfulRoutePayload.route,
+					route: successfulRoute,
 				},
 			]),
 		);
@@ -1215,7 +1281,7 @@ describe("+page.svelte", () => {
 				{
 					id: "saved-route-1",
 					createdAt: "2026-04-19T09:30:00.000Z",
-					route: successfulRoutePayload.route,
+					route: successfulRoute,
 				},
 			]),
 		);

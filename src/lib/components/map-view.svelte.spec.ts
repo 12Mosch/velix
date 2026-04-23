@@ -58,6 +58,41 @@ const testRouteGeoJson: FeatureCollection = {
 	],
 };
 const hoveredRouteCoordinate: [number, number, number] = [11.57, 47.23, 735];
+const testRouteBounds = [11.5, 47.2, 11.6, 47.25] as const;
+function createAlternativeRouteGeoJson(): FeatureCollection {
+	const geoJson = JSON.parse(
+		JSON.stringify(testRouteGeoJson),
+	) as FeatureCollection;
+	const routeFeature = geoJson.features.find(
+		(feature) => feature.properties?.kind === "route",
+	);
+
+	if (routeFeature?.geometry.type === "LineString") {
+		routeFeature.geometry.coordinates = [
+			[11.49, 47.19, 690],
+			[11.61, 47.26, 750],
+		];
+	}
+
+	return geoJson;
+}
+const testRouteOverlays = [
+	{
+		id: "route-0",
+		geoJson: testRouteGeoJson,
+		bounds: [...testRouteBounds] as [number, number, number, number],
+		isSelected: true,
+	},
+];
+const alternativeRouteOverlays = [
+	...testRouteOverlays,
+	{
+		id: "route-1",
+		geoJson: createAlternativeRouteGeoJson(),
+		bounds: [11.49, 47.19, 11.61, 47.26] as [number, number, number, number],
+		isSelected: false,
+	},
+];
 
 const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 	const sources = new Map<
@@ -210,8 +245,8 @@ describe("MapView", () => {
 			ariaLabel: "Test map",
 			initialCenter: [11.5, 47.2],
 			initialZoom: 9,
-			routeGeoJson: testRouteGeoJson,
-			routeBounds: [11.5, 47.2, 11.6, 47.25],
+			routeOverlays: testRouteOverlays,
+			fitBounds: [...testRouteBounds],
 		});
 
 		await expect
@@ -221,18 +256,18 @@ describe("MapView", () => {
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 
 		expect(mapInstance.addSource).toHaveBeenCalledWith(
-			"planned-route",
+			"planned-route-route-0",
 			expect.objectContaining({
 				type: "geojson",
 				data: testRouteGeoJson,
 			}),
 		);
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
-			"planned-route-casing",
-			"planned-route-line",
-			"planned-route-start",
-			"planned-route-waypoint",
-			"planned-route-destination",
+			"planned-route-route-0-casing",
+			"planned-route-route-0-line",
+			"planned-route-route-0-start",
+			"planned-route-route-0-waypoint",
+			"planned-route-route-0-destination",
 		]);
 		expect(mapInstance.fitBounds).toHaveBeenCalledWith(
 			[11.5, 47.2, 11.6, 47.25],
@@ -248,8 +283,8 @@ describe("MapView", () => {
 
 	it("re-adds the route overlay after a basemap style change without recreating the map", async () => {
 		render(MapView, {
-			routeGeoJson: testRouteGeoJson,
-			routeBounds: [11.5, 47.2, 11.6, 47.25],
+			routeOverlays: testRouteOverlays,
+			fitBounds: [...testRouteBounds],
 			hoveredRouteCoordinate,
 		});
 
@@ -311,7 +346,7 @@ describe("MapView", () => {
 
 		render(MapView, {
 			onMapClick,
-			routeGeoJson: testRouteGeoJson,
+			routeOverlays: testRouteOverlays,
 		});
 
 		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
@@ -344,8 +379,8 @@ describe("MapView", () => {
 
 	it("adds and removes the hovered route marker when the inspected point changes", async () => {
 		const view = render(MapView, {
-			routeGeoJson: testRouteGeoJson,
-			routeBounds: [11.5, 47.2, 11.6, 47.25],
+			routeOverlays: testRouteOverlays,
+			fitBounds: [...testRouteBounds],
 			hoveredRouteCoordinate,
 		});
 
@@ -372,8 +407,8 @@ describe("MapView", () => {
 		);
 
 		await view.rerender({
-			routeGeoJson: testRouteGeoJson,
-			routeBounds: [11.5, 47.2, 11.6, 47.25],
+			routeOverlays: testRouteOverlays,
+			fitBounds: [...testRouteBounds],
 			hoveredRouteCoordinate: null,
 		});
 
@@ -387,6 +422,39 @@ describe("MapView", () => {
 		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
 			"planned-route-hover-point",
 		);
+	});
+
+	it("renders all alternatives but does not refit when only the selected route changes", async () => {
+		const view = render(MapView, {
+			routeOverlays: alternativeRouteOverlays,
+			fitBounds: [11.49, 47.19, 11.61, 47.26],
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toContain(
+			"planned-route-route-1-line",
+		);
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-1-start");
+		expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1);
+
+		await view.rerender({
+			routeOverlays: alternativeRouteOverlays.map((overlay, index) => ({
+				...overlay,
+				isSelected: index === 1,
+			})),
+			fitBounds: [11.49, 47.19, 11.61, 47.26],
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.addLayer.mock.calls.some(
+					(call) => call[0].id === "planned-route-route-1-start",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1);
 	});
 
 	it("handles constructor failures without throwing unhandled rejections", async () => {
