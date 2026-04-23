@@ -9,6 +9,7 @@
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 	import MapView from "$lib/components/map-view.svelte";
 	import { getBasemapById } from "$lib/map/basemaps";
+	import { downloadRouteGpx } from "$lib/route-export";
 	import { mapStylePreference } from "$lib/map-style-settings.svelte";
 	import {
 		addSavedRoute,
@@ -133,6 +134,7 @@
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
 	let isRouting = $state(false);
 	let activeRoute = $state<PlannedRoute | null>(null);
+	let routeExportError = $state<string | null>(null);
 	let activeSavedRouteId = $state<string | null>(null);
 	let isActiveRouteSaved = $state(false);
 	let clientFetch = $state<typeof window.fetch | null>(null);
@@ -1196,6 +1198,23 @@
 		activeSavedRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
 	}
+
+	function handleExportGpx() {
+		if (!activeRoute) {
+			return;
+		}
+
+		routeExportError = null;
+
+		try {
+			downloadRouteGpx(activeRoute);
+		} catch (error) {
+			routeExportError =
+				error instanceof Error
+					? `Could not export GPX: ${error.message}`
+					: "Could not export GPX.";
+		}
+	}
 </script>
 
 <div class="relative flex h-full w-full flex-col overflow-hidden bg-background">
@@ -1882,8 +1901,13 @@
 									Save Draft
 								{/if}
 							</Button>
-							<Button size="sm" class="font-semibold" disabled={!activeRoute}>
-								Send to Wahoo
+							<Button
+								size="sm"
+								class="font-semibold"
+								disabled={!activeRoute}
+								onclick={handleExportGpx}
+							>
+								Export GPX
 							</Button>
 							<Button
 								variant="outline"
@@ -1904,6 +1928,15 @@
 						</div>
 					</div>
 				</div>
+
+				{#if routeExportError}
+					<div
+						class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+						role="alert"
+					>
+						{routeExportError}
+					</div>
+				{/if}
 
 				<div class="mt-2.5 min-w-0 rounded-md border border-border/40 bg-secondary/10">
 					{#if activeRoute}

@@ -105,6 +105,47 @@ const suggestionPayload = {
 	],
 };
 
+function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
+	const createObjectUrl = vi.fn((blob: Blob) => {
+		(window as Window & { __lastGpxBlob?: Blob }).__lastGpxBlob = blob;
+		return "blob:velix-test-route";
+	});
+	const revokeObjectUrl = vi.fn();
+	let clickedDownload = "";
+	let clickedHref = "";
+	const anchorClick = vi
+		.spyOn(HTMLAnchorElement.prototype, "click")
+		.mockImplementation(function mockClick(this: HTMLAnchorElement) {
+			if (options.clickError) {
+				throw options.clickError;
+			}
+
+			clickedDownload = this.download;
+			clickedHref = this.href;
+		});
+
+	Object.defineProperty(URL, "createObjectURL", {
+		configurable: true,
+		writable: true,
+		value: createObjectUrl,
+	});
+	Object.defineProperty(URL, "revokeObjectURL", {
+		configurable: true,
+		writable: true,
+		value: revokeObjectUrl,
+	});
+
+	return {
+		createObjectUrl,
+		revokeObjectUrl,
+		anchorClick,
+		getClickedDownload: () => clickedDownload,
+		getClickedHref: () => clickedHref,
+		getLastBlob: () =>
+			(window as Window & { __lastGpxBlob?: Blob }).__lastGpxBlob ?? null,
+	};
+}
+
 const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 	const sources = new Map<
 		string,
@@ -379,6 +420,74 @@ describe("+page.svelte", () => {
 			.toBeInTheDocument();
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("exports the active route as a GPX download", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+		const downloadSpy = setupGpxDownloadSpies();
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await page.getByRole("button", { name: "Export GPX" }).click();
+
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.anchorClick).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.getClickedDownload()).toBe(
+			"marienplatz-munich-germany-to-schliersee-germany.gpx",
+		);
+		expect(downloadSpy.getClickedHref()).toBe("blob:velix-test-route");
+		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
+			"blob:velix-test-route",
+		);
+
+		const blob = downloadSpy.getLastBlob();
+		expect(blob).toBeInstanceOf(Blob);
+		expect(blob?.type).toBe("application/gpx+xml;charset=utf-8");
+		const gpx = await blob?.text();
+		expect(gpx).toContain("<gpx");
+		expect(gpx).toContain("<trk>");
+		expect(gpx).toContain("<trkpt");
+		expect(gpx).toContain("Marienplatz, Munich, Germany");
+		expect(gpx).toContain("Schliersee, Germany");
+	});
+
+	it("shows an alert when GPX export fails", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+		const downloadSpy = setupGpxDownloadSpies({
+			clickError: new Error("Download blocked"),
+		});
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await page.getByRole("button", { name: "Export GPX" }).click();
+
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent("Could not export GPX: Download blocked");
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
+			"blob:velix-test-route",
+		);
 	});
 
 	it("switches into round-course mode, submits the loop payload, and saves it", async () => {

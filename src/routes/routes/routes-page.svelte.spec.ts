@@ -1,5 +1,5 @@
 import { page } from "vitest/browser";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 
 import RoutesPage from "./+page.svelte";
@@ -41,11 +41,53 @@ const savedRoutes = [
 	},
 ];
 
+function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
+	const createObjectUrl = vi.fn((blob: Blob) => {
+		(window as Window & { __lastGpxBlob?: Blob }).__lastGpxBlob = blob;
+		return "blob:saved-route";
+	});
+	const revokeObjectUrl = vi.fn();
+	let clickedDownload = "";
+	let clickedHref = "";
+	const anchorClick = vi
+		.spyOn(HTMLAnchorElement.prototype, "click")
+		.mockImplementation(function mockClick(this: HTMLAnchorElement) {
+			if (options.clickError) {
+				throw options.clickError;
+			}
+
+			clickedDownload = this.download;
+			clickedHref = this.href;
+		});
+
+	Object.defineProperty(URL, "createObjectURL", {
+		configurable: true,
+		writable: true,
+		value: createObjectUrl,
+	});
+	Object.defineProperty(URL, "revokeObjectURL", {
+		configurable: true,
+		writable: true,
+		value: revokeObjectUrl,
+	});
+
+	return {
+		createObjectUrl,
+		revokeObjectUrl,
+		anchorClick,
+		getClickedDownload: () => clickedDownload,
+		getClickedHref: () => clickedHref,
+		getLastBlob: () =>
+			(window as Window & { __lastGpxBlob?: Blob }).__lastGpxBlob ?? null,
+	};
+}
+
 describe("routes/+page.svelte", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
 		resetSavedRoutesForTests();
 		window.history.replaceState({}, "", "/routes");
+		vi.restoreAllMocks();
 	});
 
 	it("shows an empty state when there are no saved routes", async () => {
@@ -150,6 +192,58 @@ describe("routes/+page.svelte", () => {
 			.element(page.getByText("No saved routes yet"))
 			.toBeInTheDocument();
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("exports a saved route as a GPX download", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(savedRoutes),
+		);
+		const downloadSpy = setupGpxDownloadSpies();
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Export GPX" }).click();
+
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.anchorClick).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.getClickedDownload()).toBe(
+			"marienplatz-munich-germany-to-schliersee-germany.gpx",
+		);
+		expect(downloadSpy.getClickedHref()).toBe("blob:saved-route");
+		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
+			"blob:saved-route",
+		);
+
+		const blob = downloadSpy.getLastBlob();
+		expect(blob).toBeInstanceOf(Blob);
+		const gpx = await blob?.text();
+		expect(gpx).toContain("<gpx");
+		expect(gpx).toContain("<trk>");
+		expect(gpx).toContain("Tegernsee, Germany");
+		expect(gpx).toContain("Schliersee, Germany");
+	});
+
+	it("shows an alert when saved-route GPX export fails", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(savedRoutes),
+		);
+		const downloadSpy = setupGpxDownloadSpies({
+			clickError: new Error("Download blocked"),
+		});
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Export GPX" }).click();
+
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent("Could not export GPX: Download blocked");
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
+			"blob:saved-route",
+		);
 	});
 
 	it("ignores malformed saved routes in localStorage", async () => {
