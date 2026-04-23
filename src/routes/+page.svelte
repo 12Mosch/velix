@@ -30,6 +30,7 @@
 		isImportedRoute,
 		sampleElevationProfile,
 		type PlannedRoute,
+		type RoundCourseTarget,
 		type RouteApiError,
 		type RouteApiSuccess,
 		type RouteMode,
@@ -62,6 +63,7 @@
 	};
 	type RouteField = "startQuery" | "destinationQuery";
 	type PlannerMode = RouteMode;
+	type RoundCourseTargetKind = RoundCourseTarget["kind"];
 	type CompletionTarget =
 		| { kind: "startQuery" }
 		| { kind: "destinationQuery" }
@@ -135,7 +137,10 @@
 	let startStop = $state<PlannerStop>(createPlannerStop());
 	let waypointStops = $state<PlannerStop[]>([]);
 	let destinationStop = $state<PlannerStop>(createPlannerStop());
+	let roundCourseTargetKind = $state<RoundCourseTargetKind>("distance");
 	let roundCourseDistanceKm = $state("");
+	let roundCourseDurationInput = $state("");
+	let roundCourseAscendMeters = $state("");
 	let routeRequestError = $state<string | null>(null);
 	let routeImportError = $state<string | null>(null);
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
@@ -168,6 +173,7 @@
 			: null,
 	);
 	const isRoundCourseMode = $derived(plannerMode === "round_course");
+	const activeRoundCourseTarget = $derived(getRoundCourseTarget(activeRoute));
 	const routeGeoJson = $derived(activeRoute ? buildRouteGeoJson(activeRoute) : null);
 	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
 	const activeRoutingWarnings = $derived(activeRoute?.routingWarnings ?? []);
@@ -271,7 +277,31 @@
 		};
 	}
 
-	function formatRequestedDistanceKm(distanceMeters: number | undefined): string {
+	function getRoundCourseTarget(
+		route: PlannedRoute | null | undefined,
+	): RoundCourseTarget | null {
+		if (!route || route.mode !== "round_course") {
+			return null;
+		}
+
+		if (route.roundCourseTarget) {
+			return route.roundCourseTarget;
+		}
+
+		if (
+			typeof route.requestedDistanceMeters === "number" &&
+			Number.isFinite(route.requestedDistanceMeters)
+		) {
+			return {
+				kind: "distance",
+				distanceMeters: route.requestedDistanceMeters,
+			};
+		}
+
+		return null;
+	}
+
+	function formatDistanceInput(distanceMeters: number | undefined): string {
 		if (!distanceMeters || !Number.isFinite(distanceMeters)) {
 			return "";
 		}
@@ -279,9 +309,105 @@
 		return Number((distanceMeters / 1000).toFixed(1)).toString();
 	}
 
+	function parseRoundCourseDurationInput(value: string): number | null {
+		const trimmedValue = value.trim();
+
+		if (!trimmedValue) {
+			return null;
+		}
+
+		if (trimmedValue.includes(":")) {
+			const [hoursPart, minutesPart, ...rest] = trimmedValue.split(":");
+			const hours = Number(hoursPart);
+			const minutes = Number(minutesPart);
+
+			if (
+				rest.length > 0 ||
+				!Number.isInteger(hours) ||
+				!Number.isInteger(minutes) ||
+				minutes < 0 ||
+				minutes >= 60
+			) {
+				return null;
+			}
+
+			return (hours * 60 + minutes) * 60 * 1000;
+		}
+
+		const decimalHours = Number(trimmedValue.replace(",", "."));
+
+		if (!Number.isFinite(decimalHours) || decimalHours < 0) {
+			return null;
+		}
+
+		return Math.round(decimalHours * 60 * 60 * 1000);
+	}
+
+	function formatRoundCourseDurationInput(durationMs: number | undefined): string {
+		if (!durationMs || !Number.isFinite(durationMs)) {
+			return "";
+		}
+
+		const totalMinutes = Math.round(durationMs / 60000);
+		const hours = Math.floor(totalMinutes / 60);
+		const minutes = totalMinutes % 60;
+
+		return `${hours}:${minutes.toString().padStart(2, "0")}`;
+	}
+
+	function formatRoundCourseTarget(target: RoundCourseTarget | null | undefined): string {
+		if (!target) {
+			return "";
+		}
+
+		if (target.kind === "distance") {
+			return formatDistance(target.distanceMeters);
+		}
+
+		if (target.kind === "duration") {
+			return `${formatRoundCourseDurationInput(target.durationMs)} h`;
+		}
+
+		return `${Math.round(target.ascendMeters).toLocaleString()} m up`;
+	}
+
+	function buildRoundCourseTargetRequest(): RoundCourseTarget {
+		if (roundCourseTargetKind === "duration") {
+			return {
+				kind: "duration",
+				durationMs: parseRoundCourseDurationInput(roundCourseDurationInput) ?? Number.NaN,
+			};
+		}
+
+		if (roundCourseTargetKind === "ascend") {
+			return {
+				kind: "ascend",
+				ascendMeters: Number(roundCourseAscendMeters.replace(",", ".")),
+			};
+		}
+
+		return {
+			kind: "distance",
+			distanceMeters: Number(roundCourseDistanceKm.replace(",", ".")) * 1000,
+		};
+	}
+
 	function syncStopsFromRoute(route: PlannedRoute) {
 		plannerMode = route.mode;
-		roundCourseDistanceKm = formatRequestedDistanceKm(route.requestedDistanceMeters);
+		const roundCourseTarget = getRoundCourseTarget(route);
+		roundCourseTargetKind = roundCourseTarget?.kind ?? "distance";
+		roundCourseDistanceKm =
+			roundCourseTarget?.kind === "distance"
+				? formatDistanceInput(roundCourseTarget.distanceMeters)
+				: "";
+		roundCourseDurationInput =
+			roundCourseTarget?.kind === "duration"
+				? formatRoundCourseDurationInput(roundCourseTarget.durationMs)
+				: "";
+		roundCourseAscendMeters =
+			roundCourseTarget?.kind === "ascend"
+				? Math.round(roundCourseTarget.ascendMeters).toString()
+				: "";
 		const [start, ...restStops] = getRouteStopInputs(route);
 		const destination = restStops.pop();
 
@@ -325,8 +451,8 @@
 			...fieldErrors,
 			destinationQuery: nextMode === "round_course" ? undefined : fieldErrors.destinationQuery,
 			waypointQueries: nextMode === "round_course" ? [] : fieldErrors.waypointQueries,
-			requestedDistanceKm:
-				nextMode === "point_to_point" ? undefined : fieldErrors.requestedDistanceKm,
+			roundCourseTarget:
+				nextMode === "point_to_point" ? undefined : fieldErrors.roundCourseTarget,
 		};
 	}
 
@@ -336,6 +462,9 @@
 		}
 
 		plannerMode = nextMode;
+		if (nextMode === "round_course") {
+			roundCourseTargetKind = "distance";
+		}
 		closeMapClickMenu();
 		clearModeSpecificFieldErrors(nextMode);
 
@@ -389,16 +518,38 @@
 		return `${Math.round(meters).toLocaleString()} m`;
 	}
 
-	function updateRoundCourseDistanceKm(value: string) {
-		roundCourseDistanceKm = value;
-
-		if (fieldErrors.requestedDistanceKm) {
-			fieldErrors = {
-				...fieldErrors,
-				requestedDistanceKm: undefined,
-			};
+	function clearRoundCourseTargetError() {
+		if (!fieldErrors.roundCourseTarget) {
+			return;
 		}
 
+		fieldErrors = {
+			...fieldErrors,
+			roundCourseTarget: undefined,
+		};
+	}
+
+	function updateRoundCourseTargetKind(value: RoundCourseTargetKind) {
+		roundCourseTargetKind = value;
+		clearRoundCourseTargetError();
+		markPlannerEdited();
+	}
+
+	function updateRoundCourseDistanceKm(value: string) {
+		roundCourseDistanceKm = value;
+		clearRoundCourseTargetError();
+		markPlannerEdited();
+	}
+
+	function updateRoundCourseDuration(value: string) {
+		roundCourseDurationInput = value;
+		clearRoundCourseTargetError();
+		markPlannerEdited();
+	}
+
+	function updateRoundCourseAscend(value: string) {
+		roundCourseAscendMeters = value;
+		clearRoundCourseTargetError();
 		markPlannerEdited();
 	}
 
@@ -1191,8 +1342,7 @@
 					? {
 							mode: "round_course",
 							start: getRouteStopInput(startStop),
-							requestedDistanceMeters:
-								Number(roundCourseDistanceKm.replace(",", ".")) * 1000,
+							target: buildRoundCourseTargetRequest(),
 						}
 					: {
 							mode: "point_to_point",
@@ -1556,40 +1706,129 @@
 
 						{#if isRoundCourseMode}
 							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
-								<label
-									for="round-course-distance"
-									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-								>
-									Target distance
-								</label>
-								<div class="relative">
-									<Input
-										id="round-course-distance"
-										type="number"
-										min="1"
-										step="0.5"
-										inputmode="decimal"
-										value={roundCourseDistanceKm}
-										placeholder="e.g. 60"
-										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-										aria-invalid={fieldErrors.requestedDistanceKm ? "true" : undefined}
-										oninput={(event) =>
-											updateRoundCourseDistanceKm(
-												(event.currentTarget as HTMLInputElement).value,
-											)}
-									/>
-									<span
-										class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-									>
-										km
-									</span>
+								<div class="space-y-1">
+									<div class="block text-xs font-semibold uppercase tracking-wide text-foreground/80">
+										Round-course target
+									</div>
+									<div class="grid grid-cols-3 gap-2">
+										{#each [
+											{ kind: "distance", label: "Distance" },
+											{ kind: "duration", label: "Time" },
+											{ kind: "ascend", label: "Climb" },
+										] as option}
+											<Button
+												type="button"
+												variant="outline"
+												class={`h-auto min-w-0 justify-center rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
+													roundCourseTargetKind === option.kind
+														? "border-primary/20 bg-background shadow-sm"
+														: "text-muted-foreground"
+												}`}
+												aria-pressed={roundCourseTargetKind === option.kind}
+												onclick={() =>
+													updateRoundCourseTargetKind(option.kind as RoundCourseTargetKind)}
+											>
+												{option.label}
+											</Button>
+										{/each}
+									</div>
 								</div>
+								{#if roundCourseTargetKind === "distance"}
+									<div class="space-y-2">
+										<label
+											for="round-course-distance"
+											class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+										>
+											Target distance
+										</label>
+										<div class="relative">
+											<Input
+												id="round-course-distance"
+												type="number"
+												min="1"
+												step="0.5"
+												inputmode="decimal"
+												value={roundCourseDistanceKm}
+												placeholder="e.g. 60"
+												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
+												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
+												oninput={(event) =>
+													updateRoundCourseDistanceKm(
+														(event.currentTarget as HTMLInputElement).value,
+													)}
+											/>
+											<span
+												class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+											>
+												km
+											</span>
+										</div>
+									</div>
+								{:else if roundCourseTargetKind === "duration"}
+									<div class="space-y-2">
+										<label
+											for="round-course-time"
+											class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+										>
+											Target time
+										</label>
+										<div class="relative">
+											<Input
+												id="round-course-time"
+												value={roundCourseDurationInput}
+												placeholder="e.g. 3:30"
+												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
+												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
+												oninput={(event) =>
+													updateRoundCourseDuration(
+														(event.currentTarget as HTMLInputElement).value,
+													)}
+											/>
+											<span
+												class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+											>
+												h
+											</span>
+										</div>
+									</div>
+								{:else}
+									<div class="space-y-2">
+										<label
+											for="round-course-climb"
+											class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+										>
+											Target climb
+										</label>
+										<div class="relative">
+											<Input
+												id="round-course-climb"
+												type="number"
+												min="50"
+												step="50"
+												inputmode="decimal"
+												value={roundCourseAscendMeters}
+												placeholder="e.g. 800"
+												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
+												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
+												oninput={(event) =>
+													updateRoundCourseAscend(
+														(event.currentTarget as HTMLInputElement).value,
+													)}
+											/>
+											<span
+												class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+											>
+												m
+											</span>
+										</div>
+									</div>
+								{/if}
 								<p class="text-xs text-muted-foreground">
 									GraphHopper will generate a loop that starts and ends at the same place.
 								</p>
-								{#if fieldErrors.requestedDistanceKm}
+								{#if fieldErrors.roundCourseTarget}
 									<p class="text-xs font-medium text-destructive">
-										{fieldErrors.requestedDistanceKm}
+										{fieldErrors.roundCourseTarget}
 									</p>
 								{/if}
 							</div>
@@ -2088,9 +2327,9 @@
 									</span>
 								{/if}
 							</div>
-							{#if activeRoute.mode === "round_course" && activeRoute.requestedDistanceMeters}
+							{#if activeRoute.mode === "round_course" && activeRoundCourseTarget}
 								<span class="text-xs text-muted-foreground">
-									Target {formatDistance(activeRoute.requestedDistanceMeters)}
+									Target {formatRoundCourseTarget(activeRoundCourseTarget)}
 								</span>
 							{/if}
 						</div>
@@ -2312,13 +2551,13 @@
 										</div>
 										<div class="font-medium text-foreground">Returns to {activeRoute.startLabel}</div>
 									</div>
-									{#if activeRoute.requestedDistanceMeters}
+									{#if activeRoundCourseTarget}
 										<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 											<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
-												Requested distance
+												Requested target
 											</div>
 											<div class="font-medium text-foreground">
-												{formatDistance(activeRoute.requestedDistanceMeters)}
+												{formatRoundCourseTarget(activeRoundCourseTarget)}
 											</div>
 										</div>
 									{/if}

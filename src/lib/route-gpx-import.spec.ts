@@ -182,9 +182,10 @@ describe("parseRouteGpx", () => {
 			hasDuration: false,
 		});
 		expect(route.startLabel).toBe(route.destinationLabel);
-		expect(route.requestedDistanceMeters).toBe(
-			Math.round(route.distanceMeters),
-		);
+		expect(route.roundCourseTarget).toEqual({
+			kind: "distance",
+			distanceMeters: Math.round(route.distanceMeters),
+		});
 		expect(route.waypoints).toEqual([]);
 	});
 });

@@ -3,6 +3,7 @@ import { browser } from "$app/environment";
 import type {
 	ImportedRouteStopDerivation,
 	PlannedRoute,
+	RoundCourseTarget,
 	RouteSource,
 	RouteMode,
 	RouteWaypoint,
@@ -72,6 +73,26 @@ function isRouteWaypoint(value: unknown): value is RouteWaypoint {
 	return typeof value.label === "string" && isRouteCoordinate(value.coordinate);
 }
 
+function isRoundCourseTarget(value: unknown): value is RoundCourseTarget {
+	if (!isRecord(value) || typeof value.kind !== "string") {
+		return false;
+	}
+
+	if (value.kind === "distance") {
+		return isFiniteNumber(value.distanceMeters);
+	}
+
+	if (value.kind === "duration") {
+		return isFiniteNumber(value.durationMs);
+	}
+
+	if (value.kind === "ascend") {
+		return isFiniteNumber(value.ascendMeters);
+	}
+
+	return false;
+}
+
 function normalizeRouteSource(value: unknown): RouteSource | null {
 	if (value === undefined) {
 		return { kind: "graphhopper" };
@@ -116,12 +137,24 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 			: isFiniteNumber(value.requestedDistanceMeters)
 				? value.requestedDistanceMeters
 				: null;
+	const roundCourseTarget =
+		value.roundCourseTarget === undefined
+			? requestedDistanceMeters == null
+				? undefined
+				: {
+						kind: "distance" as const,
+						distanceMeters: requestedDistanceMeters,
+					}
+			: isRoundCourseTarget(value.roundCourseTarget)
+				? value.roundCourseTarget
+				: null;
 
 	if (
 		source === null ||
 		typeof value.startLabel !== "string" ||
 		typeof value.destinationLabel !== "string" ||
 		requestedDistanceMeters === null ||
+		roundCourseTarget === null ||
 		(value.routingProfile !== undefined &&
 			typeof value.routingProfile !== "string") ||
 		(value.routingStrategy !== undefined &&
@@ -159,7 +192,7 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		source,
 		startLabel: value.startLabel,
 		destinationLabel: value.destinationLabel,
-		requestedDistanceMeters: requestedDistanceMeters ?? undefined,
+		roundCourseTarget,
 		routingProfile:
 			typeof value.routingProfile === "string"
 				? value.routingProfile
@@ -197,6 +230,8 @@ export function isPlannedRoute(value: unknown): value is PlannedRoute {
 		typeof value.destinationLabel === "string" &&
 		(value.requestedDistanceMeters === undefined ||
 			isFiniteNumber(value.requestedDistanceMeters)) &&
+		(value.roundCourseTarget === undefined ||
+			isRoundCourseTarget(value.roundCourseTarget)) &&
 		(value.routingProfile === undefined ||
 			typeof value.routingProfile === "string") &&
 		(value.routingStrategy === undefined ||
