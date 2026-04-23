@@ -145,7 +145,10 @@ describe("routes/+page.svelte", () => {
 						},
 						startLabel: "Marienplatz, Munich, Germany",
 						destinationLabel: "Marienplatz, Munich, Germany",
-						requestedDistanceMeters: 50000,
+						roundCourseTarget: {
+							kind: "distance",
+							distanceMeters: 50000,
+						},
 						waypoints: [],
 						bounds: [11.55, 48.08, 11.69, 48.17],
 						distanceMeters: 50123,
@@ -178,6 +181,79 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByText("Schliersee, Germany"))
 			.not.toBeInTheDocument();
+	});
+
+	it("renders duration and climb targets for round-course saved routes", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-round-course-duration",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: {
+						mode: "round_course",
+						source: {
+							kind: "graphhopper",
+						},
+						startLabel: "Marienplatz, Munich, Germany",
+						destinationLabel: "Marienplatz, Munich, Germany",
+						roundCourseTarget: {
+							kind: "duration",
+							durationMs: 12600000,
+						},
+						waypoints: [],
+						bounds: [11.55, 48.08, 11.69, 48.17],
+						distanceMeters: 50123,
+						durationMs: 12600000,
+						ascendMeters: 540,
+						descendMeters: 540,
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.62, 48.15, 580],
+							[11.67, 48.11, 610],
+							[11.5755, 48.1374, 520],
+						],
+						surfaceDetails: [],
+						smoothnessDetails: [],
+					},
+				},
+				{
+					id: "saved-round-course-climb",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: {
+						mode: "round_course",
+						source: {
+							kind: "graphhopper",
+						},
+						startLabel: "Tegernsee, Germany",
+						destinationLabel: "Tegernsee, Germany",
+						roundCourseTarget: {
+							kind: "ascend",
+							ascendMeters: 800,
+						},
+						waypoints: [],
+						bounds: [11.55, 48.08, 11.69, 48.17],
+						distanceMeters: 50123,
+						durationMs: 7420000,
+						ascendMeters: 800,
+						descendMeters: 800,
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.62, 48.15, 580],
+							[11.67, 48.11, 610],
+							[11.5755, 48.1374, 520],
+						],
+						surfaceDetails: [],
+						smoothnessDetails: [],
+					},
+				},
+			]),
+		);
+
+		render(RoutesPage);
+
+		await expect.element(page.getByText("Target 3:30 h")).toBeInTheDocument();
+		await expect.element(page.getByText("Target 800 m up")).toBeInTheDocument();
 	});
 
 	it("shows imported GPX badges and duration fallback for saved imports", async () => {

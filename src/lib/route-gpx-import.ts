@@ -481,8 +481,13 @@ export function parseRouteGpx(
 		},
 		startLabel,
 		destinationLabel,
-		requestedDistanceMeters:
-			mode === "round_course" ? Math.round(metrics.distanceMeters) : undefined,
+		roundCourseTarget:
+			mode === "round_course"
+				? {
+						kind: "distance",
+						distanceMeters: Math.round(metrics.distanceMeters),
+					}
+				: undefined,
 		waypoints: mode === "round_course" ? [] : (explicitStops?.waypoints ?? []),
 		bounds: metrics.bounds,
 		distanceMeters: metrics.distanceMeters,

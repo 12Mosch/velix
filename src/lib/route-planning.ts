@@ -42,10 +42,24 @@ export type PointToPointRouteRequestPayload = {
 	destination: RouteStopInput;
 };
 
+export type RoundCourseTarget =
+	| {
+			kind: "distance";
+			distanceMeters: number;
+	  }
+	| {
+			kind: "duration";
+			durationMs: number;
+	  }
+	| {
+			kind: "ascend";
+			ascendMeters: number;
+	  };
+
 export type RoundCourseRouteRequestPayload = {
 	mode: "round_course";
 	start: RouteStopInput;
-	requestedDistanceMeters: number;
+	target: RoundCourseTarget;
 };
 
 export type RouteRequestPayload =
@@ -75,6 +89,7 @@ export type PlannedRoute = {
 	startLabel: string;
 	destinationLabel: string;
 	requestedDistanceMeters?: number;
+	roundCourseTarget?: RoundCourseTarget;
 	routingProfile?: string;
 	routingStrategy?: string;
 	routingWarnings?: string[];
@@ -101,7 +116,7 @@ export type RouteFieldErrors = {
 	startQuery?: string;
 	destinationQuery?: string;
 	waypointQueries?: string[];
-	requestedDistanceKm?: string;
+	roundCourseTarget?: string;
 };
 
 export type RouteApiError = {

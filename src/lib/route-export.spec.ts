@@ -66,7 +66,10 @@ describe("buildRouteGpx", () => {
 			mode: "round_course",
 			startLabel: "Marienplatz, Munich, Germany",
 			destinationLabel: "Marienplatz, Munich, Germany",
-			requestedDistanceMeters: 50000,
+			roundCourseTarget: {
+				kind: "distance",
+				distanceMeters: 50000,
+			},
 			waypoints: [],
 			coordinates: [
 				[11.5755, 48.1374, 520],

@@ -70,7 +70,10 @@ const successfulRoundCoursePayload = {
 		},
 		startLabel: "Marienplatz, Munich, Germany",
 		destinationLabel: "Marienplatz, Munich, Germany",
-		requestedDistanceMeters: 50000,
+		roundCourseTarget: {
+			kind: "distance",
+			distanceMeters: 50000,
+		},
 		routingProfile: "racingbike",
 		routingStrategy:
 			"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
@@ -716,11 +719,15 @@ describe("+page.svelte", () => {
 	});
 
 	it("switches into round-course mode, submits the loop payload, and saves it", async () => {
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
 				new Response(JSON.stringify(successfulRoundCoursePayload)),
 			);
+		});
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
@@ -745,15 +752,31 @@ describe("+page.svelte", () => {
 		await page.getByRole("spinbutton", { name: "Target distance" }).fill("50");
 		await page.getByRole("button", { name: "Generate Round Course" }).click();
 
-		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
 		expect(
-			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+			JSON.parse(
+				String(
+					fetchMock.mock.calls.find(
+						(call) => String(call[0]) === "/api/route",
+					)?.[1]?.body,
+				),
+			),
 		).toMatchObject({
 			mode: "round_course",
 			start: {
 				label: "Marienplatz Munich",
 			},
-			requestedDistanceMeters: 50000,
+			target: {
+				kind: "distance",
+				distanceMeters: 50000,
+			},
 		});
 
 		await expect
@@ -765,7 +788,126 @@ describe("+page.svelte", () => {
 			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
 		);
 		expect(savedRoutes[0]?.route.mode).toBe("round_course");
-		expect(savedRoutes[0]?.route.requestedDistanceMeters).toBe(50000);
+		expect(savedRoutes[0]?.route.roundCourseTarget).toEqual({
+			kind: "distance",
+			distanceMeters: 50000,
+		});
+	});
+
+	it("submits a duration-based round-course payload", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(
+					JSON.stringify({
+						route: {
+							...successfulRoundCoursePayload.route,
+							roundCourseTarget: {
+								kind: "duration",
+								durationMs: 3.5 * 60 * 60 * 1000,
+							},
+							durationMs: 3.5 * 60 * 60 * 1000,
+						},
+					}),
+				),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("button", { name: "Time" }).click();
+		await page.getByRole("textbox", { name: "Target time" }).fill("3:30");
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		expect(
+			JSON.parse(
+				String(
+					fetchMock.mock.calls.find(
+						(call) => String(call[0]) === "/api/route",
+					)?.[1]?.body,
+				),
+			),
+		).toMatchObject({
+			mode: "round_course",
+			target: {
+				kind: "duration",
+				durationMs: 12600000,
+			},
+		});
+	});
+
+	it("submits an ascent-based round-course payload", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(
+					JSON.stringify({
+						route: {
+							...successfulRoundCoursePayload.route,
+							roundCourseTarget: {
+								kind: "ascend",
+								ascendMeters: 800,
+							},
+							ascendMeters: 800,
+						},
+					}),
+				),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("button", { name: "Climb" }).click();
+		await page.getByRole("spinbutton", { name: "Target climb" }).fill("800");
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		expect(
+			JSON.parse(
+				String(
+					fetchMock.mock.calls.find(
+						(call) => String(call[0]) === "/api/route",
+					)?.[1]?.body,
+				),
+			),
+		).toMatchObject({
+			mode: "round_course",
+			target: {
+				kind: "ascend",
+				ascendMeters: 800,
+			},
+		});
 	});
 
 	it("restores a saved round course from the query string", async () => {
@@ -1280,7 +1422,14 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
-		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 
 		await page

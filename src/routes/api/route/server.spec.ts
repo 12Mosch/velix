@@ -55,15 +55,23 @@ function buildRouteResponse(points: number[][]) {
 	);
 }
 
-function buildRoundCourseResponse(point: number[]) {
+function buildRoundCourseResponse(
+	point: number[],
+	options: {
+		distance?: number;
+		time?: number;
+		ascend?: number;
+		descend?: number;
+	} = {},
+) {
 	return new Response(
 		JSON.stringify({
 			paths: [
 				{
-					distance: 50123,
-					time: 7420000,
-					ascend: 540,
-					descend: 540,
+					distance: options.distance ?? 50123,
+					time: options.time ?? 7420000,
+					ascend: options.ascend ?? 540,
+					descend: options.descend ?? options.ascend ?? 540,
 					bbox: [11.55, 48.08, 11.69, 48.17],
 					points: {
 						coordinates: [
@@ -272,22 +280,7 @@ describe("POST /api/route", () => {
 			"bike_network",
 		]);
 
-		const payload = (await response.json()) as {
-			route: {
-				mode: string;
-				startLabel: string;
-				destinationLabel: string;
-				waypoints: Array<{
-					label: string;
-					coordinate: [number, number, number];
-				}>;
-				distanceMeters: number;
-				routingProfile?: string;
-				routingStrategy?: string;
-				routingWarnings?: string[];
-				surfaceDetails: Array<{ from: number; to: number; value: string }>;
-			};
-		};
+		const payload = (await response.json()) as RouteApiSuccess;
 
 		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
 		expect(payload.route.mode).toBe("point_to_point");
@@ -386,7 +379,10 @@ describe("POST /api/route", () => {
 		expect(payload.route.mode).toBe("round_course");
 		expect(payload.route.startLabel).toBe("Marienplatz, Munich, Germany");
 		expect(payload.route.destinationLabel).toBe("Marienplatz, Munich, Germany");
-		expect(payload.route.requestedDistanceMeters).toBe(50000);
+		expect(payload.route.roundCourseTarget).toEqual({
+			kind: "distance",
+			distanceMeters: 50000,
+		});
 		expect(payload.route.waypoints).toEqual([]);
 		expect(payload.route.source).toEqual({
 			kind: "graphhopper",
@@ -413,11 +409,352 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and target distance are required.",
+			error: "Start and a round-course target are required.",
 			fieldErrors: {
-				requestedDistanceKm: "Enter a target distance.",
+				roundCourseTarget: "Enter a target distance.",
 			},
 		});
+	});
+
+	it("validates the required target time for round-course requests", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Munich",
+					},
+					target: {
+						kind: "duration",
+						durationMs: 0,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Start and a round-course target are required.",
+			fieldErrors: {
+				roundCourseTarget: "Enter a target time.",
+			},
+		});
+	});
+
+	it("validates the required target climb for round-course requests", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Munich",
+					},
+					target: {
+						kind: "ascend",
+						ascendMeters: 0,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Start and a round-course target are required.",
+			fieldErrors: {
+				roundCourseTarget: "Enter a target climb.",
+			},
+		});
+	});
+
+	it("searches round-course candidates for duration targets and returns the closest match", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Marienplatz",
+								city: "Munich",
+								country: "Germany",
+								point: {
+									lat: 48.1374,
+									lng: 11.5755,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 69000,
+					time: 14400000,
+					ascend: 620,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 77000,
+					time: 12600000,
+					ascend: 680,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 84700,
+					time: 11700000,
+					ascend: 740,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 76000,
+					time: 13200000,
+					ascend: 650,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 78000,
+					time: 12840000,
+					ascend: 690,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 80000,
+					time: 13500000,
+					ascend: 710,
+				}),
+			);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "duration",
+						durationMs: 12600000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(7);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.route.durationMs).toBe(12600000);
+		expect(payload.route.roundCourseTarget).toEqual({
+			kind: "duration",
+			durationMs: 12600000,
+		});
+		expect(payload.route.routingWarnings).toEqual([]);
+	});
+
+	it("searches round-course candidates for climb targets and returns the closest match", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Marienplatz",
+								city: "Munich",
+								country: "Germany",
+								point: {
+									lat: 48.1374,
+									lng: 11.5755,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 60000,
+					time: 10800000,
+					ascend: 520,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 66667,
+					time: 12000000,
+					ascend: 790,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 73333,
+					time: 12600000,
+					ascend: 1020,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 65000,
+					time: 11400000,
+					ascend: 720,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 67000,
+					time: 12100000,
+					ascend: 780,
+				}),
+			)
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 69000,
+					time: 12300000,
+					ascend: 900,
+				}),
+			);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "ascend",
+						ascendMeters: 800,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.route.ascendMeters).toBe(790);
+		expect(payload.route.roundCourseTarget).toEqual({
+			kind: "ascend",
+			ascendMeters: 800,
+		});
+	});
+
+	it("returns the best successful round-course candidate when some search attempts fail", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Marienplatz",
+								city: "Munich",
+								country: "Germany",
+								point: {
+									lat: 48.1374,
+									lng: 11.5755,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(new Response("upstream error", { status: 500 }))
+			.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 77000,
+					time: 12600000,
+				}),
+			)
+			.mockResolvedValueOnce(new Response("upstream error", { status: 500 }))
+			.mockResolvedValueOnce(new Response("upstream error", { status: 500 }))
+			.mockResolvedValueOnce(new Response("upstream error", { status: 500 }))
+			.mockResolvedValueOnce(new Response("upstream error", { status: 500 }));
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "duration",
+						durationMs: 12600000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.route.durationMs).toBe(12600000);
+	});
+
+	it("adds a warning when the closest duration target still misses badly", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
+							},
+						},
+					],
+				}),
+			),
+		);
+
+		for (const durationMs of [
+			9000000, 9300000, 9600000, 9900000, 10200000, 10500000,
+		]) {
+			fetchMock.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					time: durationMs,
+				}),
+			);
+		}
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "duration",
+						durationMs: 12600000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.route.routingWarnings).toEqual([
+			"Requested 3:30 h, but the closest round course came out to 2:55 h.",
+		]);
 	});
 
 	it("accepts round-course responses even when GraphHopper omits snapped waypoints", async () => {

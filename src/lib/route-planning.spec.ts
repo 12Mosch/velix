@@ -62,7 +62,10 @@ describe("buildRouteGeoJson", () => {
 			mode: "round_course",
 			startLabel: "Loop start",
 			destinationLabel: "Loop start",
-			requestedDistanceMeters: 50000,
+			roundCourseTarget: {
+				kind: "distance",
+				distanceMeters: 50000,
+			},
 			waypoints: [],
 			coordinates: [
 				[11.5, 47.2, 520],
@@ -151,7 +154,10 @@ describe("getRouteStopInputs", () => {
 			mode: "round_course",
 			startLabel: "Loop start",
 			destinationLabel: "Loop start",
-			requestedDistanceMeters: 65000,
+			roundCourseTarget: {
+				kind: "distance",
+				distanceMeters: 65000,
+			},
 			waypoints: [],
 			coordinates: [
 				[11.5, 47.2, 520],

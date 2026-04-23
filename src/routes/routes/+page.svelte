@@ -9,7 +9,11 @@
 		savedRoutesState,
 		initSavedRoutes,
 	} from "$lib/saved-routes.svelte";
-	import { isImportedRoute, type PlannedRoute } from "$lib/route-planning";
+	import {
+		isImportedRoute,
+		type PlannedRoute,
+		type RoundCourseTarget,
+	} from "$lib/route-planning";
 	import {
 		ArrowLeft,
 		Bookmark,
@@ -61,6 +65,44 @@
 
 	function isRoundCourseRoute(route: { mode: string }) {
 		return route.mode === "round_course";
+	}
+
+	function getRoundCourseTarget(route: PlannedRoute): RoundCourseTarget | null {
+		if (route.mode !== "round_course") {
+			return null;
+		}
+
+		if (route.roundCourseTarget) {
+			return route.roundCourseTarget;
+		}
+
+		if (
+			typeof route.requestedDistanceMeters === "number" &&
+			Number.isFinite(route.requestedDistanceMeters)
+		) {
+			return {
+				kind: "distance",
+				distanceMeters: route.requestedDistanceMeters,
+			};
+		}
+
+		return null;
+	}
+
+	function formatRoundCourseTarget(target: RoundCourseTarget | null): string {
+		if (!target) {
+			return "";
+		}
+
+		if (target.kind === "distance") {
+			return formatDistance(target.distanceMeters);
+		}
+
+		if (target.kind === "duration") {
+			return formatDuration(target.durationMs);
+		}
+
+		return `${Math.round(target.ascendMeters).toLocaleString()} m up`;
 	}
 
 	function getRouteDurationText(route: PlannedRoute): string {
@@ -193,10 +235,10 @@
 										<MapPinned class="size-3.5 shrink-0 text-primary" />
 										<span>{formatDistance(savedRoute.route.distanceMeters)}</span>
 									</div>
-									{#if isRoundCourseRoute(savedRoute.route) && savedRoute.route.requestedDistanceMeters}
+									{#if isRoundCourseRoute(savedRoute.route) && getRoundCourseTarget(savedRoute.route)}
 										<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">
 											<Route class="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-											<span>Target {formatDistance(savedRoute.route.requestedDistanceMeters)}</span>
+											<span>Target {formatRoundCourseTarget(getRoundCourseTarget(savedRoute.route))}</span>
 										</div>
 									{/if}
 									<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">

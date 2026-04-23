@@ -4,6 +4,7 @@ import type { RequestHandler } from "./$types";
 
 import type {
 	PlannedRoute,
+	RoundCourseTarget,
 	RouteApiError,
 	RouteCoordinate,
 	RouteDetailInterval,
@@ -79,6 +80,7 @@ type LegacyRouteRequestPayload = {
 type RoundCourseRouteRequestPayloadInput = {
 	mode?: "round_course";
 	start?: RouteStopInput;
+	target?: unknown;
 	requestedDistanceMeters?: unknown;
 };
 
@@ -91,6 +93,24 @@ type RouteStop = {
 	label?: string;
 	point?: [number, number];
 };
+
+type CandidateRouteResult = {
+	route: PlannedRoute;
+	requestedDistanceMeters: number;
+	sequence: number;
+};
+
+const minRoundCourseDurationMs = 15 * 60 * 1000;
+const minRoundCourseAscendMeters = 50;
+const minRoundCourseDistanceMeters = 10_000;
+const maxRoundCourseDistanceMeters = 220_000;
+const durationTargetSpeedMetersPerHour = 22_000;
+const ascendTargetMetersPerKm = 12;
+const roundCourseSearchDistanceMultipliers = [0.9, 1, 1.1] as const;
+const roundCourseSearchSeeds = [
+	[11, 37, 73],
+	[109, 149, 191],
+] as const;
 
 const roadBikeCustomModel = {
 	priority: [
@@ -194,6 +214,304 @@ function normalizeDetailIntervals(
 		}));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === "object";
+}
+
+function normalizeFiniteNumber(value: unknown): number | null {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+
+	return null;
+}
+
+function clampRoundCourseDistanceMeters(distanceMeters: number): number {
+	return Math.min(
+		maxRoundCourseDistanceMeters,
+		Math.max(minRoundCourseDistanceMeters, distanceMeters),
+	);
+}
+
+function getRoundCourseTargetError(rawTarget: unknown): string {
+	if (isRecord(rawTarget) && rawTarget.kind === "duration") {
+		return "Enter a target time.";
+	}
+
+	if (isRecord(rawTarget) && rawTarget.kind === "ascend") {
+		return "Enter a target climb.";
+	}
+
+	return "Enter a target distance.";
+}
+
+function normalizeRoundCourseTarget(
+	payloadRecord: Record<string, unknown>,
+): RoundCourseTarget | null {
+	if ("target" in payloadRecord) {
+		const rawTarget = payloadRecord.target;
+
+		if (!isRecord(rawTarget) || typeof rawTarget.kind !== "string") {
+			return null;
+		}
+
+		if (rawTarget.kind === "distance") {
+			const distanceMeters = normalizeFiniteNumber(rawTarget.distanceMeters);
+			return distanceMeters === null
+				? null
+				: {
+						kind: "distance",
+						distanceMeters,
+					};
+		}
+
+		if (rawTarget.kind === "duration") {
+			const durationMs = normalizeFiniteNumber(rawTarget.durationMs);
+			return durationMs === null
+				? null
+				: {
+						kind: "duration",
+						durationMs,
+					};
+		}
+
+		if (rawTarget.kind === "ascend") {
+			const ascendMeters = normalizeFiniteNumber(rawTarget.ascendMeters);
+			return ascendMeters === null
+				? null
+				: {
+						kind: "ascend",
+						ascendMeters,
+					};
+		}
+
+		return null;
+	}
+
+	if ("requestedDistanceMeters" in payloadRecord) {
+		const distanceMeters = normalizeFiniteNumber(
+			payloadRecord.requestedDistanceMeters,
+		);
+		return distanceMeters === null
+			? null
+			: {
+					kind: "distance",
+					distanceMeters,
+				};
+	}
+
+	return null;
+}
+
+function estimateRoundCourseDistanceMeters(target: RoundCourseTarget): number {
+	if (target.kind === "distance") {
+		return target.distanceMeters;
+	}
+
+	if (target.kind === "duration") {
+		return (
+			(target.durationMs / (60 * 60 * 1000)) * durationTargetSpeedMetersPerHour
+		);
+	}
+
+	return (target.ascendMeters / ascendTargetMetersPerKm) * 1000;
+}
+
+function getRoundCourseTargetRelativeError(
+	route: PlannedRoute,
+	target: RoundCourseTarget,
+): number {
+	if (target.kind === "duration") {
+		return Math.abs(route.durationMs - target.durationMs) / target.durationMs;
+	}
+
+	if (target.kind === "ascend") {
+		return (
+			Math.abs(route.ascendMeters - target.ascendMeters) / target.ascendMeters
+		);
+	}
+
+	return (
+		Math.abs(route.distanceMeters - target.distanceMeters) /
+		target.distanceMeters
+	);
+}
+
+function getRequestedDistanceRelativeError(
+	route: PlannedRoute,
+	requestedDistanceMeters: number,
+): number {
+	return (
+		Math.abs(route.distanceMeters - requestedDistanceMeters) /
+		Math.max(requestedDistanceMeters, 1)
+	);
+}
+
+function compareCandidateRoutes(
+	left: CandidateRouteResult,
+	right: CandidateRouteResult,
+	target: RoundCourseTarget,
+): number {
+	const targetErrorDifference =
+		getRoundCourseTargetRelativeError(left.route, target) -
+		getRoundCourseTargetRelativeError(right.route, target);
+
+	if (Math.abs(targetErrorDifference) > 1e-9) {
+		return targetErrorDifference;
+	}
+
+	const requestedDistanceErrorDifference =
+		getRequestedDistanceRelativeError(
+			left.route,
+			left.requestedDistanceMeters,
+		) -
+		getRequestedDistanceRelativeError(
+			right.route,
+			right.requestedDistanceMeters,
+		);
+
+	if (Math.abs(requestedDistanceErrorDifference) > 1e-9) {
+		return requestedDistanceErrorDifference;
+	}
+
+	const leftDurationError =
+		target.kind === "duration"
+			? Math.abs(left.route.durationMs - target.durationMs)
+			: left.route.durationMs;
+	const rightDurationError =
+		target.kind === "duration"
+			? Math.abs(right.route.durationMs - target.durationMs)
+			: right.route.durationMs;
+	const durationErrorDifference = leftDurationError - rightDurationError;
+
+	if (Math.abs(durationErrorDifference) > 1e-9) {
+		return durationErrorDifference;
+	}
+
+	return left.sequence - right.sequence;
+}
+
+function formatDurationWarning(durationMs: number): string {
+	const totalMinutes = Math.round(durationMs / 60000);
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+
+	return `${hours}:${minutes.toString().padStart(2, "0")} h`;
+}
+
+function buildRoundCourseMissWarning(
+	route: PlannedRoute,
+	target: RoundCourseTarget,
+): string | null {
+	if (target.kind === "distance") {
+		return null;
+	}
+
+	const relativeError = getRoundCourseTargetRelativeError(route, target);
+
+	if (relativeError <= 0.15) {
+		return null;
+	}
+
+	if (target.kind === "duration") {
+		return `Requested ${formatDurationWarning(target.durationMs)}, but the closest round course came out to ${formatDurationWarning(route.durationMs)}.`;
+	}
+
+	return `Requested ${Math.round(target.ascendMeters).toLocaleString()} m up, but the closest round course came out to ${Math.round(route.ascendMeters).toLocaleString()} m up.`;
+}
+
+async function searchRoundCourseRoute(
+	fetchFn: typeof fetch,
+	startPoint: [number, number],
+	target: RoundCourseTarget,
+): Promise<PlannedRoute> {
+	let baseDistanceMeters = clampRoundCourseDistanceMeters(
+		estimateRoundCourseDistanceMeters(target),
+	);
+	const successfulCandidates: CandidateRouteResult[] = [];
+	let sequence = 0;
+	let lastError: unknown = null;
+
+	for (const [roundIndex, seeds] of roundCourseSearchSeeds.entries()) {
+		const requestedDistances = roundCourseSearchDistanceMultipliers.map(
+			(multiplier) =>
+				clampRoundCourseDistanceMeters(baseDistanceMeters * multiplier),
+		);
+		const candidateResults = await Promise.allSettled(
+			requestedDistances.map((requestedDistanceMeters, candidateIndex) => {
+				const candidateSequence = sequence++;
+				return requestRoute(fetchFn, [startPoint], {
+					mode: "round_course",
+					roundTripDistanceMeters: requestedDistanceMeters,
+					roundTripSeed: seeds[candidateIndex],
+					roundCourseTarget: target,
+				}).then(({ route }) => ({
+					route,
+					requestedDistanceMeters,
+					sequence: candidateSequence,
+				}));
+			}),
+		);
+
+		for (const candidateResult of candidateResults) {
+			if (candidateResult.status === "fulfilled") {
+				successfulCandidates.push(candidateResult.value);
+				continue;
+			}
+
+			lastError = candidateResult.reason;
+		}
+
+		if (roundIndex === 0 && successfulCandidates.length > 0) {
+			const bestCandidate = [...successfulCandidates].sort((left, right) =>
+				compareCandidateRoutes(left, right, target),
+			)[0];
+
+			if (bestCandidate) {
+				baseDistanceMeters = clampRoundCourseDistanceMeters(
+					target.kind === "duration"
+						? (bestCandidate.requestedDistanceMeters * target.durationMs) /
+								Math.max(bestCandidate.route.durationMs, 1)
+						: target.kind === "ascend"
+							? (bestCandidate.requestedDistanceMeters * target.ascendMeters) /
+								Math.max(bestCandidate.route.ascendMeters, 1)
+							: bestCandidate.requestedDistanceMeters,
+				);
+			}
+		}
+	}
+
+	if (successfulCandidates.length === 0) {
+		throw lastError instanceof Error
+			? lastError
+			: new Error("GraphHopper could not generate a round course right now.");
+	}
+
+	const bestCandidate = [...successfulCandidates].sort((left, right) =>
+		compareCandidateRoutes(left, right, target),
+	)[0];
+
+	if (!bestCandidate) {
+		throw new Error("GraphHopper could not generate a round course right now.");
+	}
+
+	const missWarning = buildRoundCourseMissWarning(bestCandidate.route, target);
+
+	if (missWarning) {
+		bestCandidate.route.routingWarnings = [
+			...(bestCandidate.route.routingWarnings ?? []),
+			missWarning,
+		];
+	}
+
+	return bestCandidate.route;
+}
+
 function normalizeStopInput(value: unknown): RouteStopInput {
 	if (typeof value === "string") {
 		return {
@@ -232,7 +550,9 @@ async function requestRoute(
 	points: [number, number][],
 	options: {
 		mode: RouteMode;
-		requestedDistanceMeters?: number;
+		roundTripDistanceMeters?: number;
+		roundTripSeed?: number;
+		roundCourseTarget?: RoundCourseTarget;
 	},
 ): Promise<{
 	route: PlannedRoute;
@@ -267,8 +587,12 @@ async function requestRoute(
 		if (options.mode === "round_course") {
 			requestBody.algorithm = "round_trip";
 			requestBody["round_trip.distance"] = Math.round(
-				options.requestedDistanceMeters ?? 0,
+				options.roundTripDistanceMeters ?? 0,
 			);
+
+			if (typeof options.roundTripSeed === "number") {
+				requestBody["round_trip.seed"] = options.roundTripSeed;
+			}
 		}
 
 		return requestBody;
@@ -361,10 +685,8 @@ async function requestRoute(
 			},
 			startLabel: "",
 			destinationLabel: "",
-			requestedDistanceMeters:
-				options.mode === "round_course"
-					? options.requestedDistanceMeters
-					: undefined,
+			roundCourseTarget:
+				options.mode === "round_course" ? options.roundCourseTarget : undefined,
 			routingProfile: selectedStrategy.profile,
 			routingStrategy: selectedStrategy.routingStrategy,
 			routingWarnings: [...selectedStrategy.routingWarnings],
@@ -401,6 +723,7 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 		"start" in payloadRecord ||
 		"waypoints" in payloadRecord ||
 		"destination" in payloadRecord ||
+		"target" in payloadRecord ||
 		"requestedDistanceMeters" in payloadRecord ||
 		"mode" in payloadRecord;
 	const structuredPayload = hasStructuredPayload
@@ -421,26 +744,33 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 	const fieldErrors: RouteApiError["fieldErrors"] = {};
 
 	if (requestedMode === "round_course") {
-		const requestedDistanceMeters = Number(
-			(payloadRecord.requestedDistanceMeters as number | string | undefined) ??
-				NaN,
-		);
+		const roundCourseTarget = normalizeRoundCourseTarget(payloadRecord);
 
 		if (!startInput.label) {
 			fieldErrors.startQuery = "Enter a start point.";
 		}
 
-		if (
-			!Number.isFinite(requestedDistanceMeters) ||
-			requestedDistanceMeters <= 0
+		if (!roundCourseTarget) {
+			fieldErrors.roundCourseTarget = getRoundCourseTargetError(
+				payloadRecord.target,
+			);
+		} else if (
+			(roundCourseTarget.kind === "distance" &&
+				roundCourseTarget.distanceMeters <= 0) ||
+			(roundCourseTarget.kind === "duration" &&
+				roundCourseTarget.durationMs < minRoundCourseDurationMs) ||
+			(roundCourseTarget.kind === "ascend" &&
+				roundCourseTarget.ascendMeters < minRoundCourseAscendMeters)
 		) {
-			fieldErrors.requestedDistanceKm = "Enter a target distance.";
+			fieldErrors.roundCourseTarget = getRoundCourseTargetError(
+				payloadRecord.target,
+			);
 		}
 
 		if (Object.keys(fieldErrors).length > 0) {
 			return errorResponse(
 				400,
-				"Start and target distance are required.",
+				"Start and a round-course target are required.",
 				fieldErrors,
 			);
 		}
@@ -459,10 +789,23 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 				});
 			}
 
-			const { route } = await requestRoute(fetch, [resolvedStart.point], {
-				mode: "round_course",
-				requestedDistanceMeters,
-			});
+			const route =
+				roundCourseTarget?.kind === "distance"
+					? (
+							await requestRoute(fetch, [resolvedStart.point], {
+								mode: "round_course",
+								roundTripDistanceMeters: roundCourseTarget.distanceMeters,
+								roundCourseTarget,
+							})
+						).route
+					: await searchRoundCourseRoute(
+							fetch,
+							resolvedStart.point,
+							roundCourseTarget as Exclude<
+								RoundCourseTarget,
+								{ kind: "distance" }
+							>,
+						);
 			route.startLabel = resolvedStart.label;
 			route.destinationLabel = resolvedStart.label;
 			route.waypoints = [];
