@@ -2,10 +2,13 @@
 	import { onMount } from "svelte";
 	import type { FeatureCollection } from "geojson";
 	import type {
+		ControlPosition,
 		GeoJSONSource,
+		IControl,
 		LngLatBoundsLike,
 		Map as MapLibreMap,
 		MapOptions,
+		ScaleControlOptions,
 	} from "maplibre-gl";
 
 	import {
@@ -71,6 +74,8 @@
 	] as const;
 	// Matches the 200ms sidebar width transition plus a small buffer for interrupted toggles.
 	const layoutTransitionBufferMs = 260;
+	const scaleControlOptions: ScaleControlOptions = { maxWidth: 96, unit: "metric" };
+	const scaleControlPosition: ControlPosition = "bottom-left";
 
 	let {
 		initialCenter = defaultCenter,
@@ -88,6 +93,7 @@
 
 	let mapContainer = $state<HTMLDivElement | null>(null);
 	let map = $state<MapLibreMap | null>(null);
+	let scaleControl = $state<IControl | null>(null);
 	let isLoaded = $state(false);
 	let isStyleReady = $state(false);
 	let loadError = $state<string | null>(null);
@@ -211,6 +217,14 @@
 
 	function repaintMap() {
 		map?.triggerRepaint?.();
+	}
+
+	function removeScaleControl() {
+		if (map && scaleControl) {
+			map.removeControl(scaleControl);
+		}
+
+		scaleControl = null;
 	}
 
 	function syncMapFrame() {
@@ -954,6 +968,8 @@
 				};
 
 				map = new maplibregl.Map(options);
+				scaleControl = new maplibregl.ScaleControl(scaleControlOptions);
+				map.addControl(scaleControl, scaleControlPosition);
 				if (typeof map.on === "function" && typeof map.off === "function") {
 					const handleMapClick = (event: {
 						lngLat?: { lng?: number; lat?: number };
@@ -1025,6 +1041,7 @@
 			removeConstraintOverlay();
 			removeHoveredRouteOverlay();
 			removeCurrentLocationOverlay();
+			removeScaleControl();
 			map?.remove();
 			map = null;
 			currentStyleUrl = null;
@@ -1055,3 +1072,36 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	[data-slot="map-view"] :global(.maplibregl-ctrl-bottom-left) {
+		bottom: calc(env(safe-area-inset-bottom, 0px) + 9rem);
+		left: calc(env(safe-area-inset-left, 0px) + 1rem);
+		position: fixed;
+	}
+
+	[data-slot="map-view"] :global(.maplibregl-ctrl-bottom-left .maplibregl-ctrl) {
+		margin: 0;
+	}
+
+	[data-slot="map-view"] :global(.maplibregl-ctrl-scale) {
+		min-width: 3rem;
+		border: 1px solid rgba(15, 23, 42, 0.18);
+		border-top: 0;
+		background: rgba(255, 255, 255, 0.82);
+		box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
+		color: rgb(15, 23, 42);
+		font-size: 0.6875rem;
+		font-weight: 650;
+		line-height: 1;
+		text-shadow: none;
+		backdrop-filter: blur(12px) saturate(1.12);
+	}
+
+	@media (min-width: 768px) {
+		[data-slot="map-view"] :global(.maplibregl-ctrl-bottom-left) {
+			bottom: calc(env(safe-area-inset-bottom, 0px) + 7rem);
+			left: calc(env(safe-area-inset-left, 0px) + 23rem);
+		}
+	}
+</style>

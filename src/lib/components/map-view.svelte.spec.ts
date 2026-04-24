@@ -123,7 +123,13 @@ const alternativeRouteOverlays = [
 	},
 ];
 
-const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
+const {
+	mapInstance,
+	mapMock,
+	scaleControlInstance,
+	scaleControlMock,
+	mockState,
+} = vi.hoisted(() => {
 	const sources = new Map<
 		string,
 		{ data: unknown; setData: ReturnType<typeof vi.fn> }
@@ -154,6 +160,8 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 			);
 			return mapInstance;
 		}),
+		addControl: vi.fn(() => mapInstance),
+		removeControl: vi.fn(() => mapInstance),
 		once: vi.fn(),
 		remove: vi.fn(),
 		resize: vi.fn(),
@@ -195,10 +203,16 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 	const mapMock = vi.fn(function MockMap(_options: unknown) {
 		return mapInstance;
 	});
+	const scaleControlInstance = { kind: "scale-control" };
+	const scaleControlMock = vi.fn(function MockScaleControl(_options: unknown) {
+		return scaleControlInstance;
+	});
 
 	return {
 		mapInstance,
 		mapMock,
+		scaleControlInstance,
+		scaleControlMock,
 		mockState: {
 			sources,
 			layers,
@@ -211,6 +225,11 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 vi.mock("maplibre-gl", () => {
 	mapMock.mockImplementation(function MockMap(_options: unknown) {
 		return mapInstance;
+	});
+	scaleControlMock.mockImplementation(function MockScaleControl(
+		_options: unknown,
+	) {
+		return scaleControlInstance;
 	});
 	mapInstance.once.mockImplementation((event: string, callback: () => void) => {
 		if (event === "load" || event === "style.load") {
@@ -230,8 +249,10 @@ vi.mock("maplibre-gl", () => {
 
 	return {
 		Map: mapMock,
+		ScaleControl: scaleControlMock,
 		default: {
 			Map: mapMock,
+			ScaleControl: scaleControlMock,
 		},
 	};
 });
@@ -245,6 +266,9 @@ describe("MapView", () => {
 		mockState.sources.clear();
 		mockState.layers.clear();
 		mapMock.mockClear();
+		scaleControlMock.mockClear();
+		mapInstance.addControl.mockClear();
+		mapInstance.removeControl.mockClear();
 		mapInstance.once.mockClear();
 		mapInstance.on.mockClear();
 		mapInstance.off.mockClear();
@@ -310,6 +334,30 @@ describe("MapView", () => {
 		await view.unmount();
 
 		expect(mapInstance.remove).toHaveBeenCalledTimes(1);
+	});
+
+	it("adds and removes the metric scale control", async () => {
+		const view = render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		expect(scaleControlMock).toHaveBeenCalledWith({
+			maxWidth: 96,
+			unit: "metric",
+		});
+		expect(mapInstance.addControl).toHaveBeenCalledWith(
+			scaleControlInstance,
+			"bottom-left",
+		);
+
+		await view.unmount();
+
+		expect(mapInstance.removeControl).toHaveBeenCalledWith(
+			scaleControlInstance,
+		);
+		expect(mapInstance.removeControl.mock.invocationCallOrder[0]).toBeLessThan(
+			mapInstance.remove.mock.invocationCallOrder[0],
+		);
 	});
 
 	it("re-adds the route overlay after a basemap style change without recreating the map", async () => {
