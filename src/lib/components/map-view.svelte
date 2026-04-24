@@ -28,6 +28,11 @@
 		routeOverlays?: RouteMapOverlay[] | null;
 		fitBounds?: RouteBounds | null;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
+		currentLocation?: {
+			point: [number, number];
+			accuracyMeters?: number;
+		} | null;
+		currentLocationFocusKey?: number;
 		layoutState?: SidebarLayoutState | null;
 		onMapClick?: ((detail: {
 			point: [number, number];
@@ -52,6 +57,9 @@
 	const routeSourcePrefix = "planned-route";
 	const hoveredRouteSourceId = "planned-route-hover";
 	const hoveredRouteLayerId = "planned-route-hover-point";
+	const currentLocationSourceId = "current-location";
+	const currentLocationAccuracyLayerId = "current-location-accuracy";
+	const currentLocationPointLayerId = "current-location-point";
 	const alternativeRoutePalette = [
 		"rgba(15, 23, 42, 0.34)",
 		"rgba(71, 85, 105, 0.34)",
@@ -67,6 +75,8 @@
 		routeOverlays = null,
 		fitBounds = null,
 		hoveredRouteCoordinate = null,
+		currentLocation = null,
+		currentLocationFocusKey = 0,
 		layoutState = null,
 		onMapClick = null,
 	}: Props = $props();
@@ -83,6 +93,7 @@
 	let resizeAnimationFrameId: number | null = null;
 	let resizeLoopUntil = 0;
 	let renderedRouteOverlayIds: string[] = [];
+	let lastFocusedCurrentLocationKey: number | null = null;
 
 	function getRouteSourceId(overlayId: string) {
 		return `${routeSourcePrefix}-${overlayId}`;
@@ -244,6 +255,10 @@
 		return map?.getSource(hoveredRouteSourceId) as GeoJSONSource | undefined;
 	}
 
+	function getCurrentLocationSource() {
+		return map?.getSource(currentLocationSourceId) as GeoJSONSource | undefined;
+	}
+
 	function removeRouteOverlayById(overlayId: string) {
 		if (!map || !isStyleReady) {
 			return;
@@ -287,6 +302,25 @@
 
 		if (map.getSource(hoveredRouteSourceId)) {
 			map.removeSource(hoveredRouteSourceId);
+		}
+	}
+
+	function removeCurrentLocationOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		for (const layerId of [
+			currentLocationPointLayerId,
+			currentLocationAccuracyLayerId,
+		]) {
+			if (map.getLayer(layerId)) {
+				map.removeLayer(layerId);
+			}
+		}
+
+		if (map.getSource(currentLocationSourceId)) {
+			map.removeSource(currentLocationSourceId);
 		}
 	}
 
@@ -504,6 +538,124 @@
 		}
 	}
 
+	function buildCurrentLocationGeoJson(): FeatureCollection {
+		const accuracyMeters =
+			currentLocation &&
+			typeof currentLocation.accuracyMeters === "number" &&
+			Number.isFinite(currentLocation.accuracyMeters) &&
+			currentLocation.accuracyMeters > 0
+				? currentLocation.accuracyMeters
+				: null;
+
+		return {
+			type: "FeatureCollection",
+			features: [
+				...(currentLocation && accuracyMeters
+					? [
+							{
+								type: "Feature" as const,
+								properties: {
+									kind: "accuracy",
+									accuracyMeters,
+								},
+								geometry: {
+									type: "Point" as const,
+									coordinates: currentLocation.point,
+								},
+							},
+						]
+					: []),
+				...(currentLocation
+					? [
+							{
+								type: "Feature" as const,
+								properties: {
+									kind: "current-location",
+								},
+								geometry: {
+									type: "Point" as const,
+									coordinates: currentLocation.point,
+								},
+							},
+						]
+					: []),
+			],
+		};
+	}
+
+	function ensureCurrentLocationOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		if (!currentLocation) {
+			removeCurrentLocationOverlay();
+			return;
+		}
+
+		const locationGeoJson = buildCurrentLocationGeoJson();
+		const existingSource = getCurrentLocationSource();
+
+		if (existingSource) {
+			existingSource.setData(locationGeoJson);
+		} else {
+			map.addSource(currentLocationSourceId, {
+				type: "geojson",
+				data: locationGeoJson,
+			});
+		}
+
+		if (!map.getLayer(currentLocationAccuracyLayerId)) {
+			map.addLayer({
+				id: currentLocationAccuracyLayerId,
+				type: "circle",
+				source: currentLocationSourceId,
+				filter: ["==", ["get", "kind"], "accuracy"],
+				paint: {
+					"circle-color": "rgba(14, 165, 233, 0.16)",
+					"circle-radius": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						8,
+						["max", 10, ["/", ["get", "accuracyMeters"], 18]],
+						14,
+						["max", 18, ["/", ["get", "accuracyMeters"], 3]],
+						17,
+						["max", 28, ["/", ["get", "accuracyMeters"], 0.85]],
+					],
+					"circle-stroke-color": "rgba(14, 165, 233, 0.35)",
+					"circle-stroke-width": 1.5,
+				},
+			});
+		}
+
+		if (!map.getLayer(currentLocationPointLayerId)) {
+			map.addLayer({
+				id: currentLocationPointLayerId,
+				type: "circle",
+				source: currentLocationSourceId,
+				filter: ["==", ["get", "kind"], "current-location"],
+				paint: {
+					"circle-color": "rgb(14, 165, 233)",
+					"circle-radius": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						6,
+						6,
+						12,
+						8,
+						16,
+						10,
+					],
+					"circle-stroke-color": "rgba(255, 255, 255, 0.98)",
+					"circle-stroke-width": 3,
+				},
+			});
+		}
+	}
+
 	function getFitPadding() {
 		if (typeof window === "undefined") {
 			return 48;
@@ -565,6 +717,31 @@
 		}
 
 		ensureHoveredRouteOverlay();
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		ensureCurrentLocationOverlay();
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady || !currentLocation) {
+			return;
+		}
+
+		if (lastFocusedCurrentLocationKey === currentLocationFocusKey) {
+			return;
+		}
+
+		lastFocusedCurrentLocationKey = currentLocationFocusKey;
+		map.easeTo?.({
+			center: currentLocation.point,
+			zoom: 14,
+			duration: 600,
+		});
 	});
 
 	$effect(() => {
@@ -758,6 +935,8 @@
 			cancelSmoothResize();
 			resizeObserver?.disconnect();
 			removeRouteOverlays();
+			removeHoveredRouteOverlay();
+			removeCurrentLocationOverlay();
 			map?.remove();
 			map = null;
 			currentStyleUrl = null;

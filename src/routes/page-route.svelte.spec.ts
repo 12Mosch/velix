@@ -214,6 +214,71 @@ function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
 	};
 }
 
+function mockCurrentPositionSequence(
+	positions: Array<{
+		lng: number;
+		lat: number;
+		accuracy?: number;
+	}>,
+) {
+	let positionIndex = 0;
+	const getCurrentPosition = vi.fn(
+		(success: PositionCallback, _error?: PositionErrorCallback | null) => {
+			const position = positions[Math.min(positionIndex, positions.length - 1)];
+			positionIndex += 1;
+
+			if (!position) {
+				throw new Error("No mocked current position configured.");
+			}
+
+			success({
+				coords: {
+					latitude: position.lat,
+					longitude: position.lng,
+					accuracy: position.accuracy ?? 12,
+					altitude: null,
+					altitudeAccuracy: null,
+					heading: null,
+					speed: null,
+				},
+				timestamp: Date.now(),
+			} as GeolocationPosition);
+		},
+	);
+
+	Object.defineProperty(window.navigator, "geolocation", {
+		configurable: true,
+		value: {
+			getCurrentPosition,
+		},
+	});
+
+	return getCurrentPosition;
+}
+
+function mockCurrentPositionError() {
+	const getCurrentPosition = vi.fn(
+		(_success: PositionCallback, error?: PositionErrorCallback | null) => {
+			error?.({
+				code: 1,
+				message: "Permission denied",
+				PERMISSION_DENIED: 1,
+				POSITION_UNAVAILABLE: 2,
+				TIMEOUT: 3,
+			} as GeolocationPositionError);
+		},
+	);
+
+	Object.defineProperty(window.navigator, "geolocation", {
+		configurable: true,
+		value: {
+			getCurrentPosition,
+		},
+	});
+
+	return getCurrentPosition;
+}
+
 const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 	const sources = new Map<
 		string,
@@ -275,6 +340,7 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 			return mapInstance;
 		}),
 		fitBounds: vi.fn(),
+		easeTo: vi.fn(),
 	};
 
 	const mapMock = vi.fn(function MockMap(_options: unknown) {
@@ -339,9 +405,14 @@ describe("+page.svelte", () => {
 		mapInstance.getLayer.mockClear();
 		mapInstance.removeLayer.mockClear();
 		mapInstance.fitBounds.mockClear();
+		mapInstance.easeTo.mockClear();
 		mockState.eventHandlers.clear();
 		mockState.renderedFeatures.clear();
 		vi.unstubAllGlobals();
+		Object.defineProperty(window.navigator, "geolocation", {
+			configurable: true,
+			value: undefined,
+		});
 	});
 
 	it("submits the route form, updates the summary, and renders the route overlay", async () => {
@@ -1214,6 +1285,248 @@ describe("+page.svelte", () => {
 			destination: {
 				label: "Schliersee, Germany",
 				point: [11.8598, 47.7362],
+			},
+		});
+	});
+
+	it("can set start and destination from current location and submit exact coordinates", async () => {
+		const getCurrentPosition = mockCurrentPositionSequence([
+			{
+				lng: 11.5755,
+				lat: 48.1374,
+				accuracy: 15,
+			},
+			{
+				lng: 11.8598,
+				lat: 47.7362,
+				accuracy: 20,
+			},
+		]);
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				const searchParams = new URL(`http://localhost${url}`).searchParams;
+				const lat = Number(searchParams.get("lat"));
+				const lng = Number(searchParams.get("lng"));
+
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label:
+								lat > 48
+									? "Marienplatz, Munich, Germany"
+									: "Schliersee, Germany",
+							point: [lng, lat],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("button", { name: "Use current location as start" })
+			.click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+		await expect
+			.poll(() =>
+				mapInstance.addSource.mock.calls.some(
+					(call) => call[0] === "current-location",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.easeTo).toHaveBeenCalledWith({
+			center: [11.5755, 48.1374],
+			zoom: 14,
+			duration: 600,
+		});
+
+		await page
+			.getByRole("button", { name: "Use current location as destination" })
+			.click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Destination" }))
+			.toHaveValue("Schliersee, Germany");
+
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		expect(getCurrentPosition).toHaveBeenCalledTimes(2);
+		expect(
+			fetchMock.mock.calls.filter((call) =>
+				String(call[0]).startsWith("/api/route/reverse?"),
+			),
+		).toHaveLength(2);
+		expect(
+			JSON.parse(
+				String(
+					fetchMock.mock.calls.find(
+						(call) => String(call[0]) === "/api/route",
+					)?.[1]?.body,
+				),
+			),
+		).toMatchObject({
+			start: {
+				label: "Marienplatz, Munich, Germany",
+				point: [11.5755, 48.1374],
+			},
+			destination: {
+				label: "Schliersee, Germany",
+				point: [11.8598, 47.7362],
+			},
+		});
+	});
+
+	it("uses a current-location fallback label when reverse geocoding fails", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		mockCurrentPositionSequence([
+			{
+				lng: 11.5755,
+				lat: 48.1374,
+			},
+		]);
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/reverse?")) {
+				return Promise.resolve(new Response("Reverse failed", { status: 502 }));
+			}
+
+			throw new Error(`Unexpected fetch request: ${String(input)}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("button", { name: "Use current location as start" })
+			.click();
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Current location");
+		expect(consoleError).toHaveBeenCalledWith(
+			"Failed to reverse geocode current location",
+			expect.any(Error),
+		);
+	});
+
+	it("shows an alert when current location is unavailable without changing fields", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		const getCurrentPosition = mockCurrentPositionError();
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page
+			.getByRole("button", { name: "Use current location as start" })
+			.click();
+
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent(
+				"Current location is unavailable. Check browser location permissions.",
+			);
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Munich");
+		expect(getCurrentPosition).toHaveBeenCalledTimes(1);
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(consoleError).toHaveBeenCalledWith(
+			"Failed to get current location",
+			expect.any(Object),
+		);
+	});
+
+	it("can use current location as the start for a round course", async () => {
+		mockCurrentPositionSequence([
+			{
+				lng: 11.5755,
+				lat: 48.1374,
+				accuracy: 14,
+			},
+		]);
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label: "Marienplatz, Munich, Germany",
+							point: [11.5755, 48.1374],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoundCoursePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page
+			.getByRole("button", { name: "Use current location as start" })
+			.click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+		await page.getByRole("spinbutton", { name: "Target distance" }).fill("50");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		expect(
+			JSON.parse(
+				String(
+					fetchMock.mock.calls.find(
+						(call) => String(call[0]) === "/api/route",
+					)?.[1]?.body,
+				),
+			),
+		).toMatchObject({
+			mode: "round_course",
+			start: {
+				label: "Marienplatz, Munich, Germany",
+				point: [11.5755, 48.1374],
 			},
 		});
 	});
