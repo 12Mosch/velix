@@ -47,6 +47,7 @@
 		Check,
 		ChevronDown,
 		ChevronUp,
+		LocateFixed,
 		MapPin,
 		MountainSnow,
 		Navigation,
@@ -59,9 +60,13 @@
 		X,
 	} from "lucide-svelte";
 
-	type StopSource = "typed" | "suggestion" | "map";
+	type StopSource = "typed" | "suggestion" | "map" | "currentLocation";
 	type PlannerStop = RouteStopInput & {
 		source: StopSource;
+	};
+	type CurrentLocation = {
+		point: [number, number];
+		accuracyMeters?: number;
 	};
 	type RouteField = "startQuery" | "destinationQuery";
 	type PlannerMode = RouteMode;
@@ -165,6 +170,10 @@
 	let completionHighlightedIndex = $state(-1);
 	let mapClickSelection = $state<MapClickSelection | null>(null);
 	let isResolvingMapSelection = $state(false);
+	let currentLocation = $state<CurrentLocation | null>(null);
+	let currentLocationFocusKey = $state(0);
+	let isLocating = $state(false);
+	let currentLocationError = $state<string | null>(null);
 	let gpxImportInput = $state<HTMLInputElement | null>(null);
 
 	let completionAbortController: AbortController | null = null;
@@ -289,6 +298,93 @@
 
 	function formatCoordinateLabel(point: [number, number]) {
 		return `${point[1].toFixed(5)}, ${point[0].toFixed(5)}`;
+	}
+
+	function getCurrentLocationUnavailableMessage() {
+		return "Current location is unavailable. Check browser location permissions.";
+	}
+
+	function getCurrentPosition(): Promise<GeolocationPosition> {
+		if (typeof navigator === "undefined" || !navigator.geolocation) {
+			return Promise.reject(new Error("Geolocation is not supported."));
+		}
+
+		return new Promise((resolve, reject) => {
+			navigator.geolocation.getCurrentPosition(resolve, reject, {
+				enableHighAccuracy: true,
+				timeout: 10000,
+				maximumAge: 30000,
+			});
+		});
+	}
+
+	function getCurrentLocationStop(point: [number, number], label: string): PlannerStop {
+		return createPlannerStop(label, point, "currentLocation");
+	}
+
+	async function resolveCurrentLocationLabel(point: [number, number]) {
+		if (!clientFetch) {
+			return "Current location";
+		}
+
+		try {
+			const response = await clientFetch(
+				`/api/route/reverse?lat=${encodeURIComponent(String(point[1]))}&lng=${encodeURIComponent(String(point[0]))}`,
+			);
+
+			if (!response.ok) {
+				throw new Error(`Reverse geocoding failed with status ${response.status}`);
+			}
+
+			const payload = (await response.json()) as Partial<ReverseGeocodeApiSuccess>;
+			return typeof payload.label === "string" && payload.label.trim().length > 0
+				? payload.label
+				: "Current location";
+		} catch (error) {
+			console.error("Failed to reverse geocode current location", error);
+			return "Current location";
+		}
+	}
+
+	async function locateCurrentPosition(): Promise<CurrentLocation | null> {
+		if (isLocating) {
+			return null;
+		}
+
+		isLocating = true;
+		currentLocationError = null;
+
+		try {
+			const position = await getCurrentPosition();
+			const point: [number, number] = [
+				position.coords.longitude,
+				position.coords.latitude,
+			];
+			const nextLocation: CurrentLocation = {
+				point,
+				accuracyMeters:
+					typeof position.coords.accuracy === "number" &&
+					Number.isFinite(position.coords.accuracy)
+						? position.coords.accuracy
+						: undefined,
+			};
+
+			currentLocation = nextLocation;
+			currentLocationFocusKey += 1;
+			return nextLocation;
+		} catch (error) {
+			console.error("Failed to get current location", error);
+			currentLocationError = getCurrentLocationUnavailableMessage();
+			return null;
+		} finally {
+			isLocating = false;
+		}
+	}
+
+	async function showCurrentLocationOnMap() {
+		closeCompletionMenu();
+		closeMapClickMenu();
+		await locateCurrentPosition();
 	}
 
 	function getRouteStopInput(stop: PlannerStop): RouteStopInput {
@@ -1364,6 +1460,19 @@
 		);
 	}
 
+	async function useCurrentLocationAsStop(field: RouteField) {
+		closeCompletionMenu();
+		closeMapClickMenu();
+		const location = await locateCurrentPosition();
+
+		if (!location) {
+			return;
+		}
+
+		const label = await resolveCurrentLocationLabel(location.point);
+		setFieldStop(field, getCurrentLocationStop(location.point, label));
+	}
+
 	async function handleGenerateRoute(event: SubmitEvent) {
 		event.preventDefault();
 
@@ -1536,6 +1645,8 @@
 		routeOverlays={routeOverlays}
 		fitBounds={combinedRouteBounds}
 		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
+		currentLocation={currentLocation}
+		currentLocationFocusKey={currentLocationFocusKey}
 	/>
 
 	<div class="pointer-events-none absolute inset-0 z-20">
@@ -1546,7 +1657,18 @@
 				/>
 			</div>
 		{/if}
-		<div class="pointer-events-auto absolute right-4 top-4 md:right-5 md:top-5">
+		<div class="pointer-events-auto absolute right-4 top-4 flex flex-col gap-2 md:right-5 md:top-5">
+			<Button
+				variant="ghost"
+				size="icon"
+				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground"
+				type="button"
+				disabled={isLocating}
+				aria-label="Show current location"
+				onclick={showCurrentLocationOnMap}
+			>
+				<LocateFixed class="size-4" />
+			</Button>
 			<Button
 				variant="ghost"
 				size="icon"
@@ -1699,7 +1821,7 @@
 									id="start-point"
 									value={startStop.label}
 									placeholder="Enter starting point..."
-									class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+									class="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
 									autocomplete="off"
 									aria-autocomplete="list"
 									aria-controls={getCompletionListId(startCompletionTarget)}
@@ -1715,6 +1837,17 @@
 											(event.currentTarget as HTMLInputElement).value,
 										)}
 								/>
+								<Button
+									variant="ghost"
+									size="icon-xs"
+									type="button"
+									class="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+									disabled={isLocating}
+									aria-label="Use current location as start"
+									onclick={() => useCurrentLocationAsStop("startQuery")}
+								>
+									<LocateFixed class="size-3.5" />
+								</Button>
 								{#if isCompletionMenuVisible(startCompletionTarget)}
 									<div
 										class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
@@ -2073,7 +2206,7 @@
 										id="destination"
 										value={destinationStop.label}
 										placeholder="Destination..."
-										class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+										class="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
 										autocomplete="off"
 										aria-autocomplete="list"
 										aria-controls={getCompletionListId(destinationCompletionTarget)}
@@ -2090,6 +2223,17 @@
 												(event.currentTarget as HTMLInputElement).value,
 											)}
 									/>
+									<Button
+										variant="ghost"
+										size="icon-xs"
+										type="button"
+										class="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+										disabled={isLocating}
+										aria-label="Use current location as destination"
+										onclick={() => useCurrentLocationAsStop("destinationQuery")}
+									>
+										<LocateFixed class="size-3.5" />
+									</Button>
 									{#if isCompletionMenuVisible(destinationCompletionTarget)}
 										<div
 											class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
@@ -2197,6 +2341,15 @@
 							role="alert"
 						>
 							{routeImportError}
+						</div>
+					{/if}
+
+					{#if currentLocationError}
+						<div
+							class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+							role="alert"
+						>
+							{currentLocationError}
 						</div>
 					{/if}
 

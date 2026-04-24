@@ -58,6 +58,10 @@ const testRouteGeoJson: FeatureCollection = {
 	],
 };
 const hoveredRouteCoordinate: [number, number, number] = [11.57, 47.23, 735];
+const testCurrentLocation = {
+	point: [11.576, 48.138] as [number, number],
+	accuracyMeters: 18,
+};
 const testRouteBounds = [11.5, 47.2, 11.6, 47.25] as const;
 function createAlternativeRouteGeoJson(): FeatureCollection {
 	const geoJson = JSON.parse(
@@ -160,6 +164,7 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 			return mapInstance;
 		}),
 		fitBounds: vi.fn(),
+		easeTo: vi.fn(),
 	};
 
 	const mapMock = vi.fn(function MockMap(_options: unknown) {
@@ -229,6 +234,7 @@ describe("MapView", () => {
 		mapInstance.getLayer.mockClear();
 		mapInstance.removeLayer.mockClear();
 		mapInstance.fitBounds.mockClear();
+		mapInstance.easeTo.mockClear();
 		mockState.eventHandlers.clear();
 		mockState.renderedFeatures.clear();
 		consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -422,6 +428,112 @@ describe("MapView", () => {
 		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
 			"planned-route-hover-point",
 		);
+	});
+
+	it("adds and removes the current-location marker", async () => {
+		const view = render(MapView, {
+			currentLocation: testCurrentLocation,
+			currentLocationFocusKey: 1,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(mapInstance.addSource).toHaveBeenCalledWith(
+			"current-location",
+			expect.objectContaining({
+				type: "geojson",
+				data: expect.objectContaining({
+					features: expect.arrayContaining([
+						expect.objectContaining({
+							properties: expect.objectContaining({
+								kind: "current-location",
+							}),
+							geometry: expect.objectContaining({
+								type: "Point",
+								coordinates: testCurrentLocation.point,
+							}),
+						}),
+						expect.objectContaining({
+							properties: expect.objectContaining({
+								kind: "accuracy",
+								accuracyMeters: 18,
+							}),
+						}),
+					]),
+				}),
+			}),
+		);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
+			"current-location-accuracy",
+			"current-location-point",
+		]);
+
+		await view.rerender({
+			currentLocation: null,
+			currentLocationFocusKey: 1,
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.removeSource.mock.calls.some(
+					(call) => call[0] === "current-location",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
+			"current-location-point",
+		);
+		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
+			"current-location-accuracy",
+		);
+	});
+
+	it("re-adds the current-location marker after a basemap style change", async () => {
+		render(MapView, {
+			currentLocation: testCurrentLocation,
+			currentLocationFocusKey: 1,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
+
+		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
+		expect(mapInstance.addSource.mock.calls.at(-1)?.[0]).toBe(
+			"current-location",
+		);
+		expect(mapInstance.addLayer.mock.calls.at(-1)?.[0].id).toBe(
+			"current-location-point",
+		);
+	});
+
+	it("focuses the map when the current-location focus key changes", async () => {
+		const view = render(MapView, {
+			currentLocation: testCurrentLocation,
+			currentLocationFocusKey: 1,
+		});
+
+		await expect.poll(() => mapInstance.easeTo.mock.calls.length).toBe(1);
+		expect(mapInstance.easeTo).toHaveBeenCalledWith({
+			center: testCurrentLocation.point,
+			zoom: 14,
+			duration: 600,
+		});
+
+		await view.rerender({
+			currentLocation: {
+				point: [11.58, 48.14],
+				accuracyMeters: 25,
+			},
+			currentLocationFocusKey: 2,
+		});
+
+		await expect.poll(() => mapInstance.easeTo.mock.calls.length).toBe(2);
+		expect(mapInstance.easeTo.mock.calls.at(-1)?.[0]).toMatchObject({
+			center: [11.58, 48.14],
+			zoom: 14,
+			duration: 600,
+		});
 	});
 
 	it("renders all alternatives but does not refit when only the selected route changes", async () => {
