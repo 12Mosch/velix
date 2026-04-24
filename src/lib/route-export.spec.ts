@@ -94,6 +94,39 @@ describe("buildRouteGpx", () => {
 		expect(gpx).toContain('<trkpt lat="48.1374" lon="11.5755">');
 	});
 
+	it("serializes an out-and-back route with start and turnaround waypoints", () => {
+		const outAndBackRoute: PlannedRoute = {
+			...pointToPointRoute,
+			mode: "out_and_back",
+			destinationLabel: "Schliersee, Germany",
+			waypoints: [
+				{
+					label: "Schliersee, Germany",
+					coordinate: [11.8598, 47.7362, 785],
+				},
+			],
+			coordinates: [
+				[11.5755, 48.1374, 520],
+				[11.8598, 47.7362, 785],
+				[11.5755, 48.1374, 520],
+			],
+		};
+
+		const gpx = buildRouteGpx(outAndBackRoute, {
+			exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+		});
+
+		expect(gpx).toContain(
+			"<name>Marienplatz, Munich, Germany to Schliersee, Germany out and back</name>",
+		);
+		expect(gpx.match(/<wpt /g)).toHaveLength(2);
+		expect(gpx).toContain("<name>Marienplatz, Munich, Germany</name>");
+		expect(gpx).toContain("<name>Schliersee, Germany</name>");
+		expect(gpx.match(/<trkpt /g)).toHaveLength(
+			outAndBackRoute.coordinates.length,
+		);
+	});
+
 	it("escapes XML-sensitive characters in names and titles", () => {
 		const gpx = buildRouteGpx(
 			{
@@ -184,6 +217,15 @@ describe("buildRouteGpxFilename", () => {
 				mode: "round_course",
 			}),
 		).toBe("marienplatz-munich-germany-round-course.gpx");
+	});
+
+	it("builds an out-and-back filename from the route labels", () => {
+		expect(
+			buildRouteGpxFilename({
+				...pointToPointRoute,
+				mode: "out_and_back",
+			}),
+		).toBe("marienplatz-munich-germany-to-schliersee-germany-out-and-back.gpx");
 	});
 
 	it("falls back when slugging yields an empty filename", () => {

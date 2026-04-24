@@ -26,7 +26,11 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function isRouteMode(value: unknown): value is RouteMode {
-	return value === "point_to_point" || value === "round_course";
+	return (
+		value === "point_to_point" ||
+		value === "round_course" ||
+		value === "out_and_back"
+	);
 }
 
 function isImportedRouteStopDerivation(

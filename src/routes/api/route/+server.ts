@@ -86,6 +86,11 @@ type RoundCourseRouteRequestPayloadInput = {
 	target?: unknown;
 	requestedDistanceMeters?: unknown;
 };
+type OutAndBackRouteRequestPayloadInput = {
+	mode?: "out_and_back";
+	start?: RouteStopInput;
+	turnaround?: RouteStopInput;
+};
 
 type StopField = "startQuery" | "destinationQuery" | "waypointQueries";
 type RouteStop = {
@@ -503,6 +508,71 @@ function dedupeCandidateRoutes(
 	return [...uniqueCandidates.values()];
 }
 
+function mirrorDetailIntervals(
+	details: RouteDetailInterval[],
+	coordinateCount: number,
+): RouteDetailInterval[] {
+	const outboundExtent = Math.max(
+		coordinateCount - 1,
+		...details.map((detail) => detail.to),
+		0,
+	);
+
+	return [
+		...details,
+		...details
+			.slice()
+			.reverse()
+			.map((detail) => ({
+				from: outboundExtent + (outboundExtent - detail.to),
+				to: outboundExtent + (outboundExtent - detail.from),
+				value: detail.value,
+			})),
+	];
+}
+
+function buildOutAndBackRoute(
+	outboundRoute: PlannedRoute,
+	startLabel: string,
+	turnaroundLabel: string,
+	snappedStart: RouteCoordinate,
+	snappedTurnaround: RouteCoordinate,
+): PlannedRoute {
+	const outboundCoordinates =
+		outboundRoute.coordinates.length >= 2
+			? outboundRoute.coordinates
+			: [snappedStart, snappedTurnaround];
+
+	return {
+		...outboundRoute,
+		mode: "out_and_back",
+		startLabel,
+		destinationLabel: turnaroundLabel,
+		waypoints: [
+			{
+				label: turnaroundLabel,
+				coordinate: snappedTurnaround,
+			},
+		],
+		distanceMeters: outboundRoute.distanceMeters * 2,
+		durationMs: outboundRoute.durationMs * 2,
+		ascendMeters: outboundRoute.ascendMeters + outboundRoute.descendMeters,
+		descendMeters: outboundRoute.descendMeters + outboundRoute.ascendMeters,
+		coordinates: [
+			...outboundCoordinates,
+			...outboundCoordinates.slice(0, -1).reverse(),
+		],
+		surfaceDetails: mirrorDetailIntervals(
+			outboundRoute.surfaceDetails,
+			outboundCoordinates.length,
+		),
+		smoothnessDetails: mirrorDetailIntervals(
+			outboundRoute.smoothnessDetails,
+			outboundCoordinates.length,
+		),
+	};
+}
+
 function normalizeGraphHopperPath(
 	path: GraphHopperPath,
 	points: [number, number][],
@@ -815,6 +885,7 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 	let payload:
 		| Partial<RouteRequestPayload>
 		| RoundCourseRouteRequestPayloadInput
+		| OutAndBackRouteRequestPayloadInput
 		| LegacyRouteRequestPayload;
 
 	try {
@@ -825,11 +896,16 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 
 	const payloadRecord = payload as Record<string, unknown>;
 	const requestedMode =
-		payloadRecord.mode === "round_course" ? "round_course" : "point_to_point";
+		payloadRecord.mode === "round_course"
+			? "round_course"
+			: payloadRecord.mode === "out_and_back"
+				? "out_and_back"
+				: "point_to_point";
 	const hasStructuredPayload =
 		"start" in payloadRecord ||
 		"waypoints" in payloadRecord ||
 		"destination" in payloadRecord ||
+		"turnaround" in payloadRecord ||
 		"target" in payloadRecord ||
 		"requestedDistanceMeters" in payloadRecord ||
 		"mode" in payloadRecord;
@@ -840,6 +916,12 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 		structuredPayload && requestedMode === "point_to_point"
 			? (structuredPayload as Partial<
 					Extract<RouteRequestPayload, { mode: "point_to_point" }>
+				>)
+			: null;
+	const structuredOutAndBackPayload =
+		structuredPayload && requestedMode === "out_and_back"
+			? (structuredPayload as Partial<
+					Extract<RouteRequestPayload, { mode: "out_and_back" }>
 				>)
 			: null;
 	const legacyPayload = hasStructuredPayload
@@ -934,6 +1016,141 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			return errorResponse(
 				502,
 				"GraphHopper could not generate a round course right now.",
+			);
+		}
+	}
+
+	if (requestedMode === "out_and_back") {
+		const turnaroundInput = normalizeStopInput(
+			structuredOutAndBackPayload?.turnaround,
+		);
+
+		if (!startInput.label) {
+			fieldErrors.startQuery = "Enter a start point.";
+		}
+
+		if (!turnaroundInput.label) {
+			fieldErrors.destinationQuery = "Enter a turnaround point.";
+		}
+
+		if (Object.keys(fieldErrors).length > 0) {
+			return errorResponse(
+				400,
+				"Start and turnaround are required.",
+				fieldErrors,
+			);
+		}
+
+		try {
+			const stops: RouteStop[] = [
+				{ kind: "start", input: startInput, field: "startQuery" },
+				{
+					kind: "destination",
+					input: turnaroundInput,
+					field: "destinationQuery",
+				},
+			];
+			const resolvedStops = await Promise.all(
+				stops.map(async (stop) => {
+					if (stop.input.point) {
+						return {
+							...stop,
+							label: stop.input.label,
+							point: stop.input.point,
+						};
+					}
+
+					const resolved = await geocodeLocation(fetch, stop.input.label);
+					return resolved
+						? {
+								...stop,
+								label: resolved.label,
+								point: resolved.point,
+							}
+						: stop;
+				}),
+			);
+
+			for (const stop of resolvedStops) {
+				if (stop.label && stop.point) {
+					continue;
+				}
+
+				if (stop.field === "startQuery") {
+					fieldErrors.startQuery = "We couldn't resolve that start point.";
+				} else {
+					fieldErrors.destinationQuery =
+						"We couldn't resolve that turnaround point.";
+				}
+			}
+
+			if (fieldErrors.startQuery || fieldErrors.destinationQuery) {
+				return errorResponse(
+					422,
+					"We couldn't resolve one or more locations.",
+					fieldErrors,
+				);
+			}
+
+			const routePoints = resolvedStops.map(
+				(stop) => stop.point as [number, number],
+			);
+			const { routes, snappedWaypointSets } = await requestRoutes(
+				fetch,
+				routePoints,
+				{
+					mode: "out_and_back",
+					alternativeMaxPaths: desiredAlternativeRoutes,
+					alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
+					alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
+				},
+			);
+			const normalizedRoutes = dedupeRoutes(
+				routes.map((route, routeIndex) => {
+					const snappedWaypoints = snappedWaypointSets[routeIndex] ?? [];
+					const snappedStart =
+						snappedWaypoints[0] ??
+						(resolvedStops[0]?.point as [number, number]);
+					const snappedTurnaround =
+						snappedWaypoints[1] ??
+						(resolvedStops[1]?.point as [number, number]);
+
+					return buildOutAndBackRoute(
+						route,
+						resolvedStops[0]?.label ?? "",
+						resolvedStops[1]?.label ?? "",
+						snappedStart,
+						snappedTurnaround,
+					);
+				}),
+			);
+
+			if (normalizedRoutes.length === 0) {
+				throw new Error(
+					"GraphHopper could not generate an out-and-back route right now.",
+				);
+			}
+
+			return json({
+				routes: normalizedRoutes,
+				selectedRouteIndex: 0,
+			});
+		} catch (error) {
+			console.error("Failed to generate GraphHopper out-and-back route", error);
+
+			if (
+				error instanceof Error &&
+				error.message === missingGraphHopperApiKeyMessage
+			) {
+				return errorResponse(
+					500,
+					"Routing is not configured yet. Add GRAPHHOPPER_API_KEY.",
+				);
+			}
+
+			return errorResponse(
+				502,
+				"GraphHopper could not generate an out-and-back route right now.",
 			);
 		}
 	}

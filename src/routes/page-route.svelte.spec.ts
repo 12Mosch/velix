@@ -123,6 +123,47 @@ const successfulRoundCoursePayload = {
 	routes: [successfulRoundCourseRoute],
 	selectedRouteIndex: 0,
 };
+const successfulOutAndBackRoute = {
+	mode: "out_and_back",
+	source: {
+		kind: "graphhopper",
+	},
+	startLabel: "Marienplatz, Munich, Germany",
+	destinationLabel: "Schliersee, Germany",
+	routingProfile: "racingbike",
+	routingStrategy:
+		"GraphHopper racingbike with asphalt-first, lower-traffic road-bike tuning.",
+	routingWarnings: [],
+	waypoints: [
+		{
+			label: "Schliersee, Germany",
+			coordinate: [11.8598, 47.7362, 785],
+		},
+	],
+	bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+	distanceMeters: 122468,
+	durationMs: 19752000,
+	ascendMeters: 1560,
+	descendMeters: 1560,
+	coordinates: [
+		[11.5755, 48.1374, 520],
+		[11.7, 48.02, 575],
+		[11.8598, 47.7362, 785],
+		[11.7, 48.02, 575],
+		[11.5755, 48.1374, 520],
+	],
+	surfaceDetails: [
+		{ from: 0, to: 2, value: "asphalt" },
+		{ from: 2, to: 3, value: "fine gravel" },
+		{ from: 3, to: 4, value: "fine gravel" },
+		{ from: 4, to: 6, value: "asphalt" },
+	],
+	smoothnessDetails: [{ from: 0, to: 6, value: "GOOD" }],
+};
+const successfulOutAndBackPayload = {
+	routes: [successfulOutAndBackRoute],
+	selectedRouteIndex: 0,
+};
 const successfulRouteProfile = sampleElevationProfile(
 	successfulRoute.coordinates as RouteCoordinate[],
 );
@@ -931,6 +972,81 @@ describe("+page.svelte", () => {
 		});
 	});
 
+	it("switches into out-and-back mode, submits the turnaround payload, and saves it", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(successfulOutAndBackPayload)),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Out and back/i }).click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("textbox", { name: "Turnaround" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Add waypoint" }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Target distance" }))
+			.not.toBeInTheDocument();
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("textbox", { name: "Turnaround" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Out and Back" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		expect(
+			JSON.parse(
+				String(
+					fetchMock.mock.calls.find(
+						(call) => String(call[0]) === "/api/route",
+					)?.[1]?.body,
+				),
+			),
+		).toMatchObject({
+			mode: "out_and_back",
+			start: {
+				label: "Marienplatz Munich",
+			},
+			turnaround: {
+				label: "Schliersee",
+			},
+		});
+
+		await expect
+			.element(page.getByText("Out and back").nth(2))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("to Schliersee, Germany and back"))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Save Draft" }).click();
+
+		const savedRoutes = JSON.parse(
+			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
+		);
+		expect(savedRoutes[0]?.route.mode).toBe("out_and_back");
+		expect(savedRoutes[0]?.route.destinationLabel).toBe("Schliersee, Germany");
+	});
+
 	it("submits a duration-based round-course payload", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			if (String(input).startsWith("/api/route/suggest")) {
@@ -1075,6 +1191,43 @@ describe("+page.svelte", () => {
 			.toHaveValue(50);
 		await expect
 			.element(page.getByText("Returns to start"))
+			.toBeInTheDocument();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("restores a saved out-and-back route from the query string", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-out-and-back",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulOutAndBackRoute,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-out-and-back");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect.poll(() => document.body.textContent).toContain("122.5");
+		await expect
+			.element(
+				page.getByRole("button", {
+					name: /Out and back Start, turnaround/i,
+				}),
+			)
+			.toHaveAttribute("aria-pressed", "true");
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Turnaround" }))
+			.toHaveValue("Schliersee, Germany");
+		await expect
+			.element(page.getByText("to Schliersee, Germany and back"))
 			.toBeInTheDocument();
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
@@ -1289,6 +1442,54 @@ describe("+page.svelte", () => {
 		});
 	});
 
+	it("can set an out-and-back turnaround from a map click", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label: "Schliersee, Germany",
+							point: [11.8598, 47.7362],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulOutAndBackPayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+		await page.getByRole("button", { name: /Out and back/i }).click();
+		await expect
+			.poll(() => (mockState.eventHandlers.get("click") ?? []).length)
+			.toBe(1);
+
+		mockState.eventHandlers.get("click")?.[0]?.({
+			lngLat: {
+				lng: 11.8598,
+				lat: 47.7362,
+			},
+			point: {
+				x: 520,
+				y: 260,
+			},
+		});
+		await page.getByRole("button", { name: "Set as turnaround" }).click();
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Turnaround" }))
+			.toHaveValue("Schliersee, Germany");
+	});
+
 	it("can set start and destination from current location and submit exact coordinates", async () => {
 		const getCurrentPosition = mockCurrentPositionSequence([
 			{
@@ -1395,6 +1596,49 @@ describe("+page.svelte", () => {
 				point: [11.8598, 47.7362],
 			},
 		});
+	});
+
+	it("can use current location as an out-and-back turnaround", async () => {
+		mockCurrentPositionSequence([
+			{
+				lng: 11.8598,
+				lat: 47.7362,
+				accuracy: 20,
+			},
+		]);
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label: "Schliersee, Germany",
+							point: [11.8598, 47.7362],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulOutAndBackPayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Out and back/i }).click();
+		await page
+			.getByRole("button", { name: "Use current location as turnaround" })
+			.click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Turnaround" }))
+			.toHaveValue("Schliersee, Germany");
 	});
 
 	it("uses a current-location fallback label when reverse geocoding fails", async () => {

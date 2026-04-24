@@ -411,12 +411,63 @@ function buildEditableStops(
 		destinationLabel: getParsedPointLabel(
 			stopPoints[stopPoints.length - 1] as ParsedGpxPoint,
 		),
+		stops: stopPoints.map((point) => ({
+			label: getParsedPointLabel(point),
+			coordinate: point.coordinate,
+		})),
 		waypoints: stopPoints.slice(1, -1).map((point) => ({
 			label: getParsedPointLabel(point),
 			coordinate: point.coordinate,
 		})),
 		stopDerivation,
 	};
+}
+
+function getNearestGeometryDistanceMeters(
+	point: [number, number],
+	coordinates: RouteCoordinate[],
+): number {
+	return coordinates.reduce((nearestDistance, coordinate) => {
+		return Math.min(
+			nearestDistance,
+			getCoordinateDistanceMeters(point, getPointCoordinate(coordinate)),
+		);
+	}, Number.POSITIVE_INFINITY);
+}
+
+function getOutAndBackTurnaround(
+	explicitStops: ReturnType<typeof buildEditableStops> | null,
+	coordinates: RouteCoordinate[],
+): { label: string; coordinate: RouteCoordinate } | null {
+	if (!explicitStops || explicitStops.stops.length !== 2) {
+		return null;
+	}
+
+	const turnaround = explicitStops.stops[1];
+	const finalCoordinate = coordinates[coordinates.length - 1];
+
+	if (!turnaround || !finalCoordinate) {
+		return null;
+	}
+
+	const turnaroundPoint = getPointCoordinate(turnaround.coordinate);
+	const finalPoint = getPointCoordinate(finalCoordinate);
+
+	if (
+		getCoordinateDistanceMeters(turnaroundPoint, finalPoint) <=
+		loopClosureThresholdMeters
+	) {
+		return null;
+	}
+
+	if (
+		getNearestGeometryDistanceMeters(turnaroundPoint, coordinates) >
+		loopClosureThresholdMeters
+	) {
+		return null;
+	}
+
+	return turnaround;
 }
 
 export function parseRouteGpx(
@@ -454,8 +505,15 @@ export function parseRouteGpx(
 				coordinates[coordinates.length - 1] as RouteCoordinate,
 			),
 		) <= loopClosureThresholdMeters;
+	const outAndBackTurnaround = isClosedLoop
+		? getOutAndBackTurnaround(explicitStops, coordinates)
+		: null;
 	const mode =
-		explicitStops === null && isClosedLoop ? "round_course" : "point_to_point";
+		outAndBackTurnaround !== null
+			? "out_and_back"
+			: explicitStops === null && isClosedLoop
+				? "round_course"
+				: "point_to_point";
 	const startLabel =
 		explicitStops?.startLabel ??
 		formatCoordinateLabel(
@@ -464,7 +522,8 @@ export function parseRouteGpx(
 	const destinationLabel =
 		mode === "round_course"
 			? startLabel
-			: (explicitStops?.destinationLabel ??
+			: (outAndBackTurnaround?.label ??
+				explicitStops?.destinationLabel ??
 				formatCoordinateLabel(
 					getPointCoordinate(
 						coordinates[coordinates.length - 1] as RouteCoordinate,
@@ -488,7 +547,17 @@ export function parseRouteGpx(
 						distanceMeters: Math.round(metrics.distanceMeters),
 					}
 				: undefined,
-		waypoints: mode === "round_course" ? [] : (explicitStops?.waypoints ?? []),
+		waypoints:
+			mode === "round_course"
+				? []
+				: mode === "out_and_back" && outAndBackTurnaround
+					? [
+							{
+								label: outAndBackTurnaround.label,
+								coordinate: outAndBackTurnaround.coordinate,
+							},
+						]
+					: (explicitStops?.waypoints ?? []),
 		bounds: metrics.bounds,
 		distanceMeters: metrics.distanceMeters,
 		durationMs: hasDuration

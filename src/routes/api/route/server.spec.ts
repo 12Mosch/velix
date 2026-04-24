@@ -174,6 +174,132 @@ describe("POST /api/route", () => {
 		expect(requestBody["alternative_route.max_share_factor"]).toBe(0.6);
 	});
 
+	it("generates an out-and-back route by mirroring the outbound leg", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "out_and_back",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					turnaround: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const routeRequest = fetchMock.mock.calls[0];
+		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.8598, 47.7362],
+		]);
+		expect(requestBody.algorithm).toBe("alternative_route");
+		expect(requestBody["alternative_route.max_paths"]).toBe(3);
+
+		const payload = (await response.json()) as RouteApiSuccess;
+		const route = payload.routes[0];
+		expect(route?.mode).toBe("out_and_back");
+		expect(route?.startLabel).toBe("Marienplatz, Munich, Germany");
+		expect(route?.destinationLabel).toBe("Schliersee, Germany");
+		expect(route?.distanceMeters).toBe(122468);
+		expect(route?.durationMs).toBe(19752000);
+		expect(route?.ascendMeters).toBe(1560);
+		expect(route?.descendMeters).toBe(1560);
+		expect(route?.waypoints).toEqual([
+			{
+				label: "Schliersee, Germany",
+				coordinate: [11.8597, 47.7361, 784],
+			},
+		]);
+		expect(route?.coordinates).toEqual([
+			[11.5755, 48.1374, 520],
+			[11.7, 48.02, 575],
+			[11.8598, 47.7362, 785],
+			[11.7, 48.02, 575],
+			[11.5755, 48.1374, 520],
+		]);
+		expect(route?.surfaceDetails).toEqual([
+			{ from: 0, to: 2, value: "ASPHALT" },
+			{ from: 2, to: 3, value: "COMPACTED" },
+			{ from: 3, to: 4, value: "COMPACTED" },
+			{ from: 4, to: 6, value: "ASPHALT" },
+		]);
+	});
+
+	it("validates the required turnaround for out-and-back requests", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "out_and_back",
+					start: {
+						label: "Munich",
+					},
+					turnaround: {
+						label: "",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Start and turnaround are required.",
+			fieldErrors: {
+				destinationQuery: "Enter a turnaround point.",
+			},
+		});
+	});
+
+	it("returns a field error when an out-and-back turnaround cannot be resolved", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(new Response(JSON.stringify({ hits: [] })))
+			.mockResolvedValueOnce(new Response(JSON.stringify({ hits: [] })));
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "out_and_back",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					turnaround: {
+						label: "Unknown pass",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(422);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		await expect(response.json()).resolves.toEqual({
+			error: "We couldn't resolve one or more locations.",
+			fieldErrors: {
+				destinationQuery: "We couldn't resolve that turnaround point.",
+			},
+		});
+	});
+
 	it("geocodes all ordered stops, requests a road-bike biased route, and returns snapped waypoint labels", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()

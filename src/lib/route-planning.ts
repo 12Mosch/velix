@@ -28,7 +28,7 @@ export type RouteSource =
 			hasDuration: boolean;
 	  };
 
-export type RouteMode = "point_to_point" | "round_course";
+export type RouteMode = "point_to_point" | "round_course" | "out_and_back";
 
 export type RouteStopInput = {
 	label: string;
@@ -62,9 +62,16 @@ export type RoundCourseRouteRequestPayload = {
 	target: RoundCourseTarget;
 };
 
+export type OutAndBackRouteRequestPayload = {
+	mode: "out_and_back";
+	start: RouteStopInput;
+	turnaround: RouteStopInput;
+};
+
 export type RouteRequestPayload =
 	| PointToPointRouteRequestPayload
-	| RoundCourseRouteRequestPayload;
+	| RoundCourseRouteRequestPayload
+	| OutAndBackRouteRequestPayload;
 
 export type RouteDetailInterval = {
 	from: number;
@@ -254,7 +261,7 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 			: null;
 
 	const destinationFeature: Feature<Point, RouteFeatureProperties> | null =
-		route.mode !== "round_course" && destinationCoordinate
+		route.mode === "point_to_point" && destinationCoordinate
 			? {
 					type: "Feature",
 					properties: {
@@ -464,6 +471,21 @@ export function getRouteStopInputs(route: PlannedRoute): RouteStopInput[] {
 			{
 				label: route.startLabel,
 				point: startCoordinate ? toStopPoint(startCoordinate) : undefined,
+			},
+		];
+	}
+
+	if (route.mode === "out_and_back") {
+		const turnaround = route.waypoints[0];
+
+		return [
+			{
+				label: route.startLabel,
+				point: startCoordinate ? toStopPoint(startCoordinate) : undefined,
+			},
+			{
+				label: route.destinationLabel,
+				point: turnaround ? toStopPoint(turnaround.coordinate) : undefined,
 			},
 		];
 	}

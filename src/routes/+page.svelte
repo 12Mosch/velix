@@ -126,6 +126,11 @@
 			label: "Round course",
 			description: "Loop from one start point with a target ride distance.",
 		},
+		{
+			mode: "out_and_back",
+			label: "Out and back",
+			description: "Start, turnaround, then return on the same road.",
+		},
 	];
 
 	function createPlannerStop(
@@ -187,6 +192,7 @@
 			: null,
 	);
 	const isRoundCourseMode = $derived(plannerMode === "round_course");
+	const isOutAndBackMode = $derived(plannerMode === "out_and_back");
 	const activeRoute = $derived(
 		selectedRouteIndex === null ? null : routeAlternatives[selectedRouteIndex] ?? null,
 	);
@@ -418,6 +424,44 @@
 		return null;
 	}
 
+	function getDestinationFieldLabel() {
+		return isOutAndBackMode ? "Turnaround" : "Destination";
+	}
+
+	function getDestinationPlaceholder() {
+		return isOutAndBackMode ? "Turnaround point..." : "Destination...";
+	}
+
+	function getCurrentLocationDestinationLabel() {
+		return isOutAndBackMode
+			? "Use current location as turnaround"
+			: "Use current location as destination";
+	}
+
+	function getSubmitButtonText() {
+		if (isRouting) {
+			if (isRoundCourseMode) {
+				return "Calculating round course...";
+			}
+
+			if (isOutAndBackMode) {
+				return "Calculating out and back...";
+			}
+
+			return "Calculating route...";
+		}
+
+		if (isRoundCourseMode) {
+			return "Generate Round Course";
+		}
+
+		if (isOutAndBackMode) {
+			return "Generate Out and Back";
+		}
+
+		return "Generate Route";
+	}
+
 	function formatDistanceInput(distanceMeters: number | undefined): string {
 		if (!distanceMeters || !Number.isFinite(distanceMeters)) {
 			return "";
@@ -534,7 +578,7 @@
 			start?.point ? "suggestion" : "typed",
 		);
 		waypointStops =
-			route.mode === "round_course"
+			route.mode === "round_course" || route.mode === "out_and_back"
 				? []
 				: restStops.map((waypoint) =>
 						createPlannerStop(
@@ -591,10 +635,12 @@
 	function clearModeSpecificFieldErrors(nextMode: PlannerMode) {
 		fieldErrors = {
 			...fieldErrors,
-			destinationQuery: nextMode === "round_course" ? undefined : fieldErrors.destinationQuery,
-			waypointQueries: nextMode === "round_course" ? [] : fieldErrors.waypointQueries,
+			destinationQuery:
+				nextMode === "round_course" ? undefined : fieldErrors.destinationQuery,
+			waypointQueries:
+				nextMode === "point_to_point" ? fieldErrors.waypointQueries : [],
 			roundCourseTarget:
-				nextMode === "point_to_point" ? undefined : fieldErrors.roundCourseTarget,
+				nextMode === "round_course" ? fieldErrors.roundCourseTarget : undefined,
 		};
 	}
 
@@ -611,7 +657,7 @@
 		clearModeSpecificFieldErrors(nextMode);
 
 		if (
-			nextMode === "round_course" &&
+			nextMode !== "point_to_point" &&
 			activeCompletionTarget &&
 			activeCompletionTarget.kind !== "startQuery"
 		) {
@@ -1315,10 +1361,14 @@
 		}
 
 		if (selectedStop.kind === "destination") {
-			return "Remove destination";
+			return isOutAndBackMode ? "Remove turnaround" : "Remove destination";
 		}
 
 		if (selectedStop.kind === "waypoint") {
+			if (isOutAndBackMode) {
+				return "Remove turnaround";
+			}
+
 			return `Remove waypoint ${selectedStop.index + 1}`;
 		}
 
@@ -1339,6 +1389,12 @@
 		}
 
 		if (selectedStop.kind === "waypoint") {
+			if (isOutAndBackMode) {
+				setFieldStop("destinationQuery", createPlannerStop());
+				closeMapClickMenu();
+				return;
+			}
+
 			removeWaypoint(selectedStop.index);
 			closeMapClickMenu();
 		}
@@ -1346,6 +1402,7 @@
 
 	function getWaypointInsertionTarget(point: [number, number]) {
 		const hasCompleteOrderedStops =
+			plannerMode === "point_to_point" &&
 			!!startStop.point &&
 			startStop.label.trim().length > 0 &&
 			!!destinationStop.point &&
@@ -1500,6 +1557,12 @@
 							start: getRouteStopInput(startStop),
 							target: buildRoundCourseTargetRequest(),
 						}
+					: plannerMode === "out_and_back"
+						? {
+								mode: "out_and_back",
+								start: getRouteStopInput(startStop),
+								turnaround: getRouteStopInput(destinationStop),
+							}
 					: {
 							mode: "point_to_point",
 							start: getRouteStopInput(startStop),
@@ -1544,6 +1607,8 @@
 			routeRequestError =
 				plannerMode === "round_course"
 					? "The round-course request failed before we heard back from GraphHopper."
+					: plannerMode === "out_and_back"
+						? "The out-and-back request failed before we heard back from GraphHopper."
 					: "The route request failed before we heard back from GraphHopper.";
 		} finally {
 			isRouting = false;
@@ -1702,7 +1767,7 @@
 					>
 						Set as start
 					</Button>
-					{#if !isRoundCourseMode}
+					{#if plannerMode === "point_to_point"}
 						<Button
 							variant="ghost"
 							size="sm"
@@ -1722,6 +1787,17 @@
 							onclick={() => applyMapPointAsStop({ kind: "destinationQuery" })}
 						>
 							Set as destination
+						</Button>
+					{:else if isOutAndBackMode}
+						<Button
+							variant="ghost"
+							size="sm"
+							class="justify-start"
+							type="button"
+							disabled={isResolvingMapSelection}
+							onclick={() => applyMapPointAsStop({ kind: "destinationQuery" })}
+						>
+							Set as turnaround
 						</Button>
 					{/if}
 					{#if mapClickSelection.selectedStop}
@@ -1770,6 +1846,8 @@
 							<p class="text-xs text-muted-foreground">
 								{isRoundCourseMode
 									? "Plan a loop ride from one start point and let GraphHopper bring it back home."
+									: isOutAndBackMode
+										? "Pick a turnaround point and return on the same road."
 									: "Build an asphalt-first road-bike route with optional intermediate stops."}
 							</p>
 						</div>
@@ -1781,7 +1859,7 @@
 						</Badge>
 					</div>
 
-					<div class="grid grid-cols-2 gap-1 rounded-lg border border-border/60 bg-secondary/15 p-1">
+					<div class="grid grid-cols-3 gap-1 rounded-lg border border-border/60 bg-secondary/15 p-1">
 						{#each plannerModeOptions as option}
 							<Button
 								type="button"
@@ -2024,6 +2102,7 @@
 								{/if}
 							</div>
 						{:else}
+							{#if !isOutAndBackMode}
 							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 								<div class="flex items-center justify-between gap-3">
 									<div>
@@ -2190,13 +2269,14 @@
 									</p>
 								{/if}
 							</div>
+							{/if}
 
 							<div class="space-y-2">
 								<label
 									for="destination"
 									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
 								>
-									Destination
+									{getDestinationFieldLabel()}
 								</label>
 								<div class="relative">
 									<Navigation
@@ -2205,7 +2285,7 @@
 									<Input
 										id="destination"
 										value={destinationStop.label}
-										placeholder="Destination..."
+										placeholder={getDestinationPlaceholder()}
 										class="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
 										autocomplete="off"
 										aria-autocomplete="list"
@@ -2229,7 +2309,7 @@
 										type="button"
 										class="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
 										disabled={isLocating}
-										aria-label="Use current location as destination"
+										aria-label={getCurrentLocationDestinationLabel()}
 										onclick={() => useCurrentLocationAsStop("destinationQuery")}
 									>
 										<LocateFixed class="size-3.5" />
@@ -2241,7 +2321,7 @@
 											<div
 												id={getCompletionListId(destinationCompletionTarget)}
 												role="listbox"
-												aria-label="Destination suggestions"
+												aria-label={`${getDestinationFieldLabel()} suggestions`}
 												class="max-h-64 overflow-y-auto py-1"
 											>
 												{#if isCompletionLoading}
@@ -2363,11 +2443,7 @@
 					{/if}
 
 					<Button size="lg" type="submit" class="mt-1 w-full font-semibold shadow-sm">
-						{#if isRouting}
-							{isRoundCourseMode ? "Calculating round course..." : "Calculating route..."}
-						{:else}
-							{isRoundCourseMode ? "Generate Round Course" : "Generate Route"}
-						{/if}
+						{getSubmitButtonText()}
 					</Button>
 				</form>
 			</div>
@@ -2426,18 +2502,26 @@
 								{isRouting
 									? isRoundCourseMode
 										? "Calculating the round course..."
+										: isOutAndBackMode
+											? "Calculating the out-and-back route..."
 										: "Calculating the road-bike route..."
 									: isRoundCourseMode
 										? "Generate a round course to see live distance, climbing, and elevation."
+										: isOutAndBackMode
+											? "Generate an out-and-back route to see live distance, climbing, and elevation."
 										: "Generate a route to see live distance, climbing, and elevation."}
 							</span>
 							<span class="text-xs text-muted-foreground">
 								{isRouting
 									? isRoundCourseMode
 										? "GraphHopper is resolving the start point and building a loop ride."
+										: isOutAndBackMode
+											? "GraphHopper is resolving the stops and mirroring the return leg."
 										: "GraphHopper is resolving locations and building the route."
 									: isRoundCourseMode
 										? "The map overlay and summary will update once a loop route is found."
+										: isOutAndBackMode
+											? "The map overlay and summary will update once the outbound leg is mirrored."
 										: "The map overlay and summary will update once a route is found."}
 							</span>
 						</div>
@@ -2568,6 +2652,14 @@
 													Round course
 												</Badge>
 											{/if}
+											{#if route.mode === "out_and_back"}
+												<Badge
+													variant="outline"
+													class="h-5 px-2 text-[10px] font-semibold uppercase tracking-wide"
+												>
+													Out and back
+												</Badge>
+											{/if}
 										</div>
 									</div>
 									<div class="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
@@ -2620,6 +2712,16 @@
 										Round course
 									</Badge>
 									<span class="text-xs text-muted-foreground">Returns to start</span>
+								{:else if activeRoute.mode === "out_and_back"}
+									<Badge
+										variant="secondary"
+										class="h-5 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-primary"
+									>
+										Out and back
+									</Badge>
+									<span class="text-xs text-muted-foreground">
+										to {activeRoute.destinationLabel} and back
+									</span>
 								{:else}
 									<span class="text-xs text-muted-foreground">
 										to {activeRoute.destinationLabel}
@@ -2829,7 +2931,7 @@
 									</div>
 									<div class="font-medium text-foreground">{activeRoute.startLabel}</div>
 								</div>
-								{#if activeRoute.waypoints.length > 0}
+								{#if activeRoute.waypoints.length > 0 && activeRoute.mode !== "out_and_back"}
 									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 											Resolved waypoints
@@ -2860,6 +2962,13 @@
 											</div>
 										</div>
 									{/if}
+								{:else if activeRoute.mode === "out_and_back"}
+									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
+										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
+											Resolved turnaround
+										</div>
+										<div class="font-medium text-foreground">{activeRoute.destinationLabel}</div>
+									</div>
 								{:else}
 									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
