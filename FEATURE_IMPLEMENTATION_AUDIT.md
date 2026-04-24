@@ -6,7 +6,7 @@ Status legend:
 - **Half**: there is visible or code-level support, but the implementation is incomplete, limited, or missing important expected behavior.
 - **Missing**: no meaningful implementation was found.
 
-Evidence reviewed: `src/routes/+page.svelte`, `src/routes/api/route/+server.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, and `src/lib/components/map-view.svelte`.
+Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
 
 ## 1. Routing & Route Builder
 
@@ -14,8 +14,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/api/route/+server.ts`,
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Set a start point via search, map click, or current location | Half | Search and map click are implemented. Current location is not implemented. |
-| Set a destination via search or map click | Full | Destination input supports search suggestions and map-click assignment. |
+| Set a start point via search, map click, or current location | Full | Start input supports search suggestions, map-click assignment, and explicit browser geolocation with reverse-geocode fallback. |
+| Set a destination via search, map click, or current location | Full | Destination input supports search suggestions, map-click assignment, and explicit browser geolocation in point-to-point mode. |
 | Create a loop instead of a point-to-point route | Full | Round-course mode generates loop routes. |
 | Derive a route from a saved route | Half | Saved routes can be reopened into the planner via `?savedRoute=...`; no explicit "derive from" workflow/version split. |
 | Import a GPX route and edit it | Half | GPX import exists and imported stops can be edited then rerouted; direct geometry editing is not implemented. |
@@ -34,7 +34,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/api/route/+server.ts`,
 | Fully manual planning | Missing | No manual segment drawing or manual/automatic section modes. |
 | Training route based on a workout goal | Missing | No workout-goal route generator. |
 | Route based on existing heatmap/popularity data | Missing | No heatmap/popularity data source. |
-| "Best roads near me" quick generator | Missing | No quick generator or current-location support. |
+| "Best roads near me" quick generator | Missing | Current-location support exists for route endpoints, but there is no quick generator/discovery workflow. |
 
 ### 1.3 Road-cycling-specific optimization
 
@@ -137,11 +137,11 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/api/route/+server.ts`,
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Zoom, pan, recenter | Half | MapLibre provides zoom/pan; no explicit recenter control. |
+| Zoom, pan, recenter | Half | MapLibre provides zoom/pan and current-location centering; no general recenter-to-route or recenter-to-start control. |
 | Double-click / click to place points | Full | Click opens a menu to set start, destination, or waypoint. |
 | Hover on roads/segments | Missing | No road/segment hover inspection. |
 | Context menu for routing actions | Half | A click popover exists; no right-click/context menu. |
-| Show current location | Missing | No geolocation control. |
+| Show current location | Full | Explicit geolocation control requests permission, centers the map, and renders a current-position marker with optional accuracy ring. |
 | Show coordinates | Half | Click popover shows coordinate fallback when reverse geocoding is unavailable. |
 | Scale bar | Missing | No scale control. |
 | Fullscreen map | Half | Planner is map-first/full viewport, but no browser fullscreen toggle. |
@@ -171,6 +171,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/api/route/+server.ts`,
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Start and destination markers | Full | Rendered for selected point-to-point route. |
+| Current location marker | Full | Rendered independently of route overlays after explicit geolocation, including style-change rehydration. |
 | Waypoints | Full | Rendered for selected route. |
 | Climb markers | Missing | No climb detection/markers. |
 | Supply points | Missing | No supply POIs. |
@@ -780,4 +781,3 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/api/route/+server.ts`,
 | Quick presets for common training profiles | Missing | No training profile presets. |
 | Tooltips for technical terms | Half | Sidebar/tooling includes tooltip components, but route-analysis technical terms mostly lack tooltips. |
 | Debug mode for internal development | Missing | No debug mode found. |
-

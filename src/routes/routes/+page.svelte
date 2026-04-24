@@ -67,6 +67,10 @@
 		return route.mode === "round_course";
 	}
 
+	function isOutAndBackRoute(route: { mode: string }) {
+		return route.mode === "out_and_back";
+	}
+
 	function getRoundCourseTarget(route: PlannedRoute): RoundCourseTarget | null {
 		if (route.mode !== "round_course") {
 			return null;
@@ -111,6 +115,18 @@
 		}
 
 		return formatDuration(route.durationMs);
+	}
+
+	function getRouteLegText(route: PlannedRoute): string {
+		if (isRoundCourseRoute(route)) {
+			return "Returns to start";
+		}
+
+		if (isOutAndBackRoute(route)) {
+			return `to ${route.destinationLabel} and back`;
+		}
+
+		return `to ${route.destinationLabel}`;
 	}
 
 	function handleDeleteSavedRoute(id: string) {
@@ -197,6 +213,14 @@
 												Round course
 											</Badge>
 										{/if}
+										{#if isOutAndBackRoute(savedRoute.route)}
+											<Badge
+												variant="secondary"
+												class="h-5 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-primary"
+											>
+												Out and back
+											</Badge>
+										{/if}
 										{#if isImportedRoute(savedRoute.route)}
 											<Badge
 												variant="secondary"
@@ -213,6 +237,11 @@
 										<div class="flex items-center gap-2 text-sm text-muted-foreground">
 											<Route class="size-4 shrink-0" />
 											<span>Returns to start</span>
+										</div>
+									{:else if isOutAndBackRoute(savedRoute.route)}
+										<div class="flex items-center gap-2 text-sm text-muted-foreground">
+											<Route class="size-4 shrink-0" />
+											<span>{getRouteLegText(savedRoute.route)}</span>
 										</div>
 									{:else}
 										<div class="flex items-center gap-2 text-sm text-muted-foreground">

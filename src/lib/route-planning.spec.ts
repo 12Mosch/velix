@@ -80,6 +80,36 @@ describe("buildRouteGeoJson", () => {
 			["route", "start"],
 		);
 	});
+
+	it("renders the turnaround as a waypoint marker for out-and-back routes", () => {
+		const route: PlannedRoute = {
+			...buildRoute([{ from: 0, to: 10, value: "ASPHALT" }]),
+			mode: "out_and_back",
+			startLabel: "Start",
+			destinationLabel: "Turnaround",
+			waypoints: [
+				{
+					label: "Turnaround",
+					coordinate: [1, 1, 20],
+				},
+			],
+			coordinates: [
+				[0, 0, 10],
+				[1, 1, 20],
+				[0, 0, 10],
+			],
+		};
+
+		const geoJson = buildRouteGeoJson(route);
+
+		expect(geoJson.features.map((feature) => feature.properties?.kind)).toEqual(
+			["route", "start", "waypoint"],
+		);
+		expect(geoJson.features[2]?.properties).toMatchObject({
+			kind: "waypoint",
+			label: "Turnaround",
+		});
+	});
 });
 
 describe("getSurfaceMix", () => {
@@ -170,6 +200,37 @@ describe("getRouteStopInputs", () => {
 			{
 				label: "Loop start",
 				point: [11.5, 47.2],
+			},
+		]);
+	});
+
+	it("returns start and turnaround stops for out-and-back routes", () => {
+		const route: PlannedRoute = {
+			...buildRoute([{ from: 0, to: 10, value: "ASPHALT" }]),
+			mode: "out_and_back",
+			startLabel: "Start",
+			destinationLabel: "Turnaround",
+			waypoints: [
+				{
+					label: "Turnaround",
+					coordinate: [1, 1, 20],
+				},
+			],
+			coordinates: [
+				[0, 0, 10],
+				[1, 1, 20],
+				[0, 0, 10],
+			],
+		};
+
+		expect(getRouteStopInputs(route)).toEqual([
+			{
+				label: "Start",
+				point: [0, 0],
+			},
+			{
+				label: "Turnaround",
+				point: [1, 1],
 			},
 		]);
 	});

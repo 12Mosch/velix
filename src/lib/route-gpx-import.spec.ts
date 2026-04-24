@@ -45,6 +45,20 @@ const closedLoopTrackGpx = `<?xml version="1.0" encoding="UTF-8"?>
     </trkseg>
   </trk>
 </gpx>`;
+const outAndBackGpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Velix tests" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="48.1374" lon="11.5755"><name>Marienplatz, Munich, Germany</name></wpt>
+  <wpt lat="47.7362" lon="11.8598"><name>Schliersee, Germany</name></wpt>
+  <trk>
+    <trkseg>
+      <trkpt lat="48.1374" lon="11.5755"><ele>520</ele></trkpt>
+      <trkpt lat="48.0200" lon="11.7000"><ele>575</ele></trkpt>
+      <trkpt lat="47.7362" lon="11.8598"><ele>785</ele></trkpt>
+      <trkpt lat="48.0200" lon="11.7000"><ele>575</ele></trkpt>
+      <trkpt lat="48.1374" lon="11.5755"><ele>520</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`;
 
 function expectImportError(
 	gpx: string,
@@ -187,5 +201,27 @@ describe("parseRouteGpx", () => {
 			distanceMeters: Math.round(route.distanceMeters),
 		});
 		expect(route.waypoints).toEqual([]);
+	});
+
+	it("preserves Velix-style exported out-and-back tracks", () => {
+		const route = parseRouteGpx(outAndBackGpx, {
+			filename: "out-and-back.gpx",
+		});
+
+		expect(route.mode).toBe("out_and_back");
+		expect(route.source).toEqual({
+			kind: "gpx_import",
+			filename: "out-and-back.gpx",
+			stopDerivation: "wpt",
+			hasDuration: false,
+		});
+		expect(route.startLabel).toBe("Marienplatz, Munich, Germany");
+		expect(route.destinationLabel).toBe("Schliersee, Germany");
+		expect(route.waypoints).toEqual([
+			{
+				label: "Schliersee, Germany",
+				coordinate: [11.8598, 47.7362],
+			},
+		]);
 	});
 });

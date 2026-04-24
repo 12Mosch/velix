@@ -31,9 +31,15 @@ function escapeXml(value: string): string {
 }
 
 function formatRouteTitle(route: PlannedRoute): string {
-	return route.mode === "round_course"
-		? `${route.startLabel} round course`
-		: `${route.startLabel} to ${route.destinationLabel}`;
+	if (route.mode === "round_course") {
+		return `${route.startLabel} round course`;
+	}
+
+	if (route.mode === "out_and_back") {
+		return `${route.startLabel} to ${route.destinationLabel} out and back`;
+	}
+
+	return `${route.startLabel} to ${route.destinationLabel}`;
 }
 
 function toSlugPart(value: string): string {
@@ -217,6 +223,10 @@ export function buildRouteGpxFilename(route: PlannedRoute): string {
 
 	if (!startSlug || !destinationSlug) {
 		return "velix-route.gpx";
+	}
+
+	if (route.mode === "out_and_back") {
+		return `${startSlug}-to-${destinationSlug}-out-and-back.gpx`;
 	}
 
 	return `${startSlug}-to-${destinationSlug}.gpx`;

@@ -183,6 +183,54 @@ describe("routes/+page.svelte", () => {
 			.not.toBeInTheDocument();
 	});
 
+	it("renders out-and-back saved routes with turnaround copy", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-out-and-back",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: {
+						mode: "out_and_back",
+						source: {
+							kind: "graphhopper",
+						},
+						startLabel: "Marienplatz, Munich, Germany",
+						destinationLabel: "Schliersee, Germany",
+						waypoints: [
+							{
+								label: "Schliersee, Germany",
+								coordinate: [11.8598, 47.7362, 785],
+							},
+						],
+						bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+						distanceMeters: 122468,
+						durationMs: 19752000,
+						ascendMeters: 1560,
+						descendMeters: 1560,
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.8598, 47.7362, 785],
+							[11.5755, 48.1374, 520],
+						],
+						surfaceDetails: [],
+						smoothnessDetails: [],
+					},
+				},
+			]),
+		);
+
+		render(RoutesPage);
+
+		await expect.element(page.getByText("Out and back")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("to Schliersee, Germany and back"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Target 122.5 km"))
+			.not.toBeInTheDocument();
+	});
+
 	it("renders duration and climb targets for round-course saved routes", async () => {
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,
