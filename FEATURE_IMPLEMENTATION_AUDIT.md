@@ -20,7 +20,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Derive a route from a saved route | Half | Saved routes can be reopened into the planner via `?savedRoute=...`; no explicit "derive from" workflow/version split. |
 | Import a GPX route and edit it | Half | GPX import exists and imported stops can be edited then rerouted; direct geometry editing is not implemented. |
 | Build a route from multiple waypoints | Half | Up to three intermediate waypoints are supported, not arbitrary multi-waypoint route building. |
-| Generate an out-and-back route | Missing | No out-and-back mode or share control. |
+| Generate an out-and-back route | Full | Out-and-back mode lets the user choose a start and turnaround point; GraphHopper routes the outbound leg and Velix mirrors the geometry back to start. |
 | Plan a route within a specific area or corridor | Missing | No area/corridor constraint controls. |
 
 ### 1.2 Routing modes
