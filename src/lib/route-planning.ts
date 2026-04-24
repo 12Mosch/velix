@@ -3,6 +3,7 @@ import type {
 	FeatureCollection,
 	LineString,
 	Point,
+	Polygon,
 	Position,
 } from "geojson";
 
@@ -35,11 +36,43 @@ export type RouteStopInput = {
 	point?: [number, number];
 };
 
+export type SpatialConstraintEnforcement = "strict" | "preferred";
+
+export type RouteSpatialConstraintInput =
+	| {
+			kind: "area";
+			center: RouteStopInput;
+			radiusMeters: number;
+			enforcement: SpatialConstraintEnforcement;
+	  }
+	| {
+			kind: "corridor";
+			widthMeters: number;
+			enforcement: SpatialConstraintEnforcement;
+	  };
+
+export type ResolvedRouteSpatialConstraint =
+	| {
+			kind: "area";
+			label: string;
+			center: [number, number];
+			radiusMeters: number;
+			enforcement: SpatialConstraintEnforcement;
+			polygon: [number, number][];
+	  }
+	| {
+			kind: "corridor";
+			widthMeters: number;
+			enforcement: SpatialConstraintEnforcement;
+			polygon: [number, number][];
+	  };
+
 export type PointToPointRouteRequestPayload = {
 	mode: "point_to_point";
 	start: RouteStopInput;
 	waypoints: RouteStopInput[];
 	destination: RouteStopInput;
+	spatialConstraint?: RouteSpatialConstraintInput;
 };
 
 export type RoundCourseTarget =
@@ -60,12 +93,14 @@ export type RoundCourseRouteRequestPayload = {
 	mode: "round_course";
 	start: RouteStopInput;
 	target: RoundCourseTarget;
+	spatialConstraint?: RouteSpatialConstraintInput;
 };
 
 export type OutAndBackRouteRequestPayload = {
 	mode: "out_and_back";
 	start: RouteStopInput;
 	turnaround: RouteStopInput;
+	spatialConstraint?: RouteSpatialConstraintInput;
 };
 
 export type RouteRequestPayload =
@@ -97,6 +132,7 @@ export type PlannedRoute = {
 	destinationLabel: string;
 	requestedDistanceMeters?: number;
 	roundCourseTarget?: RoundCourseTarget;
+	spatialConstraint?: ResolvedRouteSpatialConstraint;
 	routingProfile?: string;
 	routingStrategy?: string;
 	routingWarnings?: string[];
@@ -132,6 +168,7 @@ export type RouteFieldErrors = {
 	destinationQuery?: string;
 	waypointQueries?: string[];
 	roundCourseTarget?: string;
+	spatialConstraint?: string;
 };
 
 export type RouteApiError = {
@@ -148,6 +185,15 @@ type RouteFeatureProperties =
 			label: string;
 			order?: number;
 	  };
+
+type SpatialConstraintFeatureProperties = {
+	kind: "spatial_constraint";
+	constraintKind: ResolvedRouteSpatialConstraint["kind"];
+	enforcement: SpatialConstraintEnforcement;
+	label?: string;
+	radiusMeters?: number;
+	widthMeters?: number;
+};
 
 const smoothSurfaceValues = new Set([
 	"ASPHALT",
@@ -304,6 +350,45 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 	return {
 		type: "FeatureCollection",
 		features,
+	};
+}
+
+export function buildSpatialConstraintGeoJson(
+	constraint: ResolvedRouteSpatialConstraint,
+): FeatureCollection<Polygon, SpatialConstraintFeatureProperties> {
+	const firstPoint = constraint.polygon[0];
+	const lastPoint = constraint.polygon[constraint.polygon.length - 1];
+	const polygon =
+		firstPoint &&
+		lastPoint &&
+		(firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1])
+			? [...constraint.polygon, firstPoint]
+			: constraint.polygon;
+
+	return {
+		type: "FeatureCollection",
+		features: [
+			{
+				type: "Feature",
+				properties: {
+					kind: "spatial_constraint",
+					constraintKind: constraint.kind,
+					enforcement: constraint.enforcement,
+					...(constraint.kind === "area"
+						? {
+								label: constraint.label,
+								radiusMeters: constraint.radiusMeters,
+							}
+						: {
+								widthMeters: constraint.widthMeters,
+							}),
+				},
+				geometry: {
+					type: "Polygon",
+					coordinates: [polygon as Position[]],
+				},
+			},
+		],
 	};
 }
 

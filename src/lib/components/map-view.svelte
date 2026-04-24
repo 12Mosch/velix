@@ -26,6 +26,7 @@
 		initialZoom?: number;
 		ariaLabel?: string;
 		routeOverlays?: RouteMapOverlay[] | null;
+		constraintOverlay?: FeatureCollection | null;
 		fitBounds?: RouteBounds | null;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
 		currentLocation?: {
@@ -55,6 +56,9 @@
 
 	const defaultCenter = [11.394, 47.268] as [number, number];
 	const routeSourcePrefix = "planned-route";
+	const constraintSourceId = "route-constraint";
+	const constraintFillLayerId = "route-constraint-fill";
+	const constraintLineLayerId = "route-constraint-line";
 	const hoveredRouteSourceId = "planned-route-hover";
 	const hoveredRouteLayerId = "planned-route-hover-point";
 	const currentLocationSourceId = "current-location";
@@ -73,6 +77,7 @@
 		initialZoom = 10,
 		ariaLabel = "Route map",
 		routeOverlays = null,
+		constraintOverlay = null,
 		fitBounds = null,
 		hoveredRouteCoordinate = null,
 		currentLocation = null,
@@ -259,6 +264,10 @@
 		return map?.getSource(currentLocationSourceId) as GeoJSONSource | undefined;
 	}
 
+	function getConstraintSource() {
+		return map?.getSource(constraintSourceId) as GeoJSONSource | undefined;
+	}
+
 	function removeRouteOverlayById(overlayId: string) {
 		if (!map || !isStyleReady) {
 			return;
@@ -289,6 +298,22 @@
 		}
 
 		renderedRouteOverlayIds = [];
+	}
+
+	function removeConstraintOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		for (const layerId of [constraintLineLayerId, constraintFillLayerId]) {
+			if (map.getLayer(layerId)) {
+				map.removeLayer(layerId);
+			}
+		}
+
+		if (map.getSource(constraintSourceId)) {
+			map.removeSource(constraintSourceId);
+		}
 	}
 
 	function removeHoveredRouteOverlay() {
@@ -475,6 +500,67 @@
 		}
 
 		renderedRouteOverlayIds = routeOverlays.map((overlay) => overlay.id);
+	}
+
+	function ensureConstraintOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		if (!constraintOverlay) {
+			removeConstraintOverlay();
+			return;
+		}
+
+		const existingSource = getConstraintSource();
+
+		if (existingSource) {
+			existingSource.setData(constraintOverlay);
+		} else {
+			map.addSource(constraintSourceId, {
+				type: "geojson",
+				data: constraintOverlay,
+			});
+		}
+
+		if (!map.getLayer(constraintFillLayerId)) {
+			map.addLayer({
+				id: constraintFillLayerId,
+				type: "fill",
+				source: constraintSourceId,
+				paint: {
+					"fill-color": "rgba(14, 165, 233, 0.16)",
+					"fill-outline-color": "rgba(14, 116, 144, 0.28)",
+				},
+			});
+		}
+
+		if (!map.getLayer(constraintLineLayerId)) {
+			map.addLayer({
+				id: constraintLineLayerId,
+				type: "line",
+				source: constraintSourceId,
+				layout: {
+					"line-cap": "round",
+					"line-join": "round",
+				},
+				paint: {
+					"line-color": "rgba(8, 145, 178, 0.72)",
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						6,
+						1.2,
+						12,
+						2,
+						16,
+						3,
+					],
+					"line-dasharray": [2, 1.5],
+				},
+			});
+		}
 	}
 
 	function ensureHoveredRouteOverlay() {
@@ -702,6 +788,7 @@
 			return;
 		}
 
+		ensureConstraintOverlay();
 		ensureRouteOverlays();
 
 		if (fitBounds) {
@@ -935,6 +1022,7 @@
 			cancelSmoothResize();
 			resizeObserver?.disconnect();
 			removeRouteOverlays();
+			removeConstraintOverlay();
 			removeHoveredRouteOverlay();
 			removeCurrentLocationOverlay();
 			map?.remove();

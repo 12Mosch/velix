@@ -6,7 +6,7 @@ Status legend:
 - **Half**: there is visible or code-level support, but the implementation is incomplete, limited, or missing important expected behavior.
 - **Missing**: no meaningful implementation was found.
 
-Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
+Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
 
 ## 1. Routing & Route Builder
 
@@ -21,7 +21,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Import a GPX route and edit it | Half | GPX import exists and imported stops can be edited then rerouted; direct geometry editing is not implemented. |
 | Build a route from multiple waypoints | Half | Up to three intermediate waypoints are supported, not arbitrary multi-waypoint route building. |
 | Generate an out-and-back route | Full | Out-and-back mode lets the user choose a start and turnaround point; GraphHopper routes the outbound leg and Velix mirrors the geometry back to start. |
-| Plan a route within a specific area or corridor | Missing | No area/corridor constraint controls. |
+| Plan a route within a specific area or corridor | Full | Area center/radius and stop-chain corridor controls send GraphHopper custom-model area constraints with strict or preferred enforcement. |
 
 ### 1.2 Routing modes
 

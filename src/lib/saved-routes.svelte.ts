@@ -3,10 +3,12 @@ import { browser } from "$app/environment";
 import type {
 	ImportedRouteStopDerivation,
 	PlannedRoute,
+	ResolvedRouteSpatialConstraint,
 	RoundCourseTarget,
 	RouteSource,
 	RouteMode,
 	RouteWaypoint,
+	SpatialConstraintEnforcement,
 } from "$lib/route-planning";
 
 export const SAVED_ROUTES_STORAGE_KEY = "velix.savedRoutes";
@@ -47,6 +49,12 @@ function isRouteCoordinate(
 	}
 
 	return value.every(isFiniteNumber);
+}
+
+function isRoutePoint(value: unknown): value is [number, number] {
+	return (
+		Array.isArray(value) && value.length === 2 && value.every(isFiniteNumber)
+	);
 }
 
 function isRouteBounds(value: unknown): value is PlannedRoute["bounds"] {
@@ -95,6 +103,71 @@ function isRoundCourseTarget(value: unknown): value is RoundCourseTarget {
 	}
 
 	return false;
+}
+
+function isSpatialConstraintEnforcement(
+	value: unknown,
+): value is SpatialConstraintEnforcement {
+	return value === "strict" || value === "preferred";
+}
+
+function isSameRoutePoint(left: [number, number], right: [number, number]) {
+	return left[0] === right[0] && left[1] === right[1];
+}
+
+function normalizeSpatialConstraint(
+	value: unknown,
+): ResolvedRouteSpatialConstraint | undefined | null {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (!isRecord(value) || !isSpatialConstraintEnforcement(value.enforcement)) {
+		return null;
+	}
+
+	const polygon = value.polygon;
+	if (
+		!Array.isArray(polygon) ||
+		polygon.length < 4 ||
+		!polygon.every(isRoutePoint)
+	) {
+		return null;
+	}
+	const firstPoint = polygon[0];
+	const lastPoint = polygon[polygon.length - 1];
+
+	if (!firstPoint || !lastPoint || !isSameRoutePoint(firstPoint, lastPoint)) {
+		return null;
+	}
+
+	if (value.kind === "area") {
+		return typeof value.label === "string" &&
+			isRoutePoint(value.center) &&
+			isFiniteNumber(value.radiusMeters)
+			? {
+					kind: "area",
+					label: value.label,
+					center: value.center,
+					radiusMeters: value.radiusMeters,
+					enforcement: value.enforcement,
+					polygon,
+				}
+			: null;
+	}
+
+	if (value.kind === "corridor") {
+		return isFiniteNumber(value.widthMeters)
+			? {
+					kind: "corridor",
+					widthMeters: value.widthMeters,
+					enforcement: value.enforcement,
+					polygon,
+				}
+			: null;
+	}
+
+	return null;
 }
 
 function normalizeRouteSource(value: unknown): RouteSource | null {
@@ -152,6 +225,7 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 			: isRoundCourseTarget(value.roundCourseTarget)
 				? value.roundCourseTarget
 				: null;
+	const spatialConstraint = normalizeSpatialConstraint(value.spatialConstraint);
 
 	if (
 		source === null ||
@@ -159,6 +233,7 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		typeof value.destinationLabel !== "string" ||
 		requestedDistanceMeters === null ||
 		roundCourseTarget === null ||
+		spatialConstraint === null ||
 		(value.routingProfile !== undefined &&
 			typeof value.routingProfile !== "string") ||
 		(value.routingStrategy !== undefined &&
@@ -197,6 +272,7 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		startLabel: value.startLabel,
 		destinationLabel: value.destinationLabel,
 		roundCourseTarget,
+		spatialConstraint,
 		routingProfile:
 			typeof value.routingProfile === "string"
 				? value.routingProfile
@@ -238,6 +314,8 @@ export function isPlannedRoute(value: unknown): value is PlannedRoute {
 			isRoundCourseTarget(value.roundCourseTarget)) &&
 		(value.routingProfile === undefined ||
 			typeof value.routingProfile === "string") &&
+		(value.spatialConstraint === undefined ||
+			normalizeSpatialConstraint(value.spatialConstraint) !== null) &&
 		(value.routingStrategy === undefined ||
 			typeof value.routingStrategy === "string") &&
 		(value.routingWarnings === undefined ||

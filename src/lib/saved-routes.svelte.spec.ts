@@ -53,4 +53,25 @@ describe("normalizePlannedRoute", () => {
 			ascendMeters: 800,
 		});
 	});
+
+	it("rejects saved spatial constraints with an unclosed polygon ring", () => {
+		const route = normalizePlannedRoute({
+			...baseRoundCourseRoute,
+			spatialConstraint: {
+				kind: "area",
+				label: "Munich, Germany",
+				center: [11.5755, 48.1374],
+				radiusMeters: 30000,
+				enforcement: "strict",
+				polygon: [
+					[11.2, 48.0],
+					[11.9, 48.0],
+					[11.9, 48.3],
+					[11.2, 48.3],
+				],
+			},
+		});
+
+		expect(route).toBeNull();
+	});
 });

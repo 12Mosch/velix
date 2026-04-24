@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildRouteGeoJson,
+	buildSpatialConstraintGeoJson,
 	getRouteStopInputs,
 	getSurfaceMix,
 	getWaypointInsertionIndex,
@@ -109,6 +110,36 @@ describe("buildRouteGeoJson", () => {
 			kind: "waypoint",
 			label: "Turnaround",
 		});
+	});
+});
+
+describe("buildSpatialConstraintGeoJson", () => {
+	it("closes unclosed rings and emits presentation properties", () => {
+		const geoJson = buildSpatialConstraintGeoJson({
+			kind: "area",
+			label: "Munich, Germany",
+			center: [11.5755, 48.1374],
+			radiusMeters: 30000,
+			enforcement: "strict",
+			polygon: [
+				[11.2, 48.0],
+				[11.9, 48.0],
+				[11.9, 48.3],
+				[11.2, 48.3],
+			],
+		});
+		const feature = geoJson.features[0];
+
+		expect(feature?.properties).toMatchObject({
+			kind: "spatial_constraint",
+			constraintKind: "area",
+			enforcement: "strict",
+			label: "Munich, Germany",
+			radiusMeters: 30000,
+		});
+		expect(feature?.geometry.coordinates[0]?.at(-1)).toEqual(
+			feature?.geometry.coordinates[0]?.[0],
+		);
 	});
 });
 
