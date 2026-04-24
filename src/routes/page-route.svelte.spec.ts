@@ -64,6 +64,47 @@ const successfulRoutePayload = {
 	routes: [successfulRoute],
 	selectedRouteIndex: 0,
 };
+const successfulAreaConstrainedRoute = {
+	...successfulRoute,
+	spatialConstraint: {
+		kind: "area",
+		label: "Munich, Germany",
+		center: [11.5755, 48.1374],
+		radiusMeters: 30000,
+		enforcement: "strict",
+		polygon: [
+			[11.2, 48.0],
+			[11.9, 48.0],
+			[11.9, 48.3],
+			[11.2, 48.3],
+			[11.2, 48.0],
+		],
+	},
+};
+const successfulAreaConstrainedRoutePayload = {
+	routes: [successfulAreaConstrainedRoute],
+	selectedRouteIndex: 0,
+};
+const successfulCorridorConstrainedRoutePayload = {
+	routes: [
+		{
+			...successfulRoute,
+			spatialConstraint: {
+				kind: "corridor",
+				widthMeters: 12000,
+				enforcement: "preferred",
+				polygon: [
+					[11.5, 48.16],
+					[11.9, 47.76],
+					[11.82, 47.71],
+					[11.48, 48.12],
+					[11.5, 48.16],
+				],
+			},
+		},
+	],
+	selectedRouteIndex: 0,
+};
 const alternativeRoutePayload = {
 	routes: [
 		successfulRoute,
@@ -566,6 +607,149 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("button", { name: "Save Draft" }))
 			.toBeInTheDocument();
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("submits an area constraint and shows it on the generated route", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(successfulAreaConstrainedRoutePayload)),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Area" }).click();
+		await page.getByRole("textbox", { name: "Area center" }).fill("Mari");
+		await expect
+			.element(
+				page.getByRole("option", { name: "Marienplatz, Munich, Germany" }),
+			)
+			.toBeInTheDocument();
+		await page
+			.getByRole("option", { name: "Marienplatz, Munich, Germany" })
+			.click();
+		await page.getByRole("spinbutton", { name: "Radius" }).fill("30");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		const routeCall = fetchMock.mock.calls.find(
+			(call) => String(call[0]) === "/api/route",
+		);
+		expect(JSON.parse(String(routeCall?.[1]?.body))).toMatchObject({
+			spatialConstraint: {
+				kind: "area",
+				center: {
+					label: "Marienplatz, Munich, Germany",
+					point: [11.5755, 48.1374],
+				},
+				radiusMeters: 30000,
+				enforcement: "strict",
+			},
+		});
+		await expect
+			.element(page.getByText("Area: Munich, Germany, 30.0 km"))
+			.toBeInTheDocument();
+		expect(
+			page.getByText("Area: Munich, Germany, 30.0 km").element().closest("div")
+				?.textContent,
+		).toContain("Keep inside");
+		await expect
+			.poll(() =>
+				mapInstance.addSource.mock.calls.some(
+					(call) => call[0] === "route-constraint",
+				),
+			)
+			.toBe(true);
+	});
+
+	it("submits a point-to-point corridor constraint", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(successfulCorridorConstrainedRoutePayload)),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Corridor" }).click();
+		await page.getByRole("button", { name: "Prefer inside" }).click();
+		await page.getByRole("spinbutton", { name: "Width" }).fill("12");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		const routeCall = fetchMock.mock.calls.find(
+			(call) => String(call[0]) === "/api/route",
+		);
+		expect(JSON.parse(String(routeCall?.[1]?.body))).toMatchObject({
+			spatialConstraint: {
+				kind: "corridor",
+				widthMeters: 12000,
+				enforcement: "preferred",
+			},
+		});
+		await expect
+			.element(page.getByText("Corridor: 12.0 km"))
+			.toBeInTheDocument();
+		expect(
+			page.getByText("Corridor: 12.0 km").element().closest("div")?.textContent,
+		).toContain("Prefer inside");
+	});
+
+	it("disables corridor bounds when switching into round-course mode", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: "Corridor" }).click();
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Width" }))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: /Round course/i }).click();
+
+		await expect
+			.element(page.getByRole("button", { name: "Corridor" }))
+			.toBeDisabled();
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Width" }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "None" }))
+			.toHaveAttribute("aria-pressed", "true");
 	});
 
 	it("restores a saved route from the query string without recomputing it", async () => {
@@ -1191,6 +1375,39 @@ describe("+page.svelte", () => {
 			.toHaveValue(50);
 		await expect
 			.element(page.getByText("Returns to start"))
+			.toBeInTheDocument();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("restores saved route bounds from the query string", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-area-route",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulAreaConstrainedRoute,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-area-route");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.element(page.getByRole("button", { name: "Area" }))
+			.toHaveAttribute("aria-pressed", "true");
+		await expect
+			.element(page.getByRole("textbox", { name: "Area center" }))
+			.toHaveValue("Munich, Germany");
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Radius" }))
+			.toHaveValue(30);
+		await expect
+			.element(page.getByText("Area: Munich, Germany, 30.0 km"))
 			.toBeInTheDocument();
 		expect(fetchMock).not.toHaveBeenCalled();
 	});

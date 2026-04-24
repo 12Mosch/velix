@@ -174,6 +174,434 @@ describe("POST /api/route", () => {
 		expect(requestBody["alternative_route.max_share_factor"]).toBe(0.6);
 	});
 
+	it("sends point-to-point area constraints through the GraphHopper custom model", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "area",
+						center: {
+							label: "Oberland",
+							point: [11.72, 47.93],
+						},
+						radiusMeters: 90000,
+						enforcement: "strict",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.custom_model.areas.features[0]).toMatchObject({
+			id: "route_constraint",
+			geometry: {
+				type: "Polygon",
+			},
+		});
+		expect(
+			requestBody.custom_model.areas.features[0].geometry.coordinates[0],
+		).toHaveLength(49);
+		expect(requestBody.custom_model.priority.slice(0, 2)).toEqual([
+			{ if: "in_route_constraint", multiply_by: "1" },
+			{ else: "", multiply_by: "0" },
+		]);
+
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.spatialConstraint).toMatchObject({
+			kind: "area",
+			label: "Oberland",
+			center: [11.72, 47.93],
+			radiusMeters: 90000,
+			enforcement: "strict",
+		});
+	});
+
+	it("geocodes area centers before routing when only a label is supplied", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Munich",
+								country: "Germany",
+								point: {
+									lat: 48.1374,
+									lng: 11.5755,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				buildRouteResponse([
+					[11.5756, 48.1375, 522],
+					[11.8597, 47.7361, 784],
+				]),
+			);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "area",
+						center: {
+							label: "Munich",
+						},
+						radiusMeters: 90000,
+						enforcement: "preferred",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(String(fetchMock.mock.calls[0]?.[0])).toContain("geocode");
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+		expect(requestBody.custom_model.priority.slice(0, 2)).toEqual([
+			{ if: "in_route_constraint", multiply_by: "1" },
+			{ else: "", multiply_by: "0.08" },
+		]);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.spatialConstraint).toMatchObject({
+			kind: "area",
+			label: "Munich, Germany",
+			center: [11.5755, 48.1374],
+		});
+	});
+
+	it("defaults unknown area constraint enforcement to preferred", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "area",
+						center: {
+							label: "Oberland",
+							point: [11.72, 47.93],
+						},
+						radiusMeters: 90000,
+						enforcement: "unexpected",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.custom_model.priority.slice(0, 2)).toEqual([
+			{ if: "in_route_constraint", multiply_by: "1" },
+			{ else: "", multiply_by: "0.08" },
+		]);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.spatialConstraint?.enforcement).toBe("preferred");
+	});
+
+	it("rejects strict area constraints when route stops are outside the radius", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "area",
+						center: {
+							label: "Far away",
+							point: [0, 0],
+						},
+						radiusMeters: 1000,
+						enforcement: "strict",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Route stops must be inside the requested area.",
+			fieldErrors: {
+				spatialConstraint:
+					"Move the area or increase its radius so all stops are inside it.",
+			},
+		});
+	});
+
+	it("sends point-to-point corridor constraints as a closed custom-model polygon", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.7582, 47.7124, 734],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [
+						{
+							label: "Tegernsee, Germany",
+							point: [11.7581, 47.7123],
+						},
+					],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "corridor",
+						widthMeters: 10000,
+						enforcement: "strict",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		const ring =
+			requestBody.custom_model.areas.features[0].geometry.coordinates[0];
+		expect(ring.length).toBeGreaterThan(4);
+		expect(ring[0]).toEqual(ring.at(-1));
+		expect(requestBody.custom_model.priority[0]).toEqual({
+			if: "in_route_constraint",
+			multiply_by: "1",
+		});
+	});
+
+	it("supports corridor constraints for out-and-back routes", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "out_and_back",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					turnaround: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "corridor",
+						widthMeters: 12000,
+						enforcement: "preferred",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.custom_model.priority.slice(0, 2)).toEqual([
+			{ if: "in_route_constraint", multiply_by: "1" },
+			{ else: "", multiply_by: "0.08" },
+		]);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.spatialConstraint).toMatchObject({
+			kind: "corridor",
+			widthMeters: 12000,
+			enforcement: "preferred",
+		});
+	});
+
+	it("rejects corridor constraints for round-course routes", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Munich",
+					},
+					target: {
+						kind: "distance",
+						distanceMeters: 50000,
+					},
+					spatialConstraint: {
+						kind: "corridor",
+						widthMeters: 10000,
+						enforcement: "strict",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Start and a round-course target are required.",
+			fieldErrors: {
+				spatialConstraint:
+					"Corridor constraints are available for point-to-point and out-and-back routes.",
+			},
+		});
+	});
+
+	it("fails fast when a strict round-course area is too small for the target distance", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					target: {
+						kind: "distance",
+						distanceMeters: 10000,
+					},
+					spatialConstraint: {
+						kind: "area",
+						center: {
+							label: "Marienplatz, Munich, Germany",
+							point: [11.5755, 48.1374],
+						},
+						radiusMeters: 1000,
+						enforcement: "strict",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Increase the area radius or reduce the target distance.",
+			fieldErrors: {
+				spatialConstraint:
+					"Increase the area radius or reduce the target distance.",
+			},
+		});
+	});
+
+	it("does not fall back to unconstrained GraphHopper strategies for active constraints", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+			new Response("custom model rejected", {
+				status: 400,
+			}),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "area",
+						center: {
+							label: "Oberland",
+							point: [11.72, 47.93],
+						},
+						radiusMeters: 90000,
+						enforcement: "strict",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(502);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		const requestProfiles = fetchMock.mock.calls.map((call) => {
+			const body = JSON.parse(String(call[1]?.body));
+			expect(body.custom_model).toBeDefined();
+			return body.profile;
+		});
+		expect(requestProfiles).toEqual(["racingbike", "bike"]);
+	});
+
 	it("generates an out-and-back route by mirroring the outbound leg", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			buildRouteResponse([

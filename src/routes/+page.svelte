@@ -24,6 +24,7 @@
 	} from "$lib/saved-routes.svelte";
 	import {
 		buildRouteGeoJson,
+		buildSpatialConstraintGeoJson,
 		getRouteStopInputs,
 		getSurfaceMix,
 		getWaypointInsertionIndex,
@@ -37,9 +38,11 @@
 		type RouteMapOverlay,
 		type RouteMode,
 		type RouteRequestPayload,
+		type RouteSpatialConstraintInput,
 		type RouteStopInput,
 		type RouteSuggestion,
 		type RouteSuggestionsApiSuccess,
+		type SpatialConstraintEnforcement,
 	} from "$lib/route-planning";
 	import {
 		ArrowDown,
@@ -74,7 +77,9 @@
 	type CompletionTarget =
 		| { kind: "startQuery" }
 		| { kind: "destinationQuery" }
+		| { kind: "constraintCenter" }
 		| { kind: "waypoint"; index: number };
+	type SpatialConstraintKind = "none" | "area" | "corridor";
 	type SelectedMapStop =
 		| {
 				kind: "start" | "destination";
@@ -106,10 +111,17 @@
 	const completionDebounceMs = 250;
 	const desiredAlternativeRoutes = 3;
 	const gpxFileAccept = ".gpx,application/gpx+xml,application/xml,text/xml";
+	const defaultAreaRadiusKm = "30";
+	const defaultCorridorWidthKm = "10";
+	const defaultSpatialConstraintEnforcement: SpatialConstraintEnforcement =
+		"strict";
 	const sidebar = useSidebar();
 	const startCompletionTarget: CompletionTarget = { kind: "startQuery" };
 	const destinationCompletionTarget: CompletionTarget = {
 		kind: "destinationQuery",
+	};
+	const constraintCenterCompletionTarget: CompletionTarget = {
+		kind: "constraintCenter",
 	};
 	const plannerModeOptions: Array<{
 		mode: PlannerMode;
@@ -154,6 +166,12 @@
 	let roundCourseDistanceKm = $state("");
 	let roundCourseDurationInput = $state("");
 	let roundCourseAscendMeters = $state("");
+	let spatialConstraintKind = $state<SpatialConstraintKind>("none");
+	let spatialConstraintEnforcement =
+		$state<SpatialConstraintEnforcement>(defaultSpatialConstraintEnforcement);
+	let constraintCenterStop = $state<PlannerStop>(createPlannerStop());
+	let areaRadiusKm = $state(defaultAreaRadiusKm);
+	let corridorWidthKm = $state(defaultCorridorWidthKm);
 	let routeRequestError = $state<string | null>(null);
 	let routeImportError = $state<string | null>(null);
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
@@ -204,6 +222,11 @@
 			bounds: route.bounds,
 			isSelected: index === selectedRouteIndex,
 		})),
+	);
+	const constraintOverlay = $derived(
+		activeRoute?.spatialConstraint
+			? buildSpatialConstraintGeoJson(activeRoute.spatialConstraint)
+			: null,
 	);
 	const combinedRouteBounds = $derived(mergeRouteBounds(routeAlternatives));
 	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
@@ -532,6 +555,24 @@
 		return `${Math.round(target.ascendMeters).toLocaleString()} m up`;
 	}
 
+	function formatSpatialConstraintSummary(route: PlannedRoute): string | null {
+		if (!route.spatialConstraint) {
+			return null;
+		}
+
+		if (route.spatialConstraint.kind === "area") {
+			return `Area: ${route.spatialConstraint.label}, ${formatDistance(route.spatialConstraint.radiusMeters)}`;
+		}
+
+		return `Corridor: ${formatDistance(route.spatialConstraint.widthMeters)}`;
+	}
+
+	function formatSpatialConstraintEnforcement(
+		enforcement: SpatialConstraintEnforcement,
+	): string {
+		return enforcement === "strict" ? "Keep inside" : "Prefer inside";
+	}
+
 	function buildRoundCourseTargetRequest(): RoundCourseTarget {
 		if (roundCourseTargetKind === "duration") {
 			return {
@@ -551,6 +592,37 @@
 			kind: "distance",
 			distanceMeters: Number(roundCourseDistanceKm.replace(",", ".")) * 1000,
 		};
+	}
+
+	function buildSpatialConstraintRequest():
+		| RouteSpatialConstraintInput
+		| undefined {
+		if (spatialConstraintKind === "area") {
+			return {
+				kind: "area",
+				center: getRouteStopInput(constraintCenterStop),
+				radiusMeters: Number(areaRadiusKm.replace(",", ".")) * 1000,
+				enforcement: spatialConstraintEnforcement,
+			};
+		}
+
+		if (spatialConstraintKind === "corridor" && !isRoundCourseMode) {
+			return {
+				kind: "corridor",
+				widthMeters: Number(corridorWidthKm.replace(",", ".")) * 1000,
+				enforcement: spatialConstraintEnforcement,
+			};
+		}
+
+		return undefined;
+	}
+
+	function resetSpatialConstraintDefaults() {
+		spatialConstraintKind = "none";
+		spatialConstraintEnforcement = defaultSpatialConstraintEnforcement;
+		constraintCenterStop = createPlannerStop();
+		areaRadiusKm = defaultAreaRadiusKm;
+		corridorWidthKm = defaultCorridorWidthKm;
 	}
 
 	function syncStopsFromRoute(route: PlannedRoute) {
@@ -592,6 +664,28 @@
 			destination?.point,
 			destination?.point ? "suggestion" : "typed",
 		);
+
+		if (!route.spatialConstraint) {
+			resetSpatialConstraintDefaults();
+			return;
+		}
+
+		spatialConstraintKind = route.spatialConstraint.kind;
+		spatialConstraintEnforcement = route.spatialConstraint.enforcement;
+
+		if (route.spatialConstraint.kind === "area") {
+			constraintCenterStop = createPlannerStop(
+				route.spatialConstraint.label,
+				route.spatialConstraint.center,
+				"suggestion",
+			);
+			areaRadiusKm = formatDistanceInput(route.spatialConstraint.radiusMeters);
+			corridorWidthKm = defaultCorridorWidthKm;
+		} else {
+			constraintCenterStop = createPlannerStop();
+			areaRadiusKm = defaultAreaRadiusKm;
+			corridorWidthKm = formatDistanceInput(route.spatialConstraint.widthMeters);
+		}
 	}
 
 	function setRouteAlternativesState(
@@ -652,6 +746,10 @@
 		plannerMode = nextMode;
 		if (nextMode === "round_course") {
 			roundCourseTargetKind = "distance";
+			if (spatialConstraintKind === "corridor") {
+				resetSpatialConstraintDefaults();
+				clearSpatialConstraintError();
+			}
 		}
 		closeMapClickMenu();
 		clearModeSpecificFieldErrors(nextMode);
@@ -739,6 +837,55 @@
 	function updateRoundCourseAscend(value: string) {
 		roundCourseAscendMeters = value;
 		clearRoundCourseTargetError();
+		markPlannerEdited();
+	}
+
+	function clearSpatialConstraintError() {
+		if (!fieldErrors.spatialConstraint) {
+			return;
+		}
+
+		fieldErrors = {
+			...fieldErrors,
+			spatialConstraint: undefined,
+		};
+	}
+
+	function updateSpatialConstraintKind(value: SpatialConstraintKind) {
+		spatialConstraintKind = value;
+		clearSpatialConstraintError();
+		closeCompletionMenu();
+		markPlannerEdited();
+	}
+
+	function updateSpatialConstraintEnforcement(
+		value: SpatialConstraintEnforcement,
+	) {
+		spatialConstraintEnforcement = value;
+		clearSpatialConstraintError();
+		markPlannerEdited();
+	}
+
+	function setConstraintCenterStop(stop: PlannerStop) {
+		constraintCenterStop = stop;
+		clearSpatialConstraintError();
+		markPlannerEdited();
+	}
+
+	function updateConstraintCenterInput(value: string) {
+		setConstraintCenterStop(createPlannerStop(value));
+		scheduleCompletionLookup(constraintCenterCompletionTarget, value);
+	}
+
+	function updateAreaRadiusKm(value: string) {
+		areaRadiusKm = value;
+		clearSpatialConstraintError();
+		markPlannerEdited();
+	}
+
+	function updateCorridorWidthKm(value: string) {
+		corridorWidthKm = value;
+		clearSpatialConstraintError();
 		markPlannerEdited();
 	}
 
@@ -960,6 +1107,10 @@
 			return destinationStop.label;
 		}
 
+		if (target.kind === "constraintCenter") {
+			return constraintCenterStop.label;
+		}
+
 		return waypointStops[target.index]?.label ?? "";
 	}
 
@@ -1060,6 +1211,8 @@
 
 		if (target.kind === "waypoint") {
 			setWaypointStop(target.index, selectedStop);
+		} else if (target.kind === "constraintCenter") {
+			setConstraintCenterStop(selectedStop);
 		} else {
 			setFieldStop(target.kind, selectedStop);
 		}
@@ -1550,24 +1703,28 @@
 		fieldErrors = {};
 
 		try {
+			const spatialConstraint = buildSpatialConstraintRequest();
 			const routeRequest: RouteRequestPayload =
 				plannerMode === "round_course"
 					? {
 							mode: "round_course",
 							start: getRouteStopInput(startStop),
 							target: buildRoundCourseTargetRequest(),
+							...(spatialConstraint ? { spatialConstraint } : {}),
 						}
 					: plannerMode === "out_and_back"
 						? {
 								mode: "out_and_back",
 								start: getRouteStopInput(startStop),
 								turnaround: getRouteStopInput(destinationStop),
+								...(spatialConstraint ? { spatialConstraint } : {}),
 							}
 					: {
 							mode: "point_to_point",
 							start: getRouteStopInput(startStop),
 							waypoints: waypointStops.map((waypoint) => getRouteStopInput(waypoint)),
 							destination: getRouteStopInput(destinationStop),
+							...(spatialConstraint ? { spatialConstraint } : {}),
 						};
 			const response = await clientFetch("/api/route", {
 				method: "POST",
@@ -1708,6 +1865,7 @@
 		layoutState={sidebar.state}
 		onMapClick={handleMapClick}
 		routeOverlays={routeOverlays}
+		constraintOverlay={constraintOverlay}
 		fitBounds={combinedRouteBounds}
 		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
 		currentLocation={currentLocation}
@@ -2369,6 +2527,216 @@
 						{/if}
 					</div>
 
+					<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+						<div class="space-y-1">
+							<div class="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+								Route bounds
+							</div>
+							<div class="grid grid-cols-3 gap-2">
+								{#each [
+									{ kind: "none", label: "None" },
+									{ kind: "area", label: "Area" },
+									{ kind: "corridor", label: "Corridor" },
+								] as option}
+									<Button
+										type="button"
+										variant="outline"
+										class={`h-auto min-w-0 justify-center rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
+											spatialConstraintKind === option.kind
+												? "border-primary/20 bg-background shadow-sm"
+												: "text-muted-foreground"
+										}`}
+										aria-pressed={spatialConstraintKind === option.kind}
+										disabled={isRoundCourseMode && option.kind === "corridor"}
+										onclick={() =>
+											updateSpatialConstraintKind(option.kind as SpatialConstraintKind)}
+									>
+										{option.label}
+									</Button>
+								{/each}
+							</div>
+						</div>
+
+						{#if spatialConstraintKind !== "none"}
+							<div class="grid grid-cols-2 gap-2">
+								{#each [
+									{ enforcement: "strict", label: "Keep inside" },
+									{ enforcement: "preferred", label: "Prefer inside" },
+								] as option}
+									<Button
+										type="button"
+										variant="outline"
+										class={`h-auto min-w-0 justify-center rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
+											spatialConstraintEnforcement === option.enforcement
+												? "border-primary/20 bg-background shadow-sm"
+												: "text-muted-foreground"
+										}`}
+										aria-pressed={spatialConstraintEnforcement === option.enforcement}
+										onclick={() =>
+											updateSpatialConstraintEnforcement(
+												option.enforcement as SpatialConstraintEnforcement,
+											)}
+									>
+										{option.label}
+									</Button>
+								{/each}
+							</div>
+						{/if}
+
+						{#if spatialConstraintKind === "area"}
+							<div class="space-y-2">
+								<label
+									for="constraint-center"
+									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+								>
+									Area center
+								</label>
+								<div class="relative">
+									<MapPin
+										class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-sky-600 dark:text-sky-300"
+									/>
+									<Input
+										id="constraint-center"
+										value={constraintCenterStop.label}
+										placeholder="Enter area center..."
+										class="border-none bg-background pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+										autocomplete="off"
+										aria-autocomplete="list"
+										aria-controls={getCompletionListId(constraintCenterCompletionTarget)}
+										aria-expanded={isCompletionMenuVisible(
+											constraintCenterCompletionTarget,
+										)}
+										aria-activedescendant={getCompletionActiveDescendant(
+											constraintCenterCompletionTarget,
+										)}
+										aria-invalid={fieldErrors.spatialConstraint ? "true" : undefined}
+										onfocus={() => handleCompletionFocus(constraintCenterCompletionTarget)}
+										onblur={() => handleCompletionBlur(constraintCenterCompletionTarget)}
+										onkeydown={(event) =>
+											handleCompletionKeydown(event, constraintCenterCompletionTarget)}
+										oninput={(event) =>
+											updateConstraintCenterInput(
+												(event.currentTarget as HTMLInputElement).value,
+											)}
+									/>
+									{#if isCompletionMenuVisible(constraintCenterCompletionTarget)}
+										<div
+											class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
+										>
+											<div
+												id={getCompletionListId(constraintCenterCompletionTarget)}
+												role="listbox"
+												aria-label="Area center suggestions"
+												class="max-h-64 overflow-y-auto py-1"
+											>
+												{#if isCompletionLoading}
+													<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+														Searching places...
+													</div>
+												{:else if completionSuggestions.length > 0}
+													{#each completionSuggestions as suggestion, index (`constraint-${suggestion.label}-${index}`)}
+														<button
+															id={getCompletionOptionId(
+																constraintCenterCompletionTarget,
+																index,
+															)}
+															type="button"
+															role="option"
+															class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
+																completionHighlightedIndex === index
+																	? "bg-primary/10 text-foreground"
+																	: "text-foreground/90 hover:bg-secondary/65"
+															}`}
+															aria-selected={completionHighlightedIndex === index}
+															onpointerdown={(event) =>
+																handleCompletionSelection(
+																	event,
+																	constraintCenterCompletionTarget,
+																	suggestion,
+																)}
+														>
+															<span class="min-w-0 truncate">{suggestion.label}</span>
+															<MapPin class="size-3.5 shrink-0 text-muted-foreground" />
+														</button>
+													{/each}
+												{:else if isCompletionEmpty}
+													<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
+														No matches found.
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/if}
+								</div>
+								<label
+									for="area-radius"
+									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+								>
+									Radius
+								</label>
+								<div class="relative">
+									<Input
+										id="area-radius"
+										type="number"
+										min="1"
+										max="250"
+										step="1"
+										inputmode="decimal"
+										value={areaRadiusKm}
+										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
+										aria-invalid={fieldErrors.spatialConstraint ? "true" : undefined}
+										oninput={(event) =>
+											updateAreaRadiusKm(
+												(event.currentTarget as HTMLInputElement).value,
+											)}
+									/>
+									<span
+										class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+									>
+										km
+									</span>
+								</div>
+							</div>
+						{:else if spatialConstraintKind === "corridor"}
+							<div class="space-y-2">
+								<label
+									for="corridor-width"
+									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+								>
+									Width
+								</label>
+								<div class="relative">
+									<Input
+										id="corridor-width"
+										type="number"
+										min="2"
+										max="80"
+										step="1"
+										inputmode="decimal"
+										value={corridorWidthKm}
+										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
+										aria-invalid={fieldErrors.spatialConstraint ? "true" : undefined}
+										oninput={(event) =>
+											updateCorridorWidthKm(
+												(event.currentTarget as HTMLInputElement).value,
+											)}
+									/>
+									<span
+										class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+									>
+										km
+									</span>
+								</div>
+							</div>
+						{/if}
+
+						{#if fieldErrors.spatialConstraint}
+							<p class="text-xs font-medium text-destructive">
+								{fieldErrors.spatialConstraint}
+							</p>
+						{/if}
+					</div>
+
 					<Separator class="my-0.5" />
 
 					<div class="space-y-2.5">
@@ -2727,6 +3095,22 @@
 										to {activeRoute.destinationLabel}
 									</span>
 								{/if}
+								{#if activeRoute.spatialConstraint}
+									<Badge
+										variant="outline"
+										class="h-5 border-sky-500/25 bg-sky-500/8 px-2 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200"
+									>
+										{formatSpatialConstraintSummary(activeRoute)}
+									</Badge>
+									<Badge
+										variant="outline"
+										class="h-5 px-2 text-[10px] font-semibold uppercase tracking-wide"
+									>
+										{formatSpatialConstraintEnforcement(
+											activeRoute.spatialConstraint.enforcement,
+										)}
+									</Badge>
+								{/if}
 							</div>
 							{#if activeRoute.mode === "round_course" && activeRoundCourseTarget}
 								<span class="text-xs text-muted-foreground">
@@ -2975,6 +3359,21 @@
 											Resolved destination
 										</div>
 										<div class="font-medium text-foreground">{activeRoute.destinationLabel}</div>
+									</div>
+								{/if}
+								{#if activeRoute.spatialConstraint}
+									<div class="rounded-md border border-sky-500/20 bg-sky-500/8 px-2.5 py-2">
+										<div class="mb-1 font-semibold uppercase tracking-wide text-sky-900/70 dark:text-sky-100/70">
+											Route bounds
+										</div>
+										<div class="font-medium text-foreground">
+											{formatSpatialConstraintSummary(activeRoute)}
+										</div>
+										<div class="text-muted-foreground">
+											{formatSpatialConstraintEnforcement(
+												activeRoute.spatialConstraint.enforcement,
+											)}
+										</div>
 									</div>
 								{/if}
 								<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">

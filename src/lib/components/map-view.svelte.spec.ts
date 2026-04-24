@@ -62,6 +62,31 @@ const testCurrentLocation = {
 	point: [11.576, 48.138] as [number, number],
 	accuracyMeters: 18,
 };
+const testConstraintGeoJson: FeatureCollection = {
+	type: "FeatureCollection",
+	features: [
+		{
+			type: "Feature",
+			properties: {
+				kind: "spatial_constraint",
+				constraintKind: "area",
+				enforcement: "strict",
+			},
+			geometry: {
+				type: "Polygon",
+				coordinates: [
+					[
+						[11.48, 47.18],
+						[11.62, 47.18],
+						[11.62, 47.28],
+						[11.48, 47.28],
+						[11.48, 47.18],
+					],
+				],
+			},
+		},
+	],
+};
 const testRouteBounds = [11.5, 47.2, 11.6, 47.25] as const;
 function createAlternativeRouteGeoJson(): FeatureCollection {
 	const geoJson = JSON.parse(
@@ -304,6 +329,62 @@ describe("MapView", () => {
 		expect(mapMock).toHaveBeenCalledTimes(1);
 		expect(mapInstance.addLayer.mock.calls.at(-1)?.[0].id).toBe(
 			"planned-route-hover-point",
+		);
+	});
+
+	it("adds and removes the constraint overlay", async () => {
+		const view = render(MapView, {
+			constraintOverlay: testConstraintGeoJson,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(mapInstance.addSource).toHaveBeenCalledWith(
+			"route-constraint",
+			expect.objectContaining({
+				type: "geojson",
+				data: testConstraintGeoJson,
+			}),
+		);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
+			"route-constraint-fill",
+			"route-constraint-line",
+		]);
+
+		await view.rerender({
+			constraintOverlay: null,
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.removeSource.mock.calls.some(
+					(call) => call[0] === "route-constraint",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
+			"route-constraint-line",
+		);
+		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
+			"route-constraint-fill",
+		);
+	});
+
+	it("re-adds the constraint overlay after a basemap style change", async () => {
+		render(MapView, {
+			constraintOverlay: testConstraintGeoJson,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
+
+		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
+		expect(mapInstance.addSource.mock.calls.at(-1)?.[0]).toBe(
+			"route-constraint",
+		);
+		expect(mapInstance.addLayer.mock.calls.at(-1)?.[0].id).toBe(
+			"route-constraint-line",
 		);
 	});
 

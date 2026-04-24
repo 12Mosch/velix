@@ -4,14 +4,17 @@ import type { RequestHandler } from "./$types";
 
 import type {
 	PlannedRoute,
+	ResolvedRouteSpatialConstraint,
 	RoundCourseTarget,
 	RouteApiError,
 	RouteCoordinate,
 	RouteDetailInterval,
 	RouteMode,
 	RouteRequestPayload,
+	RouteSpatialConstraintInput,
 	RouteStopInput,
 	RouteWaypoint,
+	SpatialConstraintEnforcement,
 } from "$lib/route-planning";
 import {
 	geocodeLocation,
@@ -38,6 +41,29 @@ type GraphHopperRouteResponse = {
 	paths?: GraphHopperPath[];
 };
 
+type GraphHopperPriorityRule = {
+	if?: string;
+	else?: string;
+	multiply_by: string;
+};
+
+type GraphHopperCustomModel = {
+	priority: GraphHopperPriorityRule[];
+	distance_influence: number;
+	areas?: {
+		type: "FeatureCollection";
+		features: Array<{
+			type: "Feature";
+			id: string;
+			properties: Record<string, never>;
+			geometry: {
+				type: "Polygon";
+				coordinates: [number, number][][];
+			};
+		}>;
+	};
+};
+
 type GraphHopperRouteRequestBody = {
 	profile: "bike" | "racingbike";
 	points: [number, number][];
@@ -48,7 +74,7 @@ type GraphHopperRouteRequestBody = {
 	details: typeof routeDetailKeys;
 	snap_preventions?: string[];
 	"ch.disable"?: true;
-	custom_model?: typeof roadBikeCustomModel;
+	custom_model?: GraphHopperCustomModel;
 	algorithm?: "round_trip" | "alternative_route";
 	"round_trip.distance"?: number;
 	"round_trip.seed"?: number;
@@ -113,6 +139,7 @@ type RouteRequestOptions = {
 	roundTripDistanceMeters?: number;
 	roundTripSeed?: number;
 	roundCourseTarget?: RoundCourseTarget;
+	spatialConstraint?: ResolvedRouteSpatialConstraint;
 	alternativeMaxPaths?: number;
 	alternativeMaxWeightFactor?: number;
 	alternativeMaxShareFactor?: number;
@@ -137,44 +164,90 @@ const roundCourseSearchSeeds = [
 	[11, 37, 73],
 	[109, 149, 191],
 ] as const;
+const minAreaRadiusMeters = 1_000;
+const maxAreaRadiusMeters = 250_000;
+const minCorridorWidthMeters = 2_000;
+const maxCorridorWidthMeters = 80_000;
+const areaPolygonSegments = 48;
+const earthRadiusMeters = 6_371_008.8;
 
-const roadBikeCustomModel = {
-	priority: [
-		{
-			if: "road_access == PRIVATE",
-			multiply_by: "0",
-		},
-		{
-			if: "road_environment == FERRY || road_environment == TUNNEL",
-			multiply_by: "0.05",
-		},
-		{
-			if: "road_class == TRACK || road_class == PATH || road_class == FOOTWAY || road_class == STEPS",
-			multiply_by: "0.02",
-		},
-		{
-			if: "road_class == TRUNK || road_class == PRIMARY",
-			multiply_by: "0.3",
-		},
-		{
-			if: "road_class == LIVING_STREET || road_class == RESIDENTIAL || road_class == SERVICE",
-			multiply_by: "0.7",
-		},
-		{
-			if: "surface == DIRT || surface == GROUND || surface == GRAVEL || surface == SAND || surface == MUD || surface == GRASS || surface == EARTH || surface == UNPAVED",
-			multiply_by: "0.02",
-		},
-		{
-			if: "surface == COBBLESTONE || surface == SETT || surface == UNHEWN_COBBLESTONE || surface == PAVING_STONES",
-			multiply_by: "0.2",
-		},
-		{
-			if: "smoothness == BAD || smoothness == VERY_BAD || smoothness == HORRIBLE || smoothness == VERY_HORRIBLE || smoothness == IMPASSABLE",
-			multiply_by: "0.1",
-		},
-	],
-	distance_influence: 55,
-} as const;
+const roadBikePriorityRules: GraphHopperPriorityRule[] = [
+	{
+		if: "road_access == PRIVATE",
+		multiply_by: "0",
+	},
+	{
+		if: "road_environment == FERRY || road_environment == TUNNEL",
+		multiply_by: "0.05",
+	},
+	{
+		if: "road_class == TRACK || road_class == PATH || road_class == FOOTWAY || road_class == STEPS",
+		multiply_by: "0.02",
+	},
+	{
+		if: "road_class == TRUNK || road_class == PRIMARY",
+		multiply_by: "0.3",
+	},
+	{
+		if: "road_class == LIVING_STREET || road_class == RESIDENTIAL || road_class == SERVICE",
+		multiply_by: "0.7",
+	},
+	{
+		if: "surface == DIRT || surface == GROUND || surface == GRAVEL || surface == SAND || surface == MUD || surface == GRASS || surface == EARTH || surface == UNPAVED",
+		multiply_by: "0.02",
+	},
+	{
+		if: "surface == COBBLESTONE || surface == SETT || surface == UNHEWN_COBBLESTONE || surface == PAVING_STONES",
+		multiply_by: "0.2",
+	},
+	{
+		if: "smoothness == BAD || smoothness == VERY_BAD || smoothness == HORRIBLE || smoothness == VERY_HORRIBLE || smoothness == IMPASSABLE",
+		multiply_by: "0.1",
+	},
+];
+
+function buildRoadBikeCustomModel(
+	spatialConstraint?: ResolvedRouteSpatialConstraint,
+): GraphHopperCustomModel {
+	const priority: GraphHopperPriorityRule[] = spatialConstraint
+		? [
+				{
+					if: "in_route_constraint",
+					multiply_by: "1",
+				},
+				{
+					else: "",
+					multiply_by:
+						spatialConstraint.enforcement === "strict" ? "0" : "0.08",
+				},
+				...roadBikePriorityRules,
+			]
+		: [...roadBikePriorityRules];
+
+	return {
+		priority,
+		distance_influence: 55,
+		...(spatialConstraint
+			? {
+					areas: {
+						type: "FeatureCollection" as const,
+						features: [
+							{
+								type: "Feature" as const,
+								id: "route_constraint",
+								properties: {},
+								geometry: {
+									type: "Polygon" as const,
+									coordinates: [spatialConstraint.polygon],
+								},
+							},
+						],
+					},
+				}
+			: {}),
+	};
+}
+
 const routeRequestStrategies: RouteRequestStrategy[] = [
 	{
 		profile: "racingbike",
@@ -255,6 +328,375 @@ function normalizeFiniteNumber(value: unknown): number | null {
 	}
 
 	return null;
+}
+
+function normalizeSpatialConstraintEnforcement(
+	value: unknown,
+): SpatialConstraintEnforcement {
+	return value === "strict" ? "strict" : "preferred";
+}
+
+function normalizeSpatialConstraintInput(
+	payloadRecord: Record<string, unknown>,
+	mode: RouteMode,
+): {
+	constraint?: RouteSpatialConstraintInput;
+	error?: string;
+} {
+	const rawConstraint = payloadRecord.spatialConstraint;
+
+	if (rawConstraint === undefined || rawConstraint === null) {
+		return {};
+	}
+
+	if (!isRecord(rawConstraint) || typeof rawConstraint.kind !== "string") {
+		return {
+			error: "Choose an area or corridor constraint.",
+		};
+	}
+
+	const enforcement = normalizeSpatialConstraintEnforcement(
+		rawConstraint.enforcement,
+	);
+
+	if (rawConstraint.kind === "area") {
+		const center = normalizeStopInput(rawConstraint.center);
+		const radiusMeters = normalizeFiniteNumber(rawConstraint.radiusMeters);
+
+		if (!center.label && !center.point) {
+			return {
+				error: "Enter an area center.",
+			};
+		}
+
+		if (
+			radiusMeters === null ||
+			radiusMeters < minAreaRadiusMeters ||
+			radiusMeters > maxAreaRadiusMeters
+		) {
+			return {
+				error: "Enter an area radius from 1 to 250 km.",
+			};
+		}
+
+		return {
+			constraint: {
+				kind: "area",
+				center,
+				radiusMeters,
+				enforcement,
+			},
+		};
+	}
+
+	if (rawConstraint.kind === "corridor") {
+		if (mode === "round_course") {
+			return {
+				error:
+					"Corridor constraints are available for point-to-point and out-and-back routes.",
+			};
+		}
+
+		const widthMeters = normalizeFiniteNumber(rawConstraint.widthMeters);
+
+		if (
+			widthMeters === null ||
+			widthMeters < minCorridorWidthMeters ||
+			widthMeters > maxCorridorWidthMeters
+		) {
+			return {
+				error: "Enter a corridor width from 2 to 80 km.",
+			};
+		}
+
+		return {
+			constraint: {
+				kind: "corridor",
+				widthMeters,
+				enforcement,
+			},
+		};
+	}
+
+	return {
+		error: "Choose an area or corridor constraint.",
+	};
+}
+
+function toRadians(degrees: number): number {
+	return (degrees * Math.PI) / 180;
+}
+
+function toDegrees(radians: number): number {
+	return (radians * 180) / Math.PI;
+}
+
+function getDistanceMeters(left: [number, number], right: [number, number]) {
+	const leftLat = toRadians(left[1]);
+	const rightLat = toRadians(right[1]);
+	const deltaLat = toRadians(right[1] - left[1]);
+	const deltaLng = toRadians(right[0] - left[0]);
+	const a =
+		Math.sin(deltaLat / 2) ** 2 +
+		Math.cos(leftLat) * Math.cos(rightLat) * Math.sin(deltaLng / 2) ** 2;
+
+	return (
+		earthRadiusMeters *
+		2 *
+		Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)))
+	);
+}
+
+function isSamePoint(left: [number, number], right: [number, number]) {
+	return left[0] === right[0] && left[1] === right[1];
+}
+
+function closePolygonRing(points: [number, number][]): [number, number][] {
+	const firstPoint = points[0];
+	const lastPoint = points[points.length - 1];
+
+	if (!firstPoint) {
+		return [];
+	}
+
+	if (lastPoint && isSamePoint(firstPoint, lastPoint)) {
+		return points;
+	}
+
+	return [...points, firstPoint];
+}
+
+function getRingSignedArea(points: [number, number][]): number {
+	let area = 0;
+
+	for (let index = 0; index < points.length - 1; index += 1) {
+		const point = points[index];
+		const nextPoint = points[index + 1];
+
+		if (!point || !nextPoint) {
+			continue;
+		}
+
+		area += point[0] * nextPoint[1] - nextPoint[0] * point[1];
+	}
+
+	return area / 2;
+}
+
+function ensureCounterClockwiseRing(
+	points: [number, number][],
+): [number, number][] {
+	const closedRing = closePolygonRing(points);
+	const openRing = closedRing.slice(0, -1);
+
+	if (getRingSignedArea(closedRing) >= 0) {
+		return closedRing;
+	}
+
+	return closePolygonRing([...openRing].reverse());
+}
+
+function buildAreaPolygon(
+	center: [number, number],
+	radiusMeters: number,
+): [number, number][] {
+	const centerLng = toRadians(center[0]);
+	const centerLat = toRadians(center[1]);
+	const angularDistance = radiusMeters / earthRadiusMeters;
+	const coordinates: [number, number][] = [];
+
+	for (let index = 0; index < areaPolygonSegments; index += 1) {
+		const bearing = (2 * Math.PI * index) / areaPolygonSegments;
+		const lat = Math.asin(
+			Math.sin(centerLat) * Math.cos(angularDistance) +
+				Math.cos(centerLat) * Math.sin(angularDistance) * Math.cos(bearing),
+		);
+		const lng =
+			centerLng +
+			Math.atan2(
+				Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(centerLat),
+				Math.cos(angularDistance) - Math.sin(centerLat) * Math.sin(lat),
+			);
+
+		coordinates.push([toDegrees(lng), toDegrees(lat)]);
+	}
+
+	return ensureCounterClockwiseRing(coordinates);
+}
+
+function getProjectionOrigin(points: [number, number][]) {
+	const lng =
+		points.reduce((sum, point) => sum + point[0], 0) /
+		Math.max(points.length, 1);
+	const lat =
+		points.reduce((sum, point) => sum + point[1], 0) /
+		Math.max(points.length, 1);
+
+	return {
+		lng,
+		lat,
+		cosLat: Math.cos(toRadians(lat)),
+	};
+}
+
+function buildCorridorPolygon(
+	points: [number, number][],
+	widthMeters: number,
+): [number, number][] {
+	const uniquePoints = points.filter((point, index) => {
+		const previousPoint = points[index - 1];
+		return !previousPoint || getDistanceMeters(previousPoint, point) > 1;
+	});
+	const fallbackPoint =
+		uniquePoints[0] ?? points[0] ?? ([0, 0] as [number, number]);
+	const controlPoints: [number, number][] =
+		uniquePoints.length >= 2
+			? uniquePoints
+			: [fallbackPoint, [fallbackPoint[0] + 0.0001, fallbackPoint[1]]];
+	const origin = getProjectionOrigin(controlPoints);
+	const halfWidthMeters = widthMeters / 2;
+	const projected = controlPoints.map((point) => ({
+		x:
+			toRadians(point[0] - origin.lng) *
+			earthRadiusMeters *
+			Math.max(origin.cosLat, 1e-6),
+		y: toRadians(point[1] - origin.lat) * earthRadiusMeters,
+	}));
+	const segments = projected.slice(0, -1).map((point, index) => {
+		const nextPoint = projected[index + 1] ?? point;
+		const dx = nextPoint.x - point.x;
+		const dy = nextPoint.y - point.y;
+		const length = Math.hypot(dx, dy) || 1;
+		const unit = {
+			x: dx / length,
+			y: dy / length,
+		};
+
+		return {
+			unit,
+			normal: {
+				x: -unit.y,
+				y: unit.x,
+			},
+		};
+	});
+	const left: Array<{ x: number; y: number }> = [];
+	const right: Array<{ x: number; y: number }> = [];
+
+	for (const [index, point] of projected.entries()) {
+		const previousSegment = segments[Math.max(0, index - 1)] ?? segments[0];
+		const nextSegment =
+			segments[Math.min(index, segments.length - 1)] ?? previousSegment;
+		const summedNormal = {
+			x: (previousSegment?.normal.x ?? 0) + (nextSegment?.normal.x ?? 0),
+			y: (previousSegment?.normal.y ?? 0) + (nextSegment?.normal.y ?? 0),
+		};
+		const summedLength = Math.hypot(summedNormal.x, summedNormal.y);
+		const miter =
+			summedLength > 1e-6
+				? {
+						x: summedNormal.x / summedLength,
+						y: summedNormal.y / summedLength,
+					}
+				: (nextSegment?.normal ?? { x: 0, y: 1 });
+		const denominator =
+			miter.x * (nextSegment?.normal.x ?? 0) +
+			miter.y * (nextSegment?.normal.y ?? 0);
+		const miterLength =
+			Math.abs(denominator) > 1e-6
+				? Math.min(Math.abs(halfWidthMeters / denominator), halfWidthMeters * 2)
+				: halfWidthMeters;
+		const offset = {
+			x: miter.x * miterLength,
+			y: miter.y * miterLength,
+		};
+
+		left.push({
+			x: point.x + offset.x,
+			y: point.y + offset.y,
+		});
+		right.push({
+			x: point.x - offset.x,
+			y: point.y - offset.y,
+		});
+	}
+
+	const unproject = (point: { x: number; y: number }): [number, number] => [
+		origin.lng +
+			toDegrees(point.x / (earthRadiusMeters * Math.max(origin.cosLat, 1e-6))),
+		origin.lat + toDegrees(point.y / earthRadiusMeters),
+	];
+	return ensureCounterClockwiseRing(
+		[...right.reverse(), ...left].map(unproject),
+	);
+}
+
+async function resolveSpatialConstraint(
+	fetchFn: typeof fetch,
+	input: RouteSpatialConstraintInput | undefined,
+	routePoints: [number, number][],
+): Promise<{
+	constraint?: ResolvedRouteSpatialConstraint;
+	error?: string;
+	status?: number;
+	fieldError?: string;
+}> {
+	if (!input) {
+		return {};
+	}
+
+	if (input.kind === "area") {
+		const resolvedCenter = input.center.point
+			? {
+					label: input.center.label || "Selected area center",
+					point: input.center.point,
+				}
+			: await geocodeLocation(fetchFn, input.center.label);
+
+		if (!resolvedCenter?.point) {
+			return {
+				status: 422,
+				error: "We couldn't resolve the area center.",
+				fieldError: "We couldn't resolve that area center.",
+			};
+		}
+		const resolvedCenterPoint = resolvedCenter.point;
+
+		if (
+			input.enforcement === "strict" &&
+			routePoints.some(
+				(point) =>
+					getDistanceMeters(point, resolvedCenterPoint) > input.radiusMeters,
+			)
+		) {
+			return {
+				status: 400,
+				error: "Route stops must be inside the requested area.",
+				fieldError:
+					"Move the area or increase its radius so all stops are inside it.",
+			};
+		}
+
+		return {
+			constraint: {
+				kind: "area",
+				label: resolvedCenter.label,
+				center: resolvedCenterPoint,
+				radiusMeters: input.radiusMeters,
+				enforcement: input.enforcement,
+				polygon: buildAreaPolygon(resolvedCenterPoint, input.radiusMeters),
+			},
+		};
+	}
+
+	return {
+		constraint: {
+			kind: "corridor",
+			widthMeters: input.widthMeters,
+			enforcement: input.enforcement,
+			polygon: buildCorridorPolygon(routePoints, input.widthMeters),
+		},
+	};
 }
 
 function clampRoundCourseDistanceMeters(distanceMeters: number): number {
@@ -610,6 +1052,7 @@ function normalizeGraphHopperPath(
 			destinationLabel: "",
 			roundCourseTarget:
 				options.mode === "round_course" ? options.roundCourseTarget : undefined,
+			spatialConstraint: options.spatialConstraint,
 			routingProfile: selectedStrategy.profile,
 			routingStrategy: selectedStrategy.routingStrategy,
 			routingWarnings: [...selectedStrategy.routingWarnings],
@@ -631,6 +1074,7 @@ async function searchRoundCourseRoutes(
 	fetchFn: typeof fetch,
 	startPoint: [number, number],
 	target: RoundCourseTarget,
+	spatialConstraint?: ResolvedRouteSpatialConstraint,
 	desiredCount = desiredAlternativeRoutes,
 ): Promise<PlannedRoute[]> {
 	let baseDistanceMeters = clampRoundCourseDistanceMeters(
@@ -653,6 +1097,7 @@ async function searchRoundCourseRoutes(
 					roundTripDistanceMeters: requestedDistanceMeters,
 					roundTripSeed: seeds[candidateIndex],
 					roundCourseTarget: target,
+					spatialConstraint,
 				}).then(({ routes }) =>
 					routes.map((route, routeIndex) => ({
 						route,
@@ -786,7 +1231,9 @@ async function requestRoutes(
 		if (strategy.useCustomModel) {
 			requestBody.snap_preventions = ["ferry", "tunnel"];
 			requestBody["ch.disable"] = true;
-			requestBody.custom_model = roadBikeCustomModel;
+			requestBody.custom_model = buildRoadBikeCustomModel(
+				options.spatialConstraint,
+			);
 		}
 
 		if (options.mode === "round_course") {
@@ -832,8 +1279,11 @@ async function requestRoutes(
 	let payload: GraphHopperRouteResponse | null = null;
 	let selectedStrategy: RouteRequestStrategy | null = null;
 	let lastError: unknown = null;
+	const strategies = options.spatialConstraint
+		? routeRequestStrategies.filter((strategy) => strategy.useCustomModel)
+		: routeRequestStrategies;
 
-	for (const strategy of routeRequestStrategies) {
+	for (const strategy of strategies) {
 		try {
 			payload = await sendRouteRequest(buildRouteRequestBody(strategy));
 			selectedStrategy = strategy;
@@ -907,6 +1357,7 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 		"destination" in payloadRecord ||
 		"turnaround" in payloadRecord ||
 		"target" in payloadRecord ||
+		"spatialConstraint" in payloadRecord ||
 		"requestedDistanceMeters" in payloadRecord ||
 		"mode" in payloadRecord;
 	const structuredPayload = hasStructuredPayload
@@ -931,6 +1382,15 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 		structuredPayload ? structuredPayload.start : legacyPayload?.startQuery,
 	);
 	const fieldErrors: RouteApiError["fieldErrors"] = {};
+	const spatialConstraintResult = normalizeSpatialConstraintInput(
+		payloadRecord,
+		requestedMode,
+	);
+	const spatialConstraintInput = spatialConstraintResult.constraint;
+
+	if (spatialConstraintResult.error) {
+		fieldErrors.spatialConstraint = spatialConstraintResult.error;
+	}
 
 	if (requestedMode === "round_course") {
 		const roundCourseTarget = normalizeRoundCourseTarget(payloadRecord);
@@ -964,6 +1424,24 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			);
 		}
 
+		if (
+			roundCourseTarget &&
+			spatialConstraintInput?.kind === "area" &&
+			spatialConstraintInput.enforcement === "strict" &&
+			roundCourseTarget.kind === "distance" &&
+			roundCourseTarget.distanceMeters >
+				2 * Math.PI * spatialConstraintInput.radiusMeters
+		) {
+			return errorResponse(
+				400,
+				"Increase the area radius or reduce the target distance.",
+				{
+					spatialConstraint:
+						"Increase the area radius or reduce the target distance.",
+				},
+			);
+		}
+
 		try {
 			const resolvedStart = startInput.point
 				? {
@@ -978,10 +1456,27 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 				});
 			}
 
+			const resolvedSpatialConstraint = await resolveSpatialConstraint(
+				fetch,
+				spatialConstraintInput,
+				[resolvedStart.point],
+			);
+
+			if (resolvedSpatialConstraint.fieldError) {
+				return errorResponse(
+					resolvedSpatialConstraint.status ?? 400,
+					resolvedSpatialConstraint.error ?? "Route bounds are invalid.",
+					{
+						spatialConstraint: resolvedSpatialConstraint.fieldError,
+					},
+				);
+			}
+
 			const routes = await searchRoundCourseRoutes(
 				fetch,
 				resolvedStart.point,
 				roundCourseTarget as RoundCourseTarget,
+				resolvedSpatialConstraint.constraint,
 			);
 			const normalizedRoutes = dedupeRoutes(routes).map((route) => ({
 				...route,
@@ -1095,11 +1590,28 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			const routePoints = resolvedStops.map(
 				(stop) => stop.point as [number, number],
 			);
+			const resolvedSpatialConstraint = await resolveSpatialConstraint(
+				fetch,
+				spatialConstraintInput,
+				routePoints,
+			);
+
+			if (resolvedSpatialConstraint.fieldError) {
+				return errorResponse(
+					resolvedSpatialConstraint.status ?? 400,
+					resolvedSpatialConstraint.error ?? "Route bounds are invalid.",
+					{
+						spatialConstraint: resolvedSpatialConstraint.fieldError,
+					},
+				);
+			}
+
 			const { routes, snappedWaypointSets } = await requestRoutes(
 				fetch,
 				routePoints,
 				{
 					mode: "out_and_back",
+					spatialConstraint: resolvedSpatialConstraint.constraint,
 					alternativeMaxPaths: desiredAlternativeRoutes,
 					alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
 					alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
@@ -1283,11 +1795,28 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 		const routePoints = resolvedStops.map(
 			(stop) => stop.point as [number, number],
 		);
+		const resolvedSpatialConstraint = await resolveSpatialConstraint(
+			fetch,
+			spatialConstraintInput,
+			routePoints,
+		);
+
+		if (resolvedSpatialConstraint.fieldError) {
+			return errorResponse(
+				resolvedSpatialConstraint.status ?? 400,
+				resolvedSpatialConstraint.error ?? "Route bounds are invalid.",
+				{
+					spatialConstraint: resolvedSpatialConstraint.fieldError,
+				},
+			);
+		}
+
 		const { routes, snappedWaypointSets } = await requestRoutes(
 			fetch,
 			routePoints,
 			{
 				mode: "point_to_point",
+				spatialConstraint: resolvedSpatialConstraint.constraint,
 				alternativeMaxPaths: desiredAlternativeRoutes,
 				alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
 				alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
