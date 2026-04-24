@@ -6,7 +6,7 @@ Status legend:
 - **Half**: there is visible or code-level support, but the implementation is incomplete, limited, or missing important expected behavior.
 - **Missing**: no meaningful implementation was found.
 
-Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
+Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
 
 ## 1. Routing & Route Builder
 
@@ -18,9 +18,9 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Set a destination via search, map click, or current location | Full | Destination input supports search suggestions, map-click assignment, and explicit browser geolocation in point-to-point mode. |
 | Create a loop instead of a point-to-point route | Full | Round-course mode generates loop routes. |
 | Derive a route from a saved route | Half | Saved routes can be reopened into the planner via `?savedRoute=...`; no explicit "derive from" workflow/version split. |
-| Import a GPX route and edit it | Half | GPX import exists and imported stops can be edited then rerouted; direct geometry editing is not implemented. |
-| Build a route from multiple waypoints | Half | Up to three intermediate waypoints are supported, not arbitrary multi-waypoint route building. |
-| Generate an out-and-back route | Full | Out-and-back mode lets the user choose a start and turnaround point; GraphHopper routes the outbound leg and Velix mirrors the geometry back to start. |
+| Import a GPX route and edit it | Full | GPX import exists; imported stops can be edited, map-dragged, and rerouted through the standard manual editing flow. |
+| Build a route from multiple waypoints | Half | Up to three intermediate/shaping waypoints are supported, not arbitrary multi-waypoint route building. |
+| Generate an out-and-back route | Full | Out-and-back mode lets the user choose a start, optional shaping waypoints, and turnaround point; GraphHopper routes the outbound leg and Velix mirrors the geometry back to start. |
 | Plan a route within a specific area or corridor | Full | Area center/radius and stop-chain corridor controls send GraphHopper custom-model area constraints with strict or preferred enforcement. |
 
 ### 1.2 Routing modes
@@ -31,7 +31,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Loop by distance | Full | Round-course target distance is implemented. |
 | Loop by time | Half | UI accepts target time and estimates a distance; GraphHopper still receives a distance-based round trip. |
 | Loop by elevation gain | Half | UI accepts climb target and searches distance candidates; no native elevation-constrained routing. |
-| Fully manual planning | Missing | No manual segment drawing or manual/automatic section modes. |
+| Fully manual planning | Half | Stops and route segments can be dragged on the map and rerouted on drop; there is still no freehand/manual geometry drawing or per-section manual/automatic mode. |
 | Training route based on a workout goal | Missing | No workout-goal route generator. |
 | Route based on existing heatmap/popularity data | Missing | No heatmap/popularity data source. |
 | "Best roads near me" quick generator | Missing | Current-location support exists for route endpoints, but there is no quick generator/discovery workflow. |
@@ -107,12 +107,12 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Add waypoint | Full | Waypoints can be added from the form or map click. |
-| Move waypoint | Half | Waypoints can be reordered in the form; markers cannot be dragged on the map. |
-| Drag the route along segments | Missing | No route dragging. |
-| Lock / pin a segment | Missing | No segment locking. |
-| Recalculate a subsection | Missing | Only the full route can be recalculated. |
-| Force a specific road | Missing | No forced-road segment control. |
+| Add waypoint | Full | Waypoints can be added from the form, map click, or by dragging an unlocked route segment. |
+| Move waypoint | Full | Waypoints can be reordered in the form and dragged on the map; locked adjacent segments prevent movement. |
+| Drag the route along segments | Full | Dragging an unlocked route segment inserts or reshapes a via point and reroutes on pointer release. |
+| Lock / pin a segment | Full | Clicking a route segment can lock/unlock the corresponding route leg; locked segments render with an amber overlay and protect adjacent stops from drag/remove/reorder. |
+| Recalculate a subsection | Half | Manual edits reroute the full route while preserving locked leg intent; there is no GraphHopper-level exact subsection-only recalculation. |
+| Force a specific road | Half | Segment dragging adds shaping points that force the route through selected coordinates, but there is no exact road-edge/OSM-way forcing UI. |
 | Avoid a specific road | Missing | No avoid-road control. |
 | Plan sections manually or automatically | Missing | No per-section mode. |
 | Undo / Redo | Missing | No undo/redo. |
@@ -140,10 +140,10 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Zoom, pan, recenter | Half | MapLibre provides zoom/pan and current-location centering; no general recenter-to-route or recenter-to-start control. |
 | Double-click / click to place points | Full | Click opens a menu to set start, destination, or waypoint. |
 | Hover on roads/segments | Missing | No road/segment hover inspection. |
-| Context menu for routing actions | Half | A click popover exists; no right-click/context menu. |
+| Context menu for routing actions | Full | Map click popover supports start/destination/waypoint assignment, stop removal, and segment lock/unlock actions. |
 | Show current location | Full | Explicit geolocation control requests permission, centers the map, and renders a current-position marker with optional accuracy ring. |
 | Show coordinates | Half | Click popover shows coordinate fallback when reverse geocoding is unavailable. |
-| Scale bar | Missing | No scale control. |
+| Scale bar | Full | MapLibre scale control is mounted in the bottom-left position and restyled for the planner layout. |
 | Fullscreen map | Half | Planner is map-first/full viewport, but no browser fullscreen toggle. |
 | Mini control bar | Missing | No compact map control bar beyond overlay buttons. |
 
@@ -153,6 +153,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | --- | --- | --- |
 | Route | Full | Selected route line is rendered. |
 | Alternative route | Full | Unselected alternatives are rendered as subdued lines. |
+| Locked route segment overlay | Full | Locked route legs are rendered as amber dashed overlays above the selected route line. |
 | Surface overlay | Missing | Surface is analyzed in panel, not rendered as map overlay. |
 | Traffic stress overlay | Missing | No traffic stress data. |
 | Wind overlay | Missing | No wind overlay. |
@@ -177,7 +178,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Supply points | Missing | No supply POIs. |
 | Hazard points | Missing | No hazards. |
 | Favorites | Missing | No favorite places/markers. |
-| Segment markers | Missing | No segment markers. |
+| Segment markers | Half | Locked segments are visually marked with an overlay, but there are no numbered/interactive segment marker labels. |
 | Route direction arrows | Missing | No direction arrows. |
 | Kilometer markers | Missing | No kilometer markers. |
 
@@ -195,7 +196,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Maximum gradient | Missing | Not calculated/displayed. |
 | Minimum/maximum elevation | Full | Elevation panel shows min/max. |
 | Number of turns | Missing | Route requests set `instructions: false`; no turn count. |
-| Number of waypoints | Half | Waypoints are visible/listed, but no explicit count metric. |
+| Number of waypoints | Half | Waypoints are visible/listed and can include mode-specific shaping points, but no explicit count metric is shown. |
 | Loop quality | Missing | No loop-quality metric. |
 
 ### 3.2 Road-cycling-specific quality metrics
@@ -228,7 +229,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Sections with high interruption probability | Missing | No interruption probability analysis. |
 | Sections suitable for intervals | Missing | No interval suitability analysis. |
 | Sections with headwind / tailwind | Missing | No wind analysis. |
-| Segment-level duration and distance estimates | Missing | No segment list with durations/distances. |
+| Segment-level duration and distance estimates | Missing | Segment lock state exists for editing, but no segment list with durations/distances. |
 
 ### 3.4 Elevation profile
 
@@ -313,8 +314,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Save route | Full | Active route can be saved locally. |
-| Save as draft | Full | Button is labeled "Save Draft"; saved locally. |
+| Save route | Full | Active route can be saved locally, including manual editing lock metadata. |
+| Save as draft | Full | Button is labeled "Save Draft"; saved locally with route geometry, stops, and manual lock state. |
 | Publish final route | Missing | No publish/public route flow. |
 | Auto-save while editing | Missing | No auto-save. |
 | Save route variants | Half | User can select an alternative and save it; no grouped variant set. |

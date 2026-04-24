@@ -2,6 +2,7 @@ import { browser } from "$app/environment";
 
 import type {
 	ImportedRouteStopDerivation,
+	ManualRouteEditingState,
 	PlannedRoute,
 	ResolvedRouteSpatialConstraint,
 	RoundCourseTarget,
@@ -9,6 +10,10 @@ import type {
 	RouteMode,
 	RouteWaypoint,
 	SpatialConstraintEnforcement,
+} from "$lib/route-planning";
+import {
+	getRouteSegmentCount,
+	sanitizeLockedSegmentIndexes,
 } from "$lib/route-planning";
 
 export const SAVED_ROUTES_STORAGE_KEY = "velix.savedRoutes";
@@ -200,6 +205,38 @@ function normalizeRouteSource(value: unknown): RouteSource | null {
 	return null;
 }
 
+function normalizeManualEditing(
+	value: unknown,
+	route: PlannedRoute,
+): ManualRouteEditingState | undefined | null {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (!isRecord(value) || !Array.isArray(value.lockedSegmentIndexes)) {
+		return null;
+	}
+
+	if (!value.lockedSegmentIndexes.every((index) => Number.isInteger(index))) {
+		return null;
+	}
+
+	if (route.coordinates.length < 2) {
+		return undefined;
+	}
+
+	const lockedSegmentIndexes = sanitizeLockedSegmentIndexes(
+		value.lockedSegmentIndexes,
+		getRouteSegmentCount(route),
+	);
+
+	return lockedSegmentIndexes.length > 0
+		? {
+				lockedSegmentIndexes,
+			}
+		: undefined;
+}
+
 export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 	if (!isRecord(value)) {
 		return null;
@@ -266,7 +303,7 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		return null;
 	}
 
-	return {
+	const normalizedRoute: PlannedRoute = {
 		mode,
 		source,
 		startLabel: value.startLabel,
@@ -296,6 +333,19 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		surfaceDetails: value.surfaceDetails,
 		smoothnessDetails: value.smoothnessDetails,
 	};
+	const manualEditing = normalizeManualEditing(
+		value.manualEditing,
+		normalizedRoute,
+	);
+
+	if (manualEditing === null) {
+		return null;
+	}
+
+	return {
+		...normalizedRoute,
+		...(manualEditing ? { manualEditing } : {}),
+	};
 }
 
 export function isPlannedRoute(value: unknown): value is PlannedRoute {
@@ -322,6 +372,12 @@ export function isPlannedRoute(value: unknown): value is PlannedRoute {
 			(Array.isArray(value.routingWarnings) &&
 				value.routingWarnings.every(
 					(warning) => typeof warning === "string",
+				))) &&
+		(value.manualEditing === undefined ||
+			(isRecord(value.manualEditing) &&
+				Array.isArray(value.manualEditing.lockedSegmentIndexes) &&
+				value.manualEditing.lockedSegmentIndexes.every((index) =>
+					Number.isInteger(index),
 				))) &&
 		Array.isArray(value.waypoints) &&
 		value.waypoints.every(isRouteWaypoint) &&

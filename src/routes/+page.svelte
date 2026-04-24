@@ -24,13 +24,19 @@
 	} from "$lib/saved-routes.svelte";
 	import {
 		buildRouteGeoJson,
+		buildLockedSegmentGeoJson,
 		buildSpatialConstraintGeoJson,
+		getRouteLegIndexForCoordinateSegment,
+		getRouteSegmentCount,
 		getRouteStopInputs,
 		getSurfaceMix,
 		getWaypointInsertionIndex,
 		isImportedRoute,
+		isRouteStopLocked,
 		mergeRouteBounds,
 		sampleElevationProfile,
+		sanitizeLockedSegmentIndexes,
+		type ManualRouteEditingState,
 		type PlannedRoute,
 		type RoundCourseTarget,
 		type RouteApiError,
@@ -51,6 +57,7 @@
 		ChevronDown,
 		ChevronUp,
 		LocateFixed,
+		Lock,
 		MapPin,
 		MountainSnow,
 		Navigation,
@@ -59,6 +66,7 @@
 		ShieldCheck,
 		TrendingDown,
 		TrendingUp,
+		Unlock,
 		Wind,
 		X,
 	} from "lucide-svelte";
@@ -97,6 +105,28 @@
 			y: number;
 		};
 		selectedStop?: SelectedMapStop;
+		selectedSegment?: {
+			coordinateSegmentIndex: number;
+			segmentIndex: number;
+		};
+	};
+	type RouteStopDragEnd = {
+		point: [number, number];
+		screenPoint: {
+			x: number;
+			y: number;
+		};
+		selectedStop: SelectedMapStop;
+		stopIndex: number;
+	};
+	type RouteSegmentDragEnd = {
+		point: [number, number];
+		screenPoint: {
+			x: number;
+			y: number;
+		};
+		coordinateSegmentIndex: number;
+		segmentIndex: number;
 	};
 	type ReverseGeocodeApiSuccess = {
 		label: string;
@@ -179,6 +209,7 @@
 	let isImportingGpx = $state(false);
 	let routeAlternatives = $state<PlannedRoute[]>([]);
 	let selectedRouteIndex = $state<number | null>(null);
+	let lockedSegmentIndexes = $state<number[]>([]);
 	let lastGeneratedRouteCount = $state<number | null>(null);
 	let routeExportError = $state<string | null>(null);
 	let activeSavedRouteId = $state<string | null>(null);
@@ -226,6 +257,17 @@
 	const constraintOverlay = $derived(
 		activeRoute?.spatialConstraint
 			? buildSpatialConstraintGeoJson(activeRoute.spatialConstraint)
+			: null,
+	);
+	const activeRouteSegmentCount = $derived(
+		activeRoute ? getRouteSegmentCount(activeRoute) : 0,
+	);
+	const sanitizedLockedSegmentIndexes = $derived(
+		sanitizeLockedSegmentIndexes(lockedSegmentIndexes, activeRouteSegmentCount),
+	);
+	const lockedSegmentOverlay = $derived(
+		activeRoute && sanitizedLockedSegmentIndexes.length > 0
+			? buildLockedSegmentGeoJson(activeRoute, sanitizedLockedSegmentIndexes)
 			: null,
 	);
 	const combinedRouteBounds = $derived(mergeRouteBounds(routeAlternatives));
@@ -296,6 +338,22 @@
 		if (!activeRoute && routeAnalysisOpen) {
 			routeAnalysisOpen = false;
 		}
+	});
+
+	$effect(() => {
+		const nextLockedSegmentIndexes = sanitizedLockedSegmentIndexes;
+
+		if (
+			nextLockedSegmentIndexes.length !== lockedSegmentIndexes.length ||
+			nextLockedSegmentIndexes.some(
+				(index, itemIndex) => index !== lockedSegmentIndexes[itemIndex],
+			)
+		) {
+			lockedSegmentIndexes = nextLockedSegmentIndexes;
+			return;
+		}
+
+		syncActiveRouteManualEditing(nextLockedSegmentIndexes);
 	});
 
 	$effect(() => {
@@ -641,8 +699,18 @@
 			roundCourseTarget?.kind === "ascend"
 				? Math.round(roundCourseTarget.ascendMeters).toString()
 				: "";
-		const [start, ...restStops] = getRouteStopInputs(route);
-		const destination = restStops.pop();
+		const routeStops = getRouteStopInputs(route);
+		const [start] = routeStops;
+		const routeWaypointStops =
+			route.mode === "point_to_point"
+				? routeStops.slice(1, -1)
+				: route.mode === "out_and_back"
+					? routeStops.slice(1, -1)
+					: routeStops.slice(1);
+		const destination =
+			route.mode === "round_course"
+				? null
+				: (routeStops[routeStops.length - 1] ?? null);
 
 		startStop = createPlannerStop(
 			start?.label ?? "",
@@ -650,15 +718,13 @@
 			start?.point ? "suggestion" : "typed",
 		);
 		waypointStops =
-			route.mode === "round_course" || route.mode === "out_and_back"
-				? []
-				: restStops.map((waypoint) =>
-						createPlannerStop(
-							waypoint.label,
-							waypoint.point,
-							waypoint.point ? "suggestion" : "typed",
-						),
-					);
+			routeWaypointStops.map((waypoint) =>
+				createPlannerStop(
+					waypoint.label,
+					waypoint.point,
+					waypoint.point ? "suggestion" : "typed",
+				),
+			);
 		destinationStop = createPlannerStop(
 			destination?.label ?? "",
 			destination?.point,
@@ -688,18 +754,82 @@
 		}
 	}
 
+	function withManualEditingState(
+		route: PlannedRoute,
+		indexes: number[],
+	): PlannedRoute {
+		const lockedSegmentIndexesForRoute = sanitizeLockedSegmentIndexes(
+			indexes,
+			getRouteSegmentCount(route),
+		);
+		const { manualEditing: _manualEditing, ...routeWithoutManualEditing } =
+			route;
+
+		return lockedSegmentIndexesForRoute.length > 0
+			? {
+					...routeWithoutManualEditing,
+					manualEditing: {
+						lockedSegmentIndexes: lockedSegmentIndexesForRoute,
+					},
+				}
+			: routeWithoutManualEditing;
+	}
+
+	function syncActiveRouteManualEditing(indexes: number[]) {
+		if (selectedRouteIndex === null) {
+			return;
+		}
+
+		const selectedRoute = routeAlternatives[selectedRouteIndex];
+
+		if (!selectedRoute) {
+			return;
+		}
+
+		const nextRoute = withManualEditingState(selectedRoute, indexes);
+		const currentIndexes =
+			selectedRoute.manualEditing?.lockedSegmentIndexes ?? [];
+		const nextIndexes = nextRoute.manualEditing?.lockedSegmentIndexes ?? [];
+
+		if (
+			currentIndexes.length === nextIndexes.length &&
+			currentIndexes.every((index, itemIndex) => index === nextIndexes[itemIndex])
+		) {
+			return;
+		}
+
+		routeAlternatives = routeAlternatives.map((route, index) =>
+			index === selectedRouteIndex ? nextRoute : route,
+		);
+	}
+
 	function setRouteAlternativesState(
 		routes: PlannedRoute[],
 		nextSelectedRouteIndex: number,
 	) {
-		routeAlternatives = routes;
-		selectedRouteIndex =
+		const nextIndex =
 			routes.length === 0
 				? null
 				: Math.min(Math.max(nextSelectedRouteIndex, 0), routes.length - 1);
+		const selectedRoute = nextIndex === null ? null : routes[nextIndex];
+		const nextLockedSegmentIndexes = selectedRoute
+			? sanitizeLockedSegmentIndexes(
+					lockedSegmentIndexes,
+					getRouteSegmentCount(selectedRoute),
+				)
+			: [];
+		routeAlternatives = routes.map((route, index) =>
+			index === nextIndex ? withManualEditingState(route, nextLockedSegmentIndexes) : route,
+		);
+		selectedRouteIndex = nextIndex;
+		lockedSegmentIndexes = nextLockedSegmentIndexes;
 	}
 
 	function setSingleRouteState(route: PlannedRoute) {
+		lockedSegmentIndexes = sanitizeLockedSegmentIndexes(
+			route.manualEditing?.lockedSegmentIndexes ?? [],
+			getRouteSegmentCount(route),
+		);
 		setRouteAlternativesState([route], 0);
 	}
 
@@ -708,7 +838,19 @@
 			return;
 		}
 
+		const selectedRoute = routeAlternatives[index] as PlannedRoute;
+		const nextLockedSegmentIndexes = sanitizeLockedSegmentIndexes(
+			lockedSegmentIndexes,
+			getRouteSegmentCount(selectedRoute),
+		);
+
 		selectedRouteIndex = index;
+		lockedSegmentIndexes = nextLockedSegmentIndexes;
+		routeAlternatives = routeAlternatives.map((route, routeIndex) =>
+			routeIndex === index
+				? withManualEditingState(route, nextLockedSegmentIndexes)
+				: route,
+		);
 		activeProfileIndex = null;
 		chartScrubPointerId = null;
 	}
@@ -744,6 +886,7 @@
 		}
 
 		plannerMode = nextMode;
+		lockedSegmentIndexes = [];
 		if (nextMode === "round_course") {
 			roundCourseTargetKind = "distance";
 			if (spatialConstraintKind === "corridor") {
@@ -1436,6 +1579,10 @@
 	}
 
 	function removeWaypoint(index: number) {
+		if (isLockedStopIndex(index + 1)) {
+			return;
+		}
+
 		if (activeCompletionTarget?.kind === "waypoint") {
 			if (activeCompletionTarget.index === index) {
 				closeCompletionMenu();
@@ -1455,10 +1602,21 @@
 		markPlannerEdited();
 	}
 
+	function canMoveWaypoint(index: number, direction: -1 | 1) {
+		const nextIndex = index + direction;
+
+		return (
+			nextIndex >= 0 &&
+			nextIndex < waypointStops.length &&
+			!isLockedStopIndex(index + 1) &&
+			!isLockedStopIndex(nextIndex + 1)
+		);
+	}
+
 	function moveWaypoint(index: number, direction: -1 | 1) {
 		const nextIndex = index + direction;
 
-		if (nextIndex < 0 || nextIndex >= waypointStops.length) {
+		if (!canMoveWaypoint(index, direction)) {
 			return;
 		}
 
@@ -1501,10 +1659,25 @@
 	}
 
 	function getMapClickMenuTitle(selection: MapClickSelection) {
-		return selection.selectedStop ? "Selected point" : "Use clicked point";
+		if (selection.selectedStop) {
+			return "Selected point";
+		}
+
+		if (selection.selectedSegment) {
+			return "Selected segment";
+		}
+
+		return "Use clicked point";
 	}
 
 	function getMapClickMenuSubtitle(selection: MapClickSelection) {
+		if (selection.selectedSegment) {
+			const segmentIndex = getSelectedSegmentIndex(selection);
+			return typeof segmentIndex === "number"
+				? `Segment ${segmentIndex + 1}`
+				: "Route segment";
+		}
+
 		return selection.selectedStop?.label || formatCoordinateLabel(selection.point);
 	}
 
@@ -1529,6 +1702,20 @@
 	}
 
 	function removeSelectedMapStop(selectedStop: SelectedMapStop) {
+		const selectedStopIndex = (() => {
+			if (selectedStop.kind === "start") {
+				return 0;
+			}
+
+			return selectedStop.kind === "waypoint"
+				? selectedStop.index + 1
+				: waypointStops.length + 1;
+		})();
+
+		if (isLockedStopIndex(selectedStopIndex)) {
+			return;
+		}
+
 		if (selectedStop.kind === "start") {
 			setFieldStop("startQuery", createPlannerStop());
 			closeMapClickMenu();
@@ -1553,6 +1740,45 @@
 		}
 	}
 
+	function getSelectedSegmentIndex(selection: MapClickSelection) {
+		if (!activeRoute || !selection.selectedSegment) {
+			return null;
+		}
+
+		return (
+			getRouteLegIndexForCoordinateSegment(
+				activeRoute,
+				selection.selectedSegment.coordinateSegmentIndex,
+			) ?? selection.selectedSegment.segmentIndex
+		);
+	}
+
+	function isMapSelectionSegmentLocked(selection: MapClickSelection) {
+		const segmentIndex = getSelectedSegmentIndex(selection);
+		return segmentIndex === null
+			? false
+			: sanitizedLockedSegmentIndexes.includes(segmentIndex);
+	}
+
+	function toggleMapSelectionSegmentLock(selection: MapClickSelection) {
+		const segmentIndex = getSelectedSegmentIndex(selection);
+
+		if (segmentIndex === null) {
+			return;
+		}
+
+		const nextLockedSegmentIndexes = sanitizedLockedSegmentIndexes.includes(segmentIndex)
+			? sanitizedLockedSegmentIndexes.filter((index) => index !== segmentIndex)
+			: sanitizeLockedSegmentIndexes(
+					[...sanitizedLockedSegmentIndexes, segmentIndex],
+					activeRouteSegmentCount,
+				);
+		lockedSegmentIndexes = nextLockedSegmentIndexes;
+		syncActiveRouteManualEditing(nextLockedSegmentIndexes);
+		markPlannerEdited();
+		closeMapClickMenu();
+	}
+
 	function getWaypointInsertionTarget(point: [number, number]) {
 		const hasCompleteOrderedStops =
 			plannerMode === "point_to_point" &&
@@ -1573,6 +1799,16 @@
 		}
 
 		return waypointStops.length;
+	}
+
+	function getMapWaypointInsertionSegmentIndex(selection: MapClickSelection) {
+		return getSelectedSegmentIndex(selection) ?? getWaypointInsertionTarget(selection.point);
+	}
+
+	function isMapWaypointInsertionLocked(selection: MapClickSelection) {
+		const segmentIndex = getMapWaypointInsertionSegmentIndex(selection);
+
+		return sanitizedLockedSegmentIndexes.includes(segmentIndex);
 	}
 
 	async function resolveMapStopLabel(point: [number, number]) {
@@ -1624,7 +1860,12 @@
 		} else if (target.kind === "destinationQuery") {
 			setFieldStop("destinationQuery", fallbackStop);
 		} else {
-			addWaypoint(fallbackStop, getWaypointInsertionTarget(selection.point));
+			if (isMapWaypointInsertionLocked(selection)) {
+				isResolvingMapSelection = false;
+				return;
+			}
+
+			addWaypoint(fallbackStop, getMapWaypointInsertionSegmentIndex(selection));
 		}
 
 		closeMapClickMenu();
@@ -1670,6 +1911,235 @@
 		);
 	}
 
+	function getManualEditingRequest(): ManualRouteEditingState | undefined {
+		return sanitizedLockedSegmentIndexes.length > 0
+			? {
+					lockedSegmentIndexes: sanitizedLockedSegmentIndexes,
+				}
+			: undefined;
+	}
+
+	function buildCurrentRouteRequest(
+		manualEditing = getManualEditingRequest(),
+	): RouteRequestPayload & { manualEditing?: ManualRouteEditingState } {
+		const spatialConstraint = buildSpatialConstraintRequest();
+		const baseRequest: RouteRequestPayload =
+			plannerMode === "round_course"
+				? {
+						mode: "round_course",
+						start: getRouteStopInput(startStop),
+						waypoints: waypointStops.map((waypoint) =>
+							getRouteStopInput(waypoint),
+						),
+						target: buildRoundCourseTargetRequest(),
+						...(spatialConstraint ? { spatialConstraint } : {}),
+					}
+				: plannerMode === "out_and_back"
+					? {
+							mode: "out_and_back",
+							start: getRouteStopInput(startStop),
+							waypoints: waypointStops.map((waypoint) =>
+								getRouteStopInput(waypoint),
+							),
+							turnaround: getRouteStopInput(destinationStop),
+							...(spatialConstraint ? { spatialConstraint } : {}),
+						}
+					: {
+							mode: "point_to_point",
+							start: getRouteStopInput(startStop),
+							waypoints: waypointStops.map((waypoint) =>
+								getRouteStopInput(waypoint),
+							),
+							destination: getRouteStopInput(destinationStop),
+							...(spatialConstraint ? { spatialConstraint } : {}),
+						};
+
+		return {
+			...baseRequest,
+			...(manualEditing ? { manualEditing } : {}),
+		};
+	}
+
+	function applyManualEditingToRoutes(routes: PlannedRoute[]) {
+		const manualEditing = getManualEditingRequest();
+
+		return routes.map((route) => ({
+			...route,
+			...(manualEditing ? { manualEditing } : {}),
+		}));
+	}
+
+	async function requestRouteCalculation(
+		routeRequest: RouteRequestPayload & {
+			manualEditing?: ManualRouteEditingState;
+		},
+	) {
+		if (!clientFetch) {
+			throw new Error("Route requests are only available after the page has mounted.");
+		}
+
+		const response = await clientFetch("/api/route", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+			},
+			body: JSON.stringify(routeRequest),
+		});
+
+		if (!response.ok) {
+			const errorPayload = (await response.json()) as RouteApiError;
+			fieldErrors = errorPayload.fieldErrors ?? {};
+			routeRequestError = errorPayload.error;
+			return null;
+		}
+
+		return (await response.json()) as RouteApiSuccess;
+	}
+
+	function isLockedStopIndex(stopIndex: number) {
+		return activeRoute
+			? isRouteStopLocked(
+					stopIndex,
+					sanitizedLockedSegmentIndexes,
+					getRouteSegmentCount(activeRoute),
+					activeRoute.mode === "round_course",
+				)
+			: false;
+	}
+
+	function updateDraggedStop(
+		selectedStop: SelectedMapStop,
+		point: [number, number],
+		label: string,
+	) {
+		const stop = createPlannerStop(label, point, "map");
+
+		if (selectedStop.kind === "start") {
+			setFieldStop("startQuery", stop);
+			return;
+		}
+
+		if (selectedStop.kind === "destination") {
+			setFieldStop("destinationQuery", stop);
+			return;
+		}
+
+		if (selectedStop.kind !== "waypoint") {
+			return;
+		}
+
+		if (plannerMode === "out_and_back" && selectedStop.index >= waypointStops.length) {
+			setFieldStop("destinationQuery", stop);
+			return;
+		}
+
+		if (selectedStop.index >= 0 && selectedStop.index < waypointStops.length) {
+			setWaypointStop(selectedStop.index, stop);
+		}
+	}
+
+	async function rerouteAfterManualEdit() {
+		if (isRouting) {
+			return;
+		}
+
+		isRouting = true;
+		activeSavedRouteId = null;
+		isActiveRouteSaved = false;
+		routeRequestError = null;
+		routeImportError = null;
+		fieldErrors = {};
+		routeExportError = null;
+
+		try {
+			const payload = await requestRouteCalculation(buildCurrentRouteRequest());
+
+			if (!payload) {
+				return;
+			}
+
+			const nextRoutes = applyManualEditingToRoutes(payload.routes ?? []);
+			const nextSelectedRoute =
+				nextRoutes[payload.selectedRouteIndex] ?? nextRoutes[0] ?? null;
+
+			if (!nextSelectedRoute) {
+				throw new Error("Route API returned no routes.");
+			}
+
+			setRouteAlternativesState(nextRoutes, payload.selectedRouteIndex);
+			lastGeneratedRouteCount = nextRoutes.length;
+			syncStopsFromRoute(nextSelectedRoute);
+			activeProfileIndex = null;
+			chartScrubPointerId = null;
+		} catch (error) {
+			console.error("Failed to reroute manual edit", error);
+			routeRequestError = "The manual route edit could not be recalculated.";
+		} finally {
+			isRouting = false;
+		}
+	}
+
+	async function handleRouteStopDragEnd(detail: RouteStopDragEnd) {
+		if (!activeRoute || isLockedStopIndex(detail.stopIndex)) {
+			return;
+		}
+
+		closeCompletionMenu();
+		closeMapClickMenu();
+		const label = await resolveMapStopLabel(detail.point);
+		updateDraggedStop(detail.selectedStop, detail.point, label);
+		await rerouteAfterManualEdit();
+	}
+
+	function getManualSegmentWaypointIndex(segmentIndex: number): number | null {
+		if (waypointStops.length === 0) {
+			return null;
+		}
+
+		if (plannerMode === "round_course") {
+			const index = segmentIndex === 0 ? 0 : segmentIndex - 1;
+			return index >= 0 && index < waypointStops.length ? index : null;
+		}
+
+		const index = segmentIndex - 1;
+		return index >= 0 && index < waypointStops.length ? index : null;
+	}
+
+	async function handleRouteSegmentDragEnd(detail: RouteSegmentDragEnd) {
+		if (!activeRoute) {
+			return;
+		}
+
+		const routeLegIndex =
+			getRouteLegIndexForCoordinateSegment(
+				activeRoute,
+				detail.coordinateSegmentIndex,
+			) ?? detail.segmentIndex;
+
+		if (sanitizedLockedSegmentIndexes.includes(routeLegIndex)) {
+			return;
+		}
+
+		closeCompletionMenu();
+		closeMapClickMenu();
+		const existingWaypointIndex = getManualSegmentWaypointIndex(routeLegIndex);
+		const label = await resolveMapStopLabel(detail.point);
+		const stop = createPlannerStop(label, detail.point, "map");
+
+		if (existingWaypointIndex !== null) {
+			setWaypointStop(existingWaypointIndex, stop);
+		} else {
+			if (waypointStops.length >= maxWaypoints) {
+				routeRequestError = `You can add up to ${maxWaypoints} waypoints per route.`;
+				return;
+			}
+
+			addWaypoint(stop, Math.max(0, Math.min(routeLegIndex, waypointStops.length)));
+		}
+
+		await rerouteAfterManualEdit();
+	}
+
 	async function useCurrentLocationAsStop(field: RouteField) {
 		closeCompletionMenu();
 		closeMapClickMenu();
@@ -1703,46 +2173,13 @@
 		fieldErrors = {};
 
 		try {
-			const spatialConstraint = buildSpatialConstraintRequest();
-			const routeRequest: RouteRequestPayload =
-				plannerMode === "round_course"
-					? {
-							mode: "round_course",
-							start: getRouteStopInput(startStop),
-							target: buildRoundCourseTargetRequest(),
-							...(spatialConstraint ? { spatialConstraint } : {}),
-						}
-					: plannerMode === "out_and_back"
-						? {
-								mode: "out_and_back",
-								start: getRouteStopInput(startStop),
-								turnaround: getRouteStopInput(destinationStop),
-								...(spatialConstraint ? { spatialConstraint } : {}),
-							}
-					: {
-							mode: "point_to_point",
-							start: getRouteStopInput(startStop),
-							waypoints: waypointStops.map((waypoint) => getRouteStopInput(waypoint)),
-							destination: getRouteStopInput(destinationStop),
-							...(spatialConstraint ? { spatialConstraint } : {}),
-						};
-			const response = await clientFetch("/api/route", {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-				},
-				body: JSON.stringify(routeRequest),
-			});
+			const payload = await requestRouteCalculation(buildCurrentRouteRequest());
 
-			if (!response.ok) {
-				const errorPayload = (await response.json()) as RouteApiError;
-				fieldErrors = errorPayload.fieldErrors ?? {};
-				routeRequestError = errorPayload.error;
+			if (!payload) {
 				return;
 			}
 
-			const payload = (await response.json()) as RouteApiSuccess;
-			const nextRoutes = payload.routes ?? [];
+			const nextRoutes = applyManualEditingToRoutes(payload.routes ?? []);
 			const nextSelectedRoute =
 				nextRoutes[payload.selectedRouteIndex] ?? nextRoutes[0] ?? null;
 
@@ -1784,7 +2221,11 @@
 			return;
 		}
 
-		const savedRoute = addSavedRoute(activeRoute);
+		const manualEditing = getManualEditingRequest();
+		const savedRoute = addSavedRoute({
+			...activeRoute,
+			...(manualEditing ? { manualEditing } : {}),
+		});
 		activeSavedRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
 	}
@@ -1864,7 +2305,14 @@
 	<MapView
 		layoutState={sidebar.state}
 		onMapClick={handleMapClick}
+		onRouteStopDragEnd={handleRouteStopDragEnd}
+		onRouteSegmentDragEnd={handleRouteSegmentDragEnd}
 		routeOverlays={routeOverlays}
+		plannedRoute={activeRoute}
+		routeMode={activeRoute?.mode ?? plannerMode}
+		manualEditingEnabled={!!activeRoute && !isRouting}
+		lockedSegmentOverlay={lockedSegmentOverlay}
+		lockedSegmentIndexes={sanitizedLockedSegmentIndexes}
 		constraintOverlay={constraintOverlay}
 		fitBounds={combinedRouteBounds}
 		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
@@ -1931,7 +2379,11 @@
 							size="sm"
 							class="justify-start"
 							type="button"
-							disabled={isResolvingMapSelection || waypointStops.length >= maxWaypoints}
+							disabled={
+								isResolvingMapSelection ||
+								waypointStops.length >= maxWaypoints ||
+								isMapWaypointInsertionLocked(mapClickSelection)
+							}
 							onclick={() => applyMapPointAsStop({ kind: "waypoint" })}
 						>
 							Add waypoint here
@@ -1956,6 +2408,25 @@
 							onclick={() => applyMapPointAsStop({ kind: "destinationQuery" })}
 						>
 							Set as turnaround
+						</Button>
+					{/if}
+					{#if mapClickSelection.selectedSegment}
+						<Button
+							variant="ghost"
+							size="sm"
+							class="justify-start gap-2"
+							type="button"
+							onclick={() =>
+								mapClickSelection &&
+								toggleMapSelectionSegmentLock(mapClickSelection)}
+						>
+							{#if isMapSelectionSegmentLocked(mapClickSelection)}
+								<Unlock class="size-3.5" />
+								Unlock segment
+							{:else}
+								<Lock class="size-3.5" />
+								Lock segment
+							{/if}
 						</Button>
 					{/if}
 					{#if mapClickSelection.selectedStop}
@@ -2260,7 +2731,7 @@
 								{/if}
 							</div>
 						{:else}
-							{#if !isOutAndBackMode}
+							{#if !isRoundCourseMode}
 							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 								<div class="flex items-center justify-between gap-3">
 									<div>
@@ -2390,7 +2861,7 @@
 														size="sm"
 														type="button"
 														class="gap-1"
-														disabled={index === 0}
+														disabled={!canMoveWaypoint(index, -1)}
 														onclick={() => moveWaypoint(index, -1)}
 													>
 														<ArrowUp class="size-3.5" />
@@ -2401,7 +2872,7 @@
 														size="sm"
 														type="button"
 														class="gap-1"
-														disabled={index === waypointStops.length - 1}
+														disabled={!canMoveWaypoint(index, 1)}
 														onclick={() => moveWaypoint(index, 1)}
 													>
 														<ArrowDown class="size-3.5" />
@@ -2412,6 +2883,7 @@
 														size="sm"
 														type="button"
 														class="gap-1 text-muted-foreground hover:text-foreground"
+														disabled={isLockedStopIndex(index + 1)}
 														onclick={() => removeWaypoint(index)}
 													>
 														<X class="size-3.5" />
