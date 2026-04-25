@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildRouteGeoJson,
+	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
+	getEditableRouteStops,
+	getRouteLegIndexForCoordinateSegment,
+	getRouteSegmentCount,
 	getRouteStopInputs,
 	getSurfaceMix,
 	getWaypointInsertionIndex,
+	isRouteStopLocked,
 	sampleElevationProfile,
+	sanitizeLockedSegmentIndexes,
 	type PlannedRoute,
 	type RouteStopInput,
 } from "./route-planning";
@@ -264,6 +270,117 @@ describe("getRouteStopInputs", () => {
 				point: [1, 1],
 			},
 		]);
+	});
+});
+
+describe("manual route editing helpers", () => {
+	it("returns editable shaping stops for round-course and out-and-back routes", () => {
+		const roundRoute: PlannedRoute = {
+			...buildRoute([]),
+			mode: "round_course",
+			startLabel: "Loop start",
+			destinationLabel: "Loop start",
+			waypoints: [
+				{
+					label: "Shaper",
+					coordinate: [0.5, 0.5, 15],
+				},
+			],
+			coordinates: [
+				[0, 0, 10],
+				[0.5, 0.5, 15],
+				[0, 0, 10],
+			],
+		};
+		const outAndBackRoute: PlannedRoute = {
+			...buildRoute([]),
+			mode: "out_and_back",
+			startLabel: "Start",
+			destinationLabel: "Turnaround",
+			waypoints: [
+				{
+					label: "Shaper",
+					coordinate: [0.5, 0.5, 15],
+				},
+				{
+					label: "Turnaround",
+					coordinate: [1, 1, 20],
+				},
+			],
+			coordinates: [
+				[0, 0, 10],
+				[0.5, 0.5, 15],
+				[1, 1, 20],
+				[0, 0, 10],
+			],
+		};
+
+		expect(getEditableRouteStops(roundRoute).map((stop) => stop.label)).toEqual(
+			["Loop start", "Shaper"],
+		);
+		expect(getRouteSegmentCount(roundRoute)).toBe(2);
+		expect(
+			getEditableRouteStops(outAndBackRoute).map((stop) => stop.label),
+		).toEqual(["Start", "Shaper", "Turnaround"]);
+		expect(getRouteSegmentCount(outAndBackRoute)).toBe(2);
+	});
+
+	it("sanitizes locked segments and marks adjacent stops as locked", () => {
+		expect(sanitizeLockedSegmentIndexes([2, 0, 2, -1, 4], 3)).toEqual([0, 2]);
+		expect(isRouteStopLocked(1, [0], 3)).toBe(true);
+		expect(isRouteStopLocked(0, [2], 3, true)).toBe(true);
+		expect(isRouteStopLocked(0, [2], 3, false)).toBe(false);
+	});
+
+	it("builds locked segment GeoJSON from route legs", () => {
+		const route: PlannedRoute = {
+			...buildRoute([]),
+			waypoints: [
+				{
+					label: "Waypoint",
+					coordinate: [0, 1, 10],
+				},
+			],
+			coordinates: [
+				[0, 0, 0],
+				[0, 0.5, 0],
+				[0, 1, 0],
+				[1, 1, 0],
+			],
+		};
+		const geoJson = buildLockedSegmentGeoJson(route, [0]);
+
+		expect(geoJson.features).toHaveLength(1);
+		expect(geoJson.features[0]?.properties).toEqual({
+			kind: "locked_segment",
+			segmentIndex: 0,
+		});
+		expect(geoJson.features[0]?.geometry.coordinates).toEqual([
+			[0, 0, 0],
+			[0, 0.5, 0],
+			[0, 1, 0],
+		]);
+	});
+
+	it("maps coordinate segments back to editable route legs", () => {
+		const route: PlannedRoute = {
+			...buildRoute([]),
+			waypoints: [
+				{
+					label: "Waypoint",
+					coordinate: [0, 1, 10],
+				},
+			],
+			coordinates: [
+				[0, 0, 0],
+				[0, 0.5, 0],
+				[0, 1, 0],
+				[1, 1, 0],
+			],
+		};
+
+		expect(getRouteLegIndexForCoordinateSegment(route, 0)).toBe(0);
+		expect(getRouteLegIndexForCoordinateSegment(route, 2)).toBe(1);
 	});
 });
 

@@ -19,16 +19,50 @@
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
 	import type { SidebarLayoutState } from "$lib/components/ui/sidebar/context.svelte.js";
 	import type {
+		PlannedRoute,
 		RouteBounds,
 		RouteCoordinate,
 		RouteMapOverlay,
+		RouteMode,
 	} from "$lib/route-planning";
+	import { getRouteLegIndexForCoordinateSegment } from "$lib/route-planning";
+
+	type SelectedRouteStop =
+		| {
+				kind: "start" | "destination";
+				label?: string;
+		  }
+		| {
+				kind: "waypoint";
+				label?: string;
+				index: number;
+		  };
+	type RouteDragDetail = {
+		point: [number, number];
+		screenPoint: {
+			x: number;
+			y: number;
+		};
+	};
+	type RouteStopDragEndDetail = RouteDragDetail & {
+		selectedStop: SelectedRouteStop;
+		stopIndex: number;
+	};
+	type RouteSegmentDetail = RouteDragDetail & {
+		coordinateSegmentIndex: number;
+		segmentIndex: number;
+	};
 
 	type Props = {
 		initialCenter?: [number, number];
 		initialZoom?: number;
 		ariaLabel?: string;
 		routeOverlays?: RouteMapOverlay[] | null;
+		plannedRoute?: PlannedRoute | null;
+		routeMode?: RouteMode | null;
+		manualEditingEnabled?: boolean;
+		lockedSegmentOverlay?: FeatureCollection | null;
+		lockedSegmentIndexes?: number[];
 		constraintOverlay?: FeatureCollection | null;
 		fitBounds?: RouteBounds | null;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
@@ -44,24 +78,27 @@
 				x: number;
 				y: number;
 			};
-			selectedStop?:
-				| {
-						kind: "start" | "destination";
-						label?: string;
-				  }
-				| {
-						kind: "waypoint";
-						label?: string;
-						index: number;
-				  };
+			selectedStop?: SelectedRouteStop;
+			selectedSegment?: {
+				coordinateSegmentIndex: number;
+				segmentIndex: number;
+			};
 		}) => void) | null;
+		onRouteStopDragEnd?: ((detail: RouteStopDragEndDetail) => void) | null;
+		onRouteSegmentDragEnd?: ((detail: RouteSegmentDetail) => void) | null;
+		onRouteSegmentSelection?: ((detail: RouteSegmentDetail) => void) | null;
 	};
 
 	const defaultCenter = [11.394, 47.268] as [number, number];
 	const routeSourcePrefix = "planned-route";
+	const routeSegmentSelectionThresholdPx = 18;
+	const routeSegmentNearHitThresholdPx = 1;
 	const constraintSourceId = "route-constraint";
 	const constraintFillLayerId = "route-constraint-fill";
 	const constraintLineLayerId = "route-constraint-line";
+	const lockedSegmentSourceId = "route-locked-segments";
+	const lockedSegmentCasingLayerId = "route-locked-segments-casing";
+	const lockedSegmentLineLayerId = "route-locked-segments-line";
 	const hoveredRouteSourceId = "planned-route-hover";
 	const hoveredRouteLayerId = "planned-route-hover-point";
 	const currentLocationSourceId = "current-location";
@@ -82,6 +119,11 @@
 		initialZoom = 10,
 		ariaLabel = "Route map",
 		routeOverlays = null,
+		plannedRoute = null,
+		routeMode = null,
+		manualEditingEnabled = false,
+		lockedSegmentOverlay = null,
+		lockedSegmentIndexes = [],
 		constraintOverlay = null,
 		fitBounds = null,
 		hoveredRouteCoordinate = null,
@@ -89,6 +131,9 @@
 		currentLocationFocusKey = 0,
 		layoutState = null,
 		onMapClick = null,
+		onRouteStopDragEnd = null,
+		onRouteSegmentDragEnd = null,
+		onRouteSegmentSelection = null,
 	}: Props = $props();
 
 	let mapContainer = $state<HTMLDivElement | null>(null);
@@ -101,10 +146,150 @@
 	let currentStyleUrl: string | null = null;
 	let detachStyleLoadListener = () => {};
 	let detachMapClickListener = () => {};
+	let detachRouteEditingListeners = () => {};
 	let resizeAnimationFrameId: number | null = null;
 	let resizeLoopUntil = 0;
 	let renderedRouteOverlayIds: string[] = [];
 	let lastFocusedCurrentLocationKey: number | null = null;
+	let activeRouteDrag:
+		| {
+				kind: "stop";
+				selectedStop: SelectedRouteStop;
+				stopIndex: number;
+				startPoint: [number, number];
+		  }
+		| {
+				kind: "segment";
+				coordinateSegmentIndex: number;
+				segmentIndex: number;
+				startPoint: [number, number];
+		  }
+		| null = null;
+	let dragPanWasEnabled = false;
+	let suppressNextMapClick = false;
+	let routeProjectionCache:
+		| {
+				coordinates: RouteCoordinate[];
+				points: Array<{ x: number; y: number } | null>;
+		  }
+		| null = null;
+
+	function getMapEventDetail(event: {
+		lngLat?: { lng?: number; lat?: number };
+		point?: { x?: number; y?: number };
+	}) {
+		const longitude = event.lngLat?.lng;
+		const latitude = event.lngLat?.lat;
+		const clickX = event.point?.x;
+		const clickY = event.point?.y;
+
+		if (
+			typeof longitude !== "number" ||
+			typeof latitude !== "number" ||
+			typeof clickX !== "number" ||
+			typeof clickY !== "number"
+		) {
+			return null;
+		}
+
+		return {
+			point: [longitude, latitude] as [number, number],
+			screenPoint: {
+				x: clickX,
+				y: clickY,
+			},
+		};
+	}
+
+	function setMapCursor(cursor: string) {
+		if (mapContainer) {
+			mapContainer.style.cursor = cursor;
+		}
+	}
+
+	function disableMapDragPan() {
+		const dragPan = (
+			map as
+				| (MapLibreMap & {
+						dragPan?: {
+							isEnabled?: () => boolean;
+							disable?: () => void;
+							enable?: () => void;
+						};
+				  })
+				| null
+		)?.dragPan;
+
+		dragPanWasEnabled = dragPan?.isEnabled?.() ?? false;
+		dragPan?.disable?.();
+	}
+
+	function restoreMapDragPan() {
+		const dragPan = (
+			map as
+				| (MapLibreMap & {
+						dragPan?: {
+							enable?: () => void;
+						};
+				  })
+				| null
+		)?.dragPan;
+
+		if (dragPanWasEnabled) {
+			dragPan?.enable?.();
+		}
+
+		dragPanWasEnabled = false;
+	}
+
+	function finishRouteDrag(
+		event: {
+			lngLat?: { lng?: number; lat?: number };
+			point?: { x?: number; y?: number };
+		},
+	) {
+		if (!activeRouteDrag) {
+			return;
+		}
+
+		const drag = activeRouteDrag;
+		const detail = getMapEventDetail(event);
+		activeRouteDrag = null;
+		routeProjectionCache = null;
+		restoreMapDragPan();
+		setMapCursor("");
+
+		if (!detail) {
+			return;
+		}
+
+		suppressNextMapClick =
+			drag.startPoint[0] !== detail.point[0] ||
+			drag.startPoint[1] !== detail.point[1];
+
+		if (!suppressNextMapClick) {
+			return;
+		}
+
+		if (drag.kind === "stop") {
+			onRouteStopDragEnd?.({
+				...detail,
+				selectedStop: drag.selectedStop,
+				stopIndex: drag.stopIndex,
+			});
+			return;
+		}
+
+		onRouteSegmentDragEnd?.({
+			...detail,
+			coordinateSegmentIndex: drag.coordinateSegmentIndex,
+			segmentIndex: drag.segmentIndex,
+		});
+	}
+
+	function clearStaleClickSuppression() {
+		suppressNextMapClick = false;
+	}
 
 	function getRouteSourceId(overlayId: string) {
 		return `${routeSourcePrefix}-${overlayId}`;
@@ -200,6 +385,234 @@
 		return undefined;
 	}
 
+	function getSelectedRouteCoordinates(): RouteCoordinate[] {
+		const selectedOverlay = getSelectedOverlay();
+		const routeFeature = selectedOverlay?.geoJson.features.find(
+			(feature) => feature.properties?.kind === "route",
+		);
+
+		if (routeFeature?.geometry.type !== "LineString") {
+			return [];
+		}
+
+		return routeFeature.geometry.coordinates as RouteCoordinate[];
+	}
+
+	function getSelectedRouteWaypointCount() {
+		const selectedOverlay = getSelectedOverlay();
+
+		return (
+			selectedOverlay?.geoJson.features.filter(
+				(feature) => feature.properties?.kind === "waypoint",
+			).length ?? 0
+		);
+	}
+
+	function getSelectedRouteHasDestination() {
+		const selectedOverlay = getSelectedOverlay();
+
+		return !!selectedOverlay?.geoJson.features.some(
+			(feature) => feature.properties?.kind === "destination",
+		);
+	}
+
+	function getSelectedRouteSegmentCount() {
+		const waypointCount = getSelectedRouteWaypointCount();
+
+		if (routeMode === "round_course") {
+			return Math.max(1, waypointCount + 1);
+		}
+
+		return getSelectedRouteHasDestination() ? waypointCount + 1 : waypointCount;
+	}
+
+	function getStopIndex(selectedStop: SelectedRouteStop): number {
+		if (selectedStop.kind === "start") {
+			return 0;
+		}
+
+		if (selectedStop.kind === "waypoint") {
+			return selectedStop.index + 1;
+		}
+
+		return getSelectedRouteWaypointCount() + 1;
+	}
+
+	function isSegmentLocked(segmentIndex: number) {
+		return lockedSegmentIndexes.includes(segmentIndex);
+	}
+
+	function isStopLocked(stopIndex: number) {
+		const segmentCount = getSelectedRouteSegmentCount();
+
+		if (segmentCount <= 0) {
+			return false;
+		}
+
+		if (
+			lockedSegmentIndexes.includes(stopIndex) ||
+			lockedSegmentIndexes.includes(stopIndex - 1)
+		) {
+			return true;
+		}
+
+		return (
+			routeMode === "round_course" &&
+			stopIndex === 0 &&
+			lockedSegmentIndexes.includes(segmentCount - 1)
+		);
+	}
+
+	function getProjectedPoint(coordinate: RouteCoordinate) {
+		const projected = (
+			map as
+				| (MapLibreMap & {
+						project?: (
+							coordinate: [number, number],
+						) => { x: number; y: number } | null;
+				  })
+				| null
+		)?.project?.([coordinate[0], coordinate[1]]);
+
+		if (!projected) {
+			return null;
+		}
+
+		return {
+			x: projected.x,
+			y: projected.y,
+		};
+	}
+
+	function prepareSelectedRouteProjectionCache() {
+		const coordinates = getSelectedRouteCoordinates();
+
+		routeProjectionCache = {
+			coordinates,
+			points: coordinates.map((coordinate) => getProjectedPoint(coordinate)),
+		};
+
+		return routeProjectionCache;
+	}
+
+	function getPointToScreenSegmentDistance(
+		point: { x: number; y: number },
+		segmentStart: { x: number; y: number },
+		segmentEnd: { x: number; y: number },
+	) {
+		const deltaX = segmentEnd.x - segmentStart.x;
+		const deltaY = segmentEnd.y - segmentStart.y;
+		const segmentLengthSquared = deltaX ** 2 + deltaY ** 2;
+
+		if (segmentLengthSquared === 0) {
+			return Math.hypot(point.x - segmentStart.x, point.y - segmentStart.y);
+		}
+
+		const projection =
+			((point.x - segmentStart.x) * deltaX +
+				(point.y - segmentStart.y) * deltaY) /
+			segmentLengthSquared;
+		const clampedProjection = Math.min(1, Math.max(0, projection));
+		const closestX = segmentStart.x + deltaX * clampedProjection;
+		const closestY = segmentStart.y + deltaY * clampedProjection;
+
+		return Math.hypot(point.x - closestX, point.y - closestY);
+	}
+
+	function getSelectedSegmentAtPoint(screenPoint: { x: number; y: number }) {
+		const coordinates = getSelectedRouteCoordinates();
+
+		if (!map || coordinates.length < 2) {
+			return undefined;
+		}
+
+		const projectionCache =
+			routeProjectionCache?.coordinates === coordinates
+				? routeProjectionCache
+				: null;
+		let bestCoordinateSegmentIndex = -1;
+		let bestDistance = Number.POSITIVE_INFINITY;
+
+		for (let index = 0; index < coordinates.length - 1; index += 1) {
+			const from = coordinates[index];
+			const to = coordinates[index + 1];
+
+			if (!from || !to) {
+				continue;
+			}
+
+			const cachedFromPoint = projectionCache?.points[index] ?? null;
+			const cachedToPoint = projectionCache?.points[index + 1] ?? null;
+			const fromPoint = cachedFromPoint ?? getProjectedPoint(from);
+			const toPoint = cachedToPoint ?? getProjectedPoint(to);
+
+			if (!fromPoint || !toPoint) {
+				continue;
+			}
+
+			const distance = getPointToScreenSegmentDistance(
+				screenPoint,
+				fromPoint,
+				toPoint,
+			);
+
+			if (distance < bestDistance) {
+				bestDistance = distance;
+				bestCoordinateSegmentIndex = index;
+			}
+
+			if (distance < routeSegmentNearHitThresholdPx) {
+				break;
+			}
+		}
+
+		if (
+			bestCoordinateSegmentIndex < 0 ||
+			bestDistance > routeSegmentSelectionThresholdPx
+		) {
+			return undefined;
+		}
+
+		return {
+			coordinateSegmentIndex: bestCoordinateSegmentIndex,
+			segmentIndex: getEditableSegmentIndexForCoordinateSegment(
+				bestCoordinateSegmentIndex,
+			),
+		};
+	}
+
+	function getEditableSegmentIndexForCoordinateSegment(
+		coordinateSegmentIndex: number,
+	) {
+		const coordinates = getSelectedRouteCoordinates();
+		const segmentCount = getSelectedRouteSegmentCount();
+		const plannedRouteLegIndex = plannedRoute
+			? getRouteLegIndexForCoordinateSegment(
+					plannedRoute,
+					coordinateSegmentIndex,
+				)
+			: null;
+
+		if (plannedRouteLegIndex !== null) {
+			return plannedRouteLegIndex;
+		}
+
+		if (segmentCount <= 1 || coordinates.length < 2) {
+			return 0;
+		}
+
+		return Math.min(
+			segmentCount - 1,
+			Math.max(
+				0,
+				Math.floor(
+					(coordinateSegmentIndex / Math.max(coordinates.length - 1, 1)) *
+						segmentCount,
+				),
+			),
+		);
+	}
+
 	function cancelSmoothResize() {
 		resizeLoopUntil = 0;
 
@@ -282,6 +695,10 @@
 		return map?.getSource(constraintSourceId) as GeoJSONSource | undefined;
 	}
 
+	function getLockedSegmentSource() {
+		return map?.getSource(lockedSegmentSourceId) as GeoJSONSource | undefined;
+	}
+
 	function removeRouteOverlayById(overlayId: string) {
 		if (!map || !isStyleReady) {
 			return;
@@ -327,6 +744,25 @@
 
 		if (map.getSource(constraintSourceId)) {
 			map.removeSource(constraintSourceId);
+		}
+	}
+
+	function removeLockedSegmentOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		for (const layerId of [
+			lockedSegmentLineLayerId,
+			lockedSegmentCasingLayerId,
+		]) {
+			if (map.getLayer(layerId)) {
+				map.removeLayer(layerId);
+			}
+		}
+
+		if (map.getSource(lockedSegmentSourceId)) {
+			map.removeSource(lockedSegmentSourceId);
 		}
 	}
 
@@ -577,6 +1013,82 @@
 		}
 	}
 
+	function ensureLockedSegmentOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		if (!lockedSegmentOverlay || lockedSegmentOverlay.features.length === 0) {
+			removeLockedSegmentOverlay();
+			return;
+		}
+
+		const existingSource = getLockedSegmentSource();
+
+		if (existingSource) {
+			existingSource.setData(lockedSegmentOverlay);
+		} else {
+			map.addSource(lockedSegmentSourceId, {
+				type: "geojson",
+				data: lockedSegmentOverlay,
+			});
+		}
+
+		if (!map.getLayer(lockedSegmentCasingLayerId)) {
+			map.addLayer({
+				id: lockedSegmentCasingLayerId,
+				type: "line",
+				source: lockedSegmentSourceId,
+				layout: {
+					"line-cap": "round",
+					"line-join": "round",
+				},
+				paint: {
+					"line-color": "rgba(255, 255, 255, 0.9)",
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						6,
+						7,
+						12,
+						10,
+						16,
+						13,
+					],
+					"line-opacity": 0.82,
+				},
+			});
+		}
+
+		if (!map.getLayer(lockedSegmentLineLayerId)) {
+			map.addLayer({
+				id: lockedSegmentLineLayerId,
+				type: "line",
+				source: lockedSegmentSourceId,
+				layout: {
+					"line-cap": "round",
+					"line-join": "round",
+				},
+				paint: {
+					"line-color": "rgb(217, 119, 6)",
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						6,
+						3,
+						12,
+						5,
+						16,
+						7,
+					],
+					"line-dasharray": [1.4, 1],
+				},
+			});
+		}
+	}
+
 	function ensureHoveredRouteOverlay() {
 		if (!map || !isStyleReady) {
 			return;
@@ -804,6 +1316,7 @@
 
 		ensureConstraintOverlay();
 		ensureRouteOverlays();
+		ensureLockedSegmentOverlay();
 
 		if (fitBounds) {
 			fitRouteBounds();
@@ -975,37 +1488,154 @@
 						lngLat?: { lng?: number; lat?: number };
 						point?: { x?: number; y?: number };
 					}) => {
-						const longitude = event.lngLat?.lng;
-						const latitude = event.lngLat?.lat;
-						const clickX = event.point?.x;
-						const clickY = event.point?.y;
-
-						if (
-							typeof longitude !== "number" ||
-							typeof latitude !== "number" ||
-							typeof clickX !== "number" ||
-							typeof clickY !== "number"
-						) {
+						if (suppressNextMapClick) {
+							suppressNextMapClick = false;
 							return;
 						}
 
+						const detail = getMapEventDetail(event);
+
+						if (!detail) {
+							return;
+						}
+
+						const selectedStop = getSelectedStopAtPoint(detail.screenPoint);
+						const selectedSegment = selectedStop
+							? undefined
+							: getSelectedSegmentAtPoint(detail.screenPoint);
+
 						onMapClick?.({
-							point: [longitude, latitude],
-							screenPoint: {
-								x: clickX,
-								y: clickY,
-							},
-							selectedStop: getSelectedStopAtPoint({
-								x: clickX,
-								y: clickY,
-							}),
+							...detail,
+							selectedStop,
+							selectedSegment,
 						});
+
+						if (selectedSegment) {
+							onRouteSegmentSelection?.({
+								...detail,
+								...selectedSegment,
+							});
+						}
+					};
+					const handleRouteDragStart = (event: {
+						lngLat?: { lng?: number; lat?: number };
+						point?: { x?: number; y?: number };
+						preventDefault?: () => void;
+					}) => {
+						clearStaleClickSuppression();
+
+						if (!manualEditingEnabled) {
+							return;
+						}
+
+						const detail = getMapEventDetail(event);
+
+						if (!detail) {
+							return;
+						}
+
+						const selectedStop = getSelectedStopAtPoint(detail.screenPoint);
+
+						if (selectedStop) {
+							const stopIndex = getStopIndex(selectedStop);
+
+							if (isStopLocked(stopIndex)) {
+								return;
+							}
+
+							activeRouteDrag = {
+								kind: "stop",
+								selectedStop,
+								stopIndex,
+								startPoint: detail.point,
+							};
+							event.preventDefault?.();
+							disableMapDragPan();
+							setMapCursor("grabbing");
+							return;
+						}
+
+						const selectedSegment = getSelectedSegmentAtPoint(
+							detail.screenPoint,
+						);
+
+						if (!selectedSegment || isSegmentLocked(selectedSegment.segmentIndex)) {
+							return;
+						}
+
+						activeRouteDrag = {
+							kind: "segment",
+							...selectedSegment,
+							startPoint: detail.point,
+						};
+						event.preventDefault?.();
+						disableMapDragPan();
+						setMapCursor("crosshair");
+					};
+					const handleRouteDragMove = (event: {
+						point?: { x?: number; y?: number };
+					}) => {
+						prepareSelectedRouteProjectionCache();
+
+						if (activeRouteDrag) {
+							setMapCursor(
+								activeRouteDrag.kind === "stop" ? "grabbing" : "crosshair",
+							);
+							return;
+						}
+
+						if (!manualEditingEnabled || !event.point) {
+							setMapCursor("");
+							return;
+						}
+
+						const selectedStop = getSelectedStopAtPoint({
+							x: event.point.x ?? 0,
+							y: event.point.y ?? 0,
+						});
+
+						if (selectedStop && !isStopLocked(getStopIndex(selectedStop))) {
+							setMapCursor("grab");
+							return;
+						}
+
+						const selectedSegment = getSelectedSegmentAtPoint({
+							x: event.point.x ?? 0,
+							y: event.point.y ?? 0,
+						});
+
+						setMapCursor(
+							selectedSegment && !isSegmentLocked(selectedSegment.segmentIndex)
+								? "crosshair"
+								: "",
+						);
+					};
+					const handleRouteDragEnd = (event: {
+						lngLat?: { lng?: number; lat?: number };
+						point?: { x?: number; y?: number };
+					}) => {
+						finishRouteDrag(event);
 					};
 
 					map.on("click", handleMapClick);
+					map.on("mousedown", handleRouteDragStart);
+					map.on("pointerdown", clearStaleClickSuppression);
+					map.on("mouseenter", clearStaleClickSuppression);
+					map.on("mousemove", handleRouteDragMove);
+					map.on("mouseup", handleRouteDragEnd);
+					map.on("mouseleave", handleRouteDragEnd);
 					detachMapClickListener = () => {
 						map?.off("click", handleMapClick);
 						detachMapClickListener = () => {};
+					};
+					detachRouteEditingListeners = () => {
+						map?.off("mousedown", handleRouteDragStart);
+						map?.off("pointerdown", clearStaleClickSuppression);
+						map?.off("mouseenter", clearStaleClickSuppression);
+						map?.off("mousemove", handleRouteDragMove);
+						map?.off("mouseup", handleRouteDragEnd);
+						map?.off("mouseleave", handleRouteDragEnd);
+						detachRouteEditingListeners = () => {};
 					};
 				}
 				map.once("load", () => {
@@ -1035,10 +1665,12 @@
 			cancelled = true;
 			detachStyleLoadListener();
 			detachMapClickListener();
+			detachRouteEditingListeners();
 			cancelSmoothResize();
 			resizeObserver?.disconnect();
 			removeRouteOverlays();
 			removeConstraintOverlay();
+			removeLockedSegmentOverlay();
 			removeHoveredRouteOverlay();
 			removeCurrentLocationOverlay();
 			removeScaleControl();

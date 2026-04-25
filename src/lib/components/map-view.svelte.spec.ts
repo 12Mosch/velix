@@ -165,6 +165,15 @@ const {
 		once: vi.fn(),
 		remove: vi.fn(),
 		resize: vi.fn(),
+		project: vi.fn(([lng, lat]: [number, number]) => ({
+			x: lng * 100,
+			y: lat * 100,
+		})),
+		dragPan: {
+			isEnabled: vi.fn(() => true),
+			disable: vi.fn(),
+			enable: vi.fn(),
+		},
 		queryRenderedFeatures: vi.fn(
 			(point: { x?: number; y?: number } | number[]) =>
 				renderedFeatures.get(getRenderedFeatureKey(point)) ?? [],
@@ -274,6 +283,10 @@ describe("MapView", () => {
 		mapInstance.off.mockClear();
 		mapInstance.remove.mockClear();
 		mapInstance.resize.mockClear();
+		mapInstance.project.mockClear();
+		mapInstance.dragPan.isEnabled.mockClear();
+		mapInstance.dragPan.disable.mockClear();
+		mapInstance.dragPan.enable.mockClear();
 		mapInstance.queryRenderedFeatures.mockClear();
 		mapInstance.setStyle.mockClear();
 		mapInstance.addSource.mockClear();
@@ -696,6 +709,162 @@ describe("MapView", () => {
 			)
 			.toBe(true);
 		expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1);
+	});
+
+	it("emits route stop drag details and restores map panning", async () => {
+		const onRouteStopDragEnd = vi.fn();
+		mockState.renderedFeatures.set("320,180", [
+			{
+				properties: {
+					kind: "waypoint",
+					label: "Waypoint 1",
+					order: 1,
+				},
+			},
+		]);
+
+		render(MapView, {
+			manualEditingEnabled: true,
+			onRouteStopDragEnd,
+			routeMode: "point_to_point",
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		mockState.eventHandlers.get("mousedown")?.[0]?.({
+			lngLat: {
+				lng: 11.55,
+				lat: 47.225,
+			},
+			point: {
+				x: 320,
+				y: 180,
+			},
+		});
+		mockState.eventHandlers.get("mouseup")?.[0]?.({
+			lngLat: {
+				lng: 11.56,
+				lat: 47.23,
+			},
+			point: {
+				x: 330,
+				y: 190,
+			},
+		});
+
+		expect(onRouteStopDragEnd).toHaveBeenCalledWith({
+			point: [11.56, 47.23],
+			screenPoint: {
+				x: 330,
+				y: 190,
+			},
+			selectedStop: {
+				kind: "waypoint",
+				label: "Waypoint 1",
+				index: 0,
+			},
+			stopIndex: 1,
+		});
+		expect(mapInstance.dragPan.disable).toHaveBeenCalled();
+		expect(mapInstance.dragPan.enable).toHaveBeenCalled();
+	});
+
+	it("does not start a stop drag when the stop belongs to a locked segment", async () => {
+		const onRouteStopDragEnd = vi.fn();
+		mockState.renderedFeatures.set("320,180", [
+			{
+				properties: {
+					kind: "waypoint",
+					label: "Waypoint 1",
+					order: 1,
+				},
+			},
+		]);
+
+		render(MapView, {
+			lockedSegmentIndexes: [0],
+			manualEditingEnabled: true,
+			onRouteStopDragEnd,
+			routeMode: "point_to_point",
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		mockState.eventHandlers.get("mousedown")?.[0]?.({
+			lngLat: {
+				lng: 11.55,
+				lat: 47.225,
+			},
+			point: {
+				x: 320,
+				y: 180,
+			},
+		});
+		mockState.eventHandlers.get("mouseup")?.[0]?.({
+			lngLat: {
+				lng: 11.56,
+				lat: 47.23,
+			},
+			point: {
+				x: 330,
+				y: 190,
+			},
+		});
+
+		expect(onRouteStopDragEnd).not.toHaveBeenCalled();
+		expect(mapInstance.dragPan.disable).not.toHaveBeenCalled();
+	});
+
+	it("renders and removes the locked segment overlay", async () => {
+		const lockedSegmentOverlay: FeatureCollection = {
+			type: "FeatureCollection",
+			features: [
+				{
+					type: "Feature",
+					properties: {
+						kind: "locked_segment",
+						segmentIndex: 0,
+					},
+					geometry: {
+						type: "LineString",
+						coordinates: [
+							[11.5, 47.2, 700],
+							[11.55, 47.225, 730],
+						],
+					},
+				},
+			],
+		};
+		const view = render(MapView, {
+			lockedSegmentOverlay,
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.addSource.mock.calls.some(
+					(call) => call[0] === "route-locked-segments",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toContain(
+			"route-locked-segments-line",
+		);
+
+		await view.rerender({
+			lockedSegmentOverlay: null,
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.removeSource.mock.calls.some(
+					(call) => call[0] === "route-locked-segments",
+				),
+			)
+			.toBe(true);
 	});
 
 	it("handles constructor failures without throwing unhandled rejections", async () => {

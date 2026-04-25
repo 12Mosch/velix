@@ -1483,7 +1483,12 @@ describe("POST /api/route", () => {
 		await expect(response.json()).resolves.toEqual({
 			error: "You can add up to 3 waypoints per route.",
 			fieldErrors: {
-				waypointQueries: ["", "", "", ""],
+				waypointQueries: [
+					"You can add up to 3 waypoints per route.",
+					"You can add up to 3 waypoints per route.",
+					"You can add up to 3 waypoints per route.",
+					"You can add up to 3 waypoints per route.",
+				],
 			},
 		});
 	});
@@ -1887,6 +1892,150 @@ describe("POST /api/route", () => {
 				},
 			],
 			selectedRouteIndex: 0,
+		});
+	});
+
+	it("routes out-and-back shaping waypoints before mirroring the outbound path", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5755, 48.1374, 520],
+				[11.7581, 47.7123, 734],
+				[11.8598, 47.7362, 785],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "out_and_back",
+					start: {
+						label: "Start",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [
+						{
+							label: "Shaper",
+							point: [11.7581, 47.7123],
+						},
+					],
+					turnaround: {
+						label: "Turnaround",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.7581, 47.7123],
+			[11.8598, 47.7362],
+		]);
+
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.mode).toBe("out_and_back");
+		expect(
+			payload.routes[0]?.waypoints.map((waypoint) => waypoint.label),
+		).toEqual(["Shaper", "Turnaround"]);
+		expect(payload.routes[0]?.coordinates).toHaveLength(5);
+	});
+
+	it("routes shaped round courses as closed loops and keeps the target as metadata", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5755, 48.1374, 520],
+				[11.7581, 47.7123, 734],
+				[11.5755, 48.1374, 520],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Start",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [
+						{
+							label: "Shaper",
+							point: [11.7581, 47.7123],
+						},
+					],
+					target: {
+						kind: "distance",
+						distanceMeters: 50000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.7581, 47.7123],
+			[11.5755, 48.1374],
+		]);
+		expect(requestBody.algorithm).toBe("alternative_route");
+
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]).toMatchObject({
+			mode: "round_course",
+			roundCourseTarget: {
+				kind: "distance",
+				distanceMeters: 50000,
+			},
+			waypoints: [
+				{
+					label: "Shaper",
+					coordinate: [11.7581, 47.7123, 734],
+				},
+			],
+			routingWarnings: [
+				"Manual shaping points make the round-course target best-effort.",
+			],
+		});
+	});
+
+	it("filters manual editing locks down to non-negative segment indexes", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5755, 48.1374, 520],
+				[11.8598, 47.7362, 785],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Start",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Destination",
+						point: [11.8598, 47.7362],
+					},
+					manualEditing: {
+						lockedSegmentIndexes: [-1, 0, 2],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.manualEditing).toEqual({
+			lockedSegmentIndexes: [0, 2],
 		});
 	});
 });

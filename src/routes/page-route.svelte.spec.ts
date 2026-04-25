@@ -361,7 +361,13 @@ function mockCurrentPositionError() {
 	return getCurrentPosition;
 }
 
-const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
+const {
+	mapInstance,
+	mapMock,
+	scaleControlInstance,
+	scaleControlMock,
+	mockState,
+} = vi.hoisted(() => {
 	const sources = new Map<
 		string,
 		{ data: unknown; setData: ReturnType<typeof vi.fn> }
@@ -392,9 +398,20 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 			);
 			return mapInstance;
 		}),
+		addControl: vi.fn(() => mapInstance),
+		removeControl: vi.fn(() => mapInstance),
 		once: vi.fn(),
 		remove: vi.fn(),
 		resize: vi.fn(),
+		project: vi.fn(([lng, lat]: [number, number]) => ({
+			x: lng * 100,
+			y: lat * 100,
+		})),
+		dragPan: {
+			isEnabled: vi.fn(() => true),
+			disable: vi.fn(),
+			enable: vi.fn(),
+		},
 		queryRenderedFeatures: vi.fn(
 			(point: { x?: number; y?: number } | number[]) =>
 				renderedFeatures.get(getRenderedFeatureKey(point)) ?? [],
@@ -403,7 +420,12 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 		addSource: vi.fn((id: string, spec: { data: unknown }) => {
 			sources.set(id, {
 				data: spec.data,
-				setData: vi.fn(),
+				setData: vi.fn((nextData: unknown) => {
+					const source = sources.get(id);
+					if (source) {
+						source.data = nextData;
+					}
+				}),
 			});
 			return mapInstance;
 		}),
@@ -428,10 +450,16 @@ const { mapInstance, mapMock, mockState } = vi.hoisted(() => {
 	const mapMock = vi.fn(function MockMap(_options: unknown) {
 		return mapInstance;
 	});
+	const scaleControlInstance = { kind: "scale-control" };
+	const scaleControlMock = vi.fn(function MockScaleControl(_options: unknown) {
+		return scaleControlInstance;
+	});
 
 	return {
 		mapInstance,
 		mapMock,
+		scaleControlInstance,
+		scaleControlMock,
 		mockState: {
 			sources,
 			layers,
@@ -445,6 +473,11 @@ vi.mock("maplibre-gl", () => {
 	mapMock.mockImplementation(function MockMap(_options: unknown) {
 		return mapInstance;
 	});
+	scaleControlMock.mockImplementation(function MockScaleControl(
+		_options: unknown,
+	) {
+		return scaleControlInstance;
+	});
 	mapInstance.once.mockImplementation((event: string, callback: () => void) => {
 		if (event === "load" || event === "style.load") callback();
 		return mapInstance;
@@ -457,8 +490,10 @@ vi.mock("maplibre-gl", () => {
 
 	return {
 		Map: mapMock,
+		ScaleControl: scaleControlMock,
 		default: {
 			Map: mapMock,
+			ScaleControl: scaleControlMock,
 		},
 	};
 });
@@ -1179,7 +1214,7 @@ describe("+page.svelte", () => {
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByRole("button", { name: "Add waypoint" }))
-			.not.toBeInTheDocument();
+			.toBeInTheDocument();
 		await expect
 			.element(page.getByRole("spinbutton", { name: "Target distance" }))
 			.not.toBeInTheDocument();

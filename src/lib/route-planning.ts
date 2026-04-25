@@ -92,6 +92,7 @@ export type RoundCourseTarget =
 export type RoundCourseRouteRequestPayload = {
 	mode: "round_course";
 	start: RouteStopInput;
+	waypoints?: RouteStopInput[];
 	target: RoundCourseTarget;
 	spatialConstraint?: RouteSpatialConstraintInput;
 };
@@ -99,6 +100,7 @@ export type RoundCourseRouteRequestPayload = {
 export type OutAndBackRouteRequestPayload = {
 	mode: "out_and_back";
 	start: RouteStopInput;
+	waypoints?: RouteStopInput[];
 	turnaround: RouteStopInput;
 	spatialConstraint?: RouteSpatialConstraintInput;
 };
@@ -119,6 +121,10 @@ export type RouteWaypoint = {
 	coordinate: RouteCoordinate;
 };
 
+export type ManualRouteEditingState = {
+	lockedSegmentIndexes: number[];
+};
+
 export type ElevationProfilePoint = {
 	distanceMeters: number;
 	elevationMeters: number;
@@ -136,6 +142,7 @@ export type PlannedRoute = {
 	routingProfile?: string;
 	routingStrategy?: string;
 	routingWarnings?: string[];
+	manualEditing?: ManualRouteEditingState;
 	waypoints: RouteWaypoint[];
 	bounds: RouteBounds;
 	distanceMeters: number;
@@ -193,6 +200,11 @@ type SpatialConstraintFeatureProperties = {
 	label?: string;
 	radiusMeters?: number;
 	widthMeters?: number;
+};
+
+type LockedSegmentFeatureProperties = {
+	kind: "locked_segment";
+	segmentIndex: number;
 };
 
 const smoothSurfaceValues = new Set([
@@ -548,38 +560,37 @@ function getNearestPolylineIndex(
 }
 
 export function getRouteStopInputs(route: PlannedRoute): RouteStopInput[] {
+	return getEditableRouteStops(route);
+}
+
+/**
+ * Returns the editable stop chain for route planning interactions.
+ *
+ * Point-to-point routes expose start, all waypoints, and destination.
+ * Round courses expose the start plus shaping waypoints; the implicit closing
+ * leg returns to the start. Out-and-back routes expose start, optional shaping
+ * waypoints, and the turnaround, with mirrored return geometry handled later.
+ */
+export function getEditableRouteStops(route: PlannedRoute): RouteStopInput[] {
 	const startCoordinate = route.coordinates[0];
 	const destinationCoordinate = route.coordinates[route.coordinates.length - 1];
+	const startStop = {
+		label: route.startLabel,
+		point: startCoordinate ? toStopPoint(startCoordinate) : undefined,
+	};
 
-	if (route.mode === "round_course") {
+	if (route.mode !== "point_to_point") {
 		return [
-			{
-				label: route.startLabel,
-				point: startCoordinate ? toStopPoint(startCoordinate) : undefined,
-			},
-		];
-	}
-
-	if (route.mode === "out_and_back") {
-		const turnaround = route.waypoints[0];
-
-		return [
-			{
-				label: route.startLabel,
-				point: startCoordinate ? toStopPoint(startCoordinate) : undefined,
-			},
-			{
-				label: route.destinationLabel,
-				point: turnaround ? toStopPoint(turnaround.coordinate) : undefined,
-			},
+			startStop,
+			...route.waypoints.map((waypoint) => ({
+				label: waypoint.label,
+				point: toStopPoint(waypoint.coordinate),
+			})),
 		];
 	}
 
 	return [
-		{
-			label: route.startLabel,
-			point: startCoordinate ? toStopPoint(startCoordinate) : undefined,
-		},
+		startStop,
 		...route.waypoints.map((waypoint) => ({
 			label: waypoint.label,
 			point: toStopPoint(waypoint.coordinate),
@@ -591,6 +602,208 @@ export function getRouteStopInputs(route: PlannedRoute): RouteStopInput[] {
 				: undefined,
 		},
 	];
+}
+
+/**
+ * Counts editable legs, not raw polyline coordinate segments.
+ *
+ * Point-to-point and out-and-back routes have one fewer editable segment than
+ * editable stops. Round courses include the implicit final segment from the
+ * last shaping stop back to the start, so their segment count matches the
+ * editable stop count.
+ */
+export function getRouteSegmentCount(route: PlannedRoute): number {
+	const editableStops = getEditableRouteStops(route);
+
+	if (route.mode === "round_course") {
+		return Math.max(1, editableStops.length);
+	}
+
+	return Math.max(0, editableStops.length - 1);
+}
+
+export function sanitizeLockedSegmentIndexes(
+	indexes: number[] | null | undefined,
+	segmentCount: number,
+): number[] {
+	if (!Array.isArray(indexes) || segmentCount <= 0) {
+		return [];
+	}
+
+	return [...new Set(indexes)]
+		.filter(
+			(index) => Number.isInteger(index) && index >= 0 && index < segmentCount,
+		)
+		.sort((left, right) => left - right);
+}
+
+export function isRouteStopLocked(
+	stopIndex: number,
+	lockedSegmentIndexes: number[],
+	segmentCount: number,
+	isClosedLoop = false,
+): boolean {
+	if (!Number.isInteger(stopIndex) || stopIndex < 0 || segmentCount <= 0) {
+		return false;
+	}
+
+	const lockedSegments = new Set(
+		sanitizeLockedSegmentIndexes(lockedSegmentIndexes, segmentCount),
+	);
+
+	if (lockedSegments.has(stopIndex) || lockedSegments.has(stopIndex - 1)) {
+		return true;
+	}
+
+	return (
+		isClosedLoop && stopIndex === 0 && lockedSegments.has(segmentCount - 1)
+	);
+}
+
+function getRouteStopPolylineIndices(route: PlannedRoute): number[] {
+	const editableStops = getEditableRouteStops(route);
+	const stopPoints = editableStops
+		.map((stop) => stop.point)
+		.filter((point): point is [number, number] => !!point);
+
+	if (
+		stopPoints.length !== editableStops.length ||
+		route.coordinates.length === 0
+	) {
+		return [];
+	}
+
+	const stopIndices: number[] = [];
+	let searchStartIndex = 0;
+
+	for (const stopPoint of stopPoints) {
+		const stopIndex = getNearestPolylineIndex(
+			route.coordinates,
+			stopPoint,
+			searchStartIndex,
+		);
+		stopIndices.push(stopIndex);
+		searchStartIndex = stopIndex;
+	}
+
+	return stopIndices;
+}
+
+function getCoordinateSegmentForRouteLeg(
+	route: PlannedRoute,
+	legIndex: number,
+): { fromIndex: number; toIndex: number } | null {
+	const segmentCount = getRouteSegmentCount(route);
+
+	if (
+		legIndex < 0 ||
+		legIndex >= segmentCount ||
+		route.coordinates.length < 2
+	) {
+		return null;
+	}
+
+	const stopIndices = getRouteStopPolylineIndices(route);
+
+	if (route.mode === "round_course") {
+		if (stopIndices.length <= 1) {
+			return {
+				fromIndex: 0,
+				toIndex: route.coordinates.length - 1,
+			};
+		}
+
+		const fromIndex = stopIndices[legIndex] ?? 0;
+		const toIndex =
+			legIndex === segmentCount - 1
+				? route.coordinates.length - 1
+				: (stopIndices[legIndex + 1] ?? route.coordinates.length - 1);
+
+		return toIndex > fromIndex ? { fromIndex, toIndex } : null;
+	}
+
+	const fromIndex = stopIndices[legIndex] ?? 0;
+	const toIndex = stopIndices[legIndex + 1] ?? route.coordinates.length - 1;
+
+	return toIndex > fromIndex ? { fromIndex, toIndex } : null;
+}
+
+export function buildLockedSegmentGeoJson(
+	route: PlannedRoute,
+	lockedSegmentIndexes: number[],
+): FeatureCollection<LineString, LockedSegmentFeatureProperties> {
+	const segmentCount = getRouteSegmentCount(route);
+	const sanitizedIndexes = sanitizeLockedSegmentIndexes(
+		lockedSegmentIndexes,
+		segmentCount,
+	);
+
+	return {
+		type: "FeatureCollection",
+		features: sanitizedIndexes.flatMap((segmentIndex) => {
+			const segment = getCoordinateSegmentForRouteLeg(route, segmentIndex);
+
+			if (!segment) {
+				return [];
+			}
+
+			const fromIndex = Math.max(0, segment.fromIndex);
+			const toIndex = Math.min(route.coordinates.length - 1, segment.toIndex);
+
+			if (toIndex <= fromIndex) {
+				return [];
+			}
+
+			const coordinates = route.coordinates.slice(fromIndex, toIndex + 1);
+
+			if (coordinates.length < 2) {
+				return [];
+			}
+
+			return [
+				{
+					type: "Feature" as const,
+					properties: {
+						kind: "locked_segment" as const,
+						segmentIndex,
+					},
+					geometry: {
+						type: "LineString" as const,
+						coordinates: coordinates as Position[],
+					},
+				},
+			];
+		}),
+	};
+}
+
+export function getRouteLegIndexForCoordinateSegment(
+	route: PlannedRoute,
+	coordinateSegmentIndex: number,
+): number | null {
+	const segmentCount = getRouteSegmentCount(route);
+
+	if (
+		!Number.isInteger(coordinateSegmentIndex) ||
+		coordinateSegmentIndex < 0 ||
+		coordinateSegmentIndex >= route.coordinates.length - 1
+	) {
+		return null;
+	}
+
+	for (let legIndex = 0; legIndex < segmentCount; legIndex += 1) {
+		const segment = getCoordinateSegmentForRouteLeg(route, legIndex);
+
+		if (
+			segment &&
+			coordinateSegmentIndex >= segment.fromIndex &&
+			coordinateSegmentIndex < segment.toIndex
+		) {
+			return legIndex;
+		}
+	}
+
+	return null;
 }
 
 function getRouteLegInsertionIndex(
