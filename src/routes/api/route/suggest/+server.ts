@@ -1,6 +1,7 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 
+import { parseCoordinateSearchInput } from "$lib/coordinate-search";
 import {
 	missingGraphHopperApiKeyMessage,
 	suggestLocations,
@@ -11,6 +12,24 @@ const maxSuggestions = 5;
 
 export const GET: RequestHandler = async ({ fetch, url }) => {
 	const query = url.searchParams.get("q")?.trim() ?? "";
+	const coordinateResult = parseCoordinateSearchInput(query);
+
+	if (coordinateResult.kind === "coordinate") {
+		return json({
+			suggestions: [
+				{
+					label: coordinateResult.label,
+					point: coordinateResult.point,
+				},
+			],
+		});
+	}
+
+	if (coordinateResult.kind === "invalid_coordinate") {
+		return json({
+			suggestions: [],
+		});
+	}
 
 	if (query.length < minQueryLength) {
 		return json({

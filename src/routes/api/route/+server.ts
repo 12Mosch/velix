@@ -2,6 +2,7 @@ import { env } from "$env/dynamic/private";
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 
+import { parseCoordinateSearchInput } from "$lib/coordinate-search";
 import type {
 	PlannedRoute,
 	ManualRouteEditingState,
@@ -1208,8 +1209,18 @@ async function searchRoundCourseRoutes(
 
 function normalizeStopInput(value: unknown): RouteStopInput {
 	if (typeof value === "string") {
+		const label = value.trim();
+		const coordinateResult = parseCoordinateSearchInput(label);
+
+		if (coordinateResult.kind === "coordinate") {
+			return {
+				label: coordinateResult.label,
+				point: coordinateResult.point,
+			};
+		}
+
 		return {
-			label: value.trim(),
+			label,
 		};
 	}
 
@@ -1224,18 +1235,36 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 		point?: unknown;
 	};
 	const point = Array.isArray(candidate.point) ? candidate.point : undefined;
+	const label =
+		typeof candidate.label === "string" ? candidate.label.trim() : "";
+	const normalizedPoint: [number, number] | undefined =
+		point &&
+		point.length >= 2 &&
+		typeof point[0] === "number" &&
+		Number.isFinite(point[0]) &&
+		typeof point[1] === "number" &&
+		Number.isFinite(point[1])
+			? [point[0], point[1]]
+			: undefined;
+
+	if (normalizedPoint) {
+		return {
+			label,
+			point: normalizedPoint,
+		};
+	}
+
+	const coordinateResult = parseCoordinateSearchInput(label);
+
+	if (coordinateResult.kind === "coordinate") {
+		return {
+			label: coordinateResult.label,
+			point: coordinateResult.point,
+		};
+	}
 
 	return {
-		label: typeof candidate.label === "string" ? candidate.label.trim() : "",
-		point:
-			point &&
-			point.length >= 2 &&
-			typeof point[0] === "number" &&
-			Number.isFinite(point[0]) &&
-			typeof point[1] === "number" &&
-			Number.isFinite(point[1])
-				? [point[0], point[1]]
-				: undefined,
+		label,
 	};
 }
 
