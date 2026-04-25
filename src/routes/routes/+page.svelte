@@ -29,6 +29,12 @@
 	});
 
 	let exportError = $state<string | null>(null);
+	const isLoadingSyncedRoutes = $derived(
+		savedRoutesState.authStatus === "signedIn" &&
+			!savedRoutesState.remoteReady &&
+			!savedRoutesState.syncError &&
+			savedRoutesState.savedRoutes.length === 0,
+	);
 
 	function formatDistance(meters: number): string {
 		return `${(meters / 1000).toFixed(1)} km`;
@@ -167,7 +173,20 @@
 			</div>
 		{/if}
 
-		{#if savedRoutesState.savedRoutes.length === 0}
+		{#if savedRoutesState.syncError}
+			<div
+				class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+				role="alert"
+			>
+				{savedRoutesState.syncError}
+			</div>
+		{/if}
+
+		{#if isLoadingSyncedRoutes}
+			<div class="rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground shadow-sm">
+				Loading saved routes...
+			</div>
+		{:else if savedRoutesState.savedRoutes.length === 0}
 			<div class="rounded-xl border border-border bg-background p-6 shadow-lg md:p-8">
 				<div class="flex flex-col items-start gap-4">
 					<div class="rounded-lg border border-primary/20 bg-primary/10 p-3 text-primary">
