@@ -86,6 +86,45 @@ describe("GET /api/route/suggest", () => {
 		});
 	});
 
+	it("returns one suggestion for valid typed coordinates", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await GET(
+			buildEvent(
+				"http://localhost/api/route/suggest?q=48.1374%2C%2011.5755",
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			suggestions: [
+				{
+					label: "48.13740, 11.57550",
+					point: [11.5755, 48.1374],
+				},
+			],
+		});
+	});
+
+	it("returns no suggestions for invalid coordinate-like input without calling GraphHopper", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await GET(
+			buildEvent(
+				"http://localhost/api/route/suggest?q=91%2C%2011.5755",
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			suggestions: [],
+		});
+	});
+
 	it("surfaces upstream suggestion failures as a gateway error", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()

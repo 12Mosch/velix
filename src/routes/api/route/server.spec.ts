@@ -174,6 +174,44 @@ describe("POST /api/route", () => {
 		expect(requestBody["alternative_route.max_share_factor"]).toBe(0.6);
 	});
 
+	it("accepts typed coordinate labels for point-to-point start and destination", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "48.1374, 11.5755",
+					},
+					waypoints: [],
+					destination: {
+						label: "47.7362 11.8598",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.8598, 47.7362],
+		]);
+
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.startLabel).toBe("48.13740, 11.57550");
+		expect(payload.routes[0]?.destinationLabel).toBe("47.73620, 11.85980");
+	});
+
 	it("sends point-to-point area constraints through the GraphHopper custom model", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			buildRouteResponse([
@@ -233,6 +271,51 @@ describe("POST /api/route", () => {
 			center: [11.72, 47.93],
 			radiusMeters: 90000,
 			enforcement: "strict",
+		});
+	});
+
+	it("accepts typed coordinates for an area constraint center without geocoding", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "area",
+						center: {
+							label: "lat: 48.0000 lng: 11.7000",
+						},
+						radiusMeters: 90000,
+						enforcement: "preferred",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.spatialConstraint).toMatchObject({
+			kind: "area",
+			label: "48.00000, 11.70000",
+			center: [11.7, 48],
 		});
 	});
 
@@ -1999,6 +2082,60 @@ describe("POST /api/route", () => {
 			],
 			routingWarnings: [
 				"Manual shaping points make the round-course target best-effort.",
+			],
+		});
+	});
+
+	it("accepts typed coordinate labels for round-course starts and shaping waypoints", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5755, 48.1374, 520],
+				[11.7581, 47.7123, 734],
+				[11.5755, 48.1374, 520],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "48.1374, 11.5755",
+					},
+					waypoints: [
+						{
+							label: "lng: 11.7581 lat: 47.7123",
+						},
+					],
+					target: {
+						kind: "distance",
+						distanceMeters: 50000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.7581, 47.7123],
+			[11.5755, 48.1374],
+		]);
+
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]).toMatchObject({
+			mode: "round_course",
+			startLabel: "48.13740, 11.57550",
+			destinationLabel: "48.13740, 11.57550",
+			waypoints: [
+				{
+					label: "47.71230, 11.75810",
+					coordinate: [11.7581, 47.7123, 734],
+				},
 			],
 		});
 	});

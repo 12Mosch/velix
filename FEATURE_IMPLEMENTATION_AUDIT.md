@@ -6,7 +6,7 @@ Status legend:
 - **Half**: there is visible or code-level support, but the implementation is incomplete, limited, or missing important expected behavior.
 - **Missing**: no meaningful implementation was found.
 
-Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
+Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
 
 ## 1. Routing & Route Builder
 
@@ -14,8 +14,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Set a start point via search, map click, or current location | Full | Start input supports search suggestions, map-click assignment, and explicit browser geolocation with reverse-geocode fallback. |
-| Set a destination via search, map click, or current location | Full | Destination input supports search suggestions, map-click assignment, and explicit browser geolocation in point-to-point mode. |
+| Set a start point via search, map click, typed coordinates, or current location | Full | Start input supports search suggestions, typed decimal coordinate parsing, map-click assignment, and explicit browser geolocation with reverse-geocode fallback. |
+| Set a destination via search, map click, typed coordinates, or current location | Full | Destination input supports search suggestions, typed decimal coordinate parsing, map-click assignment, and explicit browser geolocation in point-to-point and out-and-back modes. |
 | Create a loop instead of a point-to-point route | Full | Round-course mode generates loop routes. |
 | Derive a route from a saved route | Half | Saved routes can be reopened into the planner via `?savedRoute=...`; no explicit "derive from" workflow/version split. |
 | Import a GPX route and edit it | Full | GPX import exists; imported stops can be edited, map-dragged, and rerouted through the standard manual editing flow. |
@@ -142,7 +142,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Hover on roads/segments | Missing | No road/segment hover inspection. |
 | Context menu for routing actions | Full | Map click popover supports start/destination/waypoint assignment, stop removal, and segment lock/unlock actions. |
 | Show current location | Full | Explicit geolocation control requests permission, centers the map, and renders a current-position marker with optional accuracy ring. |
-| Show coordinates | Half | Click popover shows coordinate fallback when reverse geocoding is unavailable. |
+| Show coordinates | Full | Click popover shows coordinate fallback when reverse geocoding is unavailable, and route search fields accept typed decimal coordinates. |
 | Scale bar | Full | MapLibre scale control is mounted in the bottom-left position and restyled for the planner layout. |
 | Fullscreen map | Half | Planner is map-first/full viewport, but no browser fullscreen toggle. |
 | Mini control bar | Missing | No compact map control bar beyond overlay buttons. |
@@ -557,7 +557,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Place | Full | GraphHopper geocoding suggestions support place search. |
 | Street | Half | Geocoder may return streets, but there is no dedicated street mode. |
 | Address | Half | Geocoder may return addresses, but there is no dedicated address validation UI. |
-| Coordinates | Half | Map clicks and coordinate fallback exist; typed coordinate parsing was not found. |
+| Coordinates | Full | Planner search fields accept decimal `lat,lng`, whitespace-separated decimal pairs, and labeled `lat/lng` or `latitude/longitude` inputs; map clicks and coordinate fallback also exist. |
 | Mountain / pass | Half | May work through geocoder results, but no dedicated mountain/pass search. |
 | Café / water / bike shop | Missing | No POI category search. |
 | Saved places | Missing | No saved places. |

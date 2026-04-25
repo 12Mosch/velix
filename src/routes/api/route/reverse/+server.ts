@@ -1,14 +1,11 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 
+import { formatCoordinateLabel } from "$lib/coordinate-search";
 import {
 	missingGraphHopperApiKeyMessage,
 	reverseGeocodeLocation,
 } from "$lib/server/graphhopper";
-
-function formatCoordinateLabel(point: [number, number]) {
-	return `${point[1].toFixed(5)}, ${point[0].toFixed(5)}`;
-}
 
 export const GET: RequestHandler = async ({ fetch, url }) => {
 	const latitude = Number(url.searchParams.get("lat"));
