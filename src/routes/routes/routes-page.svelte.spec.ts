@@ -6,6 +6,7 @@ import RoutesPage from "./+page.svelte";
 import {
 	resetSavedRoutesForTests,
 	SAVED_ROUTES_STORAGE_KEY,
+	savedRoutesState,
 } from "$lib/saved-routes.svelte";
 
 const savedRoutes = [
@@ -126,6 +127,20 @@ describe("routes/+page.svelte", () => {
 			.toBeInTheDocument();
 		await expect.element(page.getByText("61.2 km")).toBeInTheDocument();
 		await expect.element(page.getByText("820 m up")).toBeInTheDocument();
+		await expect
+			.element(page.getByRole("link", { name: "Open route" }))
+			.toHaveAttribute("href", "/?savedRoute=saved-route-1");
+	});
+
+	it("renders remote routes already applied through savedRoutesState", async () => {
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
+
+		render(RoutesPage);
+
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
 		await expect
 			.element(page.getByRole("link", { name: "Open route" }))
 			.toHaveAttribute("href", "/?savedRoute=saved-route-1");
@@ -365,6 +380,26 @@ describe("routes/+page.svelte", () => {
 			.element(page.getByText("No saved routes yet"))
 			.toBeInTheDocument();
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("deletes optimistically and calls the remote adapter when signed in", async () => {
+		const deleteRemote = vi.fn().mockResolvedValue(undefined);
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
+		savedRoutesState.setRemoteAdapter({
+			save: vi.fn(),
+			delete: deleteRemote,
+			mergeLocalRoutes: vi.fn(),
+		});
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Delete" }).click();
+
+		await expect
+			.element(page.getByText("No saved routes yet"))
+			.toBeInTheDocument();
+		expect(deleteRemote).toHaveBeenCalledWith("saved-route-1");
 	});
 
 	it("exports a saved route as a GPX download", async () => {

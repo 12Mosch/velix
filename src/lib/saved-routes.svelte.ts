@@ -1,494 +1,176 @@
 import { browser } from "$app/environment";
 
-import type {
-	ImportedRouteStopDerivation,
-	ManualRouteEditingState,
-	PlannedRoute,
-	ResolvedRouteSpatialConstraint,
-	RoundCourseTarget,
-	RouteSource,
-	RouteMode,
-	RouteWaypoint,
-	SpatialConstraintEnforcement,
-} from "$lib/route-planning";
+import type { PlannedRoute } from "$lib/route-planning";
 import {
-	getRouteSegmentCount,
-	sanitizeLockedSegmentIndexes,
-} from "$lib/route-planning";
+	buildSavedRoute,
+	cloneSavedRoute,
+	normalizeSavedRoutes,
+	parseSavedRoutes,
+	SAVED_ROUTES_STORAGE_KEY,
+	type SavedRoute,
+} from "$lib/saved-routes-core";
+export {
+	buildSavedRoute,
+	cloneRoute,
+	isPlannedRoute,
+	normalizePlannedRoute,
+	parseSavedRoutes,
+	SAVED_ROUTES_STORAGE_KEY,
+	type SavedRoute,
+} from "$lib/saved-routes-core";
 
-export const SAVED_ROUTES_STORAGE_KEY = "velix.savedRoutes";
+export type SavedRoutesAuthStatus = "loading" | "signedOut" | "signedIn";
 
-export type SavedRoute = {
-	id: string;
-	createdAt: string;
-	route: PlannedRoute;
+export type SavedRoutesRemoteAdapter = {
+	save: (savedRoute: SavedRoute) => Promise<void>;
+	delete: (routeId: string) => Promise<void>;
+	mergeLocalRoutes: (routes: SavedRoute[]) => Promise<{
+		inserted: number;
+		skipped: number;
+		invalid: number;
+		duplicate: number;
+	}>;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return !!value && typeof value === "object";
+const SYNCED_MIGRATIONS_STORAGE_KEY = "velix.savedRoutes.syncedMigrations";
+const inFlightMerges = new Map<string, Promise<void>>();
+
+function getSyncedRoutesStorageKey(userId: string) {
+	return `velix.savedRoutes.synced.${userId}`;
 }
 
-function isFiniteNumber(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value);
-}
-
-function isRouteMode(value: unknown): value is RouteMode {
-	return (
-		value === "point_to_point" ||
-		value === "round_course" ||
-		value === "out_and_back"
-	);
-}
-
-function isImportedRouteStopDerivation(
-	value: unknown,
-): value is ImportedRouteStopDerivation {
-	return value === "rtept" || value === "wpt" || value === "track";
-}
-
-function isRouteCoordinate(
-	value: unknown,
-): value is PlannedRoute["coordinates"][number] {
-	if (!Array.isArray(value) || (value.length !== 2 && value.length !== 3)) {
-		return false;
-	}
-
-	return value.every(isFiniteNumber);
-}
-
-function isRoutePoint(value: unknown): value is [number, number] {
-	return (
-		Array.isArray(value) && value.length === 2 && value.every(isFiniteNumber)
-	);
-}
-
-function isRouteBounds(value: unknown): value is PlannedRoute["bounds"] {
-	return (
-		Array.isArray(value) && value.length === 4 && value.every(isFiniteNumber)
-	);
-}
-
-function isRouteDetailInterval(
-	value: unknown,
-): value is PlannedRoute["surfaceDetails"][number] {
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	return (
-		isFiniteNumber(value.from) &&
-		isFiniteNumber(value.to) &&
-		typeof value.value === "string"
-	);
-}
-
-function isRouteWaypoint(value: unknown): value is RouteWaypoint {
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	return typeof value.label === "string" && isRouteCoordinate(value.coordinate);
-}
-
-function isRoundCourseTarget(value: unknown): value is RoundCourseTarget {
-	if (!isRecord(value) || typeof value.kind !== "string") {
-		return false;
-	}
-
-	if (value.kind === "distance") {
-		return isFiniteNumber(value.distanceMeters);
-	}
-
-	if (value.kind === "duration") {
-		return isFiniteNumber(value.durationMs);
-	}
-
-	if (value.kind === "ascend") {
-		return isFiniteNumber(value.ascendMeters);
-	}
-
-	return false;
-}
-
-function isSpatialConstraintEnforcement(
-	value: unknown,
-): value is SpatialConstraintEnforcement {
-	return value === "strict" || value === "preferred";
-}
-
-function isSameRoutePoint(left: [number, number], right: [number, number]) {
-	return left[0] === right[0] && left[1] === right[1];
-}
-
-function normalizeSpatialConstraint(
-	value: unknown,
-): ResolvedRouteSpatialConstraint | undefined | null {
-	if (value === undefined) {
-		return undefined;
-	}
-
-	if (!isRecord(value) || !isSpatialConstraintEnforcement(value.enforcement)) {
-		return null;
-	}
-
-	const polygon = value.polygon;
-	if (
-		!Array.isArray(polygon) ||
-		polygon.length < 4 ||
-		!polygon.every(isRoutePoint)
-	) {
-		return null;
-	}
-	const firstPoint = polygon[0];
-	const lastPoint = polygon[polygon.length - 1];
-
-	if (!firstPoint || !lastPoint || !isSameRoutePoint(firstPoint, lastPoint)) {
-		return null;
-	}
-
-	if (value.kind === "area") {
-		return typeof value.label === "string" &&
-			isRoutePoint(value.center) &&
-			isFiniteNumber(value.radiusMeters)
-			? {
-					kind: "area",
-					label: value.label,
-					center: value.center,
-					radiusMeters: value.radiusMeters,
-					enforcement: value.enforcement,
-					polygon,
-				}
-			: null;
-	}
-
-	if (value.kind === "corridor") {
-		return isFiniteNumber(value.widthMeters)
-			? {
-					kind: "corridor",
-					widthMeters: value.widthMeters,
-					enforcement: value.enforcement,
-					polygon,
-				}
-			: null;
-	}
-
-	return null;
-}
-
-function normalizeRouteSource(value: unknown): RouteSource | null {
-	if (value === undefined) {
-		return { kind: "graphhopper" };
-	}
-
-	if (!isRecord(value) || typeof value.kind !== "string") {
-		return null;
-	}
-
-	if (value.kind === "graphhopper") {
-		return { kind: "graphhopper" };
-	}
-
-	if (
-		value.kind === "gpx_import" &&
-		typeof value.filename === "string" &&
-		isImportedRouteStopDerivation(value.stopDerivation) &&
-		typeof value.hasDuration === "boolean"
-	) {
-		return {
-			kind: "gpx_import",
-			filename: value.filename,
-			stopDerivation: value.stopDerivation,
-			hasDuration: value.hasDuration,
-		};
-	}
-
-	return null;
-}
-
-function normalizeManualEditing(
-	value: unknown,
-	route: PlannedRoute,
-): ManualRouteEditingState | undefined | null {
-	if (value === undefined) {
-		return undefined;
-	}
-
-	if (!isRecord(value) || !Array.isArray(value.lockedSegmentIndexes)) {
-		return null;
-	}
-
-	if (!value.lockedSegmentIndexes.every((index) => Number.isInteger(index))) {
-		return null;
-	}
-
-	if (route.coordinates.length < 2) {
-		return undefined;
-	}
-
-	const lockedSegmentIndexes = sanitizeLockedSegmentIndexes(
-		value.lockedSegmentIndexes,
-		getRouteSegmentCount(route),
-	);
-
-	return lockedSegmentIndexes.length > 0
-		? {
-				lockedSegmentIndexes,
-			}
-		: undefined;
-}
-
-export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
-	if (!isRecord(value)) {
-		return null;
-	}
-
-	const waypointValues = value.waypoints;
-	const mode = isRouteMode(value.mode) ? value.mode : "point_to_point";
-	const source = normalizeRouteSource(value.source);
-	const requestedDistanceMeters =
-		value.requestedDistanceMeters === undefined
-			? undefined
-			: isFiniteNumber(value.requestedDistanceMeters)
-				? value.requestedDistanceMeters
-				: null;
-	const roundCourseTarget =
-		value.roundCourseTarget === undefined
-			? requestedDistanceMeters == null
-				? undefined
-				: {
-						kind: "distance" as const,
-						distanceMeters: requestedDistanceMeters,
-					}
-			: isRoundCourseTarget(value.roundCourseTarget)
-				? value.roundCourseTarget
-				: null;
-	const spatialConstraint = normalizeSpatialConstraint(value.spatialConstraint);
-
-	if (
-		source === null ||
-		typeof value.startLabel !== "string" ||
-		typeof value.destinationLabel !== "string" ||
-		requestedDistanceMeters === null ||
-		roundCourseTarget === null ||
-		spatialConstraint === null ||
-		(value.routingProfile !== undefined &&
-			typeof value.routingProfile !== "string") ||
-		(value.routingStrategy !== undefined &&
-			typeof value.routingStrategy !== "string") ||
-		(value.routingWarnings !== undefined &&
-			(!Array.isArray(value.routingWarnings) ||
-				!value.routingWarnings.every(
-					(warning) => typeof warning === "string",
-				))) ||
-		!isRouteBounds(value.bounds) ||
-		!isFiniteNumber(value.distanceMeters) ||
-		!isFiniteNumber(value.durationMs) ||
-		!isFiniteNumber(value.ascendMeters) ||
-		!isFiniteNumber(value.descendMeters) ||
-		!Array.isArray(value.coordinates) ||
-		value.coordinates.length < 2 ||
-		!value.coordinates.every(isRouteCoordinate) ||
-		!Array.isArray(value.surfaceDetails) ||
-		!value.surfaceDetails.every(isRouteDetailInterval) ||
-		!Array.isArray(value.smoothnessDetails) ||
-		!value.smoothnessDetails.every(isRouteDetailInterval)
-	) {
-		return null;
-	}
-
-	if (
-		waypointValues !== undefined &&
-		(!Array.isArray(waypointValues) || !waypointValues.every(isRouteWaypoint))
-	) {
-		return null;
-	}
-
-	const normalizedRoute: PlannedRoute = {
-		mode,
-		source,
-		startLabel: value.startLabel,
-		destinationLabel: value.destinationLabel,
-		roundCourseTarget,
-		spatialConstraint,
-		routingProfile:
-			typeof value.routingProfile === "string"
-				? value.routingProfile
-				: undefined,
-		routingStrategy:
-			typeof value.routingStrategy === "string"
-				? value.routingStrategy
-				: undefined,
-		routingWarnings: Array.isArray(value.routingWarnings)
-			? value.routingWarnings.filter(
-					(warning): warning is string => typeof warning === "string",
-				)
-			: undefined,
-		waypoints: Array.isArray(waypointValues) ? waypointValues : [],
-		bounds: value.bounds,
-		distanceMeters: value.distanceMeters,
-		durationMs: value.durationMs,
-		ascendMeters: value.ascendMeters,
-		descendMeters: value.descendMeters,
-		coordinates: value.coordinates,
-		surfaceDetails: value.surfaceDetails,
-		smoothnessDetails: value.smoothnessDetails,
-	};
-	const manualEditing = normalizeManualEditing(
-		value.manualEditing,
-		normalizedRoute,
-	);
-
-	if (manualEditing === null) {
-		return null;
-	}
-
-	return {
-		...normalizedRoute,
-		...(manualEditing ? { manualEditing } : {}),
-	};
-}
-
-export function isPlannedRoute(value: unknown): value is PlannedRoute {
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	return (
-		normalizeRouteSource(value.source) !== null &&
-		(value.mode === undefined || isRouteMode(value.mode)) &&
-		typeof value.startLabel === "string" &&
-		typeof value.destinationLabel === "string" &&
-		(value.requestedDistanceMeters === undefined ||
-			isFiniteNumber(value.requestedDistanceMeters)) &&
-		(value.roundCourseTarget === undefined ||
-			isRoundCourseTarget(value.roundCourseTarget)) &&
-		(value.routingProfile === undefined ||
-			typeof value.routingProfile === "string") &&
-		(value.spatialConstraint === undefined ||
-			normalizeSpatialConstraint(value.spatialConstraint) !== null) &&
-		(value.routingStrategy === undefined ||
-			typeof value.routingStrategy === "string") &&
-		(value.routingWarnings === undefined ||
-			(Array.isArray(value.routingWarnings) &&
-				value.routingWarnings.every(
-					(warning) => typeof warning === "string",
-				))) &&
-		(value.manualEditing === undefined ||
-			(isRecord(value.manualEditing) &&
-				Array.isArray(value.manualEditing.lockedSegmentIndexes) &&
-				value.manualEditing.lockedSegmentIndexes.every((index) =>
-					Number.isInteger(index),
-				))) &&
-		Array.isArray(value.waypoints) &&
-		value.waypoints.every(isRouteWaypoint) &&
-		isRouteBounds(value.bounds) &&
-		isFiniteNumber(value.distanceMeters) &&
-		isFiniteNumber(value.durationMs) &&
-		isFiniteNumber(value.ascendMeters) &&
-		isFiniteNumber(value.descendMeters) &&
-		Array.isArray(value.coordinates) &&
-		value.coordinates.length >= 2 &&
-		value.coordinates.every(isRouteCoordinate) &&
-		Array.isArray(value.surfaceDetails) &&
-		value.surfaceDetails.every(isRouteDetailInterval) &&
-		Array.isArray(value.smoothnessDetails) &&
-		value.smoothnessDetails.every(isRouteDetailInterval)
-	);
-}
-
-function isSavedRoute(value: unknown): value is SavedRoute {
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	const candidate = value as Partial<SavedRoute>;
-	const normalizedRoute = normalizePlannedRoute(candidate.route);
-
-	return (
-		typeof candidate.id === "string" &&
-		candidate.id.length > 0 &&
-		typeof candidate.createdAt === "string" &&
-		Number.isFinite(Date.parse(candidate.createdAt)) &&
-		normalizedRoute !== null
-	);
-}
-
-function parseSavedRoutes(rawValue: string | null): SavedRoute[] {
-	if (!rawValue) {
-		return [];
+function readMigrationUserIds(): Set<string> {
+	if (!browser) {
+		return new Set();
 	}
 
 	try {
-		const parsedValue = JSON.parse(rawValue) as unknown;
+		const parsedValue = JSON.parse(
+			window.localStorage.getItem(SYNCED_MIGRATIONS_STORAGE_KEY) ?? "[]",
+		) as unknown;
 
-		if (!Array.isArray(parsedValue)) {
-			return [];
-		}
-
-		return parsedValue.flatMap((entry) => {
-			if (!isSavedRoute(entry)) {
-				return [];
-			}
-
-			const normalizedRoute = normalizePlannedRoute(entry.route);
-
-			if (!normalizedRoute) {
-				return [];
-			}
-
-			return [
-				{
-					id: entry.id,
-					createdAt: entry.createdAt,
-					route: normalizedRoute,
-				},
-			];
-		});
+		return new Set(
+			Array.isArray(parsedValue)
+				? parsedValue.filter(
+						(value): value is string => typeof value === "string",
+					)
+				: [],
+		);
 	} catch {
-		return [];
+		return new Set();
 	}
 }
 
-function cloneRoute(route: PlannedRoute): PlannedRoute {
-	return {
-		...(JSON.parse(JSON.stringify(route)) as PlannedRoute),
-		waypoints: route.waypoints.map((waypoint) => ({
-			label: waypoint.label,
-			coordinate: [...waypoint.coordinate] as RouteWaypoint["coordinate"],
-		})),
-	};
+function writeMigrationUserIds(userIds: Set<string>) {
+	if (!browser) {
+		return;
+	}
+
+	window.localStorage.setItem(
+		SYNCED_MIGRATIONS_STORAGE_KEY,
+		JSON.stringify([...userIds]),
+	);
 }
 
-function buildSavedRoute(route: PlannedRoute): SavedRoute {
-	const routeId =
-		globalThis.crypto?.randomUUID?.() ??
-		`route-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+function dedupeSavedRoutesById(savedRoutes: SavedRoute[]): SavedRoute[] {
+	const seenRouteIds = new Set<string>();
+	const dedupedRoutes: SavedRoute[] = [];
 
-	return {
-		id: routeId,
-		createdAt: new Date().toISOString(),
-		route: cloneRoute(route),
-	};
+	for (const savedRoute of savedRoutes) {
+		if (seenRouteIds.has(savedRoute.id)) {
+			continue;
+		}
+
+		seenRouteIds.add(savedRoute.id);
+		dedupedRoutes.push(savedRoute);
+	}
+
+	return dedupedRoutes;
 }
 
 class SavedRoutesState {
 	initialized = $state(false);
 	savedRoutes = $state<SavedRoute[]>([]);
+	authStatus = $state<SavedRoutesAuthStatus>("signedOut");
+	authUserId = $state<string | null>(null);
+	remoteReady = $state(false);
+	syncError = $state<string | null>(null);
+	pendingRemoteRouteIds = $state<Set<string>>(new Set());
+
+	private remoteAdapter: SavedRoutesRemoteAdapter | null = null;
 
 	private persistSavedRoutes() {
 		if (!browser) {
 			return;
 		}
 
-		if (this.savedRoutes.length === 0) {
+		if (this.authStatus === "signedIn" && this.authUserId) {
+			this.persistUserScopedRoutes(this.authUserId, this.savedRoutes);
+			return;
+		}
+
+		this.persistAnonymousRoutes(this.savedRoutes);
+	}
+
+	private persistAnonymousRoutes(savedRoutes: SavedRoute[]) {
+		if (savedRoutes.length === 0) {
 			window.localStorage.removeItem(SAVED_ROUTES_STORAGE_KEY);
 			return;
 		}
 
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,
-			JSON.stringify(this.savedRoutes),
+			JSON.stringify(savedRoutes),
 		);
+	}
+
+	private persistUserScopedRoutes(userId: string, savedRoutes: SavedRoute[]) {
+		const storageKey = getSyncedRoutesStorageKey(userId);
+
+		if (savedRoutes.length === 0) {
+			window.localStorage.removeItem(storageKey);
+			return;
+		}
+
+		window.localStorage.setItem(storageKey, JSON.stringify(savedRoutes));
+	}
+
+	private readAnonymousRoutes(): SavedRoute[] {
+		if (!browser) {
+			return [];
+		}
+
+		return parseSavedRoutes(
+			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY),
+		);
+	}
+
+	private readUserScopedRoutes(userId: string): SavedRoute[] {
+		if (!browser) {
+			return [];
+		}
+
+		return parseSavedRoutes(
+			window.localStorage.getItem(getSyncedRoutesStorageKey(userId)),
+		);
+	}
+
+	private trackPendingRemoteRoute(routeId: string) {
+		this.pendingRemoteRouteIds = new Set([
+			...this.pendingRemoteRouteIds,
+			routeId,
+		]);
+	}
+
+	private clearPendingRemoteRoute(routeId: string) {
+		const nextPendingRouteIds = new Set(this.pendingRemoteRouteIds);
+		nextPendingRouteIds.delete(routeId);
+		this.pendingRemoteRouteIds = nextPendingRouteIds;
+	}
+
+	private setRemoteFailure(routeId: string, message: string) {
+		this.clearPendingRemoteRoute(routeId);
+		this.syncError = message;
 	}
 
 	initSavedRoutes(): SavedRoute[] {
@@ -501,11 +183,111 @@ class SavedRoutesState {
 		}
 
 		this.initialized = true;
-		this.savedRoutes = parseSavedRoutes(
-			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY),
-		);
+		this.savedRoutes =
+			this.authStatus === "signedIn" && this.authUserId
+				? this.readUserScopedRoutes(this.authUserId)
+				: this.readAnonymousRoutes();
 
 		return this.savedRoutes;
+	}
+
+	setAuthUser(userId: string | null | undefined) {
+		this.initSavedRoutes();
+
+		if (userId === undefined) {
+			this.authStatus = "loading";
+			this.authUserId = null;
+			this.remoteReady = false;
+			this.syncError = null;
+			this.setRemoteAdapter(null);
+			return;
+		}
+
+		if (userId === null) {
+			this.authStatus = "signedOut";
+			this.authUserId = null;
+			this.remoteReady = false;
+			this.pendingRemoteRouteIds = new Set();
+			this.setRemoteAdapter(null);
+			this.savedRoutes = this.readAnonymousRoutes();
+			this.syncError = null;
+			return;
+		}
+
+		if (this.authUserId !== userId || this.authStatus !== "signedIn") {
+			this.savedRoutes = this.readUserScopedRoutes(userId);
+			this.remoteReady = false;
+		}
+
+		this.authStatus = "signedIn";
+		this.authUserId = userId;
+		this.syncError = null;
+	}
+
+	applyRemoteRoutes(userId: string, routes: unknown[]) {
+		if (this.authStatus !== "signedIn" || this.authUserId !== userId) {
+			return;
+		}
+
+		const nextSavedRoutes = normalizeSavedRoutes(routes).toSorted(
+			(left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
+		);
+
+		this.savedRoutes = nextSavedRoutes;
+		this.remoteReady = true;
+		this.syncError = null;
+
+		if (browser) {
+			this.persistUserScopedRoutes(userId, nextSavedRoutes);
+		}
+	}
+
+	setRemoteAdapter(adapter: SavedRoutesRemoteAdapter | null) {
+		this.remoteAdapter = adapter;
+	}
+
+	async runLocalMergeOnce(userId: string) {
+		if (!browser || this.authUserId !== userId || !this.remoteAdapter) {
+			return;
+		}
+
+		const inFlightMerge = inFlightMerges.get(userId);
+		if (inFlightMerge) {
+			await inFlightMerge;
+			return;
+		}
+
+		const remoteAdapter = this.remoteAdapter;
+		const mergePromise = (async () => {
+			const migratedUserIds = readMigrationUserIds();
+			if (migratedUserIds.has(userId)) {
+				return;
+			}
+
+			const localRoutes = dedupeSavedRoutesById(this.readAnonymousRoutes());
+			if (localRoutes.length === 0) {
+				migratedUserIds.add(userId);
+				writeMigrationUserIds(migratedUserIds);
+				return;
+			}
+
+			try {
+				await remoteAdapter.mergeLocalRoutes(localRoutes);
+				migratedUserIds.add(userId);
+				writeMigrationUserIds(migratedUserIds);
+				this.syncError = null;
+			} catch (error) {
+				this.syncError =
+					error instanceof Error
+						? `Could not sync local routes: ${error.message}`
+						: "Could not sync local routes.";
+			}
+		})().finally(() => {
+			inFlightMerges.delete(userId);
+		});
+
+		inFlightMerges.set(userId, mergePromise);
+		await mergePromise;
 	}
 
 	addSavedRoute(route: PlannedRoute): SavedRoute {
@@ -513,7 +295,26 @@ class SavedRoutesState {
 
 		const savedRoute = buildSavedRoute(route);
 		this.savedRoutes = [savedRoute, ...this.savedRoutes];
+		this.syncError = null;
 		this.persistSavedRoutes();
+
+		if (this.authStatus === "signedIn" && this.remoteAdapter) {
+			this.trackPendingRemoteRoute(savedRoute.id);
+			void this.remoteAdapter
+				.save(savedRoute)
+				.then(() => {
+					this.clearPendingRemoteRoute(savedRoute.id);
+					this.syncError = null;
+				})
+				.catch((error: unknown) => {
+					this.setRemoteFailure(
+						savedRoute.id,
+						error instanceof Error
+							? `Could not sync saved route: ${error.message}`
+							: "Could not sync saved route.",
+					);
+				});
+		}
 
 		return savedRoute;
 	}
@@ -527,12 +328,7 @@ class SavedRoutesState {
 
 		const savedRoute = this.savedRoutes.find((route) => route.id === id);
 
-		return savedRoute
-			? {
-					...savedRoute,
-					route: cloneRoute(savedRoute.route),
-				}
-			: null;
+		return savedRoute ? cloneSavedRoute(savedRoute) : null;
 	}
 
 	deleteSavedRoute(id: string): boolean {
@@ -545,7 +341,26 @@ class SavedRoutesState {
 		}
 
 		this.savedRoutes = nextSavedRoutes;
+		this.syncError = null;
 		this.persistSavedRoutes();
+
+		if (this.authStatus === "signedIn" && this.remoteAdapter) {
+			this.trackPendingRemoteRoute(id);
+			void this.remoteAdapter
+				.delete(id)
+				.then(() => {
+					this.clearPendingRemoteRoute(id);
+					this.syncError = null;
+				})
+				.catch((error: unknown) => {
+					this.setRemoteFailure(
+						id,
+						error instanceof Error
+							? `Could not delete synced route: ${error.message}`
+							: "Could not delete synced route.",
+					);
+				});
+		}
 
 		return true;
 	}
@@ -553,9 +368,17 @@ class SavedRoutesState {
 	resetSavedRoutesForTests() {
 		this.initialized = false;
 		this.savedRoutes = [];
+		this.authStatus = "signedOut";
+		this.authUserId = null;
+		this.remoteReady = false;
+		this.syncError = null;
+		this.pendingRemoteRouteIds = new Set();
+		this.remoteAdapter = null;
+		inFlightMerges.clear();
 
 		if (browser) {
 			window.localStorage.removeItem(SAVED_ROUTES_STORAGE_KEY);
+			window.localStorage.removeItem(SYNCED_MIGRATIONS_STORAGE_KEY);
 		}
 	}
 }

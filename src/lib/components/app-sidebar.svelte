@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { Map as MapIcon, Zap, Settings, Bookmark, Compass, Smartphone } from 'lucide-svelte';
+	import { Show, SignInButton, UserButton } from 'svelte-clerk/client';
+	import { Map as MapIcon, Zap, Settings, Bookmark, Compass, LogIn } from 'lucide-svelte';
 
 	const groupClass =
 		'mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/60';
@@ -12,13 +13,6 @@
 				{ title: 'Route planner', url: '/', icon: MapIcon },
 				{ title: 'My routes', url: '/routes', icon: Bookmark },
 				{ title: 'Explore', url: '#', icon: Compass }
-			]
-		},
-		{
-			label: 'Account',
-			items: [
-				{ title: 'Connected devices', url: '#', icon: Smartphone },
-				{ title: 'Settings', url: '/settings', icon: Settings }
 			]
 		}
 	];
@@ -68,5 +62,43 @@
 				</Sidebar.GroupContent>
 			</Sidebar.Group>
 		{/each}
+		<Sidebar.Group class="gap-0.5">
+			<Sidebar.GroupLabel class={groupClass}>Account</Sidebar.GroupLabel>
+			<Sidebar.GroupContent>
+				<Sidebar.Menu class="gap-0.5">
+					<Show when="signed-out">
+						<Sidebar.MenuItem class="px-0">
+							<SignInButton
+								mode="modal"
+								class="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+							>
+								<LogIn class="size-4 shrink-0 text-sidebar-foreground/70" />
+								<span class="truncate group-data-[collapsible=icon]:hidden">Sign in</span>
+							</SignInButton>
+						</Sidebar.MenuItem>
+					</Show>
+					<Show when="signed-in">
+						<Sidebar.MenuItem class="px-0">
+							<div class="flex h-9 items-center px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+								<UserButton />
+							</div>
+						</Sidebar.MenuItem>
+					</Show>
+					<Sidebar.MenuItem class="px-0">
+						<Sidebar.MenuButton
+							tooltipContent="Settings"
+							class="px-2 transition-colors hover:bg-sidebar-accent"
+						>
+							{#snippet child({ props })}
+								<a href="/settings" {...props} class="flex items-center gap-2 font-medium">
+									<Settings class="size-4 shrink-0 text-sidebar-foreground/70" />
+									<span class="truncate">Settings</span>
+								</a>
+							{/snippet}
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
+				</Sidebar.Menu>
+			</Sidebar.GroupContent>
+		</Sidebar.Group>
 	</Sidebar.Content>
 </Sidebar.Root>

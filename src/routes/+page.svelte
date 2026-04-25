@@ -21,6 +21,7 @@
 		getSavedRouteById,
 		initSavedRoutes,
 		isPlannedRoute,
+		savedRoutesState,
 	} from "$lib/saved-routes.svelte";
 	import {
 		buildRouteGeoJson,
@@ -212,8 +213,10 @@
 	let lockedSegmentIndexes = $state<number[]>([]);
 	let lastGeneratedRouteCount = $state<number | null>(null);
 	let routeExportError = $state<string | null>(null);
+	let saveSyncError = $state<string | null>(null);
 	let activeSavedRouteId = $state<string | null>(null);
 	let isActiveRouteSaved = $state(false);
+	let pendingSavedRouteId = $state<string | null>(null);
 	let clientFetch = $state<typeof window.fetch | null>(null);
 	let activeProfileIndex = $state<number | null>(null);
 	let chartScrubPointerId = $state<number | null>(null);
@@ -369,6 +372,19 @@
 		) {
 			activeProfileIndex = null;
 		}
+	});
+
+	$effect(() => {
+		saveSyncError = savedRoutesState.syncError;
+	});
+
+	$effect(() => {
+		if (!pendingSavedRouteId) {
+			return;
+		}
+
+		savedRoutesState.savedRoutes;
+		restorePendingSavedRoute();
 	});
 
 	onMount(() => {
@@ -866,6 +882,7 @@
 
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
+		pendingSavedRouteId = null;
 	}
 
 	function clearModeSpecificFieldErrors(nextMode: PlannerMode) {
@@ -910,12 +927,37 @@
 
 	function restoreSavedRouteFromLocation() {
 		const savedRouteId = new URLSearchParams(window.location.search).get("savedRoute");
+
+		if (!savedRouteId) {
+			return;
+		}
+
 		const savedRoute = getSavedRouteById(savedRouteId);
+
+		if (!savedRoute) {
+			pendingSavedRouteId = savedRouteId;
+			return;
+		}
+
+		restoreSavedRoute(savedRoute);
+	}
+
+	function restorePendingSavedRoute() {
+		if (!pendingSavedRouteId) {
+			return;
+		}
+
+		const savedRoute = getSavedRouteById(pendingSavedRouteId);
 
 		if (!savedRoute) {
 			return;
 		}
 
+		restoreSavedRoute(savedRoute);
+		pendingSavedRouteId = null;
+	}
+
+	function restoreSavedRoute(savedRoute: NonNullable<ReturnType<typeof getSavedRouteById>>) {
 		if (!isPlannedRoute(savedRoute.route)) {
 			return;
 		}
@@ -2044,6 +2086,7 @@
 		}
 
 		isRouting = true;
+		pendingSavedRouteId = null;
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
 		routeRequestError = null;
@@ -2167,6 +2210,7 @@
 
 		closeCompletionMenu();
 		isRouting = true;
+		pendingSavedRouteId = null;
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
 		routeRequestError = null;
@@ -2270,6 +2314,7 @@
 
 			closeCompletionMenu();
 			closeMapClickMenu();
+			pendingSavedRouteId = null;
 			setSingleRouteState(importedRoute);
 			lastGeneratedRouteCount = null;
 			syncStopsFromRoute(importedRoute);
@@ -3426,6 +3471,15 @@
 						role="alert"
 					>
 						{routeExportError}
+					</div>
+				{/if}
+
+				{#if saveSyncError}
+					<div
+						class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+						role="alert"
+					>
+						{saveSyncError}
 					</div>
 				{/if}
 

@@ -22,6 +22,7 @@ import {
 import {
 	resetSavedRoutesForTests,
 	SAVED_ROUTES_STORAGE_KEY,
+	savedRoutesState,
 } from "$lib/saved-routes.svelte";
 
 const successfulRoute = {
@@ -1509,6 +1510,40 @@ describe("+page.svelte", () => {
 		expect(mapInstance.addSource).not.toHaveBeenCalled();
 	});
 
+	it("restores a saved route after synced routes arrive asynchronously", async () => {
+		window.history.replaceState({}, "", "/?savedRoute=remote-route");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect
+			.element(
+				page.getByText(
+					"Generate a route to see live distance, climbing, and elevation.",
+				),
+			)
+			.toBeInTheDocument();
+
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.applyRemoteRoutes("user_1", [
+			{
+				id: "remote-route",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				route: successfulRoute,
+			},
+		]);
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+		await expect
+			.element(page.getByRole("button", { name: "Saved" }))
+			.toBeInTheDocument();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("shows inline routing errors without clearing the existing map", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			const url = String(input);
@@ -1951,7 +1986,11 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("textbox", { name: "Start" }))
 			.toHaveValue("Munich");
 		expect(getCurrentPosition).toHaveBeenCalledTimes(1);
-		expect(fetchMock).not.toHaveBeenCalled();
+		expect(
+			fetchMock.mock.calls.some((call) =>
+				String(call[0]).startsWith("/api/route/reverse"),
+			),
+		).toBe(false);
 		expect(consoleError).toHaveBeenCalledWith(
 			"Failed to get current location",
 			expect.any(Object),
