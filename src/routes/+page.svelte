@@ -16,6 +16,15 @@
 	import { downloadRouteGpx } from "$lib/route-export";
 	import { mapStylePreference } from "$lib/map-style-settings.svelte";
 	import {
+		formatDistance,
+		formatDistanceInput,
+		formatDistanceValue,
+		getDistanceUnitLabel,
+		initUnitPreference,
+		parseDistanceInputToMeters,
+		unitPreference,
+	} from "$lib/unit-settings.svelte";
+	import {
 		addSavedRoute,
 		deleteSavedRoute,
 		getSavedRouteById,
@@ -142,8 +151,14 @@
 	const completionDebounceMs = 250;
 	const desiredAlternativeRoutes = 3;
 	const gpxFileAccept = ".gpx,application/gpx+xml,application/xml,text/xml";
-	const defaultAreaRadiusKm = "30";
-	const defaultCorridorWidthKm = "10";
+	const defaultAreaRadiusMeters = 30_000;
+	const defaultCorridorWidthMeters = 10_000;
+	const minAreaRadiusMeters = 1_000;
+	const maxAreaRadiusMeters = 250_000;
+	const areaRadiusStepMeters = 1_000;
+	const minCorridorWidthMeters = 2_000;
+	const maxCorridorWidthMeters = 80_000;
+	const corridorWidthStepMeters = 1_000;
 	const defaultSpatialConstraintEnforcement: SpatialConstraintEnforcement =
 		"strict";
 	const sidebar = useSidebar();
@@ -194,15 +209,21 @@
 	let waypointStops = $state<PlannerStop[]>([]);
 	let destinationStop = $state<PlannerStop>(createPlannerStop());
 	let roundCourseTargetKind = $state<RoundCourseTargetKind>("distance");
-	let roundCourseDistanceKm = $state("");
+	let roundCourseDistanceInput = $state("");
+	let roundCourseDistanceMetersInput = $state<number | null>(null);
 	let roundCourseDurationInput = $state("");
 	let roundCourseAscendMeters = $state("");
 	let spatialConstraintKind = $state<SpatialConstraintKind>("none");
 	let spatialConstraintEnforcement =
 		$state<SpatialConstraintEnforcement>(defaultSpatialConstraintEnforcement);
 	let constraintCenterStop = $state<PlannerStop>(createPlannerStop());
-	let areaRadiusKm = $state(defaultAreaRadiusKm);
-	let corridorWidthKm = $state(defaultCorridorWidthKm);
+	let areaRadiusInput = $state("");
+	let corridorWidthInput = $state("");
+	let areaRadiusMetersInput = $state<number | null>(defaultAreaRadiusMeters);
+	let corridorWidthMetersInput = $state<number | null>(
+		defaultCorridorWidthMeters,
+	);
+	let formattedInputDistanceUnit = $state<string | null>(null);
 	let routeRequestError = $state<string | null>(null);
 	let routeImportError = $state<string | null>(null);
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
@@ -387,8 +408,37 @@
 		restorePendingSavedRoute();
 	});
 
+	$effect(() => {
+		const nextDistanceUnit = unitPreference.selectedDistanceUnit;
+
+		if (
+			!unitPreference.initialized ||
+			formattedInputDistanceUnit === nextDistanceUnit
+		) {
+			return;
+		}
+
+		formattedInputDistanceUnit = nextDistanceUnit;
+
+		if (roundCourseDistanceMetersInput !== null) {
+			roundCourseDistanceInput = formatDistanceInput(
+				roundCourseDistanceMetersInput,
+			);
+		}
+
+		if (areaRadiusMetersInput !== null) {
+			areaRadiusInput = formatDistanceInput(areaRadiusMetersInput);
+		}
+
+		if (corridorWidthMetersInput !== null) {
+			corridorWidthInput = formatDistanceInput(corridorWidthMetersInput);
+		}
+	});
+
 	onMount(() => {
 		clientFetch = window.fetch.bind(window);
+		initUnitPreference();
+		resetSpatialConstraintDefaults();
 		initSavedRoutes();
 		restoreSavedRouteFromLocation();
 	});
@@ -559,14 +609,6 @@
 		return "Generate Route";
 	}
 
-	function formatDistanceInput(distanceMeters: number | undefined): string {
-		if (!distanceMeters || !Number.isFinite(distanceMeters)) {
-			return "";
-		}
-
-		return Number((distanceMeters / 1000).toFixed(1)).toString();
-	}
-
 	function parseRoundCourseDurationInput(value: string): number | null {
 		const trimmedValue = value.trim();
 
@@ -664,7 +706,7 @@
 
 		return {
 			kind: "distance",
-			distanceMeters: Number(roundCourseDistanceKm.replace(",", ".")) * 1000,
+			distanceMeters: roundCourseDistanceMetersInput ?? Number.NaN,
 		};
 	}
 
@@ -675,7 +717,7 @@
 			return {
 				kind: "area",
 				center: getRouteStopInput(constraintCenterStop),
-				radiusMeters: Number(areaRadiusKm.replace(",", ".")) * 1000,
+				radiusMeters: areaRadiusMetersInput ?? Number.NaN,
 				enforcement: spatialConstraintEnforcement,
 			};
 		}
@@ -683,7 +725,7 @@
 		if (spatialConstraintKind === "corridor" && !isRoundCourseMode) {
 			return {
 				kind: "corridor",
-				widthMeters: Number(corridorWidthKm.replace(",", ".")) * 1000,
+				widthMeters: corridorWidthMetersInput ?? Number.NaN,
 				enforcement: spatialConstraintEnforcement,
 			};
 		}
@@ -695,15 +737,21 @@
 		spatialConstraintKind = "none";
 		spatialConstraintEnforcement = defaultSpatialConstraintEnforcement;
 		constraintCenterStop = createPlannerStop();
-		areaRadiusKm = defaultAreaRadiusKm;
-		corridorWidthKm = defaultCorridorWidthKm;
+		areaRadiusMetersInput = defaultAreaRadiusMeters;
+		corridorWidthMetersInput = defaultCorridorWidthMeters;
+		areaRadiusInput = formatDistanceInput(defaultAreaRadiusMeters);
+		corridorWidthInput = formatDistanceInput(defaultCorridorWidthMeters);
 	}
 
 	function syncStopsFromRoute(route: PlannedRoute) {
 		plannerMode = route.mode;
 		const roundCourseTarget = getRoundCourseTarget(route);
 		roundCourseTargetKind = roundCourseTarget?.kind ?? "distance";
-		roundCourseDistanceKm =
+		roundCourseDistanceMetersInput =
+			roundCourseTarget?.kind === "distance"
+				? roundCourseTarget.distanceMeters
+				: null;
+		roundCourseDistanceInput =
 			roundCourseTarget?.kind === "distance"
 				? formatDistanceInput(roundCourseTarget.distanceMeters)
 				: "";
@@ -761,12 +809,16 @@
 				route.spatialConstraint.center,
 				"suggestion",
 			);
-			areaRadiusKm = formatDistanceInput(route.spatialConstraint.radiusMeters);
-			corridorWidthKm = defaultCorridorWidthKm;
+			areaRadiusMetersInput = route.spatialConstraint.radiusMeters;
+			corridorWidthMetersInput = defaultCorridorWidthMeters;
+			areaRadiusInput = formatDistanceInput(route.spatialConstraint.radiusMeters);
+			corridorWidthInput = formatDistanceInput(defaultCorridorWidthMeters);
 		} else {
 			constraintCenterStop = createPlannerStop();
-			areaRadiusKm = defaultAreaRadiusKm;
-			corridorWidthKm = formatDistanceInput(route.spatialConstraint.widthMeters);
+			areaRadiusMetersInput = defaultAreaRadiusMeters;
+			corridorWidthMetersInput = route.spatialConstraint.widthMeters;
+			areaRadiusInput = formatDistanceInput(defaultAreaRadiusMeters);
+			corridorWidthInput = formatDistanceInput(route.spatialConstraint.widthMeters);
 		}
 	}
 
@@ -978,12 +1030,12 @@
 		return pad + (1 - normalized) * (height - pad * 2);
 	}
 
-	function formatDistance(meters: number): string {
-		return `${(meters / 1000).toFixed(1)} km`;
+	function formatExactDistance(meters: number): string {
+		return formatDistance(meters, { fractionDigits: 2 });
 	}
 
-	function formatExactDistance(meters: number): string {
-		return `${(meters / 1000).toFixed(2)} km`;
+	function formatDistanceInputAttribute(meters: number): string {
+		return formatDistanceInput(meters);
 	}
 
 	function formatElevation(meters: number): string {
@@ -1007,8 +1059,9 @@
 		markPlannerEdited();
 	}
 
-	function updateRoundCourseDistanceKm(value: string) {
-		roundCourseDistanceKm = value;
+	function updateRoundCourseDistanceInput(value: string) {
+		roundCourseDistanceInput = value;
+		roundCourseDistanceMetersInput = parseDistanceInputToMeters(value);
 		clearRoundCourseTargetError();
 		markPlannerEdited();
 	}
@@ -1062,14 +1115,16 @@
 		scheduleCompletionLookup(constraintCenterCompletionTarget, value);
 	}
 
-	function updateAreaRadiusKm(value: string) {
-		areaRadiusKm = value;
+	function updateAreaRadiusInput(value: string) {
+		areaRadiusInput = value;
+		areaRadiusMetersInput = parseDistanceInputToMeters(value);
 		clearSpatialConstraintError();
 		markPlannerEdited();
 	}
 
-	function updateCorridorWidthKm(value: string) {
-		corridorWidthKm = value;
+	function updateCorridorWidthInput(value: string) {
+		corridorWidthInput = value;
+		corridorWidthMetersInput = parseDistanceInputToMeters(value);
 		clearSpatialConstraintError();
 		markPlannerEdited();
 	}
@@ -2002,6 +2057,47 @@
 		};
 	}
 
+	function validateDistanceInputs(): boolean {
+		const nextFieldErrors: NonNullable<RouteApiError["fieldErrors"]> = {};
+
+		if (
+			isRoundCourseMode &&
+			roundCourseTargetKind === "distance" &&
+			(roundCourseDistanceMetersInput === null ||
+				roundCourseDistanceMetersInput <= 0)
+		) {
+			nextFieldErrors.roundCourseTarget = "Enter a target distance.";
+		}
+
+		if (spatialConstraintKind === "area") {
+			if (
+				areaRadiusMetersInput === null ||
+				areaRadiusMetersInput < minAreaRadiusMeters ||
+				areaRadiusMetersInput > maxAreaRadiusMeters
+			) {
+				nextFieldErrors.spatialConstraint = `Enter an area radius from ${formatDistance(minAreaRadiusMeters)} to ${formatDistance(maxAreaRadiusMeters)}.`;
+			}
+		} else if (spatialConstraintKind === "corridor" && !isRoundCourseMode) {
+			if (
+				corridorWidthMetersInput === null ||
+				corridorWidthMetersInput < minCorridorWidthMeters ||
+				corridorWidthMetersInput > maxCorridorWidthMeters
+			) {
+				nextFieldErrors.spatialConstraint = `Enter a corridor width from ${formatDistance(minCorridorWidthMeters)} to ${formatDistance(maxCorridorWidthMeters)}.`;
+			}
+		}
+
+		if (Object.keys(nextFieldErrors).length === 0) {
+			return true;
+		}
+
+		fieldErrors = {
+			...fieldErrors,
+			...nextFieldErrors,
+		};
+		return false;
+	}
+
 	function applyManualEditingToRoutes(routes: PlannedRoute[]) {
 		const manualEditing = getManualEditingRequest();
 
@@ -2209,12 +2305,17 @@
 		}
 
 		closeCompletionMenu();
-		isRouting = true;
 		pendingSavedRouteId = null;
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
 		routeRequestError = null;
 		fieldErrors = {};
+
+		if (!validateDistanceInputs()) {
+			return;
+		}
+
+		isRouting = true;
 
 		try {
 			const payload = await requestRouteCalculation(buildCurrentRouteRequest());
@@ -2691,19 +2792,19 @@
 												min="1"
 												step="0.5"
 												inputmode="decimal"
-												value={roundCourseDistanceKm}
+												value={roundCourseDistanceInput}
 												placeholder="e.g. 60"
 												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
 												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
 												oninput={(event) =>
-													updateRoundCourseDistanceKm(
+													updateRoundCourseDistanceInput(
 														(event.currentTarget as HTMLInputElement).value,
 													)}
 											/>
 											<span
 												class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
 											>
-												km
+												{getDistanceUnitLabel()}
 											</span>
 										</div>
 									</div>
@@ -3192,25 +3293,25 @@
 									Radius
 								</label>
 								<div class="relative">
-									<Input
-										id="area-radius"
-										type="number"
-										min="1"
-										max="250"
-										step="1"
-										inputmode="decimal"
-										value={areaRadiusKm}
+										<Input
+											id="area-radius"
+											type="number"
+											min={formatDistanceInputAttribute(minAreaRadiusMeters)}
+											max={formatDistanceInputAttribute(maxAreaRadiusMeters)}
+											step={formatDistanceInputAttribute(areaRadiusStepMeters)}
+											inputmode="decimal"
+											value={areaRadiusInput}
 										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
 										aria-invalid={fieldErrors.spatialConstraint ? "true" : undefined}
 										oninput={(event) =>
-											updateAreaRadiusKm(
+											updateAreaRadiusInput(
 												(event.currentTarget as HTMLInputElement).value,
 											)}
 									/>
 									<span
 										class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
 									>
-										km
+										{getDistanceUnitLabel()}
 									</span>
 								</div>
 							</div>
@@ -3223,25 +3324,25 @@
 									Width
 								</label>
 								<div class="relative">
-									<Input
-										id="corridor-width"
-										type="number"
-										min="2"
-										max="80"
-										step="1"
-										inputmode="decimal"
-										value={corridorWidthKm}
+										<Input
+											id="corridor-width"
+											type="number"
+											min={formatDistanceInputAttribute(minCorridorWidthMeters)}
+											max={formatDistanceInputAttribute(maxCorridorWidthMeters)}
+											step={formatDistanceInputAttribute(corridorWidthStepMeters)}
+											inputmode="decimal"
+											value={corridorWidthInput}
 										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
 										aria-invalid={fieldErrors.spatialConstraint ? "true" : undefined}
 										oninput={(event) =>
-											updateCorridorWidthKm(
+											updateCorridorWidthInput(
 												(event.currentTarget as HTMLInputElement).value,
 											)}
 									/>
 									<span
 										class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
 									>
-										km
+										{getDistanceUnitLabel()}
 									</span>
 								</div>
 							</div>
@@ -3354,9 +3455,9 @@
 						>
 							<span class="font-semibold text-foreground">
 								<span class="font-heading text-base sm:text-lg">
-									{formatDistance(activeRoute.distanceMeters).replace(" km", "")}
+									{formatDistanceValue(activeRoute.distanceMeters)}
 								</span>
-								km
+								{getDistanceUnitLabel()}
 							</span>
 							<span class="hidden text-border sm:inline" aria-hidden="true">·</span>
 							<span class="flex items-center gap-1">

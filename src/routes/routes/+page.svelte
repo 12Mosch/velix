@@ -10,6 +10,10 @@
 		initSavedRoutes,
 	} from "$lib/saved-routes.svelte";
 	import {
+		formatDistance,
+		initUnitPreference,
+	} from "$lib/unit-settings.svelte";
+	import {
 		isImportedRoute,
 		type PlannedRoute,
 		type RoundCourseTarget,
@@ -25,6 +29,7 @@
 	} from "lucide-svelte";
 
 	onMount(() => {
+		initUnitPreference();
 		initSavedRoutes();
 	});
 
@@ -35,10 +40,6 @@
 			!savedRoutesState.syncError &&
 			savedRoutesState.savedRoutes.length === 0,
 	);
-
-	function formatDistance(meters: number): string {
-		return `${(meters / 1000).toFixed(1)} km`;
-	}
 
 	function formatDuration(durationMs: number): string {
 		const totalMinutes = Math.round(durationMs / 60000);

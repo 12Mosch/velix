@@ -16,6 +16,10 @@ import {
 	resetMapStylePreferenceForTests,
 	setMapStylePreference,
 } from "$lib/map-style-settings.svelte";
+import {
+	DISTANCE_UNIT_STORAGE_KEY,
+	resetUnitPreferenceForTests,
+} from "$lib/unit-settings.svelte";
 
 const testRouteGeoJson: FeatureCollection = {
 	type: "FeatureCollection",
@@ -272,6 +276,7 @@ describe("MapView", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
 		resetMapStylePreferenceForTests();
+		resetUnitPreferenceForTests();
 		mockState.sources.clear();
 		mockState.layers.clear();
 		mapMock.mockClear();
@@ -371,6 +376,19 @@ describe("MapView", () => {
 		expect(mapInstance.removeControl.mock.invocationCallOrder[0]).toBeLessThan(
 			mapInstance.remove.mock.invocationCallOrder[0],
 		);
+	});
+
+	it("uses an imperial scale control when miles are selected", async () => {
+		window.localStorage.setItem(DISTANCE_UNIT_STORAGE_KEY, "mi");
+
+		render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		expect(scaleControlMock).toHaveBeenCalledWith({
+			maxWidth: 96,
+			unit: "imperial",
+		});
 	});
 
 	it("re-adds the route overlay after a basemap style change without recreating the map", async () => {

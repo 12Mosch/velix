@@ -16,6 +16,11 @@
 		mapStylePreference,
 		syncSelectedBasemap,
 	} from "$lib/map-style-settings.svelte";
+	import {
+		getMapLibreScaleUnit,
+		initUnitPreference,
+		unitPreference,
+	} from "$lib/unit-settings.svelte";
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
 	import type { SidebarLayoutState } from "$lib/components/ui/sidebar/context.svelte.js";
 	import type {
@@ -111,7 +116,6 @@
 	] as const;
 	// Matches the 200ms sidebar width transition plus a small buffer for interrupted toggles.
 	const layoutTransitionBufferMs = 260;
-	const scaleControlOptions: ScaleControlOptions = { maxWidth: 96, unit: "metric" };
 	const scaleControlPosition: ControlPosition = "bottom-left";
 
 	let {
@@ -138,7 +142,9 @@
 
 	let mapContainer = $state<HTMLDivElement | null>(null);
 	let map = $state<MapLibreMap | null>(null);
+	let maplibreglModule = $state<typeof import("maplibre-gl") | null>(null);
 	let scaleControl = $state<IControl | null>(null);
+	let currentScaleControlUnit: "metric" | "imperial" | null = null;
 	let isLoaded = $state(false);
 	let isStyleReady = $state(false);
 	let loadError = $state<string | null>(null);
@@ -638,6 +644,26 @@
 		}
 
 		scaleControl = null;
+		currentScaleControlUnit = null;
+	}
+
+	function syncScaleControl() {
+		if (!map || !maplibreglModule) {
+			return;
+		}
+
+		const nextScaleControlUnit = getMapLibreScaleUnit();
+		if (scaleControl && currentScaleControlUnit === nextScaleControlUnit) {
+			return;
+		}
+
+		removeScaleControl();
+		scaleControl = new maplibreglModule.ScaleControl({
+			maxWidth: 96,
+			unit: nextScaleControlUnit,
+		} satisfies ScaleControlOptions);
+		currentScaleControlUnit = nextScaleControlUnit;
+		map.addControl(scaleControl, scaleControlPosition);
 	}
 
 	function syncMapFrame() {
@@ -1444,11 +1470,17 @@
 		};
 	});
 
+	$effect(() => {
+		unitPreference.selectedDistanceUnit;
+		syncScaleControl();
+	});
+
 	onMount(() => {
 		let cancelled = false;
 		let resizeObserver: ResizeObserver | undefined;
 
 		initMapStylePreference();
+		initUnitPreference();
 
 		async function setupMap() {
 			if (!mapContainer) return;
@@ -1470,6 +1502,7 @@
 
 				if (cancelled || !mapContainer) return;
 
+				maplibreglModule = maplibregl;
 				currentStyleUrl = initialStyleUrl;
 
 				const options: MapOptions = {
@@ -1481,8 +1514,7 @@
 				};
 
 				map = new maplibregl.Map(options);
-				scaleControl = new maplibregl.ScaleControl(scaleControlOptions);
-				map.addControl(scaleControl, scaleControlPosition);
+				syncScaleControl();
 				if (typeof map.on === "function" && typeof map.off === "function") {
 					const handleMapClick = (event: {
 						lngLat?: { lng?: number; lat?: number };
@@ -1676,6 +1708,7 @@
 			removeScaleControl();
 			map?.remove();
 			map = null;
+			maplibreglModule = null;
 			currentStyleUrl = null;
 			isStyleReady = false;
 		};
