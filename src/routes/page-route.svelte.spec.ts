@@ -24,6 +24,7 @@ import {
 	SAVED_ROUTES_STORAGE_KEY,
 	savedRoutesState,
 } from "$lib/saved-routes.svelte";
+import type { SavedRoute } from "$lib/saved-routes-core";
 import {
 	DISTANCE_UNIT_STORAGE_KEY,
 	resetUnitPreferenceForTests,
@@ -259,6 +260,17 @@ async function importGpxFile(name: string, contents: string) {
 	await page
 		.getByLabelText("Import GPX file")
 		.upload(new File([contents], name, { type: "application/gpx+xml" }));
+}
+
+function readSavedRoutesFromStorage() {
+	return JSON.parse(
+		window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
+	) as SavedRoute[];
+}
+
+async function waitForAutosavedRoutes(count = 1) {
+	await expect.poll(() => readSavedRoutesFromStorage().length).toBe(count);
+	return readSavedRoutesFromStorage();
 }
 
 function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
@@ -593,7 +605,6 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByText("Mixed / worn (20%)"))
 			.toBeInTheDocument();
-		await page.getByRole("button", { name: "Save Draft" }).click();
 		await expect
 			.element(page.getByRole("button", { name: "Saved" }))
 			.toBeInTheDocument();
@@ -602,9 +613,7 @@ describe("+page.svelte", () => {
 			(call) => String(call[0]) === "/api/route",
 		);
 		expect(routeCalls[0]?.[0]).toBe("/api/route");
-		const savedRoutes = JSON.parse(
-			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
-		);
+		const savedRoutes = await waitForAutosavedRoutes();
 		expect(savedRoutes).toHaveLength(1);
 		expect(savedRoutes[0]?.route.startLabel).toBe(
 			"Marienplatz, Munich, Germany",
@@ -826,6 +835,61 @@ describe("+page.svelte", () => {
 			.toBeInTheDocument();
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 		expect(fetchMock).not.toHaveBeenCalled();
+		expect(readSavedRoutesFromStorage()).toHaveLength(1);
+	});
+
+	it("generating a second route after editing updates the same autosaved draft", async () => {
+		const secondRoute = {
+			...successfulRoute,
+			destinationLabel: "Garmisch-Partenkirchen, Germany",
+			distanceMeters: 81234,
+			coordinates: [
+				[11.5755, 48.1374, 520],
+				[11.3, 47.9, 650],
+				[11.0955, 47.4917, 708],
+			],
+			bounds: [11.0955, 47.4917, 11.5755, 48.1374],
+		};
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify(successfulRoutePayload)),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						routes: [secondRoute],
+						selectedRouteIndex: 0,
+					}),
+				),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		let savedRoutes = await waitForAutosavedRoutes();
+		const firstSavedRouteId = savedRoutes[0]?.id;
+		const firstCreatedAt = savedRoutes[0]?.createdAt;
+
+		await page
+			.getByRole("textbox", { name: "Destination" })
+			.fill("Garmisch-Partenkirchen");
+		await expect
+			.element(page.getByRole("button", { name: "Save Draft" }))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.destinationLabel)
+			.toBe("Garmisch-Partenkirchen, Germany");
+		savedRoutes = readSavedRoutesFromStorage();
+		expect(savedRoutes).toHaveLength(1);
+		expect(savedRoutes[0]?.id).toBe(firstSavedRouteId);
+		expect(savedRoutes[0]?.createdAt).toBe(firstCreatedAt);
 	});
 
 	it("lets the user switch between generated route alternatives", async () => {
@@ -866,6 +930,55 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByText("Alternative route warning."))
 			.toBeInTheDocument();
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.distanceMeters)
+			.toBe(68450);
+		expect(readSavedRoutesFromStorage()).toHaveLength(1);
+	});
+
+	it("manual route lock and unlock update manualEditing in the same autosaved route", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		const savedRoutes = await waitForAutosavedRoutes();
+		const savedRouteId = savedRoutes[0]?.id;
+		const clickHandlers = mockState.eventHandlers.get("click") ?? [];
+		expect(clickHandlers).toHaveLength(1);
+
+		clickHandlers[0]?.({
+			lngLat: { lng: 11.62, lat: 48.1 },
+			point: { x: 1162, y: 4810 },
+		});
+		await page.getByRole("button", { name: "Lock segment" }).click();
+
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage()[0]?.route.manualEditing
+						?.lockedSegmentIndexes,
+			)
+			.toEqual([0]);
+		expect(readSavedRoutesFromStorage()[0]?.id).toBe(savedRouteId);
+
+		clickHandlers[0]?.({
+			lngLat: { lng: 11.62, lat: 48.1 },
+			point: { x: 1162, y: 4810 },
+		});
+		await page.getByRole("button", { name: "Unlock segment" }).click();
+
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.toBeUndefined();
+		expect(readSavedRoutesFromStorage()).toHaveLength(1);
+		expect(readSavedRoutesFromStorage()[0]?.id).toBe(savedRouteId);
 	});
 
 	it("imports a GPX file, fills the planner, and saves the imported metadata", async () => {
@@ -900,11 +1013,10 @@ describe("+page.svelte", () => {
 		await expect.element(page.getByText("2:45 h")).toBeInTheDocument();
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 
-		await page.getByRole("button", { name: "Save Draft" }).click();
-
-		const savedRoutes = JSON.parse(
-			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
-		);
+		await expect
+			.element(page.getByRole("button", { name: "Saved" }))
+			.toBeInTheDocument();
+		const savedRoutes = await waitForAutosavedRoutes();
 		expect(savedRoutes[0]?.route.source).toEqual({
 			kind: "gpx_import",
 			filename: "alpine-import.gpx",
@@ -1186,11 +1298,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByText("Returns to start"))
 			.toBeInTheDocument();
-		await page.getByRole("button", { name: "Save Draft" }).click();
-
-		const savedRoutes = JSON.parse(
-			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
-		);
+		const savedRoutes = await waitForAutosavedRoutes();
 		expect(savedRoutes[0]?.route.mode).toBe("round_course");
 		expect(savedRoutes[0]?.route.roundCourseTarget).toEqual({
 			kind: "distance",
@@ -1361,11 +1469,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByText("to Schliersee, Germany and back"))
 			.toBeInTheDocument();
-		await page.getByRole("button", { name: "Save Draft" }).click();
-
-		const savedRoutes = JSON.parse(
-			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
-		);
+		const savedRoutes = await waitForAutosavedRoutes();
 		expect(savedRoutes[0]?.route.mode).toBe("out_and_back");
 		expect(savedRoutes[0]?.route.destinationLabel).toBe("Schliersee, Germany");
 	});

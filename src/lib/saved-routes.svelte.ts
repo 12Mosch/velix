@@ -319,6 +319,47 @@ class SavedRoutesState {
 		return savedRoute;
 	}
 
+	upsertSavedRoute(route: PlannedRoute, id?: string): SavedRoute {
+		this.initSavedRoutes();
+
+		const existingRoute =
+			id && id.length > 0
+				? this.savedRoutes.find((savedRoute) => savedRoute.id === id)
+				: undefined;
+		const savedRoute = buildSavedRoute(route, {
+			id: existingRoute?.id,
+			createdAt: existingRoute?.createdAt,
+		});
+
+		this.savedRoutes = existingRoute
+			? this.savedRoutes.map((entry) =>
+					entry.id === existingRoute.id ? savedRoute : entry,
+				)
+			: [savedRoute, ...this.savedRoutes];
+		this.syncError = null;
+		this.persistSavedRoutes();
+
+		if (this.authStatus === "signedIn" && this.remoteAdapter) {
+			this.trackPendingRemoteRoute(savedRoute.id);
+			void this.remoteAdapter
+				.save(savedRoute)
+				.then(() => {
+					this.clearPendingRemoteRoute(savedRoute.id);
+					this.syncError = null;
+				})
+				.catch((error: unknown) => {
+					this.setRemoteFailure(
+						savedRoute.id,
+						error instanceof Error
+							? `Could not sync saved route: ${error.message}`
+							: "Could not sync saved route.",
+					);
+				});
+		}
+
+		return savedRoute;
+	}
+
 	getSavedRouteById(id: string | null | undefined): SavedRoute | null {
 		if (!id) {
 			return null;
@@ -391,6 +432,10 @@ export function initSavedRoutes() {
 
 export function addSavedRoute(route: PlannedRoute) {
 	return savedRoutesState.addSavedRoute(route);
+}
+
+export function upsertSavedRoute(route: PlannedRoute, id?: string) {
+	return savedRoutesState.upsertSavedRoute(route, id);
 }
 
 export function getSavedRouteById(id: string | null | undefined) {

@@ -25,12 +25,12 @@
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
 	import {
-		addSavedRoute,
 		deleteSavedRoute,
 		getSavedRouteById,
 		initSavedRoutes,
 		isPlannedRoute,
 		savedRoutesState,
+		upsertSavedRoute,
 	} from "$lib/saved-routes.svelte";
 	import {
 		buildRouteGeoJson,
@@ -236,6 +236,7 @@
 	let routeExportError = $state<string | null>(null);
 	let saveSyncError = $state<string | null>(null);
 	let activeSavedRouteId = $state<string | null>(null);
+	let plannerDraftRouteId = $state<string | null>(null);
 	let isActiveRouteSaved = $state(false);
 	let pendingSavedRouteId = $state<string | null>(null);
 	let clientFetch = $state<typeof window.fetch | null>(null);
@@ -257,6 +258,8 @@
 	let completionAbortController: AbortController | null = null;
 	let completionBlurTimer: ReturnType<typeof setTimeout> | null = null;
 	let completionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+	const autosaveDebounceMs = 750;
+	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let completionRequestId = 0;
 
 	const selectedBasemap = $derived(
@@ -447,6 +450,7 @@
 		cancelCompletionBlur();
 		cancelCompletionDebounce();
 		cancelCompletionRequest();
+		cancelAutosaveTimer();
 	});
 
 	function formatCoordinateLabel(point: [number, number]) {
@@ -921,6 +925,7 @@
 		);
 		activeProfileIndex = null;
 		chartScrubPointerId = null;
+		scheduleActiveRouteAutosave();
 	}
 
 	function markPlannerEdited() {
@@ -935,6 +940,52 @@
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
 		pendingSavedRouteId = null;
+	}
+
+	function cancelAutosaveTimer() {
+		if (!autosaveTimer) {
+			return;
+		}
+
+		clearTimeout(autosaveTimer);
+		autosaveTimer = null;
+	}
+
+	function getActiveRouteForSaving(): PlannedRoute | null {
+		if (!activeRoute) {
+			return null;
+		}
+
+		const manualEditing = getManualEditingRequest();
+		return {
+			...activeRoute,
+			...(manualEditing ? { manualEditing } : {}),
+		};
+	}
+
+	function saveActiveRouteDraft() {
+		cancelAutosaveTimer();
+		const routeForSaving = getActiveRouteForSaving();
+
+		if (!routeForSaving) {
+			return null;
+		}
+
+		const savedRoute = upsertSavedRoute(
+			routeForSaving,
+			plannerDraftRouteId ?? activeSavedRouteId ?? undefined,
+		);
+		plannerDraftRouteId = savedRoute.id;
+		activeSavedRouteId = savedRoute.id;
+		isActiveRouteSaved = true;
+		return savedRoute;
+	}
+
+	function scheduleActiveRouteAutosave() {
+		cancelAutosaveTimer();
+		autosaveTimer = setTimeout(() => {
+			saveActiveRouteDraft();
+		}, autosaveDebounceMs);
 	}
 
 	function clearModeSpecificFieldErrors(nextMode: PlannerMode) {
@@ -1018,6 +1069,7 @@
 		lastGeneratedRouteCount = null;
 		syncStopsFromRoute(savedRoute.route);
 		activeSavedRouteId = savedRoute.id;
+		plannerDraftRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
 		routeRequestError = null;
 		fieldErrors = {};
@@ -1874,6 +1926,7 @@
 		syncActiveRouteManualEditing(nextLockedSegmentIndexes);
 		markPlannerEdited();
 		closeMapClickMenu();
+		scheduleActiveRouteAutosave();
 	}
 
 	function getWaypointInsertionTarget(point: [number, number]) {
@@ -2210,6 +2263,7 @@
 			syncStopsFromRoute(nextSelectedRoute);
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
+			scheduleActiveRouteAutosave();
 		} catch (error) {
 			console.error("Failed to reroute manual edit", error);
 			routeRequestError = "The manual route edit could not be recalculated.";
@@ -2341,6 +2395,7 @@
 			routeExportError = null;
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
+			scheduleActiveRouteAutosave();
 		} catch (error) {
 			console.error("Failed to generate route", error);
 			routeRequestError =
@@ -2360,17 +2415,22 @@
 		}
 
 		if (isActiveRouteSaved && activeSavedRouteId) {
-			deleteSavedRoute(activeSavedRouteId);
+			const deletedRouteId = activeSavedRouteId;
+			cancelAutosaveTimer();
+			deleteSavedRoute(deletedRouteId);
+			if (plannerDraftRouteId === deletedRouteId) {
+				plannerDraftRouteId = null;
+			}
 			activeSavedRouteId = null;
 			isActiveRouteSaved = false;
 			return;
 		}
 
-		const manualEditing = getManualEditingRequest();
-		const savedRoute = addSavedRoute({
-			...activeRoute,
-			...(manualEditing ? { manualEditing } : {}),
-		});
+		const savedRoute = saveActiveRouteDraft();
+		if (!savedRoute) {
+			return;
+		}
+		plannerDraftRouteId = savedRoute.id;
 		activeSavedRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
 	}
@@ -2426,6 +2486,7 @@
 			fieldErrors = {};
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
+			scheduleActiveRouteAutosave();
 		} catch (error) {
 			console.error("Failed to import GPX", error);
 			routeImportError =
