@@ -314,8 +314,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Save route | Full | Active route can be saved locally, including manual editing lock metadata. |
-| Save as draft | Full | Button is labeled "Save Draft"; saved locally with route geometry, stops, and manual lock state. |
+| Save route | Full | Active route can be saved locally and, for signed-in users, synced to the account-backed saved-routes collection with manual editing lock metadata. |
+| Save as draft | Full | Button is labeled "Save Draft"; guests save locally and signed-in users persist the draft into the synced saved-routes collection. |
 | Publish final route | Missing | No publish/public route flow. |
 | Auto-save while editing | Missing | No auto-save. |
 | Save route variants | Half | User can select an alternative and save it; no grouped variant set. |
@@ -499,7 +499,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | User profile | Missing | No account/profile system. |
 | Favorite regions | Missing | No profile preferences. |
 | Preferred distance/elevation | Missing | No profile preferences. |
-| Personal route collection | Half | Local saved routes exist; no account-backed collection. |
+| Personal route collection | Full | Signed-in saved routes are stored in an account-backed collection through Clerk + Convex sync, with a local fallback for guests. |
 | Public collections | Missing | No public collections. |
 
 ### 9.4 Group features
@@ -577,8 +577,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Sign up / login | Missing | No authentication. |
-| OAuth optional | Missing | No authentication. |
+| Sign up / login | Full | Clerk sign-in is exposed from the sidebar, with signed-in state hydrated into the app shell. |
+| OAuth optional | Missing | Clerk authentication is present, but no explicit provider-selection or alternate OAuth configuration is surfaced in the app code. |
 | Edit profile | Missing | No profile. |
 | Change password | Missing | No account system. |
 | Privacy settings | Missing | No account/privacy settings. |
@@ -637,7 +637,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | --- | --- | --- |
 | Weather warning for a planned route | Missing | No weather system. |
 | Major wind change | Missing | No weather/wind system. |
-| Sync successful / failed | Missing | No sync. |
+| Sync successful / failed | Half | Signed-in saved-routes sync is implemented and failures are surfaced in the routes view; there is no dedicated success notification. |
 | Export ready | Half | Export downloads immediately; no notification system. |
 | Route contains potentially unsuitable sections | Half | Routing fallback warnings exist; no section-level unsuitable alerts. |
 
