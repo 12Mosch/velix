@@ -10,15 +10,43 @@
 		mapStylePreference,
 		setMapStylePreference,
 	} from "$lib/map-style-settings.svelte";
+	import {
+		initUnitPreference,
+		setDistanceUnitPreference,
+		type DistanceUnit,
+		unitPreference,
+	} from "$lib/unit-settings.svelte";
 	import { ArrowLeft, Check } from "lucide-svelte";
 	import BasemapPreview from "$lib/components/basemap-preview.svelte";
 
 	onMount(() => {
 		initMapStylePreference();
+		initUnitPreference();
 	});
 
 	function isSelected(basemapId: string): boolean {
 		return mapStylePreference.selectedBasemapId === basemapId;
+	}
+
+	const distanceUnitOptions: Array<{
+		unit: DistanceUnit;
+		label: string;
+		description: string;
+	}> = [
+		{
+			unit: "km",
+			label: "Kilometers",
+			description: "Show route distances, targets, and map scale in kilometers.",
+		},
+		{
+			unit: "mi",
+			label: "Miles",
+			description: "Show route distances, targets, and map scale in miles.",
+		},
+	];
+
+	function isSelectedDistanceUnit(unit: DistanceUnit): boolean {
+		return unitPreference.selectedDistanceUnit === unit;
 	}
 </script>
 
@@ -112,6 +140,58 @@
 									</p>
 								{/if}
 							</div>
+						</div>
+					</Button>
+				{/each}
+			</div>
+		</div>
+
+		<div class="bg-background border border-border rounded-xl p-4 shadow-lg md:p-5">
+			<div class="flex flex-col gap-2">
+				<div class="flex items-center gap-2">
+					<span class="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+						Distance units
+					</span>
+				</div>
+				<p class="text-sm text-muted-foreground">
+					Choose how route distances and map scale are displayed.
+				</p>
+			</div>
+
+			<Separator class="my-4" />
+
+			<div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Distance units">
+				{#each distanceUnitOptions as option}
+					<Button
+						variant="outline"
+						class={`h-auto w-full justify-start rounded-lg px-3.5 py-3 text-left transition-colors ${
+							isSelectedDistanceUnit(option.unit)
+								? "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
+								: "hover:bg-secondary/60"
+						}`}
+						role="radio"
+						aria-checked={isSelectedDistanceUnit(option.unit)}
+						aria-label={option.label}
+						onclick={() => setDistanceUnitPreference(option.unit)}
+					>
+						<div class="flex min-w-0 flex-col gap-1.5">
+							<div class="flex flex-wrap items-center gap-2">
+								<span class="font-heading text-sm font-semibold tracking-tight text-foreground">
+									{option.label}
+								</span>
+								{#if isSelectedDistanceUnit(option.unit)}
+									<Badge
+										variant="outline"
+										class="h-5 border-primary/30 bg-primary/10 px-2 text-[10px] font-semibold text-primary"
+									>
+										<Check class="mr-0.5 size-3" />
+										Selected
+									</Badge>
+								{/if}
+							</div>
+							<p class="text-xs leading-5 text-muted-foreground">
+								{option.description}
+							</p>
 						</div>
 					</Button>
 				{/each}

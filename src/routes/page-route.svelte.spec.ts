@@ -24,6 +24,11 @@ import {
 	SAVED_ROUTES_STORAGE_KEY,
 	savedRoutesState,
 } from "$lib/saved-routes.svelte";
+import {
+	DISTANCE_UNIT_STORAGE_KEY,
+	resetUnitPreferenceForTests,
+	setDistanceUnitPreference,
+} from "$lib/unit-settings.svelte";
 
 const successfulRoute = {
 	mode: "point_to_point",
@@ -503,6 +508,7 @@ describe("+page.svelte", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
 		resetMapStylePreferenceForTests();
+		resetUnitPreferenceForTests();
 		resetSavedRoutesForTests();
 		window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, "maptiler-outdoor");
 		window.history.replaceState({}, "", "/");
@@ -1190,6 +1196,103 @@ describe("+page.svelte", () => {
 			kind: "distance",
 			distanceMeters: 50000,
 		});
+	});
+
+	it("displays miles and converts mile distance inputs to meters", async () => {
+		window.localStorage.setItem(DISTANCE_UNIT_STORAGE_KEY, "mi");
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("spinbutton", { name: "Target distance" }).fill("50");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+
+		const routeRequestBody = JSON.parse(
+			String(
+				fetchMock.mock.calls.find(
+					(call) => String(call[0]) === "/api/route",
+				)?.[1]?.body,
+			),
+		);
+
+		expect(routeRequestBody).toMatchObject({
+			mode: "round_course",
+			target: {
+				kind: "distance",
+			},
+		});
+		expect(routeRequestBody.target.distanceMeters).toBeCloseTo(80467.2);
+		await expect.element(page.getByText("Target 31.1 mi")).toBeInTheDocument();
+	});
+
+	it("reformats editable distance inputs when the unit preference changes", async () => {
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("spinbutton", { name: "Target distance" }).fill("50");
+		await page.getByRole("button", { name: "Area" }).click();
+
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Target distance" }))
+			.toHaveValue(50);
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Radius" }))
+			.toHaveValue(30);
+
+		setDistanceUnitPreference("mi");
+
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Target distance" }))
+			.toHaveValue(31.07);
+		await expect
+			.element(page.getByRole("spinbutton", { name: "Radius" }))
+			.toHaveValue(18.64);
+	});
+
+	it("validates invalid distance inputs before sending a route request", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.element(page.getByText("Enter a target distance."))
+			.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(0);
 	});
 
 	it("switches into out-and-back mode, submits the turnaround payload, and saves it", async () => {

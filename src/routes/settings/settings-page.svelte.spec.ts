@@ -9,16 +9,37 @@ vi.mock("$env/dynamic/public", () => ({
 	},
 }));
 
+const mapRemoveMock = vi.fn();
+const mapMock = vi.fn(function MockMap(_options: unknown) {
+	return {
+		remove: mapRemoveMock,
+	};
+});
+
+vi.mock("maplibre-gl", () => ({
+	Map: mapMock,
+	default: {
+		Map: mapMock,
+	},
+}));
+
 import SettingsPage from "./+page.svelte";
 import {
 	MAP_STYLE_STORAGE_KEY,
 	resetMapStylePreferenceForTests,
 } from "$lib/map-style-settings.svelte";
+import {
+	DISTANCE_UNIT_STORAGE_KEY,
+	resetUnitPreferenceForTests,
+} from "$lib/unit-settings.svelte";
 
 describe("settings page", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
 		resetMapStylePreferenceForTests();
+		resetUnitPreferenceForTests();
+		mapMock.mockClear();
+		mapRemoveMock.mockClear();
 	});
 
 	function getRadio(name: string) {
@@ -42,11 +63,14 @@ describe("settings page", () => {
 		await expect.element(getRadio("MapTiler Outdoor")).toBeInTheDocument();
 
 		const selectedRadios = document.querySelectorAll(
-			'[role="radio"][aria-checked="true"]',
+			'[aria-label="Basemap style"] [role="radio"][aria-checked="true"]',
 		);
 		expect(selectedRadios).toHaveLength(1);
 		await expect
 			.element(getRadio("Stadia Alidade Smooth"))
+			.toHaveAttribute("aria-checked", "true");
+		await expect
+			.element(getRadio("Kilometers"))
 			.toHaveAttribute("aria-checked", "true");
 	});
 
@@ -77,6 +101,40 @@ describe("settings page", () => {
 
 		await expect
 			.element(getRadio("MapTiler Outdoor"))
+			.toHaveAttribute("aria-checked", "true");
+	});
+
+	it("persists the chosen distance unit in localStorage and restores it after remount", async () => {
+		const firstView = render(SettingsPage);
+
+		await expect
+			.element(getRadio("Kilometers"))
+			.toHaveAttribute("aria-checked", "true");
+		await expect.element(getRadio("Miles")).toBeInTheDocument();
+		await getRadio("Miles").click();
+
+		await expect
+			.element(getRadio("Miles"))
+			.toHaveAttribute("aria-checked", "true");
+		expect(window.localStorage.getItem(DISTANCE_UNIT_STORAGE_KEY)).toBe("mi");
+
+		await firstView.unmount();
+
+		const persistedDistanceUnit = window.localStorage.getItem(
+			DISTANCE_UNIT_STORAGE_KEY,
+		);
+		resetUnitPreferenceForTests();
+		if (persistedDistanceUnit) {
+			window.localStorage.setItem(
+				DISTANCE_UNIT_STORAGE_KEY,
+				persistedDistanceUnit,
+			);
+		}
+
+		render(SettingsPage);
+
+		await expect
+			.element(getRadio("Miles"))
 			.toHaveAttribute("aria-checked", "true");
 	});
 });
