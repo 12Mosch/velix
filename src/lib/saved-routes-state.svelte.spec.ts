@@ -8,6 +8,7 @@ import {
 	SAVED_ROUTES_STORAGE_KEY,
 	savedRoutesState,
 	type SavedRoutesRemoteAdapter,
+	upsertSavedRoute,
 } from "$lib/saved-routes.svelte";
 import type { SavedRoute } from "$lib/saved-routes-core";
 
@@ -62,6 +63,54 @@ describe("savedRoutesState", () => {
 
 		expect(deleteSavedRoute(saved.id)).toBe(true);
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("upsertSavedRoute creates a saved route when no ID is supplied", () => {
+		const saved = upsertSavedRoute(route);
+
+		expect(savedRoutesState.savedRoutes).toEqual([saved]);
+		expect(
+			JSON.parse(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]"),
+		).toEqual([saved]);
+	});
+
+	it("upsertSavedRoute updates an existing saved route by ID without adding a duplicate", () => {
+		const saved = upsertSavedRoute(route);
+		const updatedRoute = {
+			...route,
+			destinationLabel: "Garmisch-Partenkirchen, Germany",
+			distanceMeters: 81234,
+		};
+
+		const updatedSaved = upsertSavedRoute(updatedRoute, saved.id);
+
+		expect(savedRoutesState.savedRoutes).toHaveLength(1);
+		expect(savedRoutesState.savedRoutes[0]).toEqual(updatedSaved);
+		expect(savedRoutesState.savedRoutes[0]?.route.destinationLabel).toBe(
+			"Garmisch-Partenkirchen, Germany",
+		);
+		expect(
+			JSON.parse(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]"),
+		).toEqual([updatedSaved]);
+	});
+
+	it("upsertSavedRoute preserves the existing id and createdAt when updating", () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([savedRoute]),
+		);
+
+		const updatedSaved = upsertSavedRoute(
+			{
+				...route,
+				distanceMeters: 71234,
+			},
+			savedRoute.id,
+		);
+
+		expect(updatedSaved.id).toBe(savedRoute.id);
+		expect(updatedSaved.createdAt).toBe(savedRoute.createdAt);
+		expect(updatedSaved.route.distanceMeters).toBe(71234);
 	});
 
 	it("replaces visible signed-in routes from remote snapshots and writes user cache", () => {
@@ -170,6 +219,60 @@ describe("savedRoutesState", () => {
 
 		expect(savedRoutesState.savedRoutes.map((entry) => entry.id)).toContain(
 			saved.id,
+		);
+		expect(savedRoutesState.syncError).toContain("network down");
+	});
+
+	it("signed-in upsert calls the remote adapter save with the updated saved route", async () => {
+		const save = vi.fn().mockResolvedValue(undefined);
+		const adapter: SavedRoutesRemoteAdapter = {
+			save,
+			delete: vi.fn(),
+			mergeLocalRoutes: vi.fn(),
+		};
+
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.applyRemoteRoutes("user_1", [savedRoute]);
+		savedRoutesState.setRemoteAdapter(adapter);
+
+		const updatedSaved = upsertSavedRoute(
+			{
+				...route,
+				destinationLabel: "Garmisch-Partenkirchen, Germany",
+			},
+			savedRoute.id,
+		);
+		await flushPromises();
+
+		expect(save).toHaveBeenCalledWith(updatedSaved);
+		expect(updatedSaved.id).toBe(savedRoute.id);
+		expect(updatedSaved.createdAt).toBe(savedRoute.createdAt);
+	});
+
+	it("remote upsert failure leaves the optimistic updated route and sets syncError", async () => {
+		const adapter: SavedRoutesRemoteAdapter = {
+			save: vi.fn().mockRejectedValue(new Error("network down")),
+			delete: vi.fn(),
+			mergeLocalRoutes: vi.fn(),
+		};
+
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.applyRemoteRoutes("user_1", [savedRoute]);
+		savedRoutesState.setRemoteAdapter(adapter);
+
+		upsertSavedRoute(
+			{
+				...route,
+				destinationLabel: "Garmisch-Partenkirchen, Germany",
+			},
+			savedRoute.id,
+		);
+		await flushPromises();
+
+		expect(savedRoutesState.savedRoutes).toHaveLength(1);
+		expect(savedRoutesState.savedRoutes[0]?.id).toBe(savedRoute.id);
+		expect(savedRoutesState.savedRoutes[0]?.route.destinationLabel).toBe(
+			"Garmisch-Partenkirchen, Germany",
 		);
 		expect(savedRoutesState.syncError).toContain("network down");
 	});

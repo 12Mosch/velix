@@ -486,14 +486,29 @@ export function cloneSavedRoute(savedRoute: SavedRoute): SavedRoute {
 	};
 }
 
-export function buildSavedRoute(route: PlannedRoute): SavedRoute {
+export type BuildSavedRouteOptions = {
+	id?: string;
+	createdAt?: string;
+};
+
+export function buildSavedRoute(
+	route: PlannedRoute,
+	options: BuildSavedRouteOptions = {},
+): SavedRoute {
 	const routeId =
-		globalThis.crypto?.randomUUID?.() ??
-		`route-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+		options.id && options.id.length > 0
+			? options.id
+			: (globalThis.crypto?.randomUUID?.() ??
+				`route-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+	const createdAtMs =
+		typeof options.createdAt === "string" ? Date.parse(options.createdAt) : NaN;
+	const createdAt = Number.isFinite(createdAtMs)
+		? new Date(createdAtMs).toISOString()
+		: new Date().toISOString();
 
 	return {
 		id: routeId,
-		createdAt: new Date().toISOString(),
+		createdAt,
 		route: cloneRoute(route),
 	};
 }
