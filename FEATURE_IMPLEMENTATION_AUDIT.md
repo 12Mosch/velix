@@ -143,7 +143,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Context menu for routing actions | Full | Map click popover supports start/destination/waypoint assignment, stop removal, and segment lock/unlock actions. |
 | Show current location | Full | Explicit geolocation control requests permission, centers the map, and renders a current-position marker with optional accuracy ring. |
 | Show coordinates | Full | Click popover shows coordinate fallback when reverse geocoding is unavailable, and route search fields accept typed decimal coordinates. |
-| Scale bar | Full | MapLibre scale control is mounted in the bottom-left position and restyled for the planner layout. |
+| Scale bar | Full | MapLibre scale control is mounted in the bottom-left position, restyled for the planner layout, and follows the distance unit preference. |
 | Fullscreen map | Half | Planner is map-first/full viewport, but no browser fullscreen toggle. |
 | Mini control bar | Missing | No compact map control bar beyond overlay buttons. |
 
@@ -524,7 +524,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Preferred surfaces | Missing | No preference. |
 | Weight traffic lights / traffic more or less strongly | Missing | No traffic-light/traffic weighting control. |
 | Dark / light app theme | Missing | No theme setting found. |
-| Units km/mi | Missing | UI is kilometers/meters only. |
+| Units km/mi | Full | Distance preferences are persisted in settings and the planner, saved routes, and scale bar display km/mi accordingly. |
 | Default export format | Missing | GPX only, no setting. |
 
 ### 10.2 Regional customization
@@ -591,7 +591,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | --- | --- | --- |
 | Basemap selection | Full | Implemented in settings. |
 | Language | Missing | No language setting. |
-| Units | Missing | No units setting. |
+| Units | Full | A distance unit setting is available in app settings and applies across the planner, saved routes, and map scale. |
 | Default homepage | Missing | No default homepage setting. |
 | Theme | Missing | No theme setting. |
 | Map interaction options | Missing | No map interaction settings. |
