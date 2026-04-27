@@ -49,6 +49,7 @@
 		"convex-svelte": "0.0.12",
 		"lucide-svelte": "^1.0.1",
 		"maplibre-gl": "^5.23.0",
+		"mode-watcher": "^1.1.0",
 		"svelte-clerk": "^1.1.5"
 	}
 }
