@@ -17,6 +17,7 @@
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
 	import { ArrowLeft, Check } from "lucide-svelte";
+	import AppThemeSettings from "$lib/components/app-theme-settings.svelte";
 	import BasemapPreview from "$lib/components/basemap-preview.svelte";
 
 	onMount(() => {
@@ -59,6 +60,23 @@
 			<div class="flex min-w-0 flex-col gap-0.5">
 				<h1 class="font-heading text-lg font-semibold tracking-tight md:text-xl">Settings</h1>
 			</div>
+		</div>
+
+		<div class="bg-background border border-border rounded-xl p-4 shadow-lg md:p-5">
+			<div class="flex flex-col gap-2">
+				<div class="flex items-center gap-2">
+					<span class="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+						App theme
+					</span>
+				</div>
+				<p class="text-sm text-muted-foreground">
+					Choose whether Velix follows your desktop theme or always uses light or dark mode.
+				</p>
+			</div>
+
+			<Separator class="my-4" />
+
+			<AppThemeSettings />
 		</div>
 
 		<div class="bg-background border border-border rounded-xl p-4 shadow-lg md:p-5">
@@ -164,7 +182,7 @@
 				{#each distanceUnitOptions as option}
 					<Button
 						variant="outline"
-						class={`h-auto w-full justify-start rounded-lg px-3.5 py-3 text-left transition-colors ${
+						class={`h-auto w-full items-start justify-start whitespace-normal rounded-lg px-3.5 py-3 text-left transition-colors ${
 							isSelectedDistanceUnit(option.unit)
 								? "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
 								: "hover:bg-secondary/60"

@@ -32,10 +32,12 @@ import {
 	DISTANCE_UNIT_STORAGE_KEY,
 	resetUnitPreferenceForTests,
 } from "$lib/unit-settings.svelte";
+import { modeStorageKey, resetMode } from "mode-watcher";
 
 describe("settings page", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
+		resetMode();
 		resetMapStylePreferenceForTests();
 		resetUnitPreferenceForTests();
 		mapMock.mockClear();
@@ -72,6 +74,35 @@ describe("settings page", () => {
 		await expect
 			.element(getRadio("Kilometers"))
 			.toHaveAttribute("aria-checked", "true");
+		await expect
+			.element(getRadio("System"))
+			.toHaveAttribute("aria-checked", "true");
+	});
+
+	it("persists the chosen app theme and can return to desktop theme", async () => {
+		render(SettingsPage);
+
+		await expect
+			.element(getRadio("System"))
+			.toHaveAttribute("aria-checked", "true");
+
+		await getRadio("Dark").click();
+		await expect
+			.element(getRadio("Dark"))
+			.toHaveAttribute("aria-checked", "true");
+		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("dark");
+
+		await getRadio("Light").click();
+		await expect
+			.element(getRadio("Light"))
+			.toHaveAttribute("aria-checked", "true");
+		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("light");
+
+		await getRadio("System").click();
+		await expect
+			.element(getRadio("System"))
+			.toHaveAttribute("aria-checked", "true");
+		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("system");
 	});
 
 	it("persists the chosen basemap in localStorage and restores it after remount", async () => {
