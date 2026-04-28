@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { useConvexClient, useQuery } from "convex-svelte";
+	import { untrack } from "svelte";
 	import { useClerkContext } from "svelte-clerk/client";
 
 	import { api } from "../../convex/_generated/api";
@@ -26,7 +27,11 @@
 	);
 
 	$effect(() => {
-		savedRoutesState.setAuthUser(clerkUserId);
+		const userId = clerkUserId;
+
+		untrack(() => {
+			savedRoutesState.setAuthUser(userId);
+		});
 	});
 
 	$effect(() => {
@@ -51,7 +56,9 @@
 	$effect(() => {
 		const userId = ctx.auth.userId;
 		if (!ctx.isLoaded || !userId || !convexAuthenticated) {
-			savedRoutesState.setRemoteAdapter(null);
+			untrack(() => {
+				savedRoutesState.setRemoteAdapter(null);
+			});
 			return;
 		}
 
@@ -74,11 +81,15 @@
 			},
 		};
 
-		savedRoutesState.setRemoteAdapter(adapter);
-		void savedRoutesState.runLocalMergeOnce(userId);
+		untrack(() => {
+			savedRoutesState.setRemoteAdapter(adapter);
+			void savedRoutesState.runLocalMergeOnce(userId);
+		});
 
 		return () => {
-			savedRoutesState.setRemoteAdapter(null);
+			untrack(() => {
+				savedRoutesState.setRemoteAdapter(null);
+			});
 		};
 	});
 
@@ -86,16 +97,26 @@
 		const userId = ctx.auth.userId;
 
 		if (userId && Array.isArray(savedRoutesQuery.data)) {
-			savedRoutesState.applyRemoteRoutes(userId, savedRoutesQuery.data);
+			const remoteRoutes = savedRoutesQuery.data;
+
+			untrack(() => {
+				savedRoutesState.applyRemoteRoutes(userId, remoteRoutes);
+			});
 		}
 	});
 
 	$effect(() => {
-		if (savedRoutesQuery.error) {
-			savedRoutesState.syncError = `Could not load synced routes: ${savedRoutesQuery.error.message}`;
+		const queryError = savedRoutesQuery.error;
+
+		if (queryError) {
+			untrack(() => {
+				savedRoutesState.syncError = `Could not load synced routes: ${queryError.message}`;
+			});
 			return;
 		}
 
-		savedRoutesState.syncError = null;
+		untrack(() => {
+			savedRoutesState.syncError = null;
+		});
 	});
 </script>
