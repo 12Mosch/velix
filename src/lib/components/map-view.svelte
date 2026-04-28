@@ -117,6 +117,16 @@
 	// Matches the 200ms sidebar width transition plus a small buffer for interrupted toggles.
 	const layoutTransitionBufferMs = 260;
 	const scaleControlPosition: ControlPosition = "bottom-left";
+	const webglUnavailableMessage =
+		"Map cannot be shown because this browser or device could not create a WebGL context.";
+	const mapCanvasContextAttributes: WebGLContextAttributes = {
+		antialias: false,
+		depth: true,
+		failIfMajorPerformanceCaveat: false,
+		powerPreference: "high-performance",
+		preserveDrawingBuffer: false,
+		stencil: true,
+	};
 
 	let {
 		initialCenter = defaultCenter,
@@ -179,6 +189,65 @@
 				points: Array<{ x: number; y: number } | null>;
 		  }
 		| null = null;
+
+	function canCreateMapWebGLContext() {
+		if (typeof document === "undefined") {
+			return false;
+		}
+
+		const canvas = document.createElement("canvas");
+
+		try {
+			const gl =
+				canvas.getContext("webgl2", mapCanvasContextAttributes) ??
+				canvas.getContext("webgl", mapCanvasContextAttributes);
+			gl?.getExtension("WEBGL_lose_context")?.loseContext();
+
+			return gl !== null;
+		} catch {
+			return false;
+		}
+	}
+
+	function parseErrorMessageJson(error: unknown): Record<string, unknown> | null {
+		if (!(error instanceof Error)) {
+			return null;
+		}
+
+		try {
+			const parsed = JSON.parse(error.message) as unknown;
+
+			return parsed && typeof parsed === "object"
+				? (parsed as Record<string, unknown>)
+				: null;
+		} catch {
+			return null;
+		}
+	}
+
+	function isWebGLContextCreationError(error: unknown) {
+		const parsedError = parseErrorMessageJson(error);
+
+		if (parsedError?.type === "webglcontextcreationerror") {
+			return true;
+		}
+
+		const messageParts = [
+			error instanceof Error ? error.message : null,
+			typeof parsedError?.message === "string" ? parsedError.message : null,
+			typeof parsedError?.statusMessage === "string"
+				? parsedError.statusMessage
+				: null,
+		].filter((message): message is string => typeof message === "string");
+
+		return messageParts.some((message) => /webgl/i.test(message));
+	}
+
+	function setWebGLUnavailableError() {
+		loadError = webglUnavailableMessage;
+		isLoaded = false;
+		isStyleReady = false;
+	}
 
 	function getMapEventDetail(event: {
 		lngLat?: { lng?: number; lat?: number };
@@ -1498,6 +1567,11 @@
 					return;
 				}
 
+				if (!canCreateMapWebGLContext()) {
+					setWebGLUnavailableError();
+					return;
+				}
+
 				const maplibregl = await import("maplibre-gl");
 
 				if (cancelled || !mapContainer) return;
@@ -1684,6 +1758,12 @@
 				resizeObserver.observe(mapContainer);
 			} catch (error) {
 				if (cancelled) return;
+
+				if (isWebGLContextCreationError(error)) {
+					setWebGLUnavailableError();
+					return;
+				}
+
 				loadError = "Map failed to load";
 				isLoaded = false;
 				isStyleReady = false;

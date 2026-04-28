@@ -92,6 +92,9 @@ const testConstraintGeoJson: FeatureCollection = {
 	],
 };
 const testRouteBounds = [11.5, 47.2, 11.6, 47.25] as const;
+const webglUnavailableMessage =
+	"Map cannot be shown because this browser or device could not create a WebGL context.";
+
 function createAlternativeRouteGeoJson(): FeatureCollection {
 	const geoJson = JSON.parse(
 		JSON.stringify(testRouteGeoJson),
@@ -885,9 +888,48 @@ describe("MapView", () => {
 			.toBe(true);
 	});
 
-	it("handles constructor failures without throwing unhandled rejections", async () => {
+	it("renders a WebGL fallback instead of constructing a map when WebGL is unavailable", async () => {
+		const originalCreateElement = document.createElement.bind(document) as (
+			tagName: string,
+			options?: ElementCreationOptions,
+		) => HTMLElement;
+		vi.spyOn(document, "createElement").mockImplementation(((
+			tagName: string,
+			options?: ElementCreationOptions,
+		) => {
+			if (tagName.toLowerCase() === "canvas") {
+				return {
+					getContext: vi.fn(() => null),
+				} as unknown as HTMLElement;
+			}
+
+			return originalCreateElement(tagName, options);
+		}) as typeof document.createElement);
+
+		const view = render(MapView);
+
+		await expect
+			.element(page.getByRole("region", { name: "Route map" }))
+			.toHaveAttribute("aria-busy", "false");
+		await expect
+			.element(page.getByText(webglUnavailableMessage))
+			.toBeInTheDocument();
+
+		expect(mapMock).not.toHaveBeenCalled();
+		expect(consoleError).not.toHaveBeenCalled();
+
+		await view.unmount();
+	});
+
+	it("handles MapLibre WebGL constructor failures without logging expected errors", async () => {
 		mapMock.mockImplementationOnce(() => {
-			throw new Error("WebGL unavailable");
+			throw new Error(
+				JSON.stringify({
+					message: "Failed to initialize WebGL",
+					statusMessage: "Could not create a WebGL context",
+					type: "webglcontextcreationerror",
+				}),
+			);
 		});
 
 		const view = render(MapView);
@@ -895,13 +937,38 @@ describe("MapView", () => {
 		await expect
 			.element(page.getByRole("region", { name: "Route map" }))
 			.toBeInTheDocument();
-		await expect.poll(() => consoleError.mock.calls.length).toBe(1);
 		await expect
 			.element(page.getByRole("region", { name: "Route map" }))
 			.toHaveAttribute("aria-busy", "false");
+		await expect
+			.element(page.getByText(webglUnavailableMessage))
+			.toBeInTheDocument();
 
-		expect(consoleError.mock.calls[0]?.[0]).toBe(
+		expect(consoleError).not.toHaveBeenCalled();
+		expect(mapInstance.remove).not.toHaveBeenCalled();
+
+		await view.unmount();
+	});
+
+	it("logs unexpected constructor failures and renders a generic load error", async () => {
+		const error = new Error("Unexpected MapLibre constructor failure");
+		mapMock.mockImplementationOnce(() => {
+			throw error;
+		});
+
+		const view = render(MapView);
+
+		await expect
+			.element(page.getByRole("region", { name: "Route map" }))
+			.toHaveAttribute("aria-busy", "false");
+		await expect
+			.element(page.getByText("Map failed to load"))
+			.toBeInTheDocument();
+		await expect.poll(() => consoleError.mock.calls.length).toBe(1);
+
+		expect(consoleError).toHaveBeenCalledWith(
 			"Failed to initialize MapLibre map",
+			error,
 		);
 		expect(mapInstance.remove).not.toHaveBeenCalled();
 
