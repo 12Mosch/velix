@@ -1,34 +1,31 @@
-import { browser } from "$app/environment";
-
 import {
-	BASEMAPS,
 	type BasemapDefinition,
-	getAvailableBasemaps,
-	getBasemapById,
-	isBasemapAvailable,
-	isBasemapId,
 	type BasemapId,
-} from "$lib/map/basemaps";
+	basemapOptions,
+	getBasemapOptionState,
+	getFallbackBasemapId,
+	getSelectedBasemap as getSelectedBasemapForId,
+	initMapStylePreference as initMapStylePreferenceValue,
+	MAP_STYLE_STORAGE_KEY,
+	resolvePreferredBasemapId,
+	setMapStylePreference as setMapStylePreferenceValue,
+} from "$lib/preferences/map-style-preferences";
+import { createPreferenceRepository } from "$lib/preferences/preference-repository";
+import { createBrowserStorage } from "$lib/storage/browser-storage";
 
-export const MAP_STYLE_STORAGE_KEY = "velix.mapStyle";
+export {
+	type BasemapDefinition,
+	type BasemapId,
+	basemapOptions,
+	getBasemapOptionState,
+	MAP_STYLE_STORAGE_KEY,
+	resolvePreferredBasemapId,
+};
 
-function getFallbackBasemapId(): BasemapId | null {
-	return getAvailableBasemaps()[0]?.id ?? null;
-}
-
-export function resolvePreferredBasemapId(
-	preferredId: string | null,
-): BasemapId | null {
-	if (
-		preferredId &&
-		isBasemapId(preferredId) &&
-		isBasemapAvailable(preferredId)
-	) {
-		return preferredId;
-	}
-
-	return getFallbackBasemapId();
-}
+const mapStyleRepository = createPreferenceRepository<BasemapId>(
+	createBrowserStorage(),
+	MAP_STYLE_STORAGE_KEY,
+);
 
 class MapStylePreferenceState {
 	initialized = $state(false);
@@ -41,57 +38,35 @@ class MapStylePreferenceState {
 	}
 
 	initMapStylePreference(): BasemapId | null {
-		if (!browser) {
-			return this.syncSelectedBasemap();
-		}
-
 		if (this.initialized) {
 			return this.selectedBasemapId;
 		}
 
 		this.initialized = true;
+		this.selectedBasemapId = initMapStylePreferenceValue(mapStyleRepository);
 
-		const storedBasemapId = window.localStorage.getItem(MAP_STYLE_STORAGE_KEY);
-		const nextBasemapId = resolvePreferredBasemapId(storedBasemapId);
-
-		this.selectedBasemapId = nextBasemapId;
-
-		if (nextBasemapId) {
-			window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, nextBasemapId);
-		} else {
-			window.localStorage.removeItem(MAP_STYLE_STORAGE_KEY);
-		}
-
-		return nextBasemapId;
+		return this.selectedBasemapId;
 	}
 
 	setMapStylePreference(id: BasemapId): boolean {
-		if (!isBasemapAvailable(id)) {
+		const nextBasemapId = setMapStylePreferenceValue(mapStyleRepository, id);
+
+		if (!nextBasemapId) {
 			return false;
 		}
 
-		this.selectedBasemapId = id;
-
-		if (browser) {
-			window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, id);
-		}
-
+		this.selectedBasemapId = nextBasemapId;
 		return true;
 	}
 
 	getSelectedBasemap(): BasemapDefinition | null {
-		return this.selectedBasemapId
-			? getBasemapById(this.selectedBasemapId)
-			: null;
+		return getSelectedBasemapForId(this.selectedBasemapId);
 	}
 
 	resetMapStylePreferenceForTests() {
 		this.initialized = false;
 		this.selectedBasemapId = getFallbackBasemapId();
-
-		if (browser) {
-			window.localStorage.removeItem(MAP_STYLE_STORAGE_KEY);
-		}
+		mapStyleRepository.clear();
 	}
 }
 
@@ -116,16 +91,3 @@ export function getSelectedBasemap() {
 export function resetMapStylePreferenceForTests() {
 	mapStylePreference.resetMapStylePreferenceForTests();
 }
-
-export function getBasemapOptionState(id: BasemapId) {
-	const basemap = getBasemapById(id);
-
-	return {
-		...basemap,
-		available: isBasemapAvailable(id),
-	};
-}
-
-export const basemapOptions = BASEMAPS.map((basemap) =>
-	getBasemapOptionState(basemap.id),
-);
