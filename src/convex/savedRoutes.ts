@@ -8,6 +8,7 @@ import {
 	normalizePlannedRoute,
 	type SavedRoute,
 } from "../lib/saved-routes-core";
+import { savedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
 
 const maxMergeRouteCount = 200;
 
@@ -72,7 +73,7 @@ export const listForCurrentUser = query({
 
 export const upsert = mutation({
 	args: {
-		savedRoute: v.any(),
+		savedRoute: savedRoutePayloadValidator,
 	},
 	handler: async (ctx, args) => {
 		const userId = await getAuthenticatedUserId(ctx);

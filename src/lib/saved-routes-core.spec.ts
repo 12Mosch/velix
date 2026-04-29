@@ -49,6 +49,57 @@ describe("saved-routes-core", () => {
 		).toEqual([]);
 	});
 
+	it("rejects malformed route tuple lengths after Convex shape validation", () => {
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				coordinates: [
+					[11.5755, 48.1374, 520, 1],
+					[11.62, 48.1, 545],
+				],
+			}),
+		).toBeNull();
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				waypoints: [{ label: "Tegernsee, Germany", coordinate: [11.7571] }],
+			}),
+		).toBeNull();
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				spatialConstraint: {
+					kind: "area",
+					label: "Munich",
+					center: [11.5755, 48.1374, 520],
+					radiusMeters: 5000,
+					enforcement: "preferred",
+					polygon: [
+						[11.5, 48.1],
+						[11.6, 48.1],
+						[11.6, 48.2],
+						[11.5, 48.1],
+					],
+				},
+			}),
+		).toBeNull();
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				bounds: [11.5755, 47.7362, 11.8598],
+			}),
+		).toBeNull();
+	});
+
+	it("rejects routes with fewer than two coordinates", () => {
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				coordinates: [[11.5755, 48.1374, 520]],
+			}),
+		).toBeNull();
+	});
+
 	it("loads legacy routes without waypoints", () => {
 		const legacyRoute = { ...baseRoute };
 		delete (legacyRoute as { waypoints?: unknown }).waypoints;
@@ -67,5 +118,19 @@ describe("saved-routes-core", () => {
 				},
 			},
 		]);
+	});
+
+	it("normalizes legacy routes without mode, source, or waypoints", () => {
+		const legacyRoute = { ...baseRoute };
+		delete (legacyRoute as { mode?: unknown }).mode;
+		delete (legacyRoute as { source?: unknown }).source;
+		delete (legacyRoute as { waypoints?: unknown }).waypoints;
+
+		expect(normalizePlannedRoute(legacyRoute)).toEqual({
+			...legacyRoute,
+			mode: "point_to_point",
+			source: { kind: "graphhopper" },
+			waypoints: [],
+		});
 	});
 });
