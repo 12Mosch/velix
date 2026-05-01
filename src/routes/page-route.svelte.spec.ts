@@ -981,6 +981,359 @@ describe("+page.svelte", () => {
 		expect(readSavedRoutesFromStorage()[0]?.id).toBe(savedRouteId);
 	});
 
+	it("undoes and redoes a manual segment lock in the same autosaved route", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		const savedRoutes = await waitForAutosavedRoutes();
+		const savedRouteId = savedRoutes[0]?.id;
+		const clickHandlers = mockState.eventHandlers.get("click") ?? [];
+
+		clickHandlers[0]?.({
+			lngLat: { lng: 11.62, lat: 48.1 },
+			point: { x: 1162, y: 4810 },
+		});
+		await page.getByRole("button", { name: "Lock segment" }).click();
+
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage()[0]?.route.manualEditing
+						?.lockedSegmentIndexes,
+			)
+			.toEqual([0]);
+		await page.getByRole("button", { name: "Undo route edit" }).click();
+
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.toBeUndefined();
+		await page.getByRole("button", { name: "Redo route edit" }).click();
+
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage()[0]?.route.manualEditing
+						?.lockedSegmentIndexes,
+			)
+			.toEqual([0]);
+		expect(readSavedRoutesFromStorage()[0]?.id).toBe(savedRouteId);
+	});
+
+	it("undoes and redoes sidebar waypoint route edits", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("button", { name: "Add waypoint" }).click();
+		await page.getByRole("textbox", { name: "Waypoint 1" }).fill("Tegernsee");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+		await waitForAutosavedRoutes();
+
+		await page.getByRole("button", { name: "Remove" }).click();
+		await expect
+			.element(
+				page.getByText(
+					"No waypoints yet. Add one to force the route through intermediate stops.",
+				),
+			)
+			.toBeInTheDocument();
+
+		await page.getByRole("button", { name: "Undo route edit" }).click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.toHaveValue("Tegernsee, Germany");
+
+		await page.getByRole("button", { name: "Redo route edit" }).click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.not.toBeInTheDocument();
+	});
+
+	it("records one undo step after a successful manual stop drag reroute", async () => {
+		const reroutedRoute = {
+			...successfulRoute,
+			startLabel: "Dragged start, Germany",
+			distanceMeters: 65432,
+			coordinates: [
+				[11.6, 48.15, 530],
+				[11.68, 48.05, 600],
+				[11.8598, 47.7362, 785],
+			],
+			bounds: [11.6, 47.7362, 11.8598, 48.15],
+		};
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label: "Dragged start, Germany",
+							point: [11.6, 48.15],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				const routeCallCount = fetchMock.mock.calls.filter(
+					(call) => String(call[0]) === "/api/route",
+				).length;
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							routeCallCount === 1
+								? successfulRoutePayload
+								: { routes: [reroutedRoute], selectedRouteIndex: 0 },
+						),
+					),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+
+		mockState.renderedFeatures.set("1160,4810", [
+			{
+				properties: {
+					kind: "start",
+					label: "Marienplatz, Munich, Germany",
+				},
+			},
+		]);
+		mockState.eventHandlers.get("mousedown")?.[0]?.({
+			lngLat: { lng: 11.5755, lat: 48.1374 },
+			point: { x: 1160, y: 4810 },
+			preventDefault: vi.fn(),
+		});
+		mockState.eventHandlers.get("mouseup")?.[0]?.({
+			lngLat: { lng: 11.6, lat: 48.15 },
+			point: { x: 1165, y: 4815 },
+		});
+
+		await expect.poll(() => document.body.textContent).toContain("65.4");
+		await page.getByRole("button", { name: "Undo route edit" }).click();
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await page.getByRole("button", { name: "Redo route edit" }).click();
+		await expect.poll(() => document.body.textContent).toContain("65.4");
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(2);
+	});
+
+	it("does not add undo history when a manual stop drag reroute fails", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label: "Dragged start, Germany",
+							point: [11.6, 48.15],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				const routeCallCount = fetchMock.mock.calls.filter(
+					(call) => String(call[0]) === "/api/route",
+				).length;
+
+				if (routeCallCount === 1) {
+					return Promise.resolve(
+						new Response(JSON.stringify(successfulRoutePayload)),
+					);
+				}
+
+				return Promise.resolve(
+					new Response(JSON.stringify({ error: "Routing failed." }), {
+						status: 500,
+					}),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+
+		mockState.renderedFeatures.set("1160,4810", [
+			{
+				properties: {
+					kind: "start",
+					label: "Marienplatz, Munich, Germany",
+				},
+			},
+		]);
+		mockState.eventHandlers.get("mousedown")?.[0]?.({
+			lngLat: { lng: 11.5755, lat: 48.1374 },
+			point: { x: 1160, y: 4810 },
+			preventDefault: vi.fn(),
+		});
+		mockState.eventHandlers.get("mouseup")?.[0]?.({
+			lngLat: { lng: 11.6, lat: 48.15 },
+			point: { x: 1165, y: 4815 },
+		});
+
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent("Routing failed.");
+		await expect
+			.element(page.getByRole("button", { name: "Undo route edit" }))
+			.toBeDisabled();
+	});
+
+	it("handles route edit keyboard shortcuts outside text inputs only", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+		await waitForAutosavedRoutes();
+
+		mockState.eventHandlers.get("click")?.[0]?.({
+			lngLat: { lng: 11.62, lat: 48.1 },
+			point: { x: 1162, y: 4810 },
+		});
+		await page.getByRole("button", { name: "Lock segment" }).click();
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage()[0]?.route.manualEditing
+						?.lockedSegmentIndexes,
+			)
+			.toEqual([0]);
+
+		const startInput = page.getByRole("textbox", { name: "Start" }).element();
+		startInput.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "z",
+				ctrlKey: true,
+				bubbles: true,
+			}),
+		);
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage()[0]?.route.manualEditing
+						?.lockedSegmentIndexes,
+			)
+			.toEqual([0]);
+
+		window.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "z",
+				ctrlKey: true,
+				bubbles: true,
+			}),
+		);
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.toBeUndefined();
+
+		window.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "y",
+				ctrlKey: true,
+				bubbles: true,
+			}),
+		);
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage()[0]?.route.manualEditing
+						?.lockedSegmentIndexes,
+			)
+			.toEqual([0]);
+
+		window.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "z",
+				ctrlKey: true,
+				bubbles: true,
+			}),
+		);
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.toBeUndefined();
+
+		window.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "y",
+				metaKey: true,
+				bubbles: true,
+			}),
+		);
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage()[0]?.route.manualEditing
+						?.lockedSegmentIndexes,
+			)
+			.toEqual([0]);
+
+		window.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "z",
+				ctrlKey: true,
+				bubbles: true,
+			}),
+		);
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.toBeUndefined();
+
+		window.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "Z",
+				ctrlKey: true,
+				shiftKey: true,
+				bubbles: true,
+			}),
+		);
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage()[0]?.route.manualEditing
+						?.lockedSegmentIndexes,
+			)
+			.toEqual([0]);
+	});
+
 	it("imports a GPX file, fills the planner, and saves the imported metadata", async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 		vi.stubGlobal("fetch", fetchMock);
