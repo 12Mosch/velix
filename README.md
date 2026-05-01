@@ -1,52 +1,107 @@
-# sv
+# Velix
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Velix is a SvelteKit route-planning app for cycling routes. It uses MapLibre for the map, GraphHopper for geocoding and routing, and optional Clerk + Convex integration for signed-in saved-route sync.
 
-## Creating a project
+## Features
 
-If you're seeing this, you've probably already done this step. Congrats!
+- Point-to-point, round-course, and out-and-back route planning
+- Up to three shaping waypoints per route
+- Alternative route generation with road-bike-biased GraphHopper routing
+- Area and corridor constraints for route shaping
+- Interactive map editing, locked segments, undo, and redo
+- Elevation, distance, duration, climb, descent, and surface summaries
+- GPX import and export
+- Saved routes with local storage and optional cloud sync
+- Configurable basemaps, app theme, and distance units
+
+## Tech Stack
+
+- SvelteKit 2 and Svelte 5
+- TypeScript
+- Bun
+- Tailwind CSS 4
+- shadcn-svelte / bits-ui
+- MapLibre GL
+- GraphHopper
+- Convex and Clerk
+- Vitest, Playwright browser tests, svelte-check, and Biome
+
+## Prerequisites
+
+- Bun
+- A GraphHopper API key for route generation and search
+- At least one map tile provider key:
+  - Stadia Maps for the Stadia styles
+  - MapTiler for satellite and outdoor styles
+- Optional: Convex and Clerk projects for signed-in route sync
+
+## Environment
+
+Create a local `.env` file with the keys you need:
 
 ```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
-
-```sh
-# recreate this project
-bun x sv@0.15.1 create --template minimal --types ts --add vitest="usages:unit,component" tailwindcss="plugins:none" --install bun velix
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-To use the route builder with live GraphHopper routing, add these environment variables before starting the app:
-
-```sh
+GRAPHHOPPER_API_KEY=...
 PUBLIC_STADIA_MAPS_API_KEY=...
 PUBLIC_MAPTILER_API_KEY=...
-GRAPHHOPPER_API_KEY=...
 ```
 
-`GRAPHHOPPER_API_KEY` is server-only and should not use the `PUBLIC_` prefix.
+`GRAPHHOPPER_API_KEY` is server-only and must not use the `PUBLIC_` prefix.
 
-## Building
-
-To create a production version of your app:
+For Convex + Clerk saved-route sync, also configure:
 
 ```sh
-npm run build
+PUBLIC_CONVEX_URL=...
+CLERK_JWT_ISSUER_DOMAIN=...
 ```
 
-You can preview the production build with `npm run preview`.
+The app still runs without `PUBLIC_CONVEX_URL`; saved routes stay local to the browser. Convex auth configuration requires `CLERK_JWT_ISSUER_DOMAIN` when Convex functions are started.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Install
+
+```sh
+bun install
+```
+
+## Develop
+
+```sh
+bun run dev
+```
+
+The dev script starts both Convex and Vite:
+
+- Convex: `npx convex dev`
+- SvelteKit: `vite dev`
+
+If you are only working on the SvelteKit app and do not need Convex, run Vite directly:
+
+```sh
+bunx vite dev
+```
+
+## Quality Checks
+
+```sh
+bun run check
+bun run lint
+bun run test
+```
+
+Useful fix commands:
+
+```sh
+bun run format:write
+bun run lint:fix
+```
+
+## Build
+
+```sh
+bun run build
+```
+
+Preview the production build locally:
+
+```sh
+bun run preview
+```
