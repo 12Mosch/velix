@@ -32,6 +32,7 @@
 		savedRoutesState,
 		upsertSavedRoute,
 	} from "$lib/saved-routes.svelte";
+	import { cloneRoute } from "$lib/saved-routes-core";
 	import {
 		buildRouteGeoJson,
 		buildLockedSegmentGeoJson,
@@ -72,11 +73,13 @@
 		MountainSnow,
 		Navigation,
 		Plus,
+		Redo2,
 		Route,
 		ShieldCheck,
 		TrendingDown,
 		TrendingUp,
 		Unlock,
+		Undo2,
 		Wind,
 		X,
 	} from "lucide-svelte";
@@ -138,6 +141,32 @@
 		coordinateSegmentIndex: number;
 		segmentIndex: number;
 	};
+	type RouteEditSnapshot = {
+		routeAlternatives: PlannedRoute[];
+		selectedRouteIndex: number | null;
+		lockedSegmentIndexes: number[];
+		plannerMode: PlannerMode;
+		startStop: PlannerStop;
+		waypointStops: PlannerStop[];
+		destinationStop: PlannerStop;
+		roundCourseTargetKind: RoundCourseTargetKind;
+		roundCourseDistanceInput: string;
+		roundCourseDistanceMetersInput: number | null;
+		roundCourseDurationInput: string;
+		roundCourseAscendMeters: string;
+		spatialConstraintKind: SpatialConstraintKind;
+		spatialConstraintEnforcement: SpatialConstraintEnforcement;
+		constraintCenterStop: PlannerStop;
+		areaRadiusInput: string;
+		corridorWidthInput: string;
+		areaRadiusMetersInput: number | null;
+		corridorWidthMetersInput: number | null;
+		lastGeneratedRouteCount: number | null;
+		fieldErrors: NonNullable<RouteApiError["fieldErrors"]>;
+	};
+	type RouteEditSnapshotOptions = {
+		includeRoutesGeometry?: boolean;
+	};
 	type ReverseGeocodeApiSuccess = {
 		label: string;
 		point: [number, number];
@@ -150,6 +179,7 @@
 	const minCompletionQueryLength = 3;
 	const completionDebounceMs = 250;
 	const desiredAlternativeRoutes = 3;
+	const maxRouteEditHistoryEntries = 50;
 	const gpxFileAccept = ".gpx,application/gpx+xml,application/xml,text/xml";
 	const defaultAreaRadiusMeters = 30_000;
 	const defaultCorridorWidthMeters = 10_000;
@@ -254,12 +284,15 @@
 	let isLocating = $state(false);
 	let currentLocationError = $state<string | null>(null);
 	let gpxImportInput = $state<HTMLInputElement | null>(null);
+	let undoStack = $state<RouteEditSnapshot[]>([]);
+	let redoStack = $state<RouteEditSnapshot[]>([]);
 
 	let completionAbortController: AbortController | null = null;
 	let completionBlurTimer: ReturnType<typeof setTimeout> | null = null;
 	let completionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 	const autosaveDebounceMs = 750;
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+	let detachRouteEditKeyboardListener = () => {};
 	let completionRequestId = 0;
 
 	const selectedBasemap = $derived(
@@ -360,6 +393,8 @@
 				]
 			: [],
 	);
+	const canUndoRouteEdit = $derived(undoStack.length > 0 && !isRouting);
+	const canRedoRouteEdit = $derived(redoStack.length > 0 && !isRouting);
 
 	$effect(() => {
 		if (!activeRoute && routeAnalysisOpen) {
@@ -444,6 +479,36 @@
 		resetSpatialConstraintDefaults();
 		initSavedRoutes();
 		restoreSavedRouteFromLocation();
+		const handleRouteEditKeydown = (event: KeyboardEvent) => {
+			if (!isRouteEditKeyboardShortcutAllowed(event)) {
+				return;
+			}
+
+			const key = event.key.toLowerCase();
+
+			if ((event.metaKey || event.ctrlKey) && key === "z" && event.shiftKey) {
+				event.preventDefault();
+				redoRouteEdit();
+				return;
+			}
+
+			if ((event.metaKey || event.ctrlKey) && key === "y") {
+				event.preventDefault();
+				redoRouteEdit();
+				return;
+			}
+
+			if ((event.metaKey || event.ctrlKey) && key === "z") {
+				event.preventDefault();
+				undoRouteEdit();
+			}
+		};
+
+		window.addEventListener("keydown", handleRouteEditKeydown);
+		detachRouteEditKeyboardListener = () => {
+			window.removeEventListener("keydown", handleRouteEditKeydown);
+			detachRouteEditKeyboardListener = () => {};
+		};
 	});
 
 	onDestroy(() => {
@@ -451,6 +516,7 @@
 		cancelCompletionDebounce();
 		cancelCompletionRequest();
 		cancelAutosaveTimer();
+		detachRouteEditKeyboardListener();
 	});
 
 	function formatCoordinateLabel(point: [number, number]) {
@@ -925,6 +991,7 @@
 		);
 		activeProfileIndex = null;
 		chartScrubPointerId = null;
+		clearRouteEditHistory();
 		scheduleActiveRouteAutosave();
 	}
 
@@ -986,6 +1053,189 @@
 		autosaveTimer = setTimeout(() => {
 			saveActiveRouteDraft();
 		}, autosaveDebounceMs);
+	}
+
+	function clonePlannerStop(stop: PlannerStop): PlannerStop {
+		return createPlannerStop(
+			stop.label,
+			stop.point ? [stop.point[0], stop.point[1]] : undefined,
+			stop.source,
+		);
+	}
+
+	function cloneFieldErrors(
+		errors: NonNullable<RouteApiError["fieldErrors"]>,
+	): NonNullable<RouteApiError["fieldErrors"]> {
+		return {
+			...errors,
+			waypointQueries: errors.waypointQueries
+				? [...errors.waypointQueries]
+				: undefined,
+		};
+	}
+
+	function captureRouteEditSnapshot(
+		options: RouteEditSnapshotOptions = {},
+	): RouteEditSnapshot {
+		return {
+			routeAlternatives: options.includeRoutesGeometry
+				? routeAlternatives.map((route) => cloneRoute(route))
+				: [...routeAlternatives],
+			selectedRouteIndex,
+			lockedSegmentIndexes: [...lockedSegmentIndexes],
+			plannerMode,
+			startStop: clonePlannerStop(startStop),
+			waypointStops: waypointStops.map((waypoint) => clonePlannerStop(waypoint)),
+			destinationStop: clonePlannerStop(destinationStop),
+			roundCourseTargetKind,
+			roundCourseDistanceInput,
+			roundCourseDistanceMetersInput,
+			roundCourseDurationInput,
+			roundCourseAscendMeters,
+			spatialConstraintKind,
+			spatialConstraintEnforcement,
+			constraintCenterStop: clonePlannerStop(constraintCenterStop),
+			areaRadiusInput,
+			corridorWidthInput,
+			areaRadiusMetersInput,
+			corridorWidthMetersInput,
+			lastGeneratedRouteCount,
+			fieldErrors: cloneFieldErrors(fieldErrors),
+		};
+	}
+
+	function restoreRouteEditSnapshot(snapshot: RouteEditSnapshot) {
+		closeCompletionMenu();
+		closeMapClickMenu();
+		routeAlternatives = snapshot.routeAlternatives.map((route) => cloneRoute(route));
+		selectedRouteIndex = snapshot.selectedRouteIndex;
+		lockedSegmentIndexes = [...snapshot.lockedSegmentIndexes];
+		plannerMode = snapshot.plannerMode;
+		startStop = clonePlannerStop(snapshot.startStop);
+		waypointStops = snapshot.waypointStops.map((waypoint) =>
+			clonePlannerStop(waypoint),
+		);
+		destinationStop = clonePlannerStop(snapshot.destinationStop);
+		roundCourseTargetKind = snapshot.roundCourseTargetKind;
+		roundCourseDistanceInput = snapshot.roundCourseDistanceInput;
+		roundCourseDistanceMetersInput = snapshot.roundCourseDistanceMetersInput;
+		roundCourseDurationInput = snapshot.roundCourseDurationInput;
+		roundCourseAscendMeters = snapshot.roundCourseAscendMeters;
+		spatialConstraintKind = snapshot.spatialConstraintKind;
+		spatialConstraintEnforcement = snapshot.spatialConstraintEnforcement;
+		constraintCenterStop = clonePlannerStop(snapshot.constraintCenterStop);
+		areaRadiusInput = snapshot.areaRadiusInput;
+		corridorWidthInput = snapshot.corridorWidthInput;
+		areaRadiusMetersInput = snapshot.areaRadiusMetersInput;
+		corridorWidthMetersInput = snapshot.corridorWidthMetersInput;
+		lastGeneratedRouteCount = snapshot.lastGeneratedRouteCount;
+		fieldErrors = cloneFieldErrors(snapshot.fieldErrors);
+		routeRequestError = null;
+		routeImportError = null;
+		routeExportError = null;
+		activeProfileIndex = null;
+		chartScrubPointerId = null;
+		markPlannerEdited();
+		scheduleActiveRouteAutosave();
+	}
+
+	function pushRouteEditUndoSnapshot(snapshot: RouteEditSnapshot) {
+		undoStack = [...undoStack, snapshot].slice(-maxRouteEditHistoryEntries);
+	}
+
+	function clearRouteEditHistory() {
+		undoStack = [];
+		redoStack = [];
+	}
+
+	function performRouteEdit(editFn: () => boolean | undefined) {
+		if (!activeRoute) {
+			editFn();
+			return;
+		}
+
+		const previousSnapshot = captureRouteEditSnapshot();
+		const changed = editFn();
+
+		if (changed === false) {
+			return;
+		}
+
+		pushRouteEditUndoSnapshot(previousSnapshot);
+		redoStack = [];
+	}
+
+	async function performAsyncRouteEdit(
+		editFn: () => Promise<boolean | undefined>,
+		options: RouteEditSnapshotOptions = {},
+	) {
+		if (!activeRoute) {
+			await editFn();
+			return;
+		}
+
+		const previousSnapshot = captureRouteEditSnapshot(options);
+		const changed = await editFn();
+
+		if (changed === false) {
+			return;
+		}
+
+		pushRouteEditUndoSnapshot(previousSnapshot);
+		redoStack = [];
+	}
+
+	function undoRouteEdit() {
+		const previousSnapshot = undoStack[undoStack.length - 1];
+
+		if (!previousSnapshot || isRouting) {
+			return;
+		}
+
+		undoStack = undoStack.slice(0, -1);
+		redoStack = [
+			...redoStack,
+			captureRouteEditSnapshot({ includeRoutesGeometry: true }),
+		].slice(-maxRouteEditHistoryEntries);
+		restoreRouteEditSnapshot(previousSnapshot);
+	}
+
+	function redoRouteEdit() {
+		const nextSnapshot = redoStack[redoStack.length - 1];
+
+		if (!nextSnapshot || isRouting) {
+			return;
+		}
+
+		redoStack = redoStack.slice(0, -1);
+		pushRouteEditUndoSnapshot(
+			captureRouteEditSnapshot({ includeRoutesGeometry: true }),
+		);
+		restoreRouteEditSnapshot(nextSnapshot);
+	}
+
+	function isRouteEditKeyboardShortcutAllowed(event: KeyboardEvent) {
+		if (!event.metaKey && !event.ctrlKey) {
+			return false;
+		}
+
+		if (event.altKey) {
+			return false;
+		}
+
+		const key = event.key.toLowerCase();
+
+		if (key !== "z" && key !== "y") {
+			return false;
+		}
+
+		const target = event.target;
+
+		if (!(target instanceof HTMLElement)) {
+			return true;
+		}
+
+		return !target.closest("input, textarea, select, [contenteditable]");
 	}
 
 	function clearModeSpecificFieldErrors(nextMode: PlannerMode) {
@@ -1075,6 +1325,7 @@
 		fieldErrors = {};
 		activeProfileIndex = null;
 		chartScrubPointerId = null;
+		clearRouteEditHistory();
 	}
 
 	function elevY(meters: number, height: number, pad: number): number {
@@ -1702,9 +1953,22 @@
 		scheduleCompletionLookup(getWaypointCompletionTarget(index), value);
 	}
 
-	function addWaypoint(stop = createPlannerStop(), index = waypointStops.length) {
+	function addWaypoint(
+		stop = createPlannerStop(),
+		index = waypointStops.length,
+		recordHistory = true,
+	): boolean {
+		if (recordHistory && activeRoute) {
+			let changed = false;
+			performRouteEdit(() => {
+				changed = addWaypoint(stop, index, false);
+				return changed;
+			});
+			return changed;
+		}
+
 		if (waypointStops.length >= maxWaypoints) {
-			return;
+			return false;
 		}
 
 		const nextIndex = Math.max(0, Math.min(index, waypointStops.length));
@@ -1725,11 +1989,21 @@
 		}
 
 		markPlannerEdited();
+		return true;
 	}
 
-	function removeWaypoint(index: number) {
+	function removeWaypoint(index: number, recordHistory = true): boolean {
+		if (recordHistory && activeRoute) {
+			let changed = false;
+			performRouteEdit(() => {
+				changed = removeWaypoint(index, false);
+				return changed;
+			});
+			return changed;
+		}
+
 		if (isLockedStopIndex(index + 1)) {
-			return;
+			return false;
 		}
 
 		if (activeCompletionTarget?.kind === "waypoint") {
@@ -1749,6 +2023,7 @@
 		};
 
 		markPlannerEdited();
+		return true;
 	}
 
 	function canMoveWaypoint(index: number, direction: -1 | 1) {
@@ -1762,11 +2037,24 @@
 		);
 	}
 
-	function moveWaypoint(index: number, direction: -1 | 1) {
+	function moveWaypoint(
+		index: number,
+		direction: -1 | 1,
+		recordHistory = true,
+	): boolean {
+		if (recordHistory && activeRoute) {
+			let changed = false;
+			performRouteEdit(() => {
+				changed = moveWaypoint(index, direction, false);
+				return changed;
+			});
+			return changed;
+		}
+
 		const nextIndex = index + direction;
 
 		if (!canMoveWaypoint(index, direction)) {
-			return;
+			return false;
 		}
 
 		const nextWaypointStops = [...waypointStops];
@@ -1795,6 +2083,7 @@
 		}
 
 		markPlannerEdited();
+		return true;
 	}
 
 	function closeMapClickMenu() {
@@ -1850,7 +2139,19 @@
 		return "Remove stop";
 	}
 
-	function removeSelectedMapStop(selectedStop: SelectedMapStop) {
+	function removeSelectedMapStop(
+		selectedStop: SelectedMapStop,
+		recordHistory = true,
+	): boolean {
+		if (recordHistory && activeRoute) {
+			let changed = false;
+			performRouteEdit(() => {
+				changed = removeSelectedMapStop(selectedStop, false);
+				return changed;
+			});
+			return changed;
+		}
+
 		const selectedStopIndex = (() => {
 			if (selectedStop.kind === "start") {
 				return 0;
@@ -1862,31 +2163,34 @@
 		})();
 
 		if (isLockedStopIndex(selectedStopIndex)) {
-			return;
+			return false;
 		}
 
 		if (selectedStop.kind === "start") {
 			setFieldStop("startQuery", createPlannerStop());
 			closeMapClickMenu();
-			return;
+			return true;
 		}
 
 		if (selectedStop.kind === "destination") {
 			setFieldStop("destinationQuery", createPlannerStop());
 			closeMapClickMenu();
-			return;
+			return true;
 		}
 
 		if (selectedStop.kind === "waypoint") {
 			if (isOutAndBackMode) {
 				setFieldStop("destinationQuery", createPlannerStop());
 				closeMapClickMenu();
-				return;
+				return true;
 			}
 
-			removeWaypoint(selectedStop.index);
+			const changed = removeWaypoint(selectedStop.index, false);
 			closeMapClickMenu();
+			return changed;
 		}
+
+		return false;
 	}
 
 	function getSelectedSegmentIndex(selection: MapClickSelection) {
@@ -1909,11 +2213,23 @@
 			: sanitizedLockedSegmentIndexes.includes(segmentIndex);
 	}
 
-	function toggleMapSelectionSegmentLock(selection: MapClickSelection) {
+	function toggleMapSelectionSegmentLock(
+		selection: MapClickSelection,
+		recordHistory = true,
+	): boolean {
+		if (recordHistory && activeRoute) {
+			let changed = false;
+			performRouteEdit(() => {
+				changed = toggleMapSelectionSegmentLock(selection, false);
+				return changed;
+			});
+			return changed;
+		}
+
 		const segmentIndex = getSelectedSegmentIndex(selection);
 
 		if (segmentIndex === null) {
-			return;
+			return false;
 		}
 
 		const nextLockedSegmentIndexes = sanitizedLockedSegmentIndexes.includes(segmentIndex)
@@ -1927,6 +2243,7 @@
 		markPlannerEdited();
 		closeMapClickMenu();
 		scheduleActiveRouteAutosave();
+		return true;
 	}
 
 	function getWaypointInsertionTarget(point: [number, number]) {
@@ -1990,11 +2307,21 @@
 			| { kind: "startQuery" }
 			| { kind: "destinationQuery" }
 			| { kind: "waypoint" },
-	) {
+		recordHistory = true,
+	): Promise<boolean> {
+		if (recordHistory && activeRoute) {
+			let changed = false;
+			await performAsyncRouteEdit(async () => {
+				changed = await applyMapPointAsStop(target, false);
+				return changed;
+			});
+			return changed;
+		}
+
 		const selection = mapClickSelection;
 
 		if (!selection) {
-			return;
+			return false;
 		}
 
 		isResolvingMapSelection = true;
@@ -2012,10 +2339,14 @@
 		} else {
 			if (isMapWaypointInsertionLocked(selection)) {
 				isResolvingMapSelection = false;
-				return;
+				return false;
 			}
 
-			addWaypoint(fallbackStop, getMapWaypointInsertionSegmentIndex(selection));
+			addWaypoint(
+				fallbackStop,
+				getMapWaypointInsertionSegmentIndex(selection),
+				false,
+			);
 		}
 
 		closeMapClickMenu();
@@ -2032,7 +2363,7 @@
 					label: resolvedLabel,
 				};
 			}
-			return;
+			return true;
 		}
 
 		if (target.kind === "destinationQuery") {
@@ -2046,7 +2377,7 @@
 					label: resolvedLabel,
 				};
 			}
-			return;
+			return true;
 		}
 
 		waypointStops = waypointStops.map((waypoint) =>
@@ -2059,6 +2390,7 @@
 					}
 				: waypoint,
 		);
+		return true;
 	}
 
 	function getManualEditingRequest(): ManualRouteEditingState | undefined {
@@ -2229,9 +2561,9 @@
 		}
 	}
 
-	async function rerouteAfterManualEdit() {
+	async function rerouteAfterManualEdit(): Promise<boolean> {
 		if (isRouting) {
-			return;
+			return false;
 		}
 
 		isRouting = true;
@@ -2247,7 +2579,7 @@
 			const payload = await requestRouteCalculation(buildCurrentRouteRequest());
 
 			if (!payload) {
-				return;
+				return false;
 			}
 
 			const nextRoutes = applyManualEditingToRoutes(payload.routes ?? []);
@@ -2264,9 +2596,11 @@
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
 			scheduleActiveRouteAutosave();
+			return true;
 		} catch (error) {
 			console.error("Failed to reroute manual edit", error);
 			routeRequestError = "The manual route edit could not be recalculated.";
+			return false;
 		} finally {
 			isRouting = false;
 		}
@@ -2279,9 +2613,11 @@
 
 		closeCompletionMenu();
 		closeMapClickMenu();
-		const label = await resolveMapStopLabel(detail.point);
-		updateDraggedStop(detail.selectedStop, detail.point, label);
-		await rerouteAfterManualEdit();
+		await performAsyncRouteEdit(async () => {
+			const label = await resolveMapStopLabel(detail.point);
+			updateDraggedStop(detail.selectedStop, detail.point, label);
+			return rerouteAfterManualEdit();
+		}, { includeRoutesGeometry: true });
 	}
 
 	function getManualSegmentWaypointIndex(segmentIndex: number): number | null {
@@ -2315,22 +2651,28 @@
 
 		closeCompletionMenu();
 		closeMapClickMenu();
-		const existingWaypointIndex = getManualSegmentWaypointIndex(routeLegIndex);
-		const label = await resolveMapStopLabel(detail.point);
-		const stop = createPlannerStop(label, detail.point, "map");
+		await performAsyncRouteEdit(async () => {
+			const existingWaypointIndex = getManualSegmentWaypointIndex(routeLegIndex);
+			const label = await resolveMapStopLabel(detail.point);
+			const stop = createPlannerStop(label, detail.point, "map");
 
-		if (existingWaypointIndex !== null) {
-			setWaypointStop(existingWaypointIndex, stop);
-		} else {
-			if (waypointStops.length >= maxWaypoints) {
-				routeRequestError = `You can add up to ${maxWaypoints} waypoints per route.`;
-				return;
+			if (existingWaypointIndex !== null) {
+				setWaypointStop(existingWaypointIndex, stop);
+			} else {
+				if (waypointStops.length >= maxWaypoints) {
+					routeRequestError = `You can add up to ${maxWaypoints} waypoints per route.`;
+					return false;
+				}
+
+				addWaypoint(
+					stop,
+					Math.max(0, Math.min(routeLegIndex, waypointStops.length)),
+					false,
+				);
 			}
 
-			addWaypoint(stop, Math.max(0, Math.min(routeLegIndex, waypointStops.length)));
-		}
-
-		await rerouteAfterManualEdit();
+			return rerouteAfterManualEdit();
+		}, { includeRoutesGeometry: true });
 	}
 
 	async function useCurrentLocationAsStop(field: RouteField) {
@@ -2395,6 +2737,7 @@
 			routeExportError = null;
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
+			clearRouteEditHistory();
 			scheduleActiveRouteAutosave();
 		} catch (error) {
 			console.error("Failed to generate route", error);
@@ -2486,6 +2829,7 @@
 			fieldErrors = {};
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
+			clearRouteEditHistory();
 			scheduleActiveRouteAutosave();
 		} catch (error) {
 			console.error("Failed to import GPX", error);
@@ -3576,6 +3920,30 @@
 
 					<div class="flex shrink-0 flex-col items-end gap-1.5">
 						<div class="flex flex-wrap items-center justify-end gap-2">
+							<div class="flex items-center gap-1">
+								<Button
+									variant="outline"
+									size="icon"
+									class="size-8"
+									type="button"
+									disabled={!canUndoRouteEdit}
+									aria-label="Undo route edit"
+									onclick={undoRouteEdit}
+								>
+									<Undo2 class="size-3.5" />
+								</Button>
+								<Button
+									variant="outline"
+									size="icon"
+									class="size-8"
+									type="button"
+									disabled={!canRedoRouteEdit}
+									aria-label="Redo route edit"
+									onclick={redoRouteEdit}
+								>
+									<Redo2 class="size-3.5" />
+								</Button>
+							</div>
 							<Button
 								variant="outline"
 								size="sm"
