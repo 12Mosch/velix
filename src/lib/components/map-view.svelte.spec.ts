@@ -780,6 +780,33 @@ describe("MapView", () => {
 		expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1);
 	});
 
+	it("updates unchanged route overlay sources without recreating layers", async () => {
+		const view = render(MapView, {
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		const source = mockState.sources.get("planned-route-route-0");
+		expect(source).toBeDefined();
+		const initialAddLayerCount = mapInstance.addLayer.mock.calls.length;
+
+		await view.rerender({
+			routeOverlays: [
+				{
+					...testRouteOverlays[0],
+					geoJson: createAlternativeRouteGeoJson(),
+				},
+			],
+		});
+
+		await expect.poll(() => source?.setData.mock.calls.length).toBe(1);
+		expect(mapInstance.addSource).toHaveBeenCalledTimes(1);
+		expect(mapInstance.addLayer).toHaveBeenCalledTimes(initialAddLayerCount);
+		expect(mapInstance.removeSource).not.toHaveBeenCalledWith(
+			"planned-route-route-0",
+		);
+	});
+
 	it("emits route stop drag details and restores map panning", async () => {
 		const onRouteStopDragEnd = vi.fn();
 		mockState.renderedFeatures.set("320,180", [
