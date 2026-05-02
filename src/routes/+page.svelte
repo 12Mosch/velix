@@ -8,6 +8,7 @@
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 	import MapView from "$lib/components/map-view.svelte";
+	import MapClickMenu from "$lib/components/route-planner/map-click-menu.svelte";
 	import { getBasemapById } from "$lib/map/basemaps";
 	import {
 		parseRouteGpx,
@@ -18,11 +19,11 @@
 	import {
 		formatDistance,
 		formatDistanceInput,
-		formatDistanceValue,
 		getDistanceUnitLabel,
 		initUnitPreference,
 		parseDistanceInputToMeters,
 		unitPreference,
+		formatDistanceValue,
 	} from "$lib/unit-settings.svelte";
 	import {
 		deleteSavedRoute,
@@ -58,7 +59,6 @@
 		type RouteApiSuccess,
 		type RouteMapOverlay,
 		type RouteClimb,
-		type RouteMode,
 		type RouteRequestPayload,
 		type RouteSpatialConstraintInput,
 		type RouteStopInput,
@@ -67,13 +67,70 @@
 		type SpatialConstraintEnforcement,
 	} from "$lib/route-planning";
 	import {
+		areaRadiusStepMeters,
+		chartW,
+		completionDebounceMs,
+		constraintCenterCompletionTarget,
+		corridorWidthStepMeters,
+		defaultAreaRadiusMeters,
+		defaultCorridorWidthMeters,
+		defaultSpatialConstraintEnforcement,
+		destinationCompletionTarget,
+		desiredAlternativeRoutes,
+		gpxFileAccept,
+		maxAreaRadiusMeters,
+		maxCorridorWidthMeters,
+		maxRouteEditHistoryEntries,
+		maxWaypoints,
+		minAreaRadiusMeters,
+		minCompletionQueryLength,
+		minCorridorWidthMeters,
+		padY,
+		plannerModeOptions,
+		startCompletionTarget,
+	} from "$lib/route-planner/constants";
+	import {
+		formatCoordinateLabel,
+		formatDistanceInputAttribute,
+		formatDuration,
+		formatElevation,
+		formatExactDistance,
+		formatGrade,
+		formatRoundCourseDurationInput,
+		formatRoundCourseTarget,
+		formatSpatialConstraintEnforcement,
+		formatSpatialConstraintSummary,
+		getClimbColor,
+		getClimbLabel,
+		getImportedRouteStopSummary,
+		getRouteDurationText,
+		getRoutingBadgeLabel,
+		getRoutingProfileLabel,
+	} from "$lib/route-planner/formatters";
+	import type {
+		CompletionTarget,
+		CurrentLocation,
+		MapClickSelection,
+		PlannerMode,
+		PlannerStop,
+		ReverseGeocodeApiSuccess,
+		RouteEditSnapshot,
+		RouteEditSnapshotOptions,
+		RouteField,
+		RouteSegmentDragEnd,
+		RouteStopDragEnd,
+		RoundCourseTargetKind,
+		SelectedMapStop,
+		SpatialConstraintKind,
+		StopSource,
+	} from "$lib/route-planner/types";
+	import {
 		ArrowDown,
 		ArrowUp,
 		Check,
 		ChevronDown,
 		ChevronUp,
 		LocateFixed,
-		Lock,
 		MapPin,
 		MountainSnow,
 		Navigation,
@@ -83,148 +140,12 @@
 		ShieldCheck,
 		TrendingDown,
 		TrendingUp,
-		Unlock,
 		Undo2,
 		Wind,
 		X,
 	} from "lucide-svelte";
 
-	type StopSource = "typed" | "suggestion" | "map" | "currentLocation";
-	type PlannerStop = RouteStopInput & {
-		source: StopSource;
-	};
-	type CurrentLocation = {
-		point: [number, number];
-		accuracyMeters?: number;
-	};
-	type RouteField = "startQuery" | "destinationQuery";
-	type PlannerMode = RouteMode;
-	type RoundCourseTargetKind = RoundCourseTarget["kind"];
-	type CompletionTarget =
-		| { kind: "startQuery" }
-		| { kind: "destinationQuery" }
-		| { kind: "constraintCenter" }
-		| { kind: "waypoint"; index: number };
-	type SpatialConstraintKind = "none" | "area" | "corridor";
-	type SelectedMapStop =
-		| {
-				kind: "start" | "destination";
-				label?: string;
-		  }
-		| {
-				kind: "waypoint";
-				label?: string;
-				index: number;
-		  };
-	type MapClickSelection = {
-		point: [number, number];
-		screenPoint: {
-			x: number;
-			y: number;
-		};
-		selectedStop?: SelectedMapStop;
-		selectedSegment?: {
-			coordinateSegmentIndex: number;
-			segmentIndex: number;
-		};
-	};
-	type RouteStopDragEnd = {
-		point: [number, number];
-		screenPoint: {
-			x: number;
-			y: number;
-		};
-		selectedStop: SelectedMapStop;
-		stopIndex: number;
-	};
-	type RouteSegmentDragEnd = {
-		point: [number, number];
-		screenPoint: {
-			x: number;
-			y: number;
-		};
-		coordinateSegmentIndex: number;
-		segmentIndex: number;
-	};
-	type RouteEditSnapshot = {
-		routeAlternatives: PlannedRoute[];
-		selectedRouteIndex: number | null;
-		lockedSegmentIndexes: number[];
-		plannerMode: PlannerMode;
-		startStop: PlannerStop;
-		waypointStops: PlannerStop[];
-		destinationStop: PlannerStop;
-		roundCourseTargetKind: RoundCourseTargetKind;
-		roundCourseDistanceInput: string;
-		roundCourseDistanceMetersInput: number | null;
-		roundCourseDurationInput: string;
-		roundCourseAscendMeters: string;
-		spatialConstraintKind: SpatialConstraintKind;
-		spatialConstraintEnforcement: SpatialConstraintEnforcement;
-		constraintCenterStop: PlannerStop;
-		areaRadiusInput: string;
-		corridorWidthInput: string;
-		areaRadiusMetersInput: number | null;
-		corridorWidthMetersInput: number | null;
-		lastGeneratedRouteCount: number | null;
-		fieldErrors: NonNullable<RouteApiError["fieldErrors"]>;
-	};
-	type RouteEditSnapshotOptions = {
-		includeRoutesGeometry?: boolean;
-	};
-	type ReverseGeocodeApiSuccess = {
-		label: string;
-		point: [number, number];
-	};
-
-	const chartW = 800;
-	const padY = 5;
-	const maxRoutePoints = 5;
-	const maxWaypoints = maxRoutePoints - 2;
-	const minCompletionQueryLength = 3;
-	const completionDebounceMs = 250;
-	const desiredAlternativeRoutes = 3;
-	const maxRouteEditHistoryEntries = 50;
-	const gpxFileAccept = ".gpx,application/gpx+xml,application/xml,text/xml";
-	const defaultAreaRadiusMeters = 30_000;
-	const defaultCorridorWidthMeters = 10_000;
-	const minAreaRadiusMeters = 1_000;
-	const maxAreaRadiusMeters = 250_000;
-	const areaRadiusStepMeters = 1_000;
-	const minCorridorWidthMeters = 2_000;
-	const maxCorridorWidthMeters = 80_000;
-	const corridorWidthStepMeters = 1_000;
-	const defaultSpatialConstraintEnforcement: SpatialConstraintEnforcement =
-		"strict";
 	const sidebar = useSidebar();
-	const startCompletionTarget: CompletionTarget = { kind: "startQuery" };
-	const destinationCompletionTarget: CompletionTarget = {
-		kind: "destinationQuery",
-	};
-	const constraintCenterCompletionTarget: CompletionTarget = {
-		kind: "constraintCenter",
-	};
-	const plannerModeOptions: Array<{
-		mode: PlannerMode;
-		label: string;
-		description: string;
-	}> = [
-		{
-			mode: "point_to_point",
-			label: "Point to point",
-			description: "Start, optional waypoints, and a destination.",
-		},
-		{
-			mode: "round_course",
-			label: "Round course",
-			description: "Loop from one start point with a target ride distance.",
-		},
-		{
-			mode: "out_and_back",
-			label: "Out and back",
-			description: "Start, turnaround, then return on the same road.",
-		},
-	];
 
 	function createPlannerStop(
 		label = "",
@@ -551,10 +472,6 @@
 		detachRouteEditKeyboardListener();
 	});
 
-	function formatCoordinateLabel(point: [number, number]) {
-		return `${point[1].toFixed(5)}, ${point[0].toFixed(5)}`;
-	}
-
 	function getCurrentLocationUnavailableMessage() {
 		return "Current location is unavailable. Check browser location permissions.";
 	}
@@ -743,52 +660,6 @@
 		}
 
 		return Math.round(decimalHours * 60 * 60 * 1000);
-	}
-
-	function formatRoundCourseDurationInput(durationMs: number | undefined): string {
-		if (!durationMs || !Number.isFinite(durationMs)) {
-			return "";
-		}
-
-		const totalMinutes = Math.round(durationMs / 60000);
-		const hours = Math.floor(totalMinutes / 60);
-		const minutes = totalMinutes % 60;
-
-		return `${hours}:${minutes.toString().padStart(2, "0")}`;
-	}
-
-	function formatRoundCourseTarget(target: RoundCourseTarget | null | undefined): string {
-		if (!target) {
-			return "";
-		}
-
-		if (target.kind === "distance") {
-			return formatDistance(target.distanceMeters);
-		}
-
-		if (target.kind === "duration") {
-			return `${formatRoundCourseDurationInput(target.durationMs)} h`;
-		}
-
-		return `${Math.round(target.ascendMeters).toLocaleString()} m up`;
-	}
-
-	function formatSpatialConstraintSummary(route: PlannedRoute): string | null {
-		if (!route.spatialConstraint) {
-			return null;
-		}
-
-		if (route.spatialConstraint.kind === "area") {
-			return `Area: ${route.spatialConstraint.label}, ${formatDistance(route.spatialConstraint.radiusMeters)}`;
-		}
-
-		return `Corridor: ${formatDistance(route.spatialConstraint.widthMeters)}`;
-	}
-
-	function formatSpatialConstraintEnforcement(
-		enforcement: SpatialConstraintEnforcement,
-	): string {
-		return enforcement === "strict" ? "Keep inside" : "Prefer inside";
 	}
 
 	function buildRoundCourseTargetRequest(): RoundCourseTarget {
@@ -1365,38 +1236,6 @@
 		return pad + (1 - normalized) * (height - pad * 2);
 	}
 
-	function formatExactDistance(meters: number): string {
-		return formatDistance(meters, { fractionDigits: 2 });
-	}
-
-	function formatDistanceInputAttribute(meters: number): string {
-		return formatDistanceInput(meters);
-	}
-
-	function formatElevation(meters: number): string {
-		return `${Math.round(meters).toLocaleString()} m`;
-	}
-
-	function formatGrade(percent: number): string {
-		return `${percent.toFixed(1)}%`;
-	}
-
-	function getClimbLabel(climb: RouteClimb, index: number): string {
-		return climb.category === "Uncategorized"
-			? `Climb ${index + 1}`
-			: `${climb.category} climb`;
-	}
-
-	function getClimbColor(climb: RouteClimb): string {
-		if (climb.category === "HC") return "rgb(127 29 29)";
-		if (climb.category === "Cat 1") return "rgb(185 28 28)";
-		if (climb.category === "Cat 2") return "rgb(217 119 6)";
-		if (climb.category === "Cat 3") return "rgb(37 99 235)";
-		if (climb.category === "Cat 4") return "rgb(22 163 74)";
-
-		return "rgb(100 116 139)";
-	}
-
 	function clearRoundCourseTargetError() {
 		if (!fieldErrors.roundCourseTarget) {
 			return;
@@ -1583,80 +1422,6 @@
 
 		chartScrubPointerId = null;
 		clearActiveProfilePoint();
-	}
-
-	function formatDuration(durationMs: number): string {
-		const totalMinutes = Math.round(durationMs / 60000);
-		const hours = Math.floor(totalMinutes / 60);
-		const minutes = totalMinutes % 60;
-
-		if (hours === 0) {
-			return `${minutes} min`;
-		}
-
-		return `${hours}:${minutes.toString().padStart(2, "0")} h`;
-	}
-
-	function getRoutingProfileLabel(route: PlannedRoute | null): string {
-		if (!route) {
-			return "Road-bike planner";
-		}
-
-		if (isImportedRoute(route)) {
-			return "Imported GPX track";
-		}
-
-		if (route.routingStrategy) {
-			return route.routingStrategy;
-		}
-
-		if (route.routingProfile === "racingbike") {
-			return "GraphHopper racingbike profile.";
-		}
-
-		return "GraphHopper bike profile.";
-	}
-
-	function getRoutingBadgeLabel(route: PlannedRoute | null): string {
-		if (!route) {
-			return "Road-bike";
-		}
-
-		if (isImportedRoute(route)) {
-			return "Imported GPX";
-		}
-
-		return route.routingProfile === "racingbike"
-			? "Racingbike profile"
-			: "Bike fallback";
-	}
-
-	function getRouteDurationText(route: PlannedRoute | null): string {
-		if (!route) {
-			return "";
-		}
-
-		if (isImportedRoute(route) && !route.source.hasDuration) {
-			return "Time unavailable";
-		}
-
-		return formatDuration(route.durationMs);
-	}
-
-	function getImportedRouteStopSummary(route: PlannedRoute | null): string | null {
-		if (!route || !isImportedRoute(route)) {
-			return null;
-		}
-
-		if (route.source.stopDerivation === "rtept") {
-			return "Stops loaded from GPX route points.";
-		}
-
-		if (route.source.stopDerivation === "wpt") {
-			return "Stops loaded from GPX waypoints.";
-		}
-
-		return "Stops inferred from track.";
 	}
 
 	function getWaypointCompletionTarget(index: number): CompletionTarget {
@@ -2953,111 +2718,26 @@
 			</Button>
 		</div>
 		{#if mapClickSelection}
-			<div
-				class="pointer-events-auto absolute z-30 w-52 -translate-x-1/2 -translate-y-[calc(100%+0.85rem)] rounded-xl border border-border/70 bg-background/95 p-2 shadow-xl backdrop-blur-sm"
-				style={`left: ${mapClickSelection.screenPoint.x}px; top: ${mapClickSelection.screenPoint.y}px;`}
-				role="menu"
-				aria-label="Set clicked map point"
-			>
-				<div class="px-2 pb-1.5 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
-					{getMapClickMenuTitle(mapClickSelection)}
-				</div>
-				<div class="px-2 pb-2 text-xs text-muted-foreground">
-					{getMapClickMenuSubtitle(mapClickSelection)}
-				</div>
-				<div class="flex flex-col gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
-						class="justify-start"
-						type="button"
-						disabled={isResolvingMapSelection}
-						onclick={() => applyMapPointAsStop({ kind: "startQuery" })}
-					>
-						Set as start
-					</Button>
-					{#if plannerMode === "point_to_point"}
-						<Button
-							variant="ghost"
-							size="sm"
-							class="justify-start"
-							type="button"
-							disabled={
-								isResolvingMapSelection ||
-								waypointStops.length >= maxWaypoints ||
-								isMapWaypointInsertionLocked(mapClickSelection)
-							}
-							onclick={() => applyMapPointAsStop({ kind: "waypoint" })}
-						>
-							Add waypoint here
-						</Button>
-						<Button
-							variant="ghost"
-							size="sm"
-							class="justify-start"
-							type="button"
-							disabled={isResolvingMapSelection}
-							onclick={() => applyMapPointAsStop({ kind: "destinationQuery" })}
-						>
-							Set as destination
-						</Button>
-					{:else if isOutAndBackMode}
-						<Button
-							variant="ghost"
-							size="sm"
-							class="justify-start"
-							type="button"
-							disabled={isResolvingMapSelection}
-							onclick={() => applyMapPointAsStop({ kind: "destinationQuery" })}
-						>
-							Set as turnaround
-						</Button>
-					{/if}
-					{#if mapClickSelection.selectedSegment}
-						<Button
-							variant="ghost"
-							size="sm"
-							class="justify-start gap-2"
-							type="button"
-							onclick={() =>
-								mapClickSelection &&
-								toggleMapSelectionSegmentLock(mapClickSelection)}
-						>
-							{#if isMapSelectionSegmentLocked(mapClickSelection)}
-								<Unlock class="size-3.5" />
-								Unlock segment
-							{:else}
-								<Lock class="size-3.5" />
-								Lock segment
-							{/if}
-						</Button>
-					{/if}
-					{#if mapClickSelection.selectedStop}
-						<Button
-							variant="ghost"
-							size="sm"
-							class="justify-start text-destructive hover:text-destructive"
-							type="button"
-							disabled={isResolvingMapSelection}
-							onclick={() =>
-								mapClickSelection?.selectedStop &&
-								removeSelectedMapStop(mapClickSelection.selectedStop)}
-						>
-							{getRemoveActionLabel(mapClickSelection.selectedStop)}
-						</Button>
-					{/if}
-					<Button
-						variant="ghost"
-						size="sm"
-						class="justify-start text-muted-foreground"
-						type="button"
-						disabled={isResolvingMapSelection}
-						onclick={closeMapClickMenu}
-					>
-						Cancel
-					</Button>
-				</div>
-			</div>
+			<MapClickMenu
+				selection={mapClickSelection}
+				{plannerMode}
+				{isOutAndBackMode}
+				waypointCount={waypointStops.length}
+				{maxWaypoints}
+				isResolving={isResolvingMapSelection}
+				title={getMapClickMenuTitle(mapClickSelection)}
+				subtitle={getMapClickMenuSubtitle(mapClickSelection)}
+				removeActionLabel={getRemoveActionLabel}
+				isWaypointInsertionLocked={isMapWaypointInsertionLocked}
+				isSegmentLocked={isMapSelectionSegmentLocked}
+				onApplyAsStart={() => applyMapPointAsStop({ kind: "startQuery" })}
+				onApplyAsWaypoint={() => applyMapPointAsStop({ kind: "waypoint" })}
+				onApplyAsDestination={() => applyMapPointAsStop({ kind: "destinationQuery" })}
+				onToggleSegmentLock={() =>
+					mapClickSelection && toggleMapSelectionSegmentLock(mapClickSelection)}
+				onRemoveStop={removeSelectedMapStop}
+				onClose={closeMapClickMenu}
+			/>
 		{/if}
 	</div>
 
