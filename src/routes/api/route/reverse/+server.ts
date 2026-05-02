@@ -6,8 +6,10 @@ import {
 	missingGraphHopperApiKeyMessage,
 	reverseGeocodeLocation,
 } from "$lib/server/graphhopper";
+import { checkReverseRateLimit } from "$lib/server/route-rate-limits";
 
-export const GET: RequestHandler = async ({ fetch, url }) => {
+export const GET: RequestHandler = async (event) => {
+	const { fetch, url } = event;
 	const latitude = Number(url.searchParams.get("lat"));
 	const longitude = Number(url.searchParams.get("lng"));
 
@@ -28,6 +30,11 @@ export const GET: RequestHandler = async ({ fetch, url }) => {
 	}
 
 	const point: [number, number] = [longitude, latitude];
+	const rateLimitResponse = checkReverseRateLimit(event);
+
+	if (rateLimitResponse) {
+		return rateLimitResponse;
+	}
 
 	try {
 		const suggestion = await reverseGeocodeLocation(fetch, point);

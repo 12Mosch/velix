@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("$env/dynamic/private", () => ({
 	env: {
@@ -7,15 +7,29 @@ vi.mock("$env/dynamic/private", () => ({
 }));
 
 import { GET } from "./+server";
+import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
+import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
 
-function buildEvent(url: string, fetchMock: typeof fetch) {
+let eventId = 0;
+
+function buildEvent(
+	url: string,
+	fetchMock: typeof fetch,
+	clientAddress = `reverse-test-${eventId++}`,
+) {
 	return {
 		url: new URL(url),
 		fetch: fetchMock,
+		getClientAddress: () => clientAddress,
 	} as Parameters<typeof GET>[0];
 }
 
 describe("GET /api/route/reverse", () => {
+	beforeEach(() => {
+		clearGraphHopperCachesForTests();
+		clearRouteRateLimitsForTests();
+	});
+
 	it("rejects out-of-range geographic coordinates before calling GraphHopper", async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 
@@ -64,6 +78,92 @@ describe("GET /api/route/reverse", () => {
 		await expect(response.json()).resolves.toEqual({
 			label: "Marienplatz, Munich, Germany",
 			point: [11.5755, 48.1374],
+		});
+	});
+
+	it("caches repeated reverse geocoding for the same rounded coordinates", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
+							},
+						},
+					],
+				}),
+			),
+		);
+
+		const firstResponse = await GET(
+			buildEvent(
+				"http://localhost/api/route/reverse?lat=48.137401&lng=11.575501",
+				fetchMock,
+			),
+		);
+		const secondResponse = await GET(
+			buildEvent(
+				"http://localhost/api/route/reverse?lat=48.137404&lng=11.575504",
+				fetchMock,
+			),
+		);
+
+		expect(firstResponse.status).toBe(200);
+		expect(secondResponse.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		await expect(secondResponse.json()).resolves.toEqual({
+			label: "Marienplatz, Munich, Germany",
+			point: [11.575504, 48.137404],
+		});
+	});
+
+	it("rate-limits reverse geocoding requests before calling GraphHopper", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation(() =>
+			Promise.resolve(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Place",
+								point: {
+									lat: 48.1,
+									lng: 11.5,
+								},
+							},
+						],
+					}),
+				),
+			),
+		);
+
+		for (let index = 0; index < 60; index += 1) {
+			await GET(
+				buildEvent(
+					`http://localhost/api/route/reverse?lat=48.${index.toString().padStart(4, "0")}&lng=11.5755`,
+					fetchMock,
+					"limited-client",
+				),
+			);
+		}
+
+		const response = await GET(
+			buildEvent(
+				"http://localhost/api/route/reverse?lat=48.9999&lng=11.5755",
+				fetchMock,
+				"limited-client",
+			),
+		);
+
+		expect(response.status).toBe(429);
+		expect(response.headers.get("Retry-After")).toBe("60");
+		expect(fetchMock).toHaveBeenCalledTimes(60);
+		await expect(response.json()).resolves.toEqual({
+			error: "Too many reverse geocoding requests. Try again soon.",
 		});
 	});
 
