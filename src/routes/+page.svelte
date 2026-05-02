@@ -35,8 +35,11 @@
 	import { cloneRoute } from "$lib/saved-routes-core";
 	import {
 		buildRouteGeoJson,
+		buildRouteClimbGeoJson,
 		buildLockedSegmentGeoJson,
 		buildSpatialConstraintGeoJson,
+		analyzeRouteClimbs,
+		getRouteElevationAnalysisPoints,
 		getRouteLegIndexForCoordinateSegment,
 		getRouteSegmentCount,
 		getRouteStopInputs,
@@ -53,6 +56,7 @@
 		type RouteApiError,
 		type RouteApiSuccess,
 		type RouteMapOverlay,
+		type RouteClimb,
 		type RouteMode,
 		type RouteRequestPayload,
 		type RouteSpatialConstraintInput,
@@ -306,10 +310,34 @@
 		selectedRouteIndex === null ? null : routeAlternatives[selectedRouteIndex] ?? null,
 	);
 	const activeRoundCourseTarget = $derived(getRoundCourseTarget(activeRoute));
+	const activeRouteClimbs = $derived<RouteClimb[]>(
+		activeRoute ? analyzeRouteClimbs(getRouteElevationAnalysisPoints(activeRoute.coordinates)) : [],
+	);
+	const activeCategorizedClimbs = $derived(
+		activeRouteClimbs.filter((climb) => climb.category !== "Uncategorized"),
+	);
+	const activeKeyClimbs = $derived(
+		activeRouteClimbs.filter((climb) => climb.isKeyClimb),
+	);
+	const hardestClimb = $derived(
+		activeRouteClimbs.reduce<RouteClimb | null>(
+			(hardest, climb) => (!hardest || climb.score > hardest.score ? climb : hardest),
+			null,
+		),
+	);
 	const routeOverlays = $derived<RouteMapOverlay[]>(
 		routeAlternatives.map((route, index) => ({
 			id: `route-${index}`,
-			geoJson: buildRouteGeoJson(route),
+			geoJson:
+				index === selectedRouteIndex
+					? {
+							...buildRouteGeoJson(route),
+							features: [
+								...buildRouteGeoJson(route).features,
+								...buildRouteClimbGeoJson(route, activeRouteClimbs).features,
+							],
+						}
+					: buildRouteGeoJson(route),
 			bounds: route.bounds,
 			isSelected: index === selectedRouteIndex,
 		})),
@@ -354,12 +382,14 @@
 			: 0,
 	);
 	const elevRange = $derived(Math.max(elevMax - elevMin, 1));
+	const sampledProfileDistanceTotal = $derived(
+		elevationSamples[elevationSamples.length - 1]?.distanceMeters ?? null,
+	);
 	const chartProfilePoints = $derived(
 		elevationSamples.map((point) => {
 			const x =
 				elevationSamples.length > 1
-					? (point.distanceMeters / (elevationSamples[elevationSamples.length - 1]?.distanceMeters || 1)) *
-						chartW
+					? (point.distanceMeters / Math.max(sampledProfileDistanceTotal ?? 1, 1)) * chartW
 					: chartW / 2;
 			const y = elevY(point.elevationMeters, chartH, padY);
 
@@ -1343,6 +1373,26 @@
 
 	function formatElevation(meters: number): string {
 		return `${Math.round(meters).toLocaleString()} m`;
+	}
+
+	function formatGrade(percent: number): string {
+		return `${percent.toFixed(1)}%`;
+	}
+
+	function getClimbLabel(climb: RouteClimb, index: number): string {
+		return climb.category === "Uncategorized"
+			? `Climb ${index + 1}`
+			: `${climb.category} climb`;
+	}
+
+	function getClimbColor(climb: RouteClimb): string {
+		if (climb.category === "HC") return "rgb(127 29 29)";
+		if (climb.category === "Cat 1") return "rgb(185 28 28)";
+		if (climb.category === "Cat 2") return "rgb(217 119 6)";
+		if (climb.category === "Cat 3") return "rgb(37 99 235)";
+		if (climb.category === "Cat 4") return "rgb(22 163 74)";
+
+		return "rgb(100 116 139)";
 	}
 
 	function clearRoundCourseTargetError() {
@@ -3885,6 +3935,15 @@
 								</span>
 							</span>
 							<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+							<span class="font-semibold text-foreground">
+								{activeRouteClimbs.length} climb{activeRouteClimbs.length === 1 ? "" : "s"}
+								{#if activeCategorizedClimbs.length > 0}
+									<span class="text-muted-foreground">
+										({activeCategorizedClimbs.length} categorized)
+									</span>
+								{/if}
+							</span>
+							<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 							<span class="font-semibold text-foreground">{getRouteDurationText(activeRoute)}</span>
 						</div>
 					{:else}
@@ -4240,6 +4299,21 @@
 										vector-effect="non-scaling-stroke"
 									/>
 								{/each}
+								{#each activeRouteClimbs as climb}
+									<rect
+										x={(climb.startDistanceMeters / Math.max(sampledProfileDistanceTotal ?? 1, 1)) * chartW}
+										y="0"
+										width={Math.max(
+											1.5,
+											((climb.endDistanceMeters - climb.startDistanceMeters) /
+												Math.max(sampledProfileDistanceTotal ?? 1, 1)) *
+												chartW,
+										)}
+										height={chartH}
+										fill={getClimbColor(climb)}
+										opacity={climb.isKeyClimb ? "0.24" : "0.13"}
+									/>
+								{/each}
 								<path d={areaD} fill="url(#elevFill)" class="text-emerald-500" />
 								{#if activeProfilePoint}
 									<line
@@ -4302,6 +4376,32 @@
 							</div>
 						{/if}
 					</div>
+					{#if activeRoute && elevationSamples.length > 0}
+						<div class="border-t border-border/30 px-3 py-2">
+							{#if activeRouteClimbs.length > 0}
+								<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+									<span class="font-semibold text-foreground">
+										{activeRouteClimbs.length} detected climb{activeRouteClimbs.length === 1 ? "" : "s"}
+									</span>
+									<span>{activeCategorizedClimbs.length} categorized</span>
+									<span>{activeKeyClimbs.length} key highlighted</span>
+									{#if hardestClimb}
+										<span class="font-semibold text-foreground">
+											Hardest: {hardestClimb.category}, {formatElevation(hardestClimb.elevationGainMeters)} over {formatDistance(hardestClimb.distanceMeters)} at {formatGrade(hardestClimb.averageGradePercent)}
+										</span>
+									{/if}
+								</div>
+							{:else}
+								<p class="text-xs text-muted-foreground">
+									No climbs meet the 500 m, 30 m gain, and 3% average grade threshold.
+								</p>
+							{/if}
+						</div>
+					{:else if activeRoute}
+						<div class="border-t border-border/30 px-3 py-2 text-xs text-muted-foreground">
+							No climb data available because this route has no elevation samples.
+						</div>
+					{/if}
 				</div>
 
 				{#if routeAnalysisOpen && activeRoute}
@@ -4359,6 +4459,55 @@
 											{isImportedRoute(activeRoute)
 												? "Surface analysis becomes available after re-routing this imported track."
 												: "Surface details were not available for this route."}
+										</p>
+									{/if}
+								</div>
+
+								<div class="space-y-2">
+									<div class="flex items-center justify-between text-xs text-muted-foreground">
+										<span class="flex items-center gap-1">
+											<MountainSnow class="size-3" /> Climbs
+										</span>
+									</div>
+									{#if activeRouteClimbs.length > 0}
+										<div class="grid gap-1.5">
+											{#each activeRouteClimbs as climb, index}
+												<div
+													class={`rounded-md border px-2.5 py-2 text-xs ${
+														climb.isKeyClimb
+															? "border-amber-500/25 bg-amber-500/8"
+															: "border-border/30 bg-background/60"
+													}`}
+												>
+													<div class="mb-1 flex items-center justify-between gap-2">
+														<div class="flex min-w-0 items-center gap-2 font-semibold text-foreground">
+															<span
+																class="size-2 shrink-0 rounded-full"
+																style="background-color: {getClimbColor(climb)}"
+															></span>
+															<span>{getClimbLabel(climb, index)}</span>
+														</div>
+														{#if climb.isKeyClimb}
+															<Badge
+																variant="secondary"
+																class="h-5 border-amber-500/20 bg-amber-500/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200"
+															>
+																Key
+															</Badge>
+														{/if}
+													</div>
+													<div class="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+														<span>{formatDistance(climb.distanceMeters)}</span>
+														<span>{formatElevation(climb.elevationGainMeters)} gain</span>
+														<span>{formatGrade(climb.averageGradePercent)} avg</span>
+														<span>from {formatExactDistance(climb.startDistanceMeters)}</span>
+													</div>
+												</div>
+											{/each}
+										</div>
+									{:else}
+										<p class="text-xs text-muted-foreground">
+											No detected climbs for this elevation profile.
 										</p>
 									{/if}
 								</div>

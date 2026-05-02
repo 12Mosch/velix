@@ -131,6 +131,37 @@ export type ElevationProfilePoint = {
 	coordinate: RouteCoordinate;
 };
 
+export type ClimbCategory =
+	| "HC"
+	| "Cat 1"
+	| "Cat 2"
+	| "Cat 3"
+	| "Cat 4"
+	| "Uncategorized";
+
+export type ClimbAnalysisPoint = {
+	distanceMeters: number;
+	elevationMeters: number;
+	coordinate?: RouteCoordinate;
+	rawRouteIndex?: number;
+};
+
+export type RouteClimb = {
+	startIndex: number;
+	endIndex: number;
+	rawStartIndex: number;
+	rawEndIndex: number;
+	startDistanceMeters: number;
+	endDistanceMeters: number;
+	distanceMeters: number;
+	elevationGainMeters: number;
+	averageGradePercent: number;
+	maxGradePercent: number;
+	score: number;
+	category: ClimbCategory;
+	isKeyClimb: boolean;
+};
+
 export type PlannedRoute = {
 	mode: RouteMode;
 	source: RouteSource;
@@ -358,6 +389,48 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 	if (destinationFeature) {
 		features.push(destinationFeature);
 	}
+
+	return {
+		type: "FeatureCollection",
+		features,
+	};
+}
+
+export function buildRouteClimbGeoJson(
+	route: PlannedRoute,
+	climbs: RouteClimb[],
+): FeatureCollection {
+	const profilePoints = getRouteElevationAnalysisPoints(route.coordinates);
+	const features: Feature<LineString>[] = climbs.map((climb, index) => {
+		const coordinates = profilePoints
+			.filter(
+				(point) =>
+					point.coordinate &&
+					point.distanceMeters >= climb.startDistanceMeters &&
+					point.distanceMeters <= climb.endDistanceMeters,
+			)
+			.map((point) => point.coordinate as Position);
+
+		return {
+			type: "Feature",
+			properties: {
+				kind: "climb",
+				category: climb.category,
+				isKeyClimb: climb.isKeyClimb,
+				order: index + 1,
+			},
+			geometry: {
+				type: "LineString",
+				coordinates:
+					coordinates.length >= 2
+						? coordinates
+						: (route.coordinates.slice(
+								climb.rawStartIndex,
+								climb.rawEndIndex + 1,
+							) as Position[]),
+			},
+		};
+	});
 
 	return {
 		type: "FeatureCollection",
@@ -1010,6 +1083,304 @@ export function sampleElevationProfile(
 		const sampleIndex = Math.min(lastIndex, Math.round(index * step));
 		return profilePoints[sampleIndex] ?? lastProfilePoint;
 	});
+}
+
+export function getRouteElevationAnalysisPoints(
+	coordinates: RouteCoordinate[],
+): ClimbAnalysisPoint[] {
+	let totalDistanceMeters = 0;
+	let previousCoordinate = coordinates[0];
+	const points: ClimbAnalysisPoint[] = [];
+
+	for (const [index, coordinate] of coordinates.entries()) {
+		if (index > 0 && previousCoordinate) {
+			totalDistanceMeters += getCoordinateDistanceMeters(
+				previousCoordinate,
+				coordinate,
+			);
+		}
+
+		previousCoordinate = coordinate;
+
+		const elevationMeters = coordinate[2];
+
+		if (elevationMeters === undefined || !Number.isFinite(elevationMeters)) {
+			continue;
+		}
+
+		points.push({
+			distanceMeters: totalDistanceMeters,
+			elevationMeters,
+			coordinate,
+			rawRouteIndex: index,
+		});
+	}
+
+	return points;
+}
+
+const climbDetectionThresholds = {
+	minDistanceMeters: 500,
+	minGainMeters: 30,
+	minAverageGradePercent: 3,
+	allowedDescentDistanceMeters: 150,
+	allowedElevationLossMeters: 10,
+	mergeGapMeters: 300,
+	smoothingWindow: 3,
+	keyClimbCount: 3,
+} as const;
+
+function smoothClimbPoints(points: ClimbAnalysisPoint[]): ClimbAnalysisPoint[] {
+	const radius = Math.floor(climbDetectionThresholds.smoothingWindow / 2);
+
+	return points.map((point, index) => {
+		if (index === 0 || index === points.length - 1) {
+			return point;
+		}
+
+		let elevationTotal = 0;
+		let sampleCount = 0;
+
+		for (
+			let sampleIndex = Math.max(0, index - radius);
+			sampleIndex <= Math.min(points.length - 1, index + radius);
+			sampleIndex += 1
+		) {
+			const sample = points[sampleIndex];
+
+			if (!sample || !Number.isFinite(sample.elevationMeters)) {
+				continue;
+			}
+
+			elevationTotal += sample.elevationMeters;
+			sampleCount += 1;
+		}
+
+		return {
+			...point,
+			elevationMeters:
+				sampleCount > 0 ? elevationTotal / sampleCount : point.elevationMeters,
+		};
+	});
+}
+
+export function classifyClimbCategory(
+	score: number,
+	elevationGainMeters: number,
+): ClimbCategory {
+	if (score >= 8000 && elevationGainMeters >= 500) return "HC";
+	if (score >= 4800 && elevationGainMeters >= 300) return "Cat 1";
+	if (score >= 3200 && elevationGainMeters >= 200) return "Cat 2";
+	if (score >= 1600 && elevationGainMeters >= 100) return "Cat 3";
+	if (score >= 800 && elevationGainMeters >= 50) return "Cat 4";
+
+	return "Uncategorized";
+}
+
+function buildClimb(
+	points: ClimbAnalysisPoint[],
+	startIndex: number,
+	endIndex: number,
+): RouteClimb | null {
+	const start = points[startIndex];
+	const end = points[endIndex];
+
+	if (!start || !end || endIndex <= startIndex) {
+		return null;
+	}
+
+	const distanceMeters = end.distanceMeters - start.distanceMeters;
+	const elevationGainMeters = end.elevationMeters - start.elevationMeters;
+	const averageGradePercent =
+		distanceMeters > 0 ? (elevationGainMeters / distanceMeters) * 100 : 0;
+
+	if (
+		distanceMeters < climbDetectionThresholds.minDistanceMeters ||
+		elevationGainMeters < climbDetectionThresholds.minGainMeters ||
+		averageGradePercent < climbDetectionThresholds.minAverageGradePercent
+	) {
+		return null;
+	}
+
+	let maxGradePercent = 0;
+
+	for (let index = startIndex; index < endIndex; index += 1) {
+		const from = points[index];
+		const to = points[index + 1];
+
+		if (!from || !to) continue;
+
+		const segmentDistanceMeters = to.distanceMeters - from.distanceMeters;
+		const segmentGainMeters = to.elevationMeters - from.elevationMeters;
+
+		if (segmentDistanceMeters <= 0 || segmentGainMeters <= 0) continue;
+
+		maxGradePercent = Math.max(
+			maxGradePercent,
+			(segmentGainMeters / segmentDistanceMeters) * 100,
+		);
+	}
+
+	const score = elevationGainMeters * averageGradePercent;
+
+	return {
+		startIndex,
+		endIndex,
+		rawStartIndex: start.rawRouteIndex ?? startIndex,
+		rawEndIndex: end.rawRouteIndex ?? endIndex,
+		startDistanceMeters: start.distanceMeters,
+		endDistanceMeters: end.distanceMeters,
+		distanceMeters,
+		elevationGainMeters,
+		averageGradePercent,
+		maxGradePercent,
+		score,
+		category: classifyClimbCategory(score, elevationGainMeters),
+		isKeyClimb: false,
+	};
+}
+
+function mergeAdjacentClimbs(
+	points: ClimbAnalysisPoint[],
+	climbs: RouteClimb[],
+): RouteClimb[] {
+	const merged: RouteClimb[] = [];
+
+	for (const climb of climbs) {
+		const previous = merged[merged.length - 1];
+
+		if (!previous) {
+			merged.push(climb);
+			continue;
+		}
+
+		const gapMeters = climb.startDistanceMeters - previous.endDistanceMeters;
+		const combined = buildClimb(points, previous.startIndex, climb.endIndex);
+
+		if (
+			gapMeters < climbDetectionThresholds.mergeGapMeters &&
+			combined &&
+			combined.elevationGainMeters > 0
+		) {
+			merged[merged.length - 1] = combined;
+			continue;
+		}
+
+		merged.push(climb);
+	}
+
+	return merged;
+}
+
+function markKeyClimbs(climbs: RouteClimb[]): RouteClimb[] {
+	const categoryRankByCategory: Record<ClimbCategory, number> = {
+		HC: 5,
+		"Cat 1": 4,
+		"Cat 2": 3,
+		"Cat 3": 2,
+		"Cat 4": 1,
+		Uncategorized: 0,
+	};
+	const categoryRank = (climb: RouteClimb) =>
+		categoryRankByCategory[climb.category] ?? 0;
+	const keyClimbIndexes = new Set(
+		climbs
+			.map((climb, index) => ({ climb, index }))
+			.sort((a, b) => {
+				const categoryDelta = categoryRank(b.climb) - categoryRank(a.climb);
+				return categoryDelta || b.climb.score - a.climb.score;
+			})
+			.slice(0, climbDetectionThresholds.keyClimbCount)
+			.map(({ index }) => index),
+	);
+
+	return climbs.map((climb, index) => ({
+		...climb,
+		isKeyClimb: keyClimbIndexes.has(index),
+	}));
+}
+
+export function analyzeRouteClimbs(points: ClimbAnalysisPoint[]): RouteClimb[] {
+	const validPoints = points
+		.filter(
+			(point) =>
+				Number.isFinite(point.distanceMeters) &&
+				Number.isFinite(point.elevationMeters),
+		)
+		.sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+	if (validPoints.length < 2) {
+		return [];
+	}
+
+	const smoothedPoints = smoothClimbPoints(validPoints);
+	const climbs: RouteClimb[] = [];
+	let startIndex: number | null = null;
+	let interruptionStartIndex: number | null = null;
+	let interruptionStartDistance = 0;
+	let interruptionStartElevation = 0;
+
+	for (let index = 1; index < smoothedPoints.length; index += 1) {
+		const previous = smoothedPoints[index - 1];
+		const current = smoothedPoints[index];
+
+		if (!previous || !current) continue;
+
+		const elevationDelta = current.elevationMeters - previous.elevationMeters;
+
+		if (elevationDelta > 0) {
+			startIndex ??= index - 1;
+			interruptionStartIndex = null;
+			continue;
+		}
+
+		if (startIndex === null) {
+			continue;
+		}
+
+		interruptionStartIndex ??= index - 1;
+		const interruptionStart = smoothedPoints[interruptionStartIndex];
+
+		if (!interruptionStart) continue;
+
+		interruptionStartDistance = interruptionStart.distanceMeters;
+		interruptionStartElevation = interruptionStart.elevationMeters;
+		const interruptionDistance =
+			current.distanceMeters - interruptionStartDistance;
+		const interruptionLoss =
+			interruptionStartElevation - current.elevationMeters;
+
+		if (
+			interruptionDistance <=
+				climbDetectionThresholds.allowedDescentDistanceMeters &&
+			interruptionLoss <= climbDetectionThresholds.allowedElevationLossMeters
+		) {
+			continue;
+		}
+
+		const candidate = buildClimb(
+			smoothedPoints,
+			startIndex,
+			Math.max(startIndex, interruptionStartIndex),
+		);
+
+		if (candidate) climbs.push(candidate);
+
+		startIndex = null;
+		interruptionStartIndex = null;
+	}
+
+	if (startIndex !== null) {
+		const candidate = buildClimb(
+			smoothedPoints,
+			startIndex,
+			smoothedPoints.length - 1,
+		);
+
+		if (candidate) climbs.push(candidate);
+	}
+
+	return markKeyClimbs(mergeAdjacentClimbs(smoothedPoints, climbs));
 }
 
 export function getSurfaceMix(route: PlannedRoute) {

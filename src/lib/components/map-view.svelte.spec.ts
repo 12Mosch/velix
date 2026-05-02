@@ -341,6 +341,7 @@ describe("MapView", () => {
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
 			"planned-route-route-0-casing",
 			"planned-route-route-0-line",
+			"planned-route-route-0-climbs",
 			"planned-route-route-0-start",
 			"planned-route-route-0-waypoint",
 			"planned-route-route-0-destination",
@@ -922,7 +923,7 @@ describe("MapView", () => {
 	});
 
 	it("handles MapLibre WebGL constructor failures without logging expected errors", async () => {
-		mapMock.mockImplementationOnce(() => {
+		mapMock.mockImplementationOnce(function MockMap() {
 			throw new Error(
 				JSON.stringify({
 					message: "Failed to initialize WebGL",
@@ -952,7 +953,7 @@ describe("MapView", () => {
 
 	it("logs unexpected constructor failures and renders a generic load error", async () => {
 		const error = new Error("Unexpected MapLibre constructor failure");
-		mapMock.mockImplementationOnce(() => {
+		mapMock.mockImplementationOnce(function MockMap() {
 			throw error;
 		});
 
