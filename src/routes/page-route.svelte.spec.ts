@@ -708,6 +708,7 @@ describe("+page.svelte", () => {
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
 			"planned-route-route-0-casing",
 			"planned-route-route-0-line",
+			"planned-route-route-0-surface",
 			"planned-route-route-0-climbs",
 			"planned-route-route-0-start",
 			"planned-route-route-0-waypoint",
