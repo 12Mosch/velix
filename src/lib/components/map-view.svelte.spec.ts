@@ -45,6 +45,17 @@ const testRouteGeoJson: FeatureCollection = {
 		},
 		{
 			type: "Feature",
+			properties: { kind: "surface", surfaceBucket: "mixed" },
+			geometry: {
+				type: "LineString",
+				coordinates: [
+					[11.52, 47.21, 710],
+					[11.56, 47.23, 735],
+				],
+			},
+		},
+		{
+			type: "Feature",
 			properties: { kind: "waypoint", label: "Waypoint 1", order: 1 },
 			geometry: {
 				type: "Point",
@@ -341,11 +352,34 @@ describe("MapView", () => {
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
 			"planned-route-route-0-casing",
 			"planned-route-route-0-line",
+			"planned-route-route-0-surface",
 			"planned-route-route-0-climbs",
 			"planned-route-route-0-start",
 			"planned-route-route-0-waypoint",
 			"planned-route-route-0-destination",
 		]);
+		expect(
+			mapInstance.addLayer.mock.calls.find(
+				(call) => call[0].id === "planned-route-route-0-surface",
+			)?.[0],
+		).toMatchObject({
+			type: "line",
+			source: "planned-route-route-0",
+			filter: ["==", ["get", "kind"], "surface"],
+			paint: {
+				"line-color": [
+					"match",
+					["get", "surfaceBucket"],
+					"smooth",
+					"rgb(16, 185, 129)",
+					"mixed",
+					"rgb(245, 158, 11)",
+					"coarse",
+					"rgb(249, 115, 22)",
+					"rgb(100, 116, 139)",
+				],
+			},
+		});
 		expect(mapInstance.fitBounds).toHaveBeenCalledWith(
 			[11.5, 47.2, 11.6, 47.25],
 			expect.objectContaining({
@@ -410,6 +444,11 @@ describe("MapView", () => {
 		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(4);
 		expect(mapMock).toHaveBeenCalledTimes(1);
+		expect(
+			mapInstance.addLayer.mock.calls.filter(
+				(call) => call[0].id === "planned-route-route-0-surface",
+			),
+		).toHaveLength(2);
 		expect(mapInstance.addLayer.mock.calls.at(-1)?.[0].id).toBe(
 			"planned-route-hover-point",
 		);
@@ -713,6 +752,9 @@ describe("MapView", () => {
 		expect(
 			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
 		).not.toContain("planned-route-route-1-start");
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-1-surface");
 		expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1);
 
 		await view.rerender({
@@ -730,6 +772,11 @@ describe("MapView", () => {
 				),
 			)
 			.toBe(true);
+		expect(
+			mapInstance.addLayer.mock.calls.some(
+				(call) => call[0].id === "planned-route-route-1-surface",
+			),
+		).toBe(true);
 		expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1);
 	});
 

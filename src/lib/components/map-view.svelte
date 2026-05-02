@@ -374,6 +374,10 @@
 		return `${getRouteSourceId(overlayId)}-line`;
 	}
 
+	function getRouteSurfaceLayerId(overlayId: string) {
+		return `${getRouteSourceId(overlayId)}-surface`;
+	}
+
 	function getRouteClimbLayerId(overlayId: string) {
 		return `${getRouteSourceId(overlayId)}-climbs`;
 	}
@@ -808,6 +812,7 @@
 			getRouteWaypointLayerId(overlayId),
 			getRouteStartLayerId(overlayId),
 			getRouteClimbLayerId(overlayId),
+			getRouteSurfaceLayerId(overlayId),
 			getRouteLineLayerId(overlayId),
 			getRouteCasingLayerId(overlayId),
 		]) {
@@ -915,6 +920,7 @@
 			const sourceId = getRouteSourceId(overlay.id);
 			const casingLayerId = getRouteCasingLayerId(overlay.id);
 			const lineLayerId = getRouteLineLayerId(overlay.id);
+			const surfaceLayerId = getRouteSurfaceLayerId(overlay.id);
 			const climbLayerId = getRouteClimbLayerId(overlay.id);
 			const startLayerId = getRouteStartLayerId(overlay.id);
 			const waypointLayerId = getRouteWaypointLayerId(overlay.id);
@@ -1009,6 +1015,42 @@
 			});
 
 			if (overlay.isSelected) {
+				// Keep climb severity visible where climb and surface segments overlap.
+				map.addLayer({
+					id: surfaceLayerId,
+					type: "line",
+					source: sourceId,
+					filter: ["==", ["get", "kind"], "surface"],
+					layout: {
+						"line-cap": "round",
+						"line-join": "round",
+					},
+					paint: {
+						"line-color": [
+							"match",
+							["get", "surfaceBucket"],
+							"smooth",
+							"rgb(16, 185, 129)",
+							"mixed",
+							"rgb(245, 158, 11)",
+							"coarse",
+							"rgb(249, 115, 22)",
+							"rgb(100, 116, 139)",
+						],
+						"line-width": [
+							"interpolate",
+							["linear"],
+							["zoom"],
+							6,
+							3.5,
+							12,
+							5.5,
+							16,
+							7.5,
+						],
+						"line-opacity": 0.82,
+					},
+				});
 				map.addLayer({
 					id: climbLayerId,
 					type: "line",
