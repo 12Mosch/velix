@@ -219,6 +219,10 @@ type RouteFeatureProperties =
 			kind: "route";
 	  }
 	| {
+			kind: "surface";
+			surfaceBucket: "smooth" | "mixed" | "coarse";
+	  }
+	| {
 			kind: "start" | "destination" | "waypoint";
 			label: string;
 			order?: number;
@@ -319,6 +323,80 @@ function classifySurfaceValue(
 	return null;
 }
 
+function classifySmoothnessSurfaceFallbackValue(
+	value: string,
+): keyof typeof smoothnessSurfaceFallback | "coarse" | null {
+	const normalizedValue = normalizeDetailValue(value);
+
+	if (
+		!normalizedValue ||
+		normalizedValue === "MISSING" ||
+		normalizedValue === "UNKNOWN"
+	) {
+		return null;
+	}
+
+	if (smoothnessSurfaceFallback.smooth.has(normalizedValue)) {
+		return "smooth";
+	}
+
+	if (smoothnessSurfaceFallback.mixed.has(normalizedValue)) {
+		return "mixed";
+	}
+
+	return "coarse";
+}
+
+function buildRouteSurfaceFeatures(
+	route: PlannedRoute,
+	details: RouteDetailInterval[],
+	classify: (
+		value: string,
+	) => keyof typeof smoothnessSurfaceFallback | "coarse" | null,
+): Feature<LineString, RouteFeatureProperties>[] {
+	return details.flatMap((detail) => {
+		const bucket = classify(detail.value);
+
+		if (!bucket) {
+			return [];
+		}
+
+		const from = Math.trunc(detail.from);
+		const to = Math.trunc(detail.to);
+
+		if (
+			from < 0 ||
+			to < 0 ||
+			to <= from ||
+			from !== detail.from ||
+			to !== detail.to ||
+			to >= route.coordinates.length
+		) {
+			return [];
+		}
+
+		const coordinates = route.coordinates.slice(from, to + 1) as Position[];
+
+		if (coordinates.length < 2) {
+			return [];
+		}
+
+		return [
+			{
+				type: "Feature",
+				properties: {
+					kind: "surface",
+					surfaceBucket: bucket,
+				},
+				geometry: {
+					type: "LineString",
+					coordinates,
+				},
+			},
+		];
+	});
+}
+
 export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 	const lineFeature: Feature<LineString, RouteFeatureProperties> = {
 		type: "Feature",
@@ -389,6 +467,29 @@ export function buildRouteGeoJson(route: PlannedRoute): FeatureCollection {
 	if (destinationFeature) {
 		features.push(destinationFeature);
 	}
+
+	return {
+		type: "FeatureCollection",
+		features,
+	};
+}
+
+export function buildRouteSurfaceGeoJson(
+	route: PlannedRoute,
+): FeatureCollection {
+	const surfaceFeatures = buildRouteSurfaceFeatures(
+		route,
+		route.surfaceDetails,
+		classifySurfaceValue,
+	);
+	const features =
+		surfaceFeatures.length > 0
+			? surfaceFeatures
+			: buildRouteSurfaceFeatures(
+					route,
+					route.smoothnessDetails,
+					classifySmoothnessSurfaceFallbackValue,
+				);
 
 	return {
 		type: "FeatureCollection",

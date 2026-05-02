@@ -154,7 +154,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Route | Full | Selected route line is rendered. |
 | Alternative route | Full | Unselected alternatives are rendered as subdued lines. |
 | Locked route segment overlay | Full | Locked route legs are rendered as amber dashed overlays above the selected route line. |
-| Surface overlay | Missing | Surface is analyzed in panel, not rendered as map overlay. |
+| Surface overlay | Full | Selected route surface sections are rendered on the map from GraphHopper surface details, with smooth/mixed/coarse bucket colors and smoothness fallback coverage in `route-planning` and MapView specs. |
 | Traffic stress overlay | Missing | No traffic stress data. |
 | Wind overlay | Missing | No wind overlay. |
 | Gradient overlay | Missing | No gradient overlay. |
@@ -223,7 +223,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Sections by surface | Half | Surface details are fetched and summarized as mix, but section-by-section list/map is absent. |
+| Sections by surface | Half | Surface details are fetched, summarized as mix, and rendered as selected-route map sections; no detailed section-by-section table exists. |
 | Sections by gradient | Missing | No gradient section analysis. |
 | Sections by road type | Missing | Road class details are fetched from GraphHopper but not stored/displayed in `PlannedRoute`. |
 | Sections with high interruption probability | Missing | No interruption probability analysis. |

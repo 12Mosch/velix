@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	analyzeRouteClimbs,
 	buildRouteGeoJson,
+	buildRouteSurfaceGeoJson,
 	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
 	classifyClimbCategory,
@@ -117,6 +118,99 @@ describe("buildRouteGeoJson", () => {
 		expect(geoJson.features[2]?.properties).toMatchObject({
 			kind: "waypoint",
 			label: "Turnaround",
+		});
+	});
+});
+
+describe("buildRouteSurfaceGeoJson", () => {
+	const routeCoordinates: PlannedRoute["coordinates"] = [
+		[0, 0, 10],
+		[1, 1, 20],
+		[2, 2, 30],
+		[3, 3, 40],
+		[4, 4, 50],
+	];
+
+	it("builds smooth, mixed, and coarse surface segment features from interval indexes", () => {
+		const geoJson = buildRouteSurfaceGeoJson({
+			...buildRoute([
+				{ from: 0, to: 1, value: "asphalt" },
+				{ from: 1, to: 3, value: "paving_stones" },
+				{ from: 3, to: 4, value: "gravel" },
+			]),
+			coordinates: routeCoordinates,
+		});
+
+		expect(geoJson.features.map((feature) => feature.properties)).toEqual([
+			{ kind: "surface", surfaceBucket: "smooth" },
+			{ kind: "surface", surfaceBucket: "mixed" },
+			{ kind: "surface", surfaceBucket: "coarse" },
+		]);
+		expect(
+			geoJson.features.map((feature) =>
+				feature.geometry.type === "LineString"
+					? feature.geometry.coordinates
+					: [],
+			),
+		).toEqual([
+			[routeCoordinates[0], routeCoordinates[1]],
+			[routeCoordinates[1], routeCoordinates[2], routeCoordinates[3]],
+			[routeCoordinates[3], routeCoordinates[4]],
+		]);
+	});
+
+	it("normalizes incoming surface values", () => {
+		const geoJson = buildRouteSurfaceGeoJson({
+			...buildRoute([
+				{ from: 0, to: 1, value: " Concrete:plates " },
+				{ from: 1, to: 2, value: "fine gravel" },
+			]),
+			coordinates: routeCoordinates,
+		});
+
+		expect(geoJson.features.map((feature) => feature.properties)).toEqual([
+			{ kind: "surface", surfaceBucket: "smooth" },
+			{ kind: "surface", surfaceBucket: "mixed" },
+		]);
+	});
+
+	it("falls back to smoothness when surface details are unavailable or unclassifiable", () => {
+		const geoJson = buildRouteSurfaceGeoJson({
+			...buildRoute(
+				[{ from: 0, to: 1, value: "unknown_surface" }],
+				[
+					{ from: 0, to: 1, value: "GOOD" },
+					{ from: 1, to: 2, value: "INTERMEDIATE" },
+					{ from: 2, to: 3, value: "BAD" },
+				],
+			),
+			coordinates: routeCoordinates,
+		});
+
+		expect(geoJson.features.map((feature) => feature.properties)).toEqual([
+			{ kind: "surface", surfaceBucket: "smooth" },
+			{ kind: "surface", surfaceBucket: "mixed" },
+			{ kind: "surface", surfaceBucket: "coarse" },
+		]);
+	});
+
+	it("skips unknown, missing, degenerate, and out-of-bounds intervals", () => {
+		const geoJson = buildRouteSurfaceGeoJson({
+			...buildRoute([
+				{ from: 0, to: 1, value: "unknown" },
+				{ from: 1, to: 2, value: "missing" },
+				{ from: 2, to: 2, value: "asphalt" },
+				{ from: -1, to: 1, value: "asphalt" },
+				{ from: 3, to: 5, value: "asphalt" },
+				{ from: 1, to: 2, value: "asphalt" },
+			]),
+			coordinates: routeCoordinates,
+		});
+
+		expect(geoJson.features).toHaveLength(1);
+		expect(geoJson.features[0]?.properties).toEqual({
+			kind: "surface",
+			surfaceBucket: "smooth",
 		});
 	});
 });

@@ -36,6 +36,7 @@
 	import {
 		buildRouteGeoJson,
 		buildRouteClimbGeoJson,
+		buildRouteSurfaceGeoJson,
 		buildLockedSegmentGeoJson,
 		buildSpatialConstraintGeoJson,
 		analyzeRouteClimbs,
@@ -334,6 +335,7 @@
 							...buildRouteGeoJson(route),
 							features: [
 								...buildRouteGeoJson(route).features,
+								...buildRouteSurfaceGeoJson(route).features,
 								...buildRouteClimbGeoJson(route, activeRouteClimbs).features,
 							],
 						}
