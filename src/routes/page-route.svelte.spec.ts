@@ -71,6 +71,72 @@ const successfulRoutePayload = {
 	routes: [successfulRoute],
 	selectedRouteIndex: 0,
 };
+const routeWithNoElevationPayload = {
+	routes: [
+		{
+			...successfulRoute,
+			coordinates: [
+				[11.5755, 48.1374],
+				[11.8598, 47.7362],
+			],
+		},
+	],
+	selectedRouteIndex: 0,
+};
+const uncategorizedClimbRoutePayload = {
+	routes: [
+		{
+			...successfulRoute,
+			distanceMeters: 1200,
+			ascendMeters: 50,
+			coordinates: [
+				[11.5, 48.0, 100],
+				[11.5, 48.005, 125],
+				[11.5, 48.01, 150],
+			],
+		},
+	],
+	selectedRouteIndex: 0,
+};
+const categorizedClimbsRoutePayload = {
+	routes: [
+		{
+			...successfulRoute,
+			distanceMeters: 6200,
+			ascendMeters: 2400,
+			coordinates: [
+				[11.5, 48.0, 100],
+				[11.5, 48.002, 220],
+				[11.5, 48.004, 340],
+				[11.5, 48.006, 460],
+				[11.5, 48.008, 580],
+				[11.5, 48.01, 700],
+				[11.5, 48.012, 450],
+				[11.5, 48.014, 200],
+				[11.5, 48.016, 320],
+				[11.5, 48.018, 440],
+				[11.5, 48.02, 560],
+				[11.5, 48.022, 680],
+				[11.5, 48.024, 800],
+				[11.5, 48.026, 550],
+				[11.5, 48.028, 300],
+				[11.5, 48.03, 420],
+				[11.5, 48.032, 540],
+				[11.5, 48.034, 660],
+				[11.5, 48.036, 780],
+				[11.5, 48.038, 900],
+				[11.5, 48.04, 650],
+				[11.5, 48.042, 400],
+				[11.5, 48.044, 520],
+				[11.5, 48.046, 640],
+				[11.5, 48.048, 760],
+				[11.5, 48.05, 880],
+				[11.5, 48.052, 1000],
+			],
+		},
+	],
+	selectedRouteIndex: 0,
+};
 const successfulAreaConstrainedRoute = {
 	...successfulRoute,
 	spatialConstraint: {
@@ -642,6 +708,7 @@ describe("+page.svelte", () => {
 		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
 			"planned-route-route-0-casing",
 			"planned-route-route-0-line",
+			"planned-route-route-0-climbs",
 			"planned-route-route-0-start",
 			"planned-route-route-0-waypoint",
 			"planned-route-route-0-destination",
@@ -658,6 +725,123 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("button", { name: "Save Draft" }))
 			.toBeInTheDocument();
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("renders a neutral state when no climb data is available", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url =
+					typeof input === "string"
+						? input
+						: input instanceof URL
+							? input.pathname
+							: new URL(input.url).pathname;
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: routeWithNoElevationPayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Start");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.element(
+				page.getByText(
+					"No climb data available because this route has no elevation samples.",
+				),
+			)
+			.toBeInTheDocument();
+	});
+
+	it("renders uncategorized detected climbs in the route summary", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url =
+					typeof input === "string"
+						? input
+						: input instanceof URL
+							? input.pathname
+							: new URL(input.url).pathname;
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: uncategorizedClimbRoutePayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Start");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.element(page.getByText("1 detected climb"))
+			.toBeInTheDocument();
+		await expect.element(page.getByText("0 categorized")).toBeInTheDocument();
+		await page.getByRole("button", { name: "Analysis" }).click();
+		await expect.element(page.getByText("Climb 1")).toBeInTheDocument();
+	});
+
+	it("highlights exactly three key climbs when multiple categorized climbs exist", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url =
+					typeof input === "string"
+						? input
+						: input instanceof URL
+							? input.pathname
+							: new URL(input.url).pathname;
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: categorizedClimbsRoutePayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Start");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.element(page.getByText("4 detected climbs"))
+			.toBeInTheDocument();
+		expect(
+			page.getByText("4 detected climbs").element().closest("div")?.textContent,
+		).toContain("4 categorized");
+		await expect
+			.element(page.getByText("3 key highlighted"))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Analysis" }).click();
+		await expect
+			.element(page.getByText("Climbs", { exact: true }))
+			.toBeInTheDocument();
+		await expect.element(page.getByText("Key").nth(2)).toBeInTheDocument();
 	});
 
 	it("submits an area constraint and shows it on the generated route", async () => {

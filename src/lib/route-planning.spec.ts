@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	analyzeRouteClimbs,
 	buildRouteGeoJson,
 	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
+	classifyClimbCategory,
 	getEditableRouteStops,
 	getRouteLegIndexForCoordinateSegment,
 	getRouteSegmentCount,
@@ -492,5 +494,93 @@ describe("sampleElevationProfile", () => {
 				[11.6, 47.25],
 			]),
 		).toEqual([]);
+	});
+});
+
+describe("analyzeRouteClimbs", () => {
+	const points = (elevations: number[], stepMeters = 250) =>
+		elevations.map((elevationMeters, index) => ({
+			distanceMeters: index * stepMeters,
+			elevationMeters,
+		}));
+
+	it("detects one clear sustained climb", () => {
+		const climbs = analyzeRouteClimbs(points([100, 115, 132, 150, 170, 190]));
+
+		expect(climbs).toHaveLength(1);
+		expect(climbs[0]).toMatchObject({
+			startIndex: 0,
+			endIndex: 5,
+			category: "Uncategorized",
+			isKeyClimb: true,
+		});
+		expect(climbs[0]?.distanceMeters).toBe(1250);
+		expect(climbs[0]?.elevationGainMeters).toBeGreaterThanOrEqual(70);
+	});
+
+	it("does not produce false climbs on rolling terrain", () => {
+		expect(analyzeRouteClimbs(points([100, 106, 101, 108, 104, 110]))).toEqual(
+			[],
+		);
+	});
+
+	it("keeps brief downhill interruptions inside a larger climb", () => {
+		const climbs = analyzeRouteClimbs(
+			points([100, 120, 140, 137, 160, 185, 210], 100),
+		);
+
+		expect(climbs).toHaveLength(1);
+		expect(climbs[0]?.distanceMeters).toBe(600);
+		expect(climbs[0]?.elevationGainMeters).toBeGreaterThan(70);
+	});
+
+	it("merges adjacent climbs separated by less than 300 m", () => {
+		const climbs = analyzeRouteClimbs(
+			points([100, 125, 150, 170, 170, 172, 195, 225, 255], 100),
+		);
+
+		expect(climbs).toHaveLength(1);
+		expect(climbs[0]?.distanceMeters).toBe(800);
+	});
+
+	it("does not merge climbs separated by 300 m or more", () => {
+		const climbs = analyzeRouteClimbs(
+			points([100, 140, 180, 220, 160, 160, 160, 160, 200, 240, 280, 320], 200),
+		);
+
+		expect(climbs).toHaveLength(2);
+	});
+
+	it("returns no climbs for missing or flat elevation data", () => {
+		expect(analyzeRouteClimbs([])).toEqual([]);
+		expect(analyzeRouteClimbs(points([100, 100, 100, 100]))).toEqual([]);
+	});
+
+	it.each([
+		{ gain: 500, grade: 16, category: "HC" },
+		{ gain: 300, grade: 16, category: "Cat 1" },
+		{ gain: 200, grade: 16, category: "Cat 2" },
+		{ gain: 100, grade: 16, category: "Cat 3" },
+		{ gain: 50, grade: 16, category: "Cat 4" },
+		{ gain: 49, grade: 16, category: "Uncategorized" },
+	])("classifies category boundary gain $gain as $category", ({
+		gain,
+		grade,
+		category,
+	}) => {
+		expect(classifyClimbCategory(gain * grade, gain)).toBe(category);
+	});
+
+	it.each([
+		{ score: 8000, gain: 499, category: "Cat 1" },
+		{ score: 4800, gain: 299, category: "Cat 2" },
+		{ score: 3200, gain: 199, category: "Cat 3" },
+		{ score: 1600, gain: 99, category: "Cat 4" },
+	])("requires gain as well as score when classifying $category fallback", ({
+		score,
+		gain,
+		category,
+	}) => {
+		expect(classifyClimbCategory(score, gain)).toBe(category);
 	});
 });

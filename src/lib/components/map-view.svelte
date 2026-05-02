@@ -374,6 +374,10 @@
 		return `${getRouteSourceId(overlayId)}-line`;
 	}
 
+	function getRouteClimbLayerId(overlayId: string) {
+		return `${getRouteSourceId(overlayId)}-climbs`;
+	}
+
 	function getRouteCasingLayerId(overlayId: string) {
 		return `${getRouteSourceId(overlayId)}-casing`;
 	}
@@ -803,6 +807,7 @@
 			getRouteDestinationLayerId(overlayId),
 			getRouteWaypointLayerId(overlayId),
 			getRouteStartLayerId(overlayId),
+			getRouteClimbLayerId(overlayId),
 			getRouteLineLayerId(overlayId),
 			getRouteCasingLayerId(overlayId),
 		]) {
@@ -910,6 +915,7 @@
 			const sourceId = getRouteSourceId(overlay.id);
 			const casingLayerId = getRouteCasingLayerId(overlay.id);
 			const lineLayerId = getRouteLineLayerId(overlay.id);
+			const climbLayerId = getRouteClimbLayerId(overlay.id);
 			const startLayerId = getRouteStartLayerId(overlay.id);
 			const waypointLayerId = getRouteWaypointLayerId(overlay.id);
 			const destinationLayerId = getRouteDestinationLayerId(overlay.id);
@@ -999,8 +1005,50 @@
 								16,
 								3.5,
 							],
-						},
+					},
 			});
+
+			if (overlay.isSelected) {
+				map.addLayer({
+					id: climbLayerId,
+					type: "line",
+					source: sourceId,
+					filter: ["==", ["get", "kind"], "climb"],
+					layout: {
+						"line-cap": "round",
+						"line-join": "round",
+					},
+					paint: {
+						"line-color": [
+							"match",
+							["get", "category"],
+							"HC",
+							"rgb(127, 29, 29)",
+							"Cat 1",
+							"rgb(185, 28, 28)",
+							"Cat 2",
+							"rgb(217, 119, 6)",
+							"Cat 3",
+							"rgb(37, 99, 235)",
+							"Cat 4",
+							"rgb(22, 163, 74)",
+							"rgb(100, 116, 139)",
+						],
+						"line-width": [
+							"interpolate",
+							["linear"],
+							["zoom"],
+							6,
+							["case", ["get", "isKeyClimb"], 5, 3],
+							12,
+							["case", ["get", "isKeyClimb"], 8, 5],
+							16,
+							["case", ["get", "isKeyClimb"], 11, 7],
+						],
+						"line-opacity": ["case", ["get", "isKeyClimb"], 0.96, 0.68],
+					},
+				});
+			}
 
 			if (!overlay.isSelected) {
 				continue;

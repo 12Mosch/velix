@@ -174,7 +174,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Start and destination markers | Full | Rendered for selected point-to-point route. |
 | Current location marker | Full | Rendered independently of route overlays after explicit geolocation, including style-change rehydration. |
 | Waypoints | Full | Rendered for selected route. |
-| Climb markers | Missing | No climb detection/markers. |
+| Climb markers | Full | Detected climb segments are drawn on the elevation profile and key climbs are overlaid on the selected map route with stronger line styling. |
 | Supply points | Missing | No supply POIs. |
 | Hazard points | Missing | No hazards. |
 | Favorites | Missing | No favorite places/markers. |
@@ -237,12 +237,14 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | --- | --- | --- |
 | Full elevation profile | Full | Elevation chart is rendered from route coordinates. |
 | Interactive hover linking chart and map | Full | Pointer hover/scrub updates a highlighted map point. |
-| Climb detection | Missing | No climb detection. |
-| Climb classification | Missing | No climb classification. |
+| Climb detection | Full | Route coordinates with elevation are smoothed with a 3-point rolling window and analyzed for uphill runs of at least 500 m, 30 m gain, and 3% average grade. Short interruptions are tolerated up to 150 m distance or 10 m elevation loss, and adjacent climbs less than 300 m apart are merged when the combined segment still trends upward. |
+| Climb classification | Full | Climb score is `elevationGainMeters * averageGradePercent`; categories are HC (score >= 8000 and gain >= 500 m), Cat 1 (>= 4800 and >= 300 m), Cat 2 (>= 3200 and >= 200 m), Cat 3 (>= 1600 and >= 100 m), Cat 4 (>= 800 and >= 50 m), otherwise Uncategorized. |
 | Gradient by section | Missing | No gradient section display. |
 | Descent analysis | Missing | No descent analysis. |
-| Highlight key climbs | Missing | No key climb highlighting. |
+| Highlight key climbs | Full | The top three categorized climbs by score are marked as key climbs; if fewer than three categorized climbs exist, the strongest uncategorized detected climbs fill the remaining key slots. Key climbs are distinguished in the climb list, profile bands, and map route overlay. |
 | Compare profiles of two routes | Missing | Only selected route profile is shown. |
+
+Implemented climb UI surfaces: the main route summary now shows total and categorized climb counts, the elevation profile shades detected climb spans by category, the map highlights selected-route key climb segments, and the expanded analysis panel lists each climb with category, distance, gain, average grade, and route-position distance. If a route has no usable elevation samples, the UI shows a neutral "no climb data available" state instead of fabricating climbs. Known limitation: climb quality depends on the availability and accuracy of route elevation samples; derived climb metadata is not persisted separately or exported in GPX in this pass.
 
 ### 3.5 Weather and environmental analysis
 
@@ -415,7 +417,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Critical points | Missing | No critical point analysis. |
-| Major climbs | Missing | No climb detection. |
+| Major climbs | Full | Climb detection implemented: analysis panel, profile bands, map overlay, and key-climb highlights present. |
 | Dangerous road transitions | Missing | No transition/hazard analysis. |
 | Gravel / poor-surface warnings | Half | Rough surfaces are penalized and surface mix is shown; no explicit route warning by section. |
 | Long exposed headwind sections | Missing | No wind analysis. |
