@@ -1,6 +1,7 @@
 import { env } from "$env/dynamic/private";
 
 import type { RouteSuggestion } from "$lib/route-planning";
+import { fetchWithTimeout, TtlCache } from "$lib/server/resilience";
 
 type GeocodeProvider = "default" | "nominatim";
 
@@ -23,6 +24,18 @@ type GraphHopperGeocodeResponse = {
 
 export const graphHopperApiBaseUrl = "https://graphhopper.com/api/1";
 export const missingGraphHopperApiKeyMessage = "Missing GRAPHHOPPER_API_KEY";
+
+const geocodeTimeoutMs = 4_000;
+const geocodeCacheTtlMs = 10 * 60 * 1_000;
+const maxGeocodeCacheEntries = 250;
+const suggestionCache = new TtlCache<RouteSuggestion[]>(
+	geocodeCacheTtlMs,
+	maxGeocodeCacheEntries,
+);
+const reverseGeocodeCache = new TtlCache<RouteSuggestion | null>(
+	geocodeCacheTtlMs,
+	maxGeocodeCacheEntries,
+);
 
 function buildResolvedLabel(hit: GeocodeHit): string {
 	const primary = [
@@ -86,6 +99,13 @@ export async function suggestLocations(
 		throw new Error(missingGraphHopperApiKeyMessage);
 	}
 
+	const cacheKey = `${query.trim().toLowerCase()}::${limit}`;
+	const cachedSuggestions = suggestionCache.get(cacheKey);
+
+	if (cachedSuggestions) {
+		return cachedSuggestions;
+	}
+
 	const providers: GeocodeProvider[] = ["nominatim", "default"];
 	let lastError: Error | null = null;
 
@@ -102,9 +122,26 @@ export async function suggestLocations(
 			searchParams.set("locale", "en");
 		}
 
-		const response = await fetchFn(
-			`${graphHopperApiBaseUrl}/geocode?${searchParams.toString()}`,
-		);
+		let response: Response;
+
+		try {
+			response = await fetchWithTimeout(
+				fetchFn,
+				`${graphHopperApiBaseUrl}/geocode?${searchParams.toString()}`,
+				undefined,
+				geocodeTimeoutMs,
+			);
+		} catch (error) {
+			lastError =
+				error instanceof Error
+					? error
+					: new Error(`Geocoding failed using ${provider}`);
+			console.warn(
+				`GraphHopper geocoding request failed using ${provider}. Trying the next provider.`,
+				error,
+			);
+			continue;
+		}
 
 		if (!response.ok) {
 			const details = await response.text();
@@ -124,6 +161,7 @@ export async function suggestLocations(
 		).slice(0, limit);
 
 		if (suggestions.length > 0) {
+			suggestionCache.set(cacheKey, suggestions);
 			return suggestions;
 		}
 	}
@@ -132,6 +170,7 @@ export async function suggestLocations(
 		throw lastError;
 	}
 
+	suggestionCache.set(cacheKey, []);
 	return [];
 }
 
@@ -153,6 +192,13 @@ export async function reverseGeocodeLocation(
 		throw new Error(missingGraphHopperApiKeyMessage);
 	}
 
+	const cacheKey = `${point[0].toFixed(5)}::${point[1].toFixed(5)}`;
+	const cachedSuggestion = reverseGeocodeCache.get(cacheKey);
+
+	if (cachedSuggestion !== undefined) {
+		return cachedSuggestion;
+	}
+
 	const providers: GeocodeProvider[] = ["nominatim", "default"];
 	let lastError: Error | null = null;
 
@@ -170,9 +216,26 @@ export async function reverseGeocodeLocation(
 			searchParams.set("locale", "en");
 		}
 
-		const response = await fetchFn(
-			`${graphHopperApiBaseUrl}/geocode?${searchParams.toString()}`,
-		);
+		let response: Response;
+
+		try {
+			response = await fetchWithTimeout(
+				fetchFn,
+				`${graphHopperApiBaseUrl}/geocode?${searchParams.toString()}`,
+				undefined,
+				geocodeTimeoutMs,
+			);
+		} catch (error) {
+			lastError =
+				error instanceof Error
+					? error
+					: new Error(`Reverse geocoding failed using ${provider}`);
+			console.warn(
+				`GraphHopper reverse geocoding request failed using ${provider}. Trying the next provider.`,
+				error,
+			);
+			continue;
+		}
 
 		if (!response.ok) {
 			const details = await response.text();
@@ -190,6 +253,7 @@ export async function reverseGeocodeLocation(
 			.find((candidate): candidate is RouteSuggestion => !!candidate);
 
 		if (suggestion) {
+			reverseGeocodeCache.set(cacheKey, suggestion);
 			return suggestion;
 		}
 	}
@@ -198,5 +262,11 @@ export async function reverseGeocodeLocation(
 		throw lastError;
 	}
 
+	reverseGeocodeCache.set(cacheKey, null);
 	return null;
+}
+
+export function clearGraphHopperCachesForTests(): void {
+	suggestionCache.clear();
+	reverseGeocodeCache.clear();
 }

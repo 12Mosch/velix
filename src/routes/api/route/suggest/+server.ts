@@ -6,11 +6,13 @@ import {
 	missingGraphHopperApiKeyMessage,
 	suggestLocations,
 } from "$lib/server/graphhopper";
+import { checkSuggestionRateLimit } from "$lib/server/route-rate-limits";
 
 const minQueryLength = 3;
 const maxSuggestions = 5;
 
-export const GET: RequestHandler = async ({ fetch, url }) => {
+export const GET: RequestHandler = async (event) => {
+	const { fetch, url } = event;
 	const query = url.searchParams.get("q")?.trim() ?? "";
 	const coordinateResult = parseCoordinateSearchInput(query);
 
@@ -35,6 +37,12 @@ export const GET: RequestHandler = async ({ fetch, url }) => {
 		return json({
 			suggestions: [],
 		});
+	}
+
+	const rateLimitResponse = checkSuggestionRateLimit(event);
+
+	if (rateLimitResponse) {
+		return rateLimitResponse;
 	}
 
 	try {

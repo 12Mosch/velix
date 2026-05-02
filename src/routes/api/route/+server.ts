@@ -23,6 +23,8 @@ import {
 	graphHopperApiBaseUrl,
 	missingGraphHopperApiKeyMessage,
 } from "$lib/server/graphhopper";
+import { checkRouteRateLimit } from "$lib/server/route-rate-limits";
+import { fetchWithTimeout } from "$lib/server/resilience";
 
 type GraphHopperPath = {
 	bbox?: number[];
@@ -85,6 +87,8 @@ type GraphHopperRouteRequestBody = {
 	"alternative_route.max_share_factor"?: number;
 };
 type GraphHopperProfile = GraphHopperRouteRequestBody["profile"];
+
+const routeTimeoutMs = 20_000;
 type RouteRequestStrategy = {
 	profile: GraphHopperProfile;
 	useCustomModel: boolean;
@@ -1326,13 +1330,18 @@ async function requestRoutes(
 	}
 
 	async function sendRouteRequest(body: GraphHopperRouteRequestBody) {
-		const response = await fetchFn(routeUrl, {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
+		const response = await fetchWithTimeout(
+			fetchFn,
+			routeUrl,
+			{
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+				},
+				body: JSON.stringify(body),
 			},
-			body: JSON.stringify(body),
-		});
+			routeTimeoutMs,
+		);
 
 		if (!response.ok) {
 			const details = await response.text();
@@ -1399,7 +1408,8 @@ async function requestRoutes(
 	};
 }
 
-export const POST: RequestHandler = async ({ fetch, request }) => {
+export const POST: RequestHandler = async (event) => {
+	const { fetch, request } = event;
 	let payload:
 		| Partial<RouteRequestPayload>
 		| RoundCourseRouteRequestPayloadInput
@@ -1538,6 +1548,12 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 						"Increase the area radius or reduce the target distance.",
 				},
 			);
+		}
+
+		const rateLimitResponse = checkRouteRateLimit(event);
+
+		if (rateLimitResponse) {
+			return rateLimitResponse;
 		}
 
 		try {
@@ -1761,6 +1777,12 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			);
 		}
 
+		const rateLimitResponse = checkRouteRateLimit(event);
+
+		if (rateLimitResponse) {
+			return rateLimitResponse;
+		}
+
 		try {
 			const stops: RouteStop[] = [
 				{ kind: "start", input: startInput, field: "startQuery" },
@@ -1969,6 +1991,12 @@ export const POST: RequestHandler = async ({ fetch, request }) => {
 			"Start and destination are required.",
 			fieldErrors,
 		);
+	}
+
+	const rateLimitResponse = checkRouteRateLimit(event);
+
+	if (rateLimitResponse) {
+		return rateLimitResponse;
 	}
 
 	try {

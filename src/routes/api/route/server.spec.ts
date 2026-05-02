@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("$env/dynamic/private", () => ({
 	env: {
@@ -8,8 +8,16 @@ vi.mock("$env/dynamic/private", () => ({
 
 import { POST } from "./+server";
 import type { RouteApiSuccess } from "$lib/route-planning";
+import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
+import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
 
-function buildEvent(body: unknown, fetchMock: typeof fetch) {
+let eventId = 0;
+
+function buildEvent(
+	body: unknown,
+	fetchMock: typeof fetch,
+	clientAddress = `route-test-${eventId++}`,
+) {
 	return {
 		request: new Request("http://localhost/api/route", {
 			method: "POST",
@@ -19,6 +27,7 @@ function buildEvent(body: unknown, fetchMock: typeof fetch) {
 			body: JSON.stringify(body),
 		}),
 		fetch: fetchMock,
+		getClientAddress: () => clientAddress,
 	} as Parameters<typeof POST>[0];
 }
 
@@ -127,6 +136,11 @@ function buildRoundCourseResponseWithoutSnappedWaypoints() {
 }
 
 describe("POST /api/route", () => {
+	beforeEach(() => {
+		clearGraphHopperCachesForTests();
+		clearRouteRateLimitsForTests();
+	});
+
 	it("uses exact stop coordinates without forward-geocoding them again", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			buildRouteResponse([
@@ -172,6 +186,72 @@ describe("POST /api/route", () => {
 		expect(requestBody["alternative_route.max_paths"]).toBe(3);
 		expect(requestBody["alternative_route.max_weight_factor"]).toBe(1.4);
 		expect(requestBody["alternative_route.max_share_factor"]).toBe(0.6);
+	});
+
+	it("passes an abort signal to GraphHopper route requests", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+	});
+
+	it("rate-limits route requests before geocoding or routing", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation(() =>
+			Promise.resolve(
+				buildRouteResponse([
+					[11.5756, 48.1375, 522],
+					[11.8597, 47.7361, 784],
+				]),
+			),
+		);
+		const body = {
+			mode: "point_to_point",
+			start: {
+				label: "Marienplatz, Munich, Germany",
+				point: [11.5755, 48.1374],
+			},
+			waypoints: [],
+			destination: {
+				label: "Schliersee, Germany",
+				point: [11.8598, 47.7362],
+			},
+		};
+
+		for (let index = 0; index < 10; index += 1) {
+			await POST(buildEvent(body, fetchMock, "limited-client"));
+		}
+
+		const response = await POST(buildEvent(body, fetchMock, "limited-client"));
+
+		expect(response.status).toBe(429);
+		expect(response.headers.get("Retry-After")).toBe("60");
+		expect(fetchMock).toHaveBeenCalledTimes(10);
+		await expect(response.json()).resolves.toEqual({
+			error: "Too many route requests. Try again soon.",
+		});
 	});
 
 	it("accepts typed coordinate labels for point-to-point start and destination", async () => {
