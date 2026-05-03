@@ -3,11 +3,13 @@
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
+	import { Input } from "$lib/components/ui/input/index.js";
 	import { downloadRouteGpx } from "$lib/route-export";
 	import {
 		deleteSavedRoute,
 		savedRoutesState,
 		initSavedRoutes,
+		type SavedRoute,
 	} from "$lib/saved-routes.svelte";
 	import {
 		formatDistance,
@@ -25,7 +27,9 @@
 		MapPinned,
 		MountainSnow,
 		Route,
+		Search,
 		Trash2,
+		X,
 	} from "lucide-svelte";
 
 	onMount(() => {
@@ -34,11 +38,22 @@
 	});
 
 	let exportError = $state<string | null>(null);
+	let searchQuery = $state("");
 	const isLoadingSyncedRoutes = $derived(
 		savedRoutesState.authStatus === "signedIn" &&
 			!savedRoutesState.remoteReady &&
 			!savedRoutesState.syncError &&
 			savedRoutesState.savedRoutes.length === 0,
+	);
+	const normalizedSearchQuery = $derived(normalizeSearchText(searchQuery));
+	const filteredSavedRoutes = $derived(
+		normalizedSearchQuery
+			? savedRoutesState.savedRoutes.filter((savedRoute) =>
+					normalizeSearchText(buildSavedRouteSearchText(savedRoute)).includes(
+						normalizedSearchQuery,
+					),
+				)
+			: savedRoutesState.savedRoutes,
 	);
 
 	function formatDuration(durationMs: number): string {
@@ -136,6 +151,55 @@
 		return `to ${route.destinationLabel}`;
 	}
 
+	function normalizeSearchText(value: string): string {
+		return value.trim().toLocaleLowerCase();
+	}
+
+	function getRouteTypeBadges(route: PlannedRoute): string[] {
+		const badges: string[] = [];
+
+		if (isRoundCourseRoute(route)) {
+			badges.push("Round course");
+		}
+
+		if (isOutAndBackRoute(route)) {
+			badges.push("Out and back");
+		}
+
+		if (isImportedRoute(route)) {
+			badges.push("Imported GPX");
+		}
+
+		return badges;
+	}
+
+	function buildSavedRouteSearchText(savedRoute: SavedRoute): string {
+		const route = savedRoute.route;
+		const roundCourseTarget = getRoundCourseTarget(route);
+		const waypointSummary = formatWaypointSummary(route.waypoints);
+
+		return [
+			`Saved ${formatSavedAt(savedRoute.createdAt)}`,
+			...getRouteTypeBadges(route),
+			route.startLabel,
+			route.destinationLabel,
+			getRouteLegText(route),
+			waypointSummary,
+			formatDistance(route.distanceMeters),
+			roundCourseTarget
+				? `Target ${formatRoundCourseTarget(roundCourseTarget)}`
+				: null,
+			`${Math.round(route.ascendMeters).toLocaleString()} m up`,
+			getRouteDurationText(route),
+		]
+			.filter((value): value is string => Boolean(value))
+			.join(" ");
+	}
+
+	function clearSearch() {
+		searchQuery = "";
+	}
+
 	function handleDeleteSavedRoute(id: string) {
 		deleteSavedRoute(id);
 	}
@@ -205,20 +269,68 @@
 				</div>
 			</div>
 		{:else}
-			<div class="flex items-center justify-between gap-3">
+			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div class="flex items-center gap-2">
 					<Badge
 						variant="secondary"
 						class="h-6 border-primary/20 bg-primary/10 px-2.5 text-[10px] font-semibold uppercase tracking-wide text-primary"
 					>
-						{savedRoutesState.savedRoutes.length}
-						{savedRoutesState.savedRoutes.length === 1 ? " route" : " routes"}
+						{#if normalizedSearchQuery}
+							{filteredSavedRoutes.length} of {savedRoutesState.savedRoutes.length}
+							{savedRoutesState.savedRoutes.length === 1 ? " route" : " routes"}
+						{:else}
+							{savedRoutesState.savedRoutes.length}
+							{savedRoutesState.savedRoutes.length === 1 ? " route" : " routes"}
+						{/if}
 					</Badge>
+				</div>
+				<div class="relative w-full sm:max-w-xs">
+					<Search
+						class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+					/>
+					<Input
+						aria-label="Search saved routes"
+						placeholder="Search saved routes"
+						class="pr-9 pl-9"
+						bind:value={searchQuery}
+					/>
+					{#if normalizedSearchQuery}
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							class="absolute right-1 top-1/2 size-7 -translate-y-1/2"
+							aria-label="Clear route search"
+							onclick={clearSearch}
+						>
+							<X class="size-4" />
+						</Button>
+					{/if}
 				</div>
 			</div>
 
-			<div class="grid gap-3">
-				{#each savedRoutesState.savedRoutes as savedRoute (savedRoute.id)}
+			{#if filteredSavedRoutes.length === 0}
+				<div class="rounded-xl border border-border bg-background p-6 shadow-lg md:p-8">
+					<div class="flex flex-col items-start gap-4">
+						<div class="rounded-lg border border-primary/20 bg-primary/10 p-3 text-primary">
+							<Search class="size-5" />
+						</div>
+						<div class="space-y-1.5">
+							<h2 class="font-heading text-lg font-semibold tracking-tight text-foreground">
+								No routes match your search
+							</h2>
+							<p class="max-w-xl text-sm leading-6 text-muted-foreground">
+								Try a place, route type, distance, climb, duration, or saved date from a route card.
+							</p>
+						</div>
+						<Button type="button" variant="outline" onclick={clearSearch}>
+							Clear search
+						</Button>
+					</div>
+				</div>
+			{:else}
+				<div class="grid gap-3">
+					{#each filteredSavedRoutes as savedRoute (savedRoute.id)}
 					<div class="rounded-xl border border-border bg-background p-4 shadow-lg md:p-5">
 						<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 							<div class="min-w-0 flex-1 space-y-3">
@@ -323,8 +435,9 @@
 							</div>
 						</div>
 					</div>
-				{/each}
-			</div>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	</div>
 </div>
