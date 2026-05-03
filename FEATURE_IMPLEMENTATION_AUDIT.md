@@ -6,7 +6,7 @@ Status legend:
 - **Half**: there is visible or code-level support, but the implementation is incomplete, limited, or missing important expected behavior.
 - **Missing**: no meaningful implementation was found.
 
-Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
+Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/routes/routes-page.svelte.spec.ts`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
 
 ## 1. Routing & Route Builder
 
@@ -332,7 +332,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Recently planned | Half | Saved routes are ordered by created date; unsaved recent plans are not tracked. |
 | Seasonal collections | Missing | No seasonal collections. |
 | Training-specific collections | Missing | No training collections. |
-| Search saved routes | Missing | No route-library search. |
+| Search saved routes | Full | Saved routes page has local, case-insensitive search across visible card text, including places, waypoints, route type/source badges, saved date text, distance, climb, duration, and round-course targets. |
 | Filter by distance, elevation, region, purpose | Missing | No filters. |
 
 ### 5.3 Versioning
@@ -569,7 +569,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Search personal routes | Missing | Saved-route list has no search. |
+| Search personal routes | Full | Saved-route list search filters the personal library by visible route card text and shows matched-count and no-match states. |
 | Search community routes | Missing | No community route system. |
 | Filter by tags / distance / region / training goal | Missing | No route filters/tags. |
 
@@ -771,7 +771,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Auto-save during planning | Missing | No auto-save. |
-| Empty states with meaningful quick actions | Full | Saved routes page has an empty state linking to the planner; planner has empty metric states. |
+| Empty states with meaningful quick actions | Full | Saved routes page has an empty state linking to the planner plus a distinct no-search-results state with a clear action; planner has empty metric states. |
 | Keyboard shortcuts | Half | Search suggestion menus support keyboard navigation; no app-level shortcut system. |
 | Loading skeletons | Missing | Skeleton component exists, but route planner uses text loading states. |
 | Route generation progress state | Half | Buttons and summary text show calculating states; no detailed progress. |

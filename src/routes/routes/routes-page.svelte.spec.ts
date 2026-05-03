@@ -49,6 +49,68 @@ const savedRoutes = [
 	},
 ];
 
+const searchableSavedRoutes = [
+	savedRoutes[0],
+	{
+		id: "saved-round-course",
+		createdAt: "2026-04-20T09:30:00.000Z",
+		route: {
+			mode: "round_course",
+			source: {
+				kind: "graphhopper",
+			},
+			startLabel: "Garmisch-Partenkirchen, Germany",
+			destinationLabel: "Garmisch-Partenkirchen, Germany",
+			roundCourseTarget: {
+				kind: "distance",
+				distanceMeters: 50000,
+			},
+			waypoints: [],
+			bounds: [11.05, 47.45, 11.18, 47.52],
+			distanceMeters: 50123,
+			durationMs: 7420000,
+			ascendMeters: 540,
+			descendMeters: 540,
+			coordinates: [
+				[11.0955, 47.4924, 700],
+				[11.13, 47.5, 760],
+				[11.16, 47.47, 820],
+				[11.0955, 47.4924, 700],
+			],
+			surfaceDetails: [],
+			smoothnessDetails: [],
+		},
+	},
+	{
+		id: "saved-import",
+		createdAt: "2026-04-21T09:30:00.000Z",
+		route: {
+			mode: "point_to_point",
+			source: {
+				kind: "gpx_import",
+				filename: "saved-import.gpx",
+				stopDerivation: "track",
+				hasDuration: false,
+			},
+			startLabel: "48.13740, 11.57550",
+			destinationLabel: "47.73620, 11.85980",
+			waypoints: [],
+			bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+			distanceMeters: 71234,
+			durationMs: 0,
+			ascendMeters: 920,
+			descendMeters: 840,
+			coordinates: [
+				[11.5755, 48.1374, 520],
+				[11.62, 48.1, 545],
+				[11.8598, 47.7362, 785],
+			],
+			surfaceDetails: [],
+			smoothnessDetails: [],
+		},
+	},
+];
+
 function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
 	const createObjectUrl = vi.fn((blob: Blob) => {
 		(window as Window & { __lastGpxBlob?: Blob }).__lastGpxBlob = blob;
@@ -411,6 +473,151 @@ describe("routes/+page.svelte", () => {
 		await expect.element(page.getByText("Imported GPX")).toBeInTheDocument();
 		await expect
 			.element(page.getByText("Time unavailable"))
+			.toBeInTheDocument();
+	});
+
+	it("searches saved routes by start, destination, and waypoint text", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		const searchInput = page.getByRole("textbox", {
+			name: "Search saved routes",
+		});
+
+		await searchInput.fill("tegernsee");
+
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.not.toBeInTheDocument();
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+
+		await searchInput.fill("garmisch");
+
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.not.toBeInTheDocument();
+
+		await searchInput.fill("47.73620");
+
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.not.toBeInTheDocument();
+	});
+
+	it("searches saved routes by visible metadata", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		const searchInput = page.getByRole("textbox", {
+			name: "Search saved routes",
+		});
+
+		await searchInput.fill("round course");
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.not.toBeInTheDocument();
+
+		await searchInput.fill("imported gpx");
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.not.toBeInTheDocument();
+
+		await searchInput.fill("71.2 km");
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.not.toBeInTheDocument();
+
+		await searchInput.fill("820 m up");
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.not.toBeInTheDocument();
+
+		await searchInput.fill("2:04 h");
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.not.toBeInTheDocument();
+	});
+
+	it("shows a search-empty state when saved routes do not match", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page
+			.getByRole("textbox", { name: "Search saved routes" })
+			.fill("no route has this");
+
+		await expect
+			.element(page.getByText("No routes match your search"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("No saved routes yet"))
+			.not.toBeInTheDocument();
+		await expect.element(page.getByText("0 of 3 routes")).toBeInTheDocument();
+	});
+
+	it("clears a saved-routes search and restores the full list count", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page
+			.getByRole("textbox", { name: "Search saved routes" })
+			.fill("garmisch");
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+
+		await page.getByRole("button", { name: "Clear route search" }).click();
+
+		await expect.element(page.getByText("3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
 			.toBeInTheDocument();
 	});
 
