@@ -115,8 +115,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Force a specific road | Half | Segment dragging adds shaping points that force the route through selected coordinates, but there is no exact road-edge/OSM-way forcing UI. |
 | Avoid a specific road | Missing | No avoid-road control. |
 | Plan sections manually or automatically | Missing | No per-section mode. |
-| Undo / Redo | Missing | No undo/redo. |
-| History of recent editing steps | Missing | No edit history. |
+| Undo / Redo | Full | Route edits can be undone/redone via toolbar buttons and keyboard shortcuts, backed by route edit snapshots. |
+| History of recent editing steps | Half | Undo/redo keeps a bounded stack of recent edit snapshots, but there is no visible history timeline or step list. |
 
 ## 2. Map & Map Experience
 
