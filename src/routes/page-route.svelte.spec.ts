@@ -617,6 +617,39 @@ describe("+page.svelte", () => {
 		});
 	});
 
+	it("shows the persisted basemap as selected in the quick basemap menu", async () => {
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: "Choose basemap" }).click();
+
+		await expect
+			.element(
+				page.getByRole("menuitemradio", {
+					name: /MapTiler Outdoor\s+maptiler/i,
+				}),
+			)
+			.toHaveAttribute("aria-checked", "true");
+	});
+
+	it("switches basemaps from the map menu without recreating the map", async () => {
+		render(PageTestShell);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		await page.getByRole("button", { name: "Choose basemap" }).click();
+		await page
+			.getByRole("menuitemradio", {
+				name: /MapTiler Satellite Hybrid\s+maptiler/i,
+			})
+			.click();
+
+		expect(window.localStorage.getItem(MAP_STYLE_STORAGE_KEY)).toBe(
+			"maptiler-satellite-hybrid",
+		);
+		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
+		expect(mapMock).toHaveBeenCalledTimes(1);
+	});
+
 	it("submits the route form, updates the summary, and renders the route overlay", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			const url = String(input);
