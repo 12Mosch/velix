@@ -135,6 +135,26 @@ function buildRoundCourseResponseWithoutSnappedWaypoints() {
 	);
 }
 
+type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
+
+function getRoundTripRequestedDistances(fetchMock: FetchMock): number[] {
+	return fetchMock.mock.calls
+		.map((call) => {
+			const body = call[1]?.body;
+
+			if (!body) {
+				return null;
+			}
+
+			const requestBody = JSON.parse(String(body));
+
+			return requestBody.algorithm === "round_trip"
+				? requestBody["round_trip.distance"]
+				: null;
+		})
+		.filter((distance): distance is number => typeof distance === "number");
+}
+
 describe("POST /api/route", () => {
 	beforeEach(() => {
 		clearGraphHopperCachesForTests();
@@ -1387,6 +1407,113 @@ describe("POST /api/route", () => {
 		expect(payload.routes[0]?.routingWarnings).toEqual([]);
 	});
 
+	it("runs a third adaptive duration search round only when the first two rounds miss badly", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
+							},
+						},
+					],
+				}),
+			),
+		);
+
+		for (const durationMs of [
+			7200000, 7800000, 8400000, 9000000, 9300000, 9600000, 12000000, 12600000,
+			13200000,
+		]) {
+			fetchMock.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					time: durationMs,
+				}),
+			);
+		}
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "duration",
+						durationMs: 12600000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getRoundTripRequestedDistances(fetchMock)).toEqual([
+			57750, 77000, 96250, 129938, 144375, 158813, 187597, 208441, 220000,
+		]);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.durationMs).toBe(12600000);
+		expect(payload.routes[0]?.routingWarnings).toEqual([]);
+	});
+
+	it("stops duration target search after two rounds when a candidate is close enough", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
+							},
+						},
+					],
+				}),
+			),
+		);
+
+		for (const durationMs of [
+			9000000, 10800000, 13500000, 11100000, 11900000, 12300000,
+		]) {
+			fetchMock.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					time: durationMs,
+				}),
+			);
+		}
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "duration",
+						durationMs: 12600000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(7);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.durationMs).toBe(12300000);
+		expect(payload.routes[0]?.routingWarnings).toEqual([]);
+	});
+
 	it("searches round-course candidates for climb targets and returns the closest match", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
@@ -1475,6 +1602,106 @@ describe("POST /api/route", () => {
 		});
 	});
 
+	it("interpolates climb target searches between under and over ascent candidates", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
+							},
+						},
+					],
+				}),
+			),
+		);
+
+		for (const ascendMeters of [600, 750, 900, 760, 800, 840]) {
+			fetchMock.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					ascend: ascendMeters,
+				}),
+			);
+		}
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "ascend",
+						ascendMeters: 800,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getRoundTripRequestedDistances(fetchMock)).toEqual([
+			50000, 66667, 83333, 65000, 72222, 79444,
+		]);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.ascendMeters).toBe(800);
+	});
+
+	it("skips duplicate clamped round-course distances", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
+							},
+						},
+					],
+				}),
+			),
+		);
+
+		for (const durationMs of [900000, 900000, 900000, 900000]) {
+			fetchMock.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					time: durationMs,
+				}),
+			);
+		}
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "duration",
+						durationMs: 15 * 60 * 1000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const requestedDistances = getRoundTripRequestedDistances(fetchMock);
+		expect(requestedDistances).toEqual([10000, 12500, 10000, 11000]);
+		expect(fetchMock).toHaveBeenCalledTimes(5);
+	});
+
 	it("returns the best successful round-course candidate when some search attempts fail", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
@@ -1548,7 +1775,8 @@ describe("POST /api/route", () => {
 		);
 
 		for (const durationMs of [
-			9000000, 9300000, 9600000, 9900000, 10200000, 10500000,
+			9000000, 9300000, 9600000, 9900000, 10200000, 10500000, 9900000, 10200000,
+			10400000,
 		]) {
 			fetchMock.mockResolvedValueOnce(
 				buildRoundCourseResponse([11.5756, 48.1375, 522], {
