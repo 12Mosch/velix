@@ -3,6 +3,7 @@
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
+	import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
@@ -15,7 +16,12 @@
 		RouteGpxImportError,
 	} from "$lib/route-gpx-import";
 	import { downloadRouteGpx } from "$lib/route-export";
-	import { mapStylePreference } from "$lib/map-style-settings.svelte";
+	import {
+		basemapOptions,
+		mapStylePreference,
+		setMapStylePreference,
+		type BasemapId,
+	} from "$lib/map-style-settings.svelte";
 	import {
 		formatDistance,
 		formatDistanceInput,
@@ -130,6 +136,7 @@
 		Check,
 		ChevronDown,
 		ChevronUp,
+		Layers,
 		LocateFixed,
 		MapPin,
 		MountainSnow,
@@ -225,6 +232,9 @@
 		mapStylePreference.selectedBasemapId
 			? getBasemapById(mapStylePreference.selectedBasemapId)
 			: null,
+	);
+	const availableBasemapOptions = $derived(
+		basemapOptions.filter((basemap) => basemap.available),
 	);
 	const isRoundCourseMode = $derived(plannerMode === "round_course");
 	const isOutAndBackMode = $derived(plannerMode === "out_and_back");
@@ -2617,6 +2627,14 @@
 		gpxImportInput?.click();
 	}
 
+	function chooseBasemap(id: BasemapId) {
+		const basemap = availableBasemapOptions.find((option) => option.id === id);
+
+		if (basemap) {
+			setMapStylePreference(basemap.id);
+		}
+	}
+
 	async function handleGpxImportSelection(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
 		const selectedFile = input.files?.[0];
@@ -2697,6 +2715,41 @@
 			</div>
 		{/if}
 		<div class="pointer-events-auto absolute right-4 top-4 flex flex-col gap-2 md:right-5 md:top-5">
+			<DropdownMenu.DropdownMenu>
+				<DropdownMenu.DropdownMenuTrigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="ghost"
+							size="icon"
+							class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground"
+							type="button"
+							aria-label="Choose basemap"
+						>
+							<Layers class="size-4" />
+						</Button>
+					{/snippet}
+				</DropdownMenu.DropdownMenuTrigger>
+				<DropdownMenu.DropdownMenuContent align="end" class="w-64">
+					<DropdownMenu.DropdownMenuLabel>Basemap</DropdownMenu.DropdownMenuLabel>
+					<DropdownMenu.DropdownMenuSeparator />
+					<DropdownMenu.DropdownMenuRadioGroup
+						value={mapStylePreference.selectedBasemapId ?? undefined}
+						onValueChange={(id) => chooseBasemap(id as BasemapId)}
+					>
+						{#each availableBasemapOptions as basemap}
+							<DropdownMenu.DropdownMenuRadioItem value={basemap.id}>
+								<div class="flex min-w-0 flex-col gap-0.5">
+									<span class="truncate text-sm font-medium">{basemap.label}</span>
+									<span class="truncate text-xs text-muted-foreground capitalize">
+										{basemap.provider}
+									</span>
+								</div>
+							</DropdownMenu.DropdownMenuRadioItem>
+						{/each}
+					</DropdownMenu.DropdownMenuRadioGroup>
+				</DropdownMenu.DropdownMenuContent>
+			</DropdownMenu.DropdownMenu>
 			<Button
 				variant="ghost"
 				size="icon"
