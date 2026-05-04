@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Show, SignInButton, UserButton } from 'svelte-clerk/client';
-	import { Map as MapIcon, Zap, Settings, Bookmark, Compass, LogIn } from 'lucide-svelte';
+	import { Map as MapIcon, Zap, Settings, Bookmark, Compass, LogIn } from '@lucide/svelte'
 
 	const groupClass =
 		'mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/60';
@@ -49,8 +49,8 @@
 									tooltipContent={item.title}
 									class="px-2 transition-colors hover:bg-sidebar-accent"
 								>
-									{#snippet child({ props })}
-										<a href={item.url} {...props} class="flex items-center gap-2 font-medium">
+									{#snippet child({ props: _props })}
+										<a href={item.url} {..._props} class="flex items-center gap-2 font-medium">
 											<item.icon class="size-4 shrink-0 text-sidebar-foreground/70" />
 											<span class="truncate">{item.title}</span>
 										</a>
@@ -89,8 +89,8 @@
 							tooltipContent="Settings"
 							class="px-2 transition-colors hover:bg-sidebar-accent"
 						>
-							{#snippet child({ props })}
-								<a href="/settings" {...props} class="flex items-center gap-2 font-medium">
+							{#snippet child({ props: _props })}
+								<a href="/settings" {..._props} class="flex items-center gap-2 font-medium">
 									<Settings class="size-4 shrink-0 text-sidebar-foreground/70" />
 									<span class="truncate">Settings</span>
 								</a>

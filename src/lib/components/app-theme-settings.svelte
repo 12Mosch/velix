@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Laptop, Moon, Sun } from "lucide-svelte";
+	import { Laptop, Moon, Sun } from "@lucide/svelte";
 	import { resetMode, setMode, userPrefersMode, type UserPrefersMode } from "mode-watcher";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";

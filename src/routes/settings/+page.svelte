@@ -16,7 +16,7 @@
 		type DistanceUnit,
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
-	import { ArrowLeft, Check } from "lucide-svelte";
+	import { ArrowLeft, Check } from "@lucide/svelte";
 	import AppThemeSettings from "$lib/components/app-theme-settings.svelte";
 	import BasemapPreview from "$lib/components/basemap-preview.svelte";
 

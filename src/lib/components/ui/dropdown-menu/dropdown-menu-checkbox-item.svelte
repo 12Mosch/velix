@@ -26,14 +26,14 @@
 	)}
 	{...restProps}
 >
-	{#snippet children({ checked, indeterminate })}
+	{#snippet children({ checked: _checked, indeterminate: _indeterminate })}
 		<span
 			class="absolute right-2 flex items-center justify-center pointer-events-none"
 			data-slot="dropdown-menu-checkbox-item-indicator"
 		>
-			{#if indeterminate}
+			{#if _indeterminate}
 				<span class="h-0.75 w-3.5 rounded-full bg-current"></span>
-			{:else if checked}
+			{:else if _checked}
 				<span
 					class="h-2.5 w-1.5 rotate-45 border-b-2 border-r-2 border-current"
 				></span>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from "$lib/components/ui/button/index.js";
 	import type { MapClickSelection, PlannerMode, SelectedMapStop } from "$lib/route-planner/types";
-	import { Lock, Unlock } from "lucide-svelte";
+	import { Lock, Unlock } from "@lucide/svelte";
 
 	let {
 		selection,
