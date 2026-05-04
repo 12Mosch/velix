@@ -604,6 +604,10 @@
 		return isOutAndBackMode ? "Turnaround" : "Destination";
 	}
 
+	function getDestinationSuggestionsLabel() {
+		return `${getDestinationFieldLabel()} suggestions`;
+	}
+
 	function getDestinationPlaceholder() {
 		return isOutAndBackMode ? "Turnaround point..." : "Destination...";
 	}
@@ -3288,7 +3292,7 @@
 											<div
 												id={getCompletionListId(destinationCompletionTarget)}
 												role="listbox"
-												aria-label={`${getDestinationFieldLabel()} suggestions`}
+													aria-label={getDestinationSuggestionsLabel()}
 												class="max-h-64 overflow-y-auto py-1"
 											>
 												{#if isCompletionLoading}
