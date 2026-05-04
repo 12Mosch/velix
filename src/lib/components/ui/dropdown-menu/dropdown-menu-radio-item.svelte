@@ -19,17 +19,17 @@
 	)}
 	{...restProps}
 >
-	{#snippet children({ checked })}
+	{#snippet children({ checked: _checked })}
 		<span
 			class="absolute right-2 flex items-center justify-center pointer-events-none"
 			data-slot="dropdown-menu-radio-item-indicator"
 		>
-			{#if checked}
+			{#if _checked}
 				<span class="flex size-3.5 items-center justify-center rounded-full border border-current">
 					<span class="size-1.5 rounded-full bg-current"></span>
 				</span>
 			{/if}
 		</span>
-		{@render childrenProp?.({ checked })}
+		{@render childrenProp?.({ checked: _checked })}
 	{/snippet}
 </DropdownMenuPrimitive.RadioItem>

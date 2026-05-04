@@ -150,7 +150,7 @@
 		Undo2,
 		Wind,
 		X,
-	} from "lucide-svelte";
+	} from "@lucide/svelte";
 
 	const sidebar = useSidebar();
 
@@ -2717,9 +2717,9 @@
 		<div class="pointer-events-auto absolute right-4 top-4 flex flex-col gap-2 md:right-5 md:top-5">
 			<DropdownMenu.DropdownMenu>
 				<DropdownMenu.DropdownMenuTrigger>
-					{#snippet child({ props })}
+					{#snippet child({ props: _props })}
 						<Button
-							{...props}
+							{..._props}
 							variant="ghost"
 							size="icon"
 							class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground"

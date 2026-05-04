@@ -81,11 +81,11 @@
 {:else}
 	<Tooltip.Root>
 		<Tooltip.Trigger>
-			{#snippet child({ props })}
+			{#snippet child({ props: _props })}
 				{#if childSnippet}
-					{@render childSnippet({ props: getMergedButtonProps(props) })}
+					{@render childSnippet({ props: getMergedButtonProps(_props) })}
 				{:else}
-					<button bind:this={ref} {type} {...getMergedButtonProps(props)}>
+					<button bind:this={ref} {type} {...getMergedButtonProps(_props)}>
 						{@render children?.()}
 					</button>
 				{/if}

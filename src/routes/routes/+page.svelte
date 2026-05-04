@@ -30,7 +30,7 @@
 		Search,
 		Trash2,
 		X,
-	} from "lucide-svelte";
+	} from "@lucide/svelte";
 
 	onMount(() => {
 		initUnitPreference();
@@ -276,7 +276,7 @@
 						class="h-6 border-primary/20 bg-primary/10 px-2.5 text-[10px] font-semibold uppercase tracking-wide text-primary"
 					>
 						{#if normalizedSearchQuery}
-							{filteredSavedRoutes.length} of {savedRoutesState.savedRoutes.length}
+							{`${filteredSavedRoutes.length} of ${savedRoutesState.savedRoutes.length}`}
 							{savedRoutesState.savedRoutes.length === 1 ? " route" : " routes"}
 						{:else}
 							{savedRoutesState.savedRoutes.length}
