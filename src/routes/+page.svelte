@@ -3058,7 +3058,8 @@
 									</div>
 								{/if}
 								<p class="text-xs text-muted-foreground">
-									GraphHopper will generate a loop that starts and ends at the same place.
+									Distance targets search around the requested loop distance; time
+									and climb targets search nearby loop distances for the closest match.
 								</p>
 								{#if fieldErrors.roundCourseTarget}
 									<p class="text-xs font-medium text-destructive">

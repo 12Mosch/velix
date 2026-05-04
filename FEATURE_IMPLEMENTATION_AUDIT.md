@@ -29,8 +29,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | --- | --- | --- |
 | A-to-B route | Full | Point-to-point mode is implemented. |
 | Loop by distance | Full | Round-course target distance is implemented. |
-| Loop by time | Half | UI accepts target time and estimates a distance; GraphHopper still receives a distance-based round trip. |
-| Loop by elevation gain | Half | UI accepts climb target and searches distance candidates; no native elevation-constrained routing. |
+| Loop by time | Half | UI accepts target time and runs a bounded adaptive search over distance-based GraphHopper round trips; GraphHopper still receives `round_trip.distance`, not a native time constraint. |
+| Loop by elevation gain | Half | UI accepts climb target and runs a bounded adaptive search over distance candidates; GraphHopper still receives `round_trip.distance`, not a native elevation constraint. |
 | Fully manual planning | Half | Stops and route segments can be dragged on the map and rerouted on drop; there is still no freehand/manual geometry drawing or per-section manual/automatic mode. |
 | Training route based on a workout goal | Missing | No workout-goal route generator. |
 | Route based on existing heatmap/popularity data | Missing | No heatmap/popularity data source. |
@@ -77,8 +77,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Target distance | Full | Implemented for round-course planning. |
-| Target ride time | Half | Implemented as an estimated-distance loop target, not a true time-constrained route. |
-| Target elevation gain | Half | Implemented as an estimated-distance loop search target, not a true elevation-constrained route. |
+| Target ride time | Half | Implemented as improved best-effort loop search over distance-based round trips, not a true time-constrained route. |
+| Target elevation gain | Half | Implemented as improved best-effort loop search over distance-based round trips, not a true elevation-constrained route. |
 | Maximum gradient | Missing | No max-gradient parameter. |
 | Minimum/desired number of climbs | Missing | No climb count parameter. |
 | Maximum number of stops | Missing | No stop-count parameter. |

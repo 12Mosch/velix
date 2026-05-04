@@ -167,10 +167,13 @@ const ascendTargetMetersPerKm = 12;
 const desiredAlternativeRoutes = 3;
 const alternativeRouteMaxWeightFactor = 1.4;
 const alternativeRouteMaxShareFactor = 0.6;
-const roundCourseSearchDistanceMultipliers = [0.9, 1, 1.1] as const;
+const roundCourseDistanceSearchMultipliers = [0.9, 1, 1.1] as const;
+const broadRoundCourseSearchMultipliers = [0.75, 1, 1.25] as const;
+const tightRoundCourseSearchMultipliers = [0.9, 1, 1.1] as const;
 const roundCourseSearchSeeds = [
 	[11, 37, 73],
 	[109, 149, 191],
+	[233, 277, 331],
 ] as const;
 const minAreaRadiusMeters = 1_000;
 const maxAreaRadiusMeters = 250_000;
@@ -852,6 +855,33 @@ function getRoundCourseTargetRelativeError(
 	);
 }
 
+function getRoundCourseTargetValue(
+	route: PlannedRoute,
+	target: RoundCourseTarget,
+): number {
+	if (target.kind === "duration") {
+		return route.durationMs;
+	}
+
+	if (target.kind === "ascend") {
+		return route.ascendMeters;
+	}
+
+	return route.distanceMeters;
+}
+
+function getRoundCourseRequestedTargetValue(target: RoundCourseTarget): number {
+	if (target.kind === "duration") {
+		return target.durationMs;
+	}
+
+	if (target.kind === "ascend") {
+		return target.ascendMeters;
+	}
+
+	return target.distanceMeters;
+}
+
 function getRequestedDistanceRelativeError(
 	route: PlannedRoute,
 	requestedDistanceMeters: number,
@@ -904,6 +934,104 @@ function compareCandidateRoutes(
 	}
 
 	return left.sequence - right.sequence;
+}
+
+function interpolateRoundCourseDistanceMeters(
+	under: CandidateRouteResult,
+	over: CandidateRouteResult,
+	target: RoundCourseTarget,
+): number | null {
+	const targetValue = getRoundCourseRequestedTargetValue(target);
+	const underValue = getRoundCourseTargetValue(under.route, target);
+	const overValue = getRoundCourseTargetValue(over.route, target);
+	const valueDelta = overValue - underValue;
+
+	if (Math.abs(valueDelta) < 1e-9) {
+		return null;
+	}
+
+	const ratio = (targetValue - underValue) / valueDelta;
+
+	return (
+		under.requestedDistanceMeters +
+		(over.requestedDistanceMeters - under.requestedDistanceMeters) * ratio
+	);
+}
+
+function getNextRoundCourseBaseDistanceMeters(
+	candidates: CandidateRouteResult[],
+	target: RoundCourseTarget,
+): number {
+	const rankedCandidates = [...candidates].sort((left, right) =>
+		compareCandidateRoutes(left, right, target),
+	);
+	const bestCandidate = rankedCandidates[0];
+
+	if (!bestCandidate) {
+		return clampRoundCourseDistanceMeters(
+			estimateRoundCourseDistanceMeters(target),
+		);
+	}
+
+	if (target.kind === "distance") {
+		const actualDistanceMeters = Math.max(
+			bestCandidate.route.distanceMeters,
+			1,
+		);
+		const correctedDistanceMeters =
+			(bestCandidate.requestedDistanceMeters * target.distanceMeters) /
+			actualDistanceMeters;
+
+		return clampRoundCourseDistanceMeters(correctedDistanceMeters);
+	}
+
+	const targetValue = getRoundCourseRequestedTargetValue(target);
+	const underCandidates = rankedCandidates
+		.filter(
+			(candidate) =>
+				getRoundCourseTargetValue(candidate.route, target) <= targetValue,
+		)
+		.sort(
+			(left, right) =>
+				targetValue -
+				getRoundCourseTargetValue(left.route, target) -
+				(targetValue - getRoundCourseTargetValue(right.route, target)),
+		);
+	const overCandidates = rankedCandidates
+		.filter(
+			(candidate) =>
+				getRoundCourseTargetValue(candidate.route, target) >= targetValue,
+		)
+		.sort(
+			(left, right) =>
+				getRoundCourseTargetValue(left.route, target) -
+				targetValue -
+				(getRoundCourseTargetValue(right.route, target) - targetValue),
+		);
+	const underCandidate = underCandidates[0];
+	const overCandidate = overCandidates[0];
+
+	if (underCandidate && overCandidate && underCandidate !== overCandidate) {
+		const interpolatedDistanceMeters = interpolateRoundCourseDistanceMeters(
+			underCandidate,
+			overCandidate,
+			target,
+		);
+
+		if (interpolatedDistanceMeters !== null) {
+			return clampRoundCourseDistanceMeters(interpolatedDistanceMeters);
+		}
+	}
+
+	const bestValue = Math.max(
+		getRoundCourseTargetValue(bestCandidate.route, target),
+		1,
+	);
+	const adjustment = Math.min(1.6, Math.max(0.625, targetValue / bestValue));
+
+	return clampRoundCourseDistanceMeters(
+		bestCandidate.requestedDistanceMeters * adjustment,
+	);
 }
 
 function formatDurationWarning(durationMs: number): string {
@@ -1127,12 +1255,34 @@ async function searchRoundCourseRoutes(
 	const successfulCandidates: CandidateRouteResult[] = [];
 	let sequence = 0;
 	let lastError: unknown = null;
+	const attemptedRequestedDistances = new Set<string>();
 
 	for (const [roundIndex, seeds] of roundCourseSearchSeeds.entries()) {
-		const requestedDistances = roundCourseSearchDistanceMultipliers.map(
-			(multiplier) =>
+		const multipliers =
+			target.kind === "distance"
+				? roundCourseDistanceSearchMultipliers
+				: roundIndex === 0
+					? broadRoundCourseSearchMultipliers
+					: tightRoundCourseSearchMultipliers;
+		const requestedDistances = multipliers
+			.map((multiplier) =>
 				clampRoundCourseDistanceMeters(baseDistanceMeters * multiplier),
-		);
+			)
+			.filter((requestedDistanceMeters) => {
+				const key = `${roundIndex}:${Math.round(requestedDistanceMeters)}`;
+
+				if (attemptedRequestedDistances.has(key)) {
+					return false;
+				}
+
+				attemptedRequestedDistances.add(key);
+				return true;
+			});
+
+		if (requestedDistances.length === 0) {
+			continue;
+		}
+
 		const candidateResults = await Promise.allSettled(
 			requestedDistances.map((requestedDistanceMeters, candidateIndex) => {
 				const candidateSequence = sequence++;
@@ -1163,23 +1313,36 @@ async function searchRoundCourseRoutes(
 
 		const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
 
-		if (roundIndex === 0 && uniqueCandidates.length > 0) {
-			const bestCandidate = [...uniqueCandidates].sort((left, right) =>
-				compareCandidateRoutes(left, right, target),
-			)[0];
-
-			if (bestCandidate) {
-				baseDistanceMeters = clampRoundCourseDistanceMeters(
-					target.kind === "duration"
-						? (bestCandidate.requestedDistanceMeters * target.durationMs) /
-								Math.max(bestCandidate.route.durationMs, 1)
-						: target.kind === "ascend"
-							? (bestCandidate.requestedDistanceMeters * target.ascendMeters) /
-								Math.max(bestCandidate.route.ascendMeters, 1)
-							: bestCandidate.requestedDistanceMeters,
-				);
-			}
+		if (uniqueCandidates.length === 0) {
+			continue;
 		}
+
+		const bestCandidate = [...uniqueCandidates].sort((left, right) =>
+			compareCandidateRoutes(left, right, target),
+		)[0];
+
+		if (roundIndex === 0) {
+			baseDistanceMeters = getNextRoundCourseBaseDistanceMeters(
+				uniqueCandidates,
+				target,
+			);
+			continue;
+		}
+
+		if (
+			target.kind !== "distance" &&
+			roundIndex === 1 &&
+			bestCandidate &&
+			getRoundCourseTargetRelativeError(bestCandidate.route, target) > 0.15
+		) {
+			baseDistanceMeters = getNextRoundCourseBaseDistanceMeters(
+				uniqueCandidates,
+				target,
+			);
+			continue;
+		}
+
+		break;
 	}
 
 	const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
