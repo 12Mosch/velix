@@ -1,5 +1,6 @@
 import { env } from "$env/dynamic/private";
 import { json } from "@sveltejs/kit";
+import { Effect, Result } from "effect";
 import type { RequestHandler } from "./$types";
 
 import { parseCoordinateSearchInput } from "$lib/coordinate-search";
@@ -157,6 +158,54 @@ type NormalizedGraphHopperRoute = {
 	route: PlannedRoute;
 	snappedWaypoints: RouteCoordinate[];
 };
+
+class MissingGraphHopperRouteApiKeyError extends Error {
+	readonly _tag = "MissingGraphHopperRouteApiKeyError";
+
+	constructor() {
+		super(missingGraphHopperApiKeyMessage);
+	}
+}
+
+class GraphHopperRouteFetchError extends Error {
+	readonly _tag = "GraphHopperRouteFetchError";
+
+	constructor(readonly cause: unknown) {
+		super(
+			cause instanceof Error
+				? cause.message
+				: "GraphHopper route request failed",
+		);
+	}
+}
+
+class GraphHopperRouteStatusError extends Error {
+	readonly _tag = "GraphHopperRouteStatusError";
+
+	constructor(
+		readonly status: number,
+		readonly details: string,
+	) {
+		super(
+			`Routing failed with status ${status}${details ? `: ${details}` : ""}`,
+		);
+	}
+}
+
+class GraphHopperRoutePayloadError extends Error {
+	readonly _tag = "GraphHopperRoutePayloadError";
+
+	constructor(readonly cause: unknown) {
+		super("GraphHopper route response was not valid JSON");
+	}
+}
+
+type GraphHopperRouteBoundaryError =
+	| MissingGraphHopperRouteApiKeyError
+	| GraphHopperRouteFetchError
+	| GraphHopperRouteStatusError
+	| GraphHopperRoutePayloadError
+	| Error;
 
 const minRoundCourseDurationMs = 15 * 60 * 1000;
 const minRoundCourseAscendMeters = 50;
@@ -1435,108 +1484,167 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 	};
 }
 
-async function requestRoutes(
+function getGraphHopperRouteApiKeyEffect(): Effect.Effect<
+	string,
+	MissingGraphHopperRouteApiKeyError
+> {
+	return Effect.gen(function* () {
+		const key = env.GRAPHHOPPER_API_KEY?.trim();
+
+		if (!key) {
+			return yield* Effect.fail(new MissingGraphHopperRouteApiKeyError());
+		}
+
+		return key;
+	});
+}
+
+function readRouteResponseTextEffect(
+	response: Response,
+): Effect.Effect<string> {
+	return Effect.tryPromise(() => response.text());
+}
+
+function readRoutePayloadEffect(
+	response: Response,
+): Effect.Effect<GraphHopperRouteResponse, GraphHopperRoutePayloadError> {
+	return Effect.tryPromise({
+		try: () => response.json() as Promise<GraphHopperRouteResponse>,
+		catch: (cause) => new GraphHopperRoutePayloadError(cause),
+	});
+}
+
+function sendRouteRequestEffect(
+	fetchFn: typeof fetch,
+	routeUrl: string,
+	body: GraphHopperRouteRequestBody,
+): Effect.Effect<
+	GraphHopperRouteResponse,
+	| GraphHopperRouteFetchError
+	| GraphHopperRouteStatusError
+	| GraphHopperRoutePayloadError
+> {
+	return Effect.gen(function* () {
+		const response = yield* Effect.tryPromise({
+			try: () =>
+				fetchWithTimeout(
+					fetchFn,
+					routeUrl,
+					{
+						method: "POST",
+						headers: {
+							"content-type": "application/json",
+						},
+						body: JSON.stringify(body),
+					},
+					routeTimeoutMs,
+				),
+			catch: (cause) => new GraphHopperRouteFetchError(cause),
+		});
+
+		if (!response.ok) {
+			const details = yield* readRouteResponseTextEffect(response);
+			return yield* Effect.fail(
+				new GraphHopperRouteStatusError(response.status, details),
+			);
+		}
+
+		return yield* readRoutePayloadEffect(response);
+	});
+}
+
+function requestRoutesEffect(
 	fetchFn: typeof fetch,
 	points: [number, number][],
 	options: RouteRequestOptions,
-): Promise<{
-	routes: PlannedRoute[];
-	snappedWaypointSets: RouteCoordinate[][];
-}> {
-	const key = env.GRAPHHOPPER_API_KEY?.trim();
+): Effect.Effect<
+	{
+		routes: PlannedRoute[];
+		snappedWaypointSets: RouteCoordinate[][];
+	},
+	GraphHopperRouteBoundaryError
+> {
+	return Effect.gen(function* () {
+		const key = yield* getGraphHopperRouteApiKeyEffect();
 
-	if (!key) {
-		throw new Error(missingGraphHopperApiKeyMessage);
-	}
+		const routeUrl = `${graphHopperApiBaseUrl}/route?key=${encodeURIComponent(key)}`;
+		function buildRouteRequestBody(
+			strategy: RouteRequestStrategy,
+		): GraphHopperRouteRequestBody {
+			const requestBody: GraphHopperRouteRequestBody = {
+				profile: strategy.profile,
+				points,
+				points_encoded: false,
+				elevation: true,
+				instructions: false,
+				calc_points: true,
+				details: routeDetailKeys,
+			};
 
-	const routeUrl = `${graphHopperApiBaseUrl}/route?key=${encodeURIComponent(key)}`;
-	function buildRouteRequestBody(
-		strategy: RouteRequestStrategy,
-	): GraphHopperRouteRequestBody {
-		const requestBody: GraphHopperRouteRequestBody = {
-			profile: strategy.profile,
-			points,
-			points_encoded: false,
-			elevation: true,
-			instructions: false,
-			calc_points: true,
-			details: routeDetailKeys,
-		};
-
-		if (strategy.useCustomModel) {
-			requestBody.snap_preventions = ["ferry", "tunnel"];
-			requestBody["ch.disable"] = true;
-			requestBody.custom_model = buildRoadBikeCustomModel(
-				options.spatialConstraint,
-			);
-		}
-
-		if (options.mode === "round_course") {
-			requestBody.algorithm = "round_trip";
-			requestBody["round_trip.distance"] = Math.round(
-				options.roundTripDistanceMeters ?? 0,
-			);
-
-			if (typeof options.roundTripSeed === "number") {
-				requestBody["round_trip.seed"] = options.roundTripSeed;
+			if (strategy.useCustomModel) {
+				requestBody.snap_preventions = ["ferry", "tunnel"];
+				requestBody["ch.disable"] = true;
+				requestBody.custom_model = buildRoadBikeCustomModel(
+					options.spatialConstraint,
+				);
 			}
-		} else if ((options.alternativeMaxPaths ?? 1) > 1) {
-			requestBody.algorithm = "alternative_route";
-			requestBody["alternative_route.max_paths"] = options.alternativeMaxPaths;
-			requestBody["alternative_route.max_weight_factor"] =
-				options.alternativeMaxWeightFactor;
-			requestBody["alternative_route.max_share_factor"] =
-				options.alternativeMaxShareFactor;
+
+			if (options.mode === "round_course") {
+				requestBody.algorithm = "round_trip";
+				requestBody["round_trip.distance"] = Math.round(
+					options.roundTripDistanceMeters ?? 0,
+				);
+
+				if (typeof options.roundTripSeed === "number") {
+					requestBody["round_trip.seed"] = options.roundTripSeed;
+				}
+			} else if ((options.alternativeMaxPaths ?? 1) > 1) {
+				requestBody.algorithm = "alternative_route";
+				requestBody["alternative_route.max_paths"] =
+					options.alternativeMaxPaths;
+				requestBody["alternative_route.max_weight_factor"] =
+					options.alternativeMaxWeightFactor;
+				requestBody["alternative_route.max_share_factor"] =
+					options.alternativeMaxShareFactor;
+			}
+
+			return requestBody;
 		}
 
-		return requestBody;
-	}
+		let payload: GraphHopperRouteResponse | null = null;
+		let selectedStrategy: RouteRequestStrategy | null = null;
+		let lastError: GraphHopperRouteBoundaryError | null = null;
+		const strategies = options.spatialConstraint
+			? routeRequestStrategies.filter((strategy) => strategy.useCustomModel)
+			: routeRequestStrategies;
 
-	async function sendRouteRequest(body: GraphHopperRouteRequestBody) {
-		const response = await fetchWithTimeout(
-			fetchFn,
-			routeUrl,
-			{
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-				},
-				body: JSON.stringify(body),
-			},
-			routeTimeoutMs,
-		);
-
-		if (!response.ok) {
-			const details = await response.text();
-			throw new Error(
-				`Routing failed with status ${response.status}${details ? `: ${details}` : ""}`,
+		for (const strategy of strategies) {
+			const routeResult = yield* Effect.result(
+				sendRouteRequestEffect(
+					fetchFn,
+					routeUrl,
+					buildRouteRequestBody(strategy),
+				),
 			);
-		}
 
-		return (await response.json()) as GraphHopperRouteResponse;
-	}
+			if (Result.isSuccess(routeResult)) {
+				payload = routeResult.success;
+				selectedStrategy = strategy;
+				break;
+			}
 
-	let payload: GraphHopperRouteResponse | null = null;
-	let selectedStrategy: RouteRequestStrategy | null = null;
-	let lastError: unknown = null;
-	const strategies = options.spatialConstraint
-		? routeRequestStrategies.filter((strategy) => strategy.useCustomModel)
-		: routeRequestStrategies;
-
-	for (const strategy of strategies) {
-		try {
-			payload = await sendRouteRequest(buildRouteRequestBody(strategy));
-			selectedStrategy = strategy;
-			break;
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+			const error = routeResult.failure;
+			const message = error.message;
 
 			if (message.includes("Too many points for Routing API")) {
-				throw error;
+				return yield* Effect.fail(error);
 			}
 
-			if (!message.includes("Routing failed with status 400")) {
-				throw error;
+			if (
+				error._tag !== "GraphHopperRouteStatusError" ||
+				error.status !== 400
+			) {
+				return yield* Effect.fail(error);
 			}
 
 			lastError = error;
@@ -1545,30 +1653,45 @@ async function requestRoutes(
 				error,
 			);
 		}
-	}
 
-	if (!payload || !selectedStrategy) {
-		throw lastError instanceof Error
-			? lastError
-			: new Error("GraphHopper did not accept any routing strategy");
-	}
+		if (!payload || !selectedStrategy) {
+			return yield* Effect.fail(
+				lastError instanceof Error
+					? lastError
+					: new Error("GraphHopper did not accept any routing strategy"),
+			);
+		}
 
-	const normalizedRoutes = (payload.paths ?? [])
-		.map((path) =>
-			normalizeGraphHopperPath(path, points, options, selectedStrategy),
-		)
-		.filter((route): route is NormalizedGraphHopperRoute => route !== null);
+		const normalizedRoutes = (payload.paths ?? [])
+			.map((path) =>
+				normalizeGraphHopperPath(path, points, options, selectedStrategy),
+			)
+			.filter((route): route is NormalizedGraphHopperRoute => route !== null);
 
-	if (normalizedRoutes.length === 0) {
-		throw new Error("GraphHopper route response was incomplete");
-	}
+		if (normalizedRoutes.length === 0) {
+			return yield* Effect.fail(
+				new Error("GraphHopper route response was incomplete"),
+			);
+		}
 
-	return {
-		routes: normalizedRoutes.map(({ route }) => route),
-		snappedWaypointSets: normalizedRoutes.map(
-			({ snappedWaypoints }) => snappedWaypoints,
-		),
-	};
+		return {
+			routes: normalizedRoutes.map(({ route }) => route),
+			snappedWaypointSets: normalizedRoutes.map(
+				({ snappedWaypoints }) => snappedWaypoints,
+			),
+		};
+	});
+}
+
+async function requestRoutes(
+	fetchFn: typeof fetch,
+	points: [number, number][],
+	options: RouteRequestOptions,
+): Promise<{
+	routes: PlannedRoute[];
+	snappedWaypointSets: RouteCoordinate[][];
+}> {
+	return Effect.runPromise(requestRoutesEffect(fetchFn, points, options));
 }
 
 export const POST: RequestHandler = async (event) => {

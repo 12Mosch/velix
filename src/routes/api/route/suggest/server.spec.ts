@@ -6,6 +6,7 @@ vi.mock("$env/dynamic/private", () => ({
 	},
 }));
 
+import { env } from "$env/dynamic/private";
 import { GET } from "./+server";
 import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
 import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
@@ -26,6 +27,7 @@ function buildEvent(
 
 describe("GET /api/route/suggest", () => {
 	beforeEach(() => {
+		env.GRAPHHOPPER_API_KEY = "graphhopper-test-key";
 		clearGraphHopperCachesForTests();
 		clearRouteRateLimitsForTests();
 	});
@@ -97,6 +99,21 @@ describe("GET /api/route/suggest", () => {
 					point: [11.576, 48.138],
 				},
 			],
+		});
+	});
+
+	it("maps a missing GraphHopper API key to the suggestion configuration error", async () => {
+		env.GRAPHHOPPER_API_KEY = "";
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await GET(
+			buildEvent("http://localhost/api/route/suggest?q=berlin", fetchMock),
+		);
+
+		expect(response.status).toBe(500);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Suggestions are not configured yet. Add GRAPHHOPPER_API_KEY.",
 		});
 	});
 

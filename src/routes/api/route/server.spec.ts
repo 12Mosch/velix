@@ -6,6 +6,7 @@ vi.mock("$env/dynamic/private", () => ({
 	},
 }));
 
+import { env } from "$env/dynamic/private";
 import { POST } from "./+server";
 import type { RouteApiSuccess } from "$lib/route-planning";
 import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
@@ -157,6 +158,7 @@ function getRoundTripRequestedDistances(fetchMock: FetchMock): number[] {
 
 describe("POST /api/route", () => {
 	beforeEach(() => {
+		env.GRAPHHOPPER_API_KEY = "graphhopper-test-key";
 		clearGraphHopperCachesForTests();
 		clearRouteRateLimitsForTests();
 	});
@@ -236,6 +238,35 @@ describe("POST /api/route", () => {
 
 		expect(response.status).toBe(200);
 		expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+	});
+
+	it("maps a missing GraphHopper API key to the routing configuration error", async () => {
+		env.GRAPHHOPPER_API_KEY = "";
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(500);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Routing is not configured yet. Add GRAPHHOPPER_API_KEY.",
+		});
 	});
 
 	it("rate-limits route requests before geocoding or routing", async () => {
