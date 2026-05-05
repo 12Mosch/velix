@@ -1,15 +1,19 @@
 import { json } from "@sveltejs/kit";
+import { Effect } from "effect";
 import type { RequestHandler } from "./$types";
 
 import { formatCoordinateLabel } from "$lib/coordinate-search";
-import { reverseGeocodeLocation } from "$lib/server/graphhopper";
-import { isMissingGraphHopperApiKeyError } from "$lib/server/graphhopper-errors";
+import { runServerEffect } from "$lib/server/effect-runtime";
+import { reverseGeocodeLocationEffect } from "$lib/server/graphhopper";
+import { mapGraphHopperGeocodeError } from "$lib/server/graphhopper-route-errors";
+import type { GraphHopperGeocodeError } from "$lib/server/graphhopper-errors";
 import { checkReverseRateLimit } from "$lib/server/route-rate-limits";
 
 export const GET: RequestHandler = async (event) => {
 	const { fetch, url } = event;
 	const latitude = Number(url.searchParams.get("lat"));
 	const longitude = Number(url.searchParams.get("lng"));
+	let program: Effect.Effect<Response, GraphHopperGeocodeError>;
 
 	if (
 		!Number.isFinite(latitude) ||
@@ -19,46 +23,45 @@ export const GET: RequestHandler = async (event) => {
 		longitude < -180 ||
 		longitude > 180
 	) {
-		return json(
-			{
-				error: "A valid lat/lng pair is required.",
-			},
-			{ status: 400 },
-		);
-	}
-
-	const point: [number, number] = [longitude, latitude];
-	const rateLimitResponse = checkReverseRateLimit(event);
-
-	if (rateLimitResponse) {
-		return rateLimitResponse;
-	}
-
-	try {
-		const suggestion = await reverseGeocodeLocation(fetch, point);
-
-		return json({
-			label: suggestion?.label || formatCoordinateLabel(point),
-			point,
-		});
-	} catch (error) {
-		console.error("Failed to reverse geocode GraphHopper location", error);
-
-		if (isMissingGraphHopperApiKeyError(error)) {
-			return json(
+		program = Effect.succeed(
+			json(
 				{
-					error:
-						"Reverse geocoding is not configured yet. Add GRAPHHOPPER_API_KEY.",
+					error: "A valid lat/lng pair is required.",
 				},
-				{ status: 500 },
-			);
-		}
-
-		return json(
-			{
-				error: "GraphHopper could not label that map location right now.",
-			},
-			{ status: 502 },
+				{ status: 400 },
+			),
 		);
+	} else {
+		const point: [number, number] = [longitude, latitude];
+
+		program = Effect.gen(function* () {
+			const rateLimitResponse = yield* Effect.sync(() =>
+				checkReverseRateLimit(event),
+			);
+
+			if (rateLimitResponse) {
+				return rateLimitResponse;
+			}
+
+			const suggestion = yield* reverseGeocodeLocationEffect(fetch, point);
+
+			return json({
+				label: suggestion?.label || formatCoordinateLabel(point),
+				point,
+			});
+		});
 	}
+
+	return runServerEffect(
+		Effect.catchTags(
+			program,
+			mapGraphHopperGeocodeError({
+				logPrefix: "Failed to reverse geocode GraphHopper location",
+				missingKeyMessage:
+					"Reverse geocoding is not configured yet. Add GRAPHHOPPER_API_KEY.",
+				upstreamMessage:
+					"GraphHopper could not label that map location right now.",
+			}),
+		),
+	);
 };

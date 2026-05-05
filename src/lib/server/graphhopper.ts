@@ -135,7 +135,7 @@ function dedupeSuggestions(suggestions: RouteSuggestion[]): RouteSuggestion[] {
 	});
 }
 
-function suggestLocationsEffect(
+export function suggestLocationsEffect(
 	fetchFn: typeof fetch,
 	query: string,
 	limit = 5,
@@ -235,7 +235,7 @@ export async function geocodeLocation(
 	return firstSuggestion ?? null;
 }
 
-function reverseGeocodeLocationEffect(
+export function reverseGeocodeLocationEffect(
 	fetchFn: typeof fetch,
 	point: [number, number],
 ): Effect.Effect<RouteSuggestion | null, GraphHopperGeocodeError> {
