@@ -50,15 +50,26 @@ PUBLIC_MAPTILER_API_KEY=...
 For Convex + Clerk saved-route sync, also configure:
 
 ```sh
+PUBLIC_CLERK_PUBLISHABLE_KEY=...
+CLERK_SECRET_KEY=...
 PUBLIC_CONVEX_URL=...
-CLERK_JWT_ISSUER_DOMAIN=...
+CLERK_FRONTEND_API_URL=...
 ```
 
-In Clerk, create or activate the Convex JWT template. The browser asks Clerk for
-`session.getToken({ template: "convex" })`, so signed-in route sync will stay
-local-only if that template is missing.
+`CLERK_FRONTEND_API_URL` is Clerk's Frontend API URL, for example
+`https://verb-noun-00.clerk.accounts.dev` in development or
+`https://clerk.<your-domain>.com` in production. `CLERK_JWT_ISSUER_DOMAIN` is
+also accepted for compatibility with Convex's Clerk docs.
 
-The app still runs without `PUBLIC_CONVEX_URL`; saved routes stay local to the browser. Convex auth configuration requires `CLERK_JWT_ISSUER_DOMAIN` when Convex functions are started.
+In Clerk, activate the Convex integration or Convex JWT template. If the current
+session token already has `aud === "convex"`, the browser uses that token
+without a template argument. Otherwise, it asks Clerk for
+`session.getToken({ template: "convex" })`, so signed-in route sync will stay
+local-only if that Convex token is unavailable.
+
+The app still runs without `PUBLIC_CONVEX_URL`; saved routes stay local to the
+browser. Convex auth configuration requires `CLERK_FRONTEND_API_URL` or
+`CLERK_JWT_ISSUER_DOMAIN` when Convex functions are started.
 
 ## Install
 
