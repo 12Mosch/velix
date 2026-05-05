@@ -54,6 +54,10 @@ PUBLIC_CONVEX_URL=...
 CLERK_JWT_ISSUER_DOMAIN=...
 ```
 
+In Clerk, create or activate the Convex JWT template. The browser asks Clerk for
+`session.getToken({ template: "convex" })`, so signed-in route sync will stay
+local-only if that template is missing.
+
 The app still runs without `PUBLIC_CONVEX_URL`; saved routes stay local to the browser. Convex auth configuration requires `CLERK_JWT_ISSUER_DOMAIN` when Convex functions are started.
 
 ## Install
