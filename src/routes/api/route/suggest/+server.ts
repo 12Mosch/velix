@@ -2,10 +2,8 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 
 import { parseCoordinateSearchInput } from "$lib/coordinate-search";
-import {
-	missingGraphHopperApiKeyMessage,
-	suggestLocations,
-} from "$lib/server/graphhopper";
+import { suggestLocations } from "$lib/server/graphhopper";
+import { isMissingGraphHopperApiKeyError } from "$lib/server/graphhopper-errors";
 import { checkSuggestionRateLimit } from "$lib/server/route-rate-limits";
 
 const minQueryLength = 3;
@@ -54,10 +52,7 @@ export const GET: RequestHandler = async (event) => {
 	} catch (error) {
 		console.error("Failed to fetch GraphHopper suggestions", error);
 
-		if (
-			error instanceof Error &&
-			error.message === missingGraphHopperApiKeyMessage
-		) {
+		if (isMissingGraphHopperApiKeyError(error)) {
 			return json(
 				{
 					error: "Suggestions are not configured yet. Add GRAPHHOPPER_API_KEY.",
