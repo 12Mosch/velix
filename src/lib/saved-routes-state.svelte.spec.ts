@@ -164,6 +164,28 @@ describe("savedRoutesState", () => {
 		expect(mergeLocalRoutes).toHaveBeenCalledWith([savedRoute]);
 	});
 
+	it("falls back to anonymous routes when signed-in remote sync is unavailable", () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([savedRoute]),
+		);
+
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.setRemoteSyncUnavailable(
+			"Could not authenticate synced routes.",
+		);
+
+		expect(savedRoutesState.remoteReady).toBe(true);
+		expect(savedRoutesState.syncError).toBe(
+			"Could not authenticate synced routes.",
+		);
+		expect(savedRoutesState.savedRoutes).toEqual([savedRoute]);
+		expect(
+			JSON.parse(window.localStorage.getItem(userCacheKey("user_1")) ?? "[]"),
+		).toEqual([savedRoute]);
+		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
 	it("reuses an in-flight anonymous route merge for concurrent calls", async () => {
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,

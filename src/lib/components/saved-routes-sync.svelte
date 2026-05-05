@@ -48,17 +48,33 @@
 		}
 
 		const session = ctx.session;
+		const sessionClaims = ctx.auth.sessionClaims;
 		convexAuthenticated = false;
 		convexAuthUnavailable = false;
 		convexAuthError = null;
 		client.setAuth(
-			async () => {
+			async ({ forceRefreshToken }) => {
 				if (convexAuthUnavailable) {
 					return null;
 				}
 
 				try {
-					return await session.getToken({ template: "convex" });
+					const token =
+						sessionClaims?.aud === "convex"
+							? await session.getToken({ skipCache: forceRefreshToken })
+							: await session.getToken({
+									template: "convex",
+									skipCache: forceRefreshToken,
+								});
+					if (!token) {
+						convexAuthenticated = false;
+						convexAuthUnavailable = true;
+						convexAuthError =
+							"Could not authenticate synced routes: Clerk did not return a Convex token. Check that the Convex JWT template is active.";
+						return null;
+					}
+
+					return token;
 				} catch (error) {
 					convexAuthenticated = false;
 					convexAuthUnavailable = true;
@@ -74,7 +90,9 @@
 
 	$effect(() => {
 		const userId = ctx.auth.userId;
-		if (!ctx.isLoaded || !userId || !convexAuthenticated) {
+		const authError = convexAuthError;
+
+		if (!ctx.isLoaded || !userId || !convexAuthenticated || authError) {
 			untrack(() => {
 				savedRoutesState.setRemoteAdapter(null);
 			});
@@ -130,7 +148,7 @@
 
 		if (authError) {
 			untrack(() => {
-				savedRoutesState.syncError = authError;
+				savedRoutesState.setRemoteSyncUnavailable(authError);
 			});
 			return;
 		}

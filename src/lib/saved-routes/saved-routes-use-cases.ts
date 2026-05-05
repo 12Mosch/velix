@@ -107,6 +107,26 @@ export class SavedRoutesUseCases {
 		this.remoteRepository = repository;
 	}
 
+	setRemoteSyncUnavailable(state: SavedRoutesStateModel, message: string) {
+		this.setRemoteRepository(null);
+		state.remoteReady = true;
+		state.pendingRemoteRouteIds = new Set();
+		state.syncError = message;
+
+		if (
+			state.authStatus === "signedIn" &&
+			state.authUserId &&
+			state.savedRoutes.length === 0
+		) {
+			const anonymousRoutes = this.repository.readAnonymousRoutes();
+			if (anonymousRoutes.length > 0) {
+				state.savedRoutes = anonymousRoutes;
+				this.repository.writeUserRoutes(state.authUserId, anonymousRoutes);
+				this.repository.writeAnonymousRoutes([]);
+			}
+		}
+	}
+
 	async runLocalSavedRoutesMergeOnce(
 		state: SavedRoutesStateModel,
 		userId: string,

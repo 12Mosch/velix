@@ -62,6 +62,10 @@ class SavedRoutesState {
 		savedRoutesUseCases.setRemoteRepository(adapter);
 	}
 
+	setRemoteSyncUnavailable(message: string) {
+		savedRoutesUseCases.setRemoteSyncUnavailable(this, message);
+	}
+
 	async runLocalMergeOnce(userId: string) {
 		await savedRoutesUseCases.runLocalSavedRoutesMergeOnce(this, userId);
 	}
