@@ -22,6 +22,12 @@ export type SavedRoute = {
 	route: PlannedRoute;
 };
 
+export type RemoteSavedRoutePayload = {
+	id: string;
+	createdAt: string;
+	routeJson: string;
+};
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object";
 }
@@ -449,6 +455,72 @@ export function parseSavedRoutes(rawValue: string | null): SavedRoute[] {
 export function normalizeSavedRoutes(values: unknown[]): SavedRoute[] {
 	return values.flatMap((entry) => {
 		const savedRoute = getNormalizedSavedRoute(entry);
+
+		if (!savedRoute) {
+			return [];
+		}
+
+		return [savedRoute];
+	});
+}
+
+export function serializeSavedRouteForRemote(
+	savedRoute: SavedRoute,
+): RemoteSavedRoutePayload {
+	const normalizedSavedRoute = getNormalizedSavedRoute(savedRoute);
+
+	if (!normalizedSavedRoute) {
+		throw new Error("Saved route payload is invalid.");
+	}
+
+	return {
+		id: normalizedSavedRoute.id,
+		createdAt: normalizedSavedRoute.createdAt,
+		routeJson: JSON.stringify(normalizedSavedRoute.route),
+	};
+}
+
+export function deserializeRemoteSavedRoute(value: unknown): SavedRoute | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const id = typeof value.id === "string" ? value.id : "";
+	const createdAtMs =
+		typeof value.createdAt === "string" ? Date.parse(value.createdAt) : NaN;
+
+	if (
+		id.length === 0 ||
+		typeof value.createdAt !== "string" ||
+		!Number.isFinite(createdAtMs) ||
+		typeof value.routeJson !== "string"
+	) {
+		return null;
+	}
+
+	let parsedRoute: unknown;
+	try {
+		parsedRoute = JSON.parse(value.routeJson) as unknown;
+	} catch {
+		return null;
+	}
+
+	const route = normalizePlannedRoute(parsedRoute);
+	if (!route) {
+		return null;
+	}
+
+	return {
+		id,
+		createdAt: new Date(createdAtMs).toISOString(),
+		route,
+	};
+}
+
+export function normalizeRemoteSavedRoutes(values: unknown[]): SavedRoute[] {
+	return values.flatMap((entry) => {
+		const savedRoute =
+			deserializeRemoteSavedRoute(entry) ?? getNormalizedSavedRoute(entry);
 
 		if (!savedRoute) {
 			return [];

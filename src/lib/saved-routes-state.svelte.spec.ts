@@ -10,7 +10,10 @@ import {
 	type SavedRoutesRemoteAdapter,
 	upsertSavedRoute,
 } from "$lib/saved-routes.svelte";
-import type { SavedRoute } from "$lib/saved-routes-core";
+import {
+	serializeSavedRouteForRemote,
+	type SavedRoute,
+} from "$lib/saved-routes-core";
 
 const route: PlannedRoute = {
 	mode: "point_to_point",
@@ -115,7 +118,9 @@ describe("savedRoutesState", () => {
 
 	it("replaces visible signed-in routes from remote snapshots and writes user cache", () => {
 		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [savedRoute]);
+		savedRoutesState.applyRemoteRoutes("user_1", [
+			serializeSavedRouteForRemote(savedRoute),
+		]);
 
 		expect(savedRoutesState.savedRoutes).toEqual([savedRoute]);
 		expect(
@@ -130,7 +135,9 @@ describe("savedRoutesState", () => {
 		);
 
 		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [savedRoute]);
+		savedRoutesState.applyRemoteRoutes("user_1", [
+			serializeSavedRouteForRemote(savedRoute),
+		]);
 		savedRoutesState.setAuthUser(null);
 
 		expect(savedRoutesState.savedRoutes.map((entry) => entry.id)).toEqual([
@@ -161,7 +168,9 @@ describe("savedRoutesState", () => {
 		await savedRoutesState.runLocalMergeOnce("user_1");
 
 		expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
-		expect(mergeLocalRoutes).toHaveBeenCalledWith([savedRoute]);
+		expect(mergeLocalRoutes).toHaveBeenCalledWith([
+			serializeSavedRouteForRemote(savedRoute),
+		]);
 	});
 
 	it("falls back to anonymous routes when signed-in remote sync is unavailable", () => {
@@ -254,7 +263,9 @@ describe("savedRoutesState", () => {
 		};
 
 		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [savedRoute]);
+		savedRoutesState.applyRemoteRoutes("user_1", [
+			serializeSavedRouteForRemote(savedRoute),
+		]);
 		savedRoutesState.setRemoteAdapter(adapter);
 
 		const updatedSaved = upsertSavedRoute(
@@ -266,7 +277,9 @@ describe("savedRoutesState", () => {
 		);
 		await flushPromises();
 
-		expect(save).toHaveBeenCalledWith(updatedSaved);
+		expect(save).toHaveBeenCalledWith(
+			serializeSavedRouteForRemote(updatedSaved),
+		);
 		expect(updatedSaved.id).toBe(savedRoute.id);
 		expect(updatedSaved.createdAt).toBe(savedRoute.createdAt);
 	});
@@ -279,7 +292,9 @@ describe("savedRoutesState", () => {
 		};
 
 		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [savedRoute]);
+		savedRoutesState.applyRemoteRoutes("user_1", [
+			serializeSavedRouteForRemote(savedRoute),
+		]);
 		savedRoutesState.setRemoteAdapter(adapter);
 
 		upsertSavedRoute(
@@ -307,7 +322,9 @@ describe("savedRoutesState", () => {
 		};
 
 		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [savedRoute]);
+		savedRoutesState.applyRemoteRoutes("user_1", [
+			serializeSavedRouteForRemote(savedRoute),
+		]);
 		savedRoutesState.setRemoteAdapter(adapter);
 
 		expect(deleteSavedRoute(savedRoute.id)).toBe(true);

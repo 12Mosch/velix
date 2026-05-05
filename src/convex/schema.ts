@@ -9,7 +9,8 @@ export default defineSchema({
 		routeId: v.string(),
 		createdAtMs: v.number(),
 		updatedAtMs: v.number(),
-		route: plannedRouteValidator,
+		routeJson: v.optional(v.string()),
+		route: v.optional(plannedRouteValidator),
 	})
 		.index("by_user_createdAt", ["userId", "createdAtMs"])
 		.index("by_user_routeId", ["userId", "routeId"]),

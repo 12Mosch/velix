@@ -4,16 +4,18 @@ import { dedupeSavedRoutesById } from "$lib/saved-routes/saved-routes-repository
 import {
 	buildSavedRoute,
 	cloneSavedRoute,
-	normalizeSavedRoutes,
+	normalizeRemoteSavedRoutes,
+	serializeSavedRouteForRemote,
+	type RemoteSavedRoutePayload,
 	type SavedRoute,
 } from "$lib/saved-routes-core";
 
 export type SavedRoutesAuthStatus = "loading" | "signedOut" | "signedIn";
 
 export type SavedRoutesRemoteRepository = {
-	save: (savedRoute: SavedRoute) => Promise<void>;
+	save: (savedRoute: RemoteSavedRoutePayload) => Promise<void>;
 	delete: (routeId: string) => Promise<void>;
-	mergeLocalRoutes: (routes: SavedRoute[]) => Promise<{
+	mergeLocalRoutes: (routes: RemoteSavedRoutePayload[]) => Promise<{
 		inserted: number;
 		skipped: number;
 		invalid: number;
@@ -93,7 +95,7 @@ export class SavedRoutesUseCases {
 			return;
 		}
 
-		const nextSavedRoutes = normalizeSavedRoutes(routes).toSorted(
+		const nextSavedRoutes = normalizeRemoteSavedRoutes(routes).toSorted(
 			(left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
 		);
 
@@ -158,7 +160,9 @@ export class SavedRoutesUseCases {
 			}
 
 			try {
-				await remoteRepository.mergeLocalRoutes(localRoutes);
+				await remoteRepository.mergeLocalRoutes(
+					localRoutes.map(serializeSavedRouteForRemote),
+				);
 				migratedUserIds.add(userId);
 				this.repository.writeMergedUserIds(migratedUserIds);
 				state.syncError = null;
@@ -310,7 +314,7 @@ export class SavedRoutesUseCases {
 
 		this.trackPendingRemoteRoute(state, savedRoute.id);
 		void this.remoteRepository
-			.save(savedRoute)
+			.save(serializeSavedRouteForRemote(savedRoute))
 			.then(() => {
 				this.clearPendingRemoteRoute(state, savedRoute.id);
 				state.syncError = null;

@@ -9,6 +9,7 @@ import {
 	type SavedRoutesStateModel,
 	SavedRoutesUseCases,
 } from "$lib/saved-routes/saved-routes-use-cases";
+import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
 import type { BrowserStorage } from "$lib/storage/browser-storage";
 
 const route: PlannedRoute = {
@@ -95,7 +96,7 @@ describe("saved routes use cases", () => {
 
 		await flushPromises();
 
-		expect(save).toHaveBeenCalledWith(savedRoute);
+		expect(save).toHaveBeenCalledWith(serializeSavedRouteForRemote(savedRoute));
 		expect(state.pendingRemoteRouteIds).toEqual(new Set());
 		expect(state.syncError).toBeNull();
 	});
@@ -113,12 +114,17 @@ describe("saved routes use cases", () => {
 				id: "newer",
 			};
 
-			useCases.applyRemoteSavedRoutes(state, "other_user", [newer]);
+			useCases.applyRemoteSavedRoutes(state, "other_user", [
+				serializeSavedRouteForRemote(newer),
+			]);
 			expect(state.savedRoutes.map((savedRoute) => savedRoute.id)).not.toEqual([
 				"newer",
 			]);
 
-			useCases.applyRemoteSavedRoutes(state, "user_1", [older, newer]);
+			useCases.applyRemoteSavedRoutes(state, "user_1", [
+				serializeSavedRouteForRemote(older),
+				serializeSavedRouteForRemote(newer),
+			]);
 			expect(state.savedRoutes.map((savedRoute) => savedRoute.id)).toEqual([
 				"newer",
 				older.id,
@@ -149,6 +155,8 @@ describe("saved routes use cases", () => {
 		await useCases.runLocalSavedRoutesMergeOnce(state, "user_1");
 
 		expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
-		expect(mergeLocalRoutes).toHaveBeenCalledWith([anonymous]);
+		expect(mergeLocalRoutes).toHaveBeenCalledWith([
+			serializeSavedRouteForRemote(anonymous),
+		]);
 	});
 });

@@ -8,7 +8,7 @@
 		savedRoutesState,
 		type SavedRoutesRemoteAdapter,
 	} from "$lib/saved-routes.svelte";
-	import type { SavedRoute } from "$lib/saved-routes-core";
+	import type { RemoteSavedRoutePayload } from "$lib/saved-routes-core";
 
 	const ctx = useClerkContext();
 	const client = useConvexClient();
@@ -100,13 +100,13 @@
 		}
 
 		const adapter: SavedRoutesRemoteAdapter = {
-			save: async (savedRoute: SavedRoute) => {
+			save: async (savedRoute: RemoteSavedRoutePayload) => {
 				await client.mutation(api.savedRoutes.upsert, { savedRoute });
 			},
 			delete: async (routeId: string) => {
 				await client.mutation(api.savedRoutes.remove, { routeId });
 			},
-			mergeLocalRoutes: async (savedRoutes: SavedRoute[]) => {
+			mergeLocalRoutes: async (savedRoutes: RemoteSavedRoutePayload[]) => {
 				return (await client.mutation(api.savedRoutes.mergeLocalRoutes, {
 					savedRoutes,
 				})) as {

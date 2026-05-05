@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	deserializeRemoteSavedRoute,
 	normalizePlannedRoute,
 	parseSavedRoutes,
+	serializeSavedRouteForRemote,
 	type SavedRoute,
 } from "$lib/saved-routes-core";
 
@@ -132,5 +134,64 @@ describe("saved-routes-core", () => {
 			source: { kind: "graphhopper" },
 			waypoints: [],
 		});
+	});
+
+	it("serializes long remote routes without exposing coordinates as Convex arrays", () => {
+		const coordinates: SavedRoute["route"]["coordinates"] = Array.from(
+			{ length: 19_487 },
+			(_, index) => [
+				11.5755 + index / 100_000,
+				48.1374 - index / 100_000,
+				520 + (index % 100),
+			],
+		);
+		const savedRoute: SavedRoute = {
+			id: "long-route",
+			createdAt: "2026-04-19T09:30:00.000Z",
+			route: {
+				...baseRoute,
+				coordinates,
+			},
+		};
+
+		const remotePayload = serializeSavedRouteForRemote(savedRoute);
+
+		expect(remotePayload).toEqual({
+			id: savedRoute.id,
+			createdAt: savedRoute.createdAt,
+			routeJson: expect.any(String),
+		});
+		expect("route" in remotePayload).toBe(false);
+		expect(JSON.parse(remotePayload.routeJson).coordinates).toHaveLength(
+			19_487,
+		);
+		expect(deserializeRemoteSavedRoute(remotePayload)).toEqual(savedRoute);
+	});
+
+	it("rejects invalid remote route JSON", () => {
+		expect(
+			deserializeRemoteSavedRoute({
+				id: "broken",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				routeJson: "{not-json",
+			}),
+		).toBeNull();
+		expect(
+			deserializeRemoteSavedRoute({
+				id: "broken",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				routeJson: JSON.stringify({ ...baseRoute, coordinates: [] }),
+			}),
+		).toBeNull();
+	});
+
+	it("preserves remote route ids exactly", () => {
+		expect(
+			deserializeRemoteSavedRoute({
+				id: " route-with-spaces ",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				routeJson: JSON.stringify(baseRoute),
+			})?.id,
+		).toBe(" route-with-spaces ");
 	});
 });
