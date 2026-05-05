@@ -2,10 +2,8 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 
 import { formatCoordinateLabel } from "$lib/coordinate-search";
-import {
-	missingGraphHopperApiKeyMessage,
-	reverseGeocodeLocation,
-} from "$lib/server/graphhopper";
+import { reverseGeocodeLocation } from "$lib/server/graphhopper";
+import { isMissingGraphHopperApiKeyError } from "$lib/server/graphhopper-errors";
 import { checkReverseRateLimit } from "$lib/server/route-rate-limits";
 
 export const GET: RequestHandler = async (event) => {
@@ -46,10 +44,7 @@ export const GET: RequestHandler = async (event) => {
 	} catch (error) {
 		console.error("Failed to reverse geocode GraphHopper location", error);
 
-		if (
-			error instanceof Error &&
-			error.message === missingGraphHopperApiKeyMessage
-		) {
+		if (isMissingGraphHopperApiKeyError(error)) {
 			return json(
 				{
 					error:

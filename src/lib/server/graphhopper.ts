@@ -2,6 +2,17 @@ import { env } from "$env/dynamic/private";
 import { Effect, Result } from "effect";
 
 import type { RouteSuggestion } from "$lib/route-planning";
+import {
+	runServerEffect,
+	readResponseTextEffect,
+} from "$lib/server/effect-runtime";
+import {
+	GraphHopperGeocodeFetchError,
+	GraphHopperGeocodePayloadError,
+	GraphHopperGeocodeStatusError,
+	MissingGraphHopperApiKeyError,
+	type GraphHopperGeocodeError,
+} from "$lib/server/graphhopper-errors";
 import { fetchWithTimeout, TtlCache } from "$lib/server/resilience";
 
 type GeocodeProvider = "default" | "nominatim";
@@ -23,8 +34,7 @@ type GraphHopperGeocodeResponse = {
 	hits?: GeocodeHit[];
 };
 
-export const graphHopperApiBaseUrl = "https://graphhopper.com/api/1";
-export const missingGraphHopperApiKeyMessage = "Missing GRAPHHOPPER_API_KEY";
+const graphHopperApiBaseUrl = "https://graphhopper.com/api/1";
 
 const geocodeTimeoutMs = 4_000;
 const geocodeCacheTtlMs = 10 * 60 * 1_000;
@@ -37,61 +47,6 @@ const reverseGeocodeCache = new TtlCache<RouteSuggestion | null>(
 	geocodeCacheTtlMs,
 	maxGeocodeCacheEntries,
 );
-
-class MissingGraphHopperApiKeyError extends Error {
-	readonly _tag = "MissingGraphHopperApiKeyError";
-
-	constructor() {
-		super(missingGraphHopperApiKeyMessage);
-	}
-}
-
-class GraphHopperGeocodeFetchError extends Error {
-	readonly _tag = "GraphHopperGeocodeFetchError";
-
-	constructor(
-		readonly operation: "geocoding" | "reverse geocoding",
-		readonly provider: GeocodeProvider,
-		readonly cause: unknown,
-	) {
-		super(
-			cause instanceof Error
-				? cause.message
-				: `${operation[0]?.toUpperCase()}${operation.slice(1)} failed using ${provider}`,
-		);
-	}
-}
-
-class GraphHopperGeocodeStatusError extends Error {
-	readonly _tag = "GraphHopperGeocodeStatusError";
-
-	constructor(
-		operation: "Geocoding" | "Reverse geocoding",
-		readonly provider: GeocodeProvider,
-		readonly status: number,
-		details: string,
-	) {
-		super(
-			`${operation} failed with status ${status} using ${provider}${
-				details ? `: ${details}` : ""
-			}`,
-		);
-	}
-}
-
-class GraphHopperGeocodePayloadError extends Error {
-	readonly _tag = "GraphHopperGeocodePayloadError";
-
-	constructor(readonly cause: unknown) {
-		super("GraphHopper geocode response was not valid JSON");
-	}
-}
-
-type GraphHopperGeocodeError =
-	| MissingGraphHopperApiKeyError
-	| GraphHopperGeocodeFetchError
-	| GraphHopperGeocodeStatusError
-	| GraphHopperGeocodePayloadError;
 
 function getGraphHopperApiKeyEffect(): Effect.Effect<
 	string,
@@ -128,10 +83,6 @@ function readGraphHopperGeocodePayloadEffect(
 		try: () => response.json() as Promise<GraphHopperGeocodeResponse>,
 		catch: (cause) => new GraphHopperGeocodePayloadError(cause),
 	});
-}
-
-function readResponseTextEffect(response: Response): Effect.Effect<string> {
-	return Effect.tryPromise(() => response.text());
 }
 
 function buildResolvedLabel(hit: GeocodeHit): string {
@@ -274,7 +225,7 @@ export async function suggestLocations(
 	query: string,
 	limit = 5,
 ): Promise<RouteSuggestion[]> {
-	return Effect.runPromise(suggestLocationsEffect(fetchFn, query, limit));
+	return runServerEffect(suggestLocationsEffect(fetchFn, query, limit));
 }
 
 export async function geocodeLocation(
@@ -371,7 +322,7 @@ export async function reverseGeocodeLocation(
 	fetchFn: typeof fetch,
 	point: [number, number],
 ): Promise<RouteSuggestion | null> {
-	return Effect.runPromise(reverseGeocodeLocationEffect(fetchFn, point));
+	return runServerEffect(reverseGeocodeLocationEffect(fetchFn, point));
 }
 
 export function clearGraphHopperCachesForTests(): void {
