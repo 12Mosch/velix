@@ -3,16 +3,17 @@ import { v } from "convex/values";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
-	cloneRoute,
+	deserializeRemoteSavedRoute,
 	isRecord,
 	normalizePlannedRoute,
-	type SavedRoute,
+	serializeSavedRouteForRemote,
+	type RemoteSavedRoutePayload,
 } from "../lib/saved-routes-core";
-import { savedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
+import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
 
 const maxMergeRouteCount = 200;
 
-type ValidatedSavedRoute = SavedRoute & {
+type ValidatedRemoteSavedRoute = RemoteSavedRoutePayload & {
 	createdAtMs: number;
 };
 
@@ -26,31 +27,54 @@ async function getAuthenticatedUserId(ctx: QueryCtx | MutationCtx) {
 	return identity.subject;
 }
 
-function validateSavedRoutePayload(value: unknown): ValidatedSavedRoute | null {
+function validateRemoteSavedRoutePayload(
+	value: unknown,
+): ValidatedRemoteSavedRoute | null {
 	if (!isRecord(value)) {
 		return null;
 	}
 
-	const id = typeof value.id === "string" ? value.id.trim() : "";
-	const createdAtMs =
-		typeof value.createdAt === "string" ? Date.parse(value.createdAt) : NaN;
-	const route = normalizePlannedRoute(value.route);
+	const savedRoute = deserializeRemoteSavedRoute(value);
+	if (!savedRoute) {
+		return null;
+	}
+	const remotePayload = serializeSavedRouteForRemote(savedRoute);
+	const createdAtMs = Date.parse(remotePayload.createdAt);
 
-	if (
-		id.length === 0 ||
-		typeof value.createdAt !== "string" ||
-		!Number.isFinite(createdAtMs) ||
-		!route
-	) {
+	return {
+		...remotePayload,
+		createdAtMs,
+	};
+}
+
+function remotePayloadFromRow(row: {
+	routeId: string;
+	createdAtMs: number;
+	routeJson?: string;
+	route?: unknown;
+}): RemoteSavedRoutePayload | null {
+	const createdAt = new Date(row.createdAtMs).toISOString();
+	const routeJson =
+		typeof row.routeJson === "string"
+			? row.routeJson
+			: (() => {
+					const legacyRoute = normalizePlannedRoute(row.route);
+					return legacyRoute ? JSON.stringify(legacyRoute) : null;
+				})();
+
+	if (!routeJson) {
 		return null;
 	}
 
-	return {
-		id,
-		createdAt: new Date(createdAtMs).toISOString(),
-		createdAtMs,
-		route: cloneRoute(route),
+	const payload = {
+		id: row.routeId,
+		createdAt,
+		routeJson,
 	};
+
+	const savedRoute = deserializeRemoteSavedRoute(payload);
+
+	return savedRoute ? serializeSavedRouteForRemote(savedRoute) : null;
 }
 
 export const listForCurrentUser = query({
@@ -63,21 +87,21 @@ export const listForCurrentUser = query({
 			.order("desc")
 			.collect();
 
-		return rows.map((row) => ({
-			id: row.routeId,
-			createdAt: new Date(row.createdAtMs).toISOString(),
-			route: row.route,
-		}));
+		return rows.flatMap((row) => {
+			const payload = remotePayloadFromRow(row);
+
+			return payload ? [payload] : [];
+		});
 	},
 });
 
 export const upsert = mutation({
 	args: {
-		savedRoute: savedRoutePayloadValidator,
+		savedRoute: remoteSavedRoutePayloadValidator,
 	},
 	handler: async (ctx, args) => {
 		const userId = await getAuthenticatedUserId(ctx);
-		const savedRoute = validateSavedRoutePayload(args.savedRoute);
+		const savedRoute = validateRemoteSavedRoutePayload(args.savedRoute);
 
 		if (!savedRoute) {
 			throw new Error("Saved route payload is invalid.");
@@ -92,10 +116,12 @@ export const upsert = mutation({
 		const now = Date.now();
 
 		if (existingRoute) {
-			await ctx.db.patch(existingRoute._id, {
+			await ctx.db.replace(existingRoute._id, {
+				userId,
+				routeId: savedRoute.id,
 				createdAtMs: savedRoute.createdAtMs,
 				updatedAtMs: now,
-				route: savedRoute.route,
+				routeJson: savedRoute.routeJson,
 			});
 			return { inserted: false };
 		}
@@ -105,7 +131,7 @@ export const upsert = mutation({
 			routeId: savedRoute.id,
 			createdAtMs: savedRoute.createdAtMs,
 			updatedAtMs: now,
-			route: savedRoute.route,
+			routeJson: savedRoute.routeJson,
 		});
 
 		return { inserted: true };
@@ -165,7 +191,7 @@ export const mergeLocalRoutes = mutation({
 		);
 
 		for (const candidateRoute of args.savedRoutes) {
-			const savedRoute = validateSavedRoutePayload(candidateRoute);
+			const savedRoute = validateRemoteSavedRoutePayload(candidateRoute);
 
 			if (!savedRoute) {
 				invalid += 1;
@@ -189,7 +215,7 @@ export const mergeLocalRoutes = mutation({
 				routeId: savedRoute.id,
 				createdAtMs: savedRoute.createdAtMs,
 				updatedAtMs: now,
-				route: savedRoute.route,
+				routeJson: savedRoute.routeJson,
 			});
 			existingRouteIds.add(savedRoute.id);
 			inserted += 1;

@@ -105,8 +105,8 @@ export const plannedRouteValidator = v.object({
 	smoothnessDetails: v.array(routeDetailIntervalValidator),
 });
 
-export const savedRoutePayloadValidator = v.object({
+export const remoteSavedRoutePayloadValidator = v.object({
 	id: v.string(),
 	createdAt: v.string(),
-	route: plannedRouteValidator,
+	routeJson: v.string(),
 });
