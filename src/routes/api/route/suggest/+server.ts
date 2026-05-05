@@ -7,7 +7,7 @@ import { runServerEffect } from "$lib/server/effect-runtime";
 import { suggestLocationsEffect } from "$lib/server/graphhopper";
 import { mapGraphHopperGeocodeError } from "$lib/server/graphhopper-route-errors";
 import type { GraphHopperGeocodeError } from "$lib/server/graphhopper-errors";
-import { checkSuggestionRateLimit } from "$lib/server/route-rate-limits";
+import { checkSuggestionRateLimitEffect } from "$lib/server/route-rate-limits";
 
 const minQueryLength = 3;
 const maxSuggestions = 5;
@@ -43,9 +43,7 @@ export const GET: RequestHandler = async (event) => {
 		);
 	} else {
 		program = Effect.gen(function* () {
-			const rateLimitResponse = yield* Effect.sync(() =>
-				checkSuggestionRateLimit(event),
-			);
+			const rateLimitResponse = yield* checkSuggestionRateLimitEffect(event);
 
 			if (rateLimitResponse) {
 				return rateLimitResponse;

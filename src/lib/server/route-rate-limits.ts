@@ -1,4 +1,5 @@
 import { json } from "@sveltejs/kit";
+import { Effect } from "effect";
 import type { RequestEvent } from "@sveltejs/kit";
 
 import { FixedWindowRateLimiter } from "$lib/server/resilience";
@@ -7,14 +8,13 @@ const routeLimiter = new FixedWindowRateLimiter(10, 60_000);
 const suggestionLimiter = new FixedWindowRateLimiter(60, 60_000);
 const reverseLimiter = new FixedWindowRateLimiter(60, 60_000);
 
-function clientAddress(
+function clientAddressEffect(
 	event: Pick<RequestEvent, "getClientAddress">,
-): string | null {
-	try {
-		return event.getClientAddress();
-	} catch {
-		return null;
-	}
+): Effect.Effect<string | null> {
+	return Effect.catchDefect(
+		Effect.sync(() => event.getClientAddress()),
+		() => Effect.succeed(null),
+	);
 }
 
 function rateLimitResponse(error: string, retryAfterSeconds: number): Response {
@@ -32,68 +32,81 @@ function rateLimitResponse(error: string, retryAfterSeconds: number): Response {
 export function checkRouteRateLimit(
 	event: Pick<RequestEvent, "getClientAddress">,
 ): Response | null {
-	const address = clientAddress(event);
+	return Effect.runSync(checkRouteRateLimitEffect(event));
+}
 
-	if (!address) {
-		return null;
-	}
-
-	const result = routeLimiter.check(address);
-
-	if (result.allowed) {
-		return null;
-	}
-
-	return rateLimitResponse(
+export function checkRouteRateLimitEffect(
+	event: Pick<RequestEvent, "getClientAddress">,
+): Effect.Effect<Response | null> {
+	return checkRateLimitEffect(
+		event,
+		routeLimiter,
 		"Too many route requests. Try again soon.",
-		result.retryAfterSeconds,
 	);
 }
 
 export function checkSuggestionRateLimit(
 	event: Pick<RequestEvent, "getClientAddress">,
 ): Response | null {
-	const address = clientAddress(event);
+	return Effect.runSync(checkSuggestionRateLimitEffect(event));
+}
 
-	if (!address) {
-		return null;
-	}
-
-	const result = suggestionLimiter.check(address);
-
-	if (result.allowed) {
-		return null;
-	}
-
-	return rateLimitResponse(
+export function checkSuggestionRateLimitEffect(
+	event: Pick<RequestEvent, "getClientAddress">,
+): Effect.Effect<Response | null> {
+	return checkRateLimitEffect(
+		event,
+		suggestionLimiter,
 		"Too many suggestion requests. Try again soon.",
-		result.retryAfterSeconds,
 	);
 }
 
 export function checkReverseRateLimit(
 	event: Pick<RequestEvent, "getClientAddress">,
 ): Response | null {
-	const address = clientAddress(event);
+	return Effect.runSync(checkReverseRateLimitEffect(event));
+}
 
-	if (!address) {
-		return null;
-	}
-
-	const result = reverseLimiter.check(address);
-
-	if (result.allowed) {
-		return null;
-	}
-
-	return rateLimitResponse(
+export function checkReverseRateLimitEffect(
+	event: Pick<RequestEvent, "getClientAddress">,
+): Effect.Effect<Response | null> {
+	return checkRateLimitEffect(
+		event,
+		reverseLimiter,
 		"Too many reverse geocoding requests. Try again soon.",
-		result.retryAfterSeconds,
 	);
 }
 
+function checkRateLimitEffect(
+	event: Pick<RequestEvent, "getClientAddress">,
+	limiter: FixedWindowRateLimiter,
+	error: string,
+): Effect.Effect<Response | null> {
+	return Effect.gen(function* () {
+		const address = yield* clientAddressEffect(event);
+
+		if (!address) {
+			return null;
+		}
+
+		const result = yield* limiter.checkEffect(address);
+
+		if (result.allowed) {
+			return null;
+		}
+
+		return rateLimitResponse(error, result.retryAfterSeconds);
+	});
+}
+
 export function clearRouteRateLimitsForTests(): void {
-	routeLimiter.clear();
-	suggestionLimiter.clear();
-	reverseLimiter.clear();
+	Effect.runSync(clearRouteRateLimitsForTestsEffect());
+}
+
+export function clearRouteRateLimitsForTestsEffect(): Effect.Effect<void> {
+	return Effect.gen(function* () {
+		yield* routeLimiter.clearEffect();
+		yield* suggestionLimiter.clearEffect();
+		yield* reverseLimiter.clearEffect();
+	});
 }
