@@ -7,7 +7,7 @@ import { runServerEffect } from "$lib/server/effect-runtime";
 import { reverseGeocodeLocationEffect } from "$lib/server/graphhopper";
 import { mapGraphHopperGeocodeError } from "$lib/server/graphhopper-route-errors";
 import type { GraphHopperGeocodeError } from "$lib/server/graphhopper-errors";
-import { checkReverseRateLimit } from "$lib/server/route-rate-limits";
+import { checkReverseRateLimitEffect } from "$lib/server/route-rate-limits";
 
 export const GET: RequestHandler = async (event) => {
 	const { fetch, url } = event;
@@ -35,9 +35,7 @@ export const GET: RequestHandler = async (event) => {
 		const point: [number, number] = [longitude, latitude];
 
 		program = Effect.gen(function* () {
-			const rateLimitResponse = yield* Effect.sync(() =>
-				checkReverseRateLimit(event),
-			);
+			const rateLimitResponse = yield* checkReverseRateLimitEffect(event);
 
 			if (rateLimitResponse) {
 				return rateLimitResponse;
