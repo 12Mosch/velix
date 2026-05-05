@@ -6,6 +6,7 @@ vi.mock("$env/dynamic/private", () => ({
 	},
 }));
 
+import { env } from "$env/dynamic/private";
 import { GET } from "./+server";
 import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
 import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
@@ -26,6 +27,7 @@ function buildEvent(
 
 describe("GET /api/route/reverse", () => {
 	beforeEach(() => {
+		env.GRAPHHOPPER_API_KEY = "graphhopper-test-key";
 		clearGraphHopperCachesForTests();
 		clearRouteRateLimitsForTests();
 	});
@@ -78,6 +80,25 @@ describe("GET /api/route/reverse", () => {
 		await expect(response.json()).resolves.toEqual({
 			label: "Marienplatz, Munich, Germany",
 			point: [11.5755, 48.1374],
+		});
+	});
+
+	it("maps a missing GraphHopper API key to the reverse configuration error", async () => {
+		env.GRAPHHOPPER_API_KEY = "";
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await GET(
+			buildEvent(
+				"http://localhost/api/route/reverse?lat=48.1374&lng=11.5755",
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(500);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error:
+				"Reverse geocoding is not configured yet. Add GRAPHHOPPER_API_KEY.",
 		});
 	});
 
@@ -183,6 +204,47 @@ describe("GET /api/route/reverse", () => {
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({
 			label: "48.13740, 11.57550",
+			point: [11.5755, 48.1374],
+		});
+	});
+
+	it("tries the default GraphHopper provider after Nominatim rejects reverse geocoding", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(new Response("bad request", { status: 400 }))
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Marienplatz",
+								city: "Munich",
+								country: "Germany",
+								point: {
+									lat: 48.1374,
+									lng: 11.5755,
+								},
+							},
+						],
+					}),
+				),
+			);
+
+		const response = await GET(
+			buildEvent(
+				"http://localhost/api/route/reverse?lat=48.1374&lng=11.5755",
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+			"provider=nominatim",
+		);
+		expect(String(fetchMock.mock.calls[1]?.[0])).toContain("locale=en");
+		await expect(response.json()).resolves.toEqual({
+			label: "Marienplatz, Munich, Germany",
 			point: [11.5755, 48.1374],
 		});
 	});
