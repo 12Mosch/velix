@@ -14,6 +14,8 @@
 	const client = useConvexClient();
 
 	let convexAuthenticated = $state(false);
+	let convexAuthUnavailable = false;
+	let convexAuthError = $state<string | null>(null);
 
 	const clerkUserId = $derived(
 		ctx.isLoaded ? (ctx.auth.userId ?? null) : undefined,
@@ -37,6 +39,8 @@
 	$effect(() => {
 		if (!ctx.isLoaded || !ctx.auth.userId || !ctx.session) {
 			convexAuthenticated = false;
+			convexAuthUnavailable = false;
+			convexAuthError = null;
 			client.setAuth(async () => null, (isAuthenticated) => {
 				convexAuthenticated = isAuthenticated;
 			});
@@ -45,8 +49,23 @@
 
 		const session = ctx.session;
 		convexAuthenticated = false;
+		convexAuthUnavailable = false;
+		convexAuthError = null;
 		client.setAuth(
-			() => session.getToken({ template: "convex" }),
+			async () => {
+				if (convexAuthUnavailable) {
+					return null;
+				}
+
+				try {
+					return await session.getToken({ template: "convex" });
+				} catch (error) {
+					convexAuthenticated = false;
+					convexAuthUnavailable = true;
+					convexAuthError = `Could not authenticate synced routes: ${error instanceof Error ? error.message : String(error)}`;
+					return null;
+				}
+			},
 			(isAuthenticated) => {
 				convexAuthenticated = isAuthenticated;
 			},
@@ -106,7 +125,15 @@
 	});
 
 	$effect(() => {
+		const authError = convexAuthError;
 		const queryError = savedRoutesQuery.error;
+
+		if (authError) {
+			untrack(() => {
+				savedRoutesState.syncError = authError;
+			});
+			return;
+		}
 
 		if (queryError) {
 			untrack(() => {
