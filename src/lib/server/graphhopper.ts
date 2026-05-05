@@ -13,7 +13,7 @@ import {
 	MissingGraphHopperApiKeyError,
 	type GraphHopperGeocodeError,
 } from "$lib/server/graphhopper-errors";
-import { fetchWithTimeout, TtlCache } from "$lib/server/resilience";
+import { fetchWithTimeoutEffect, TtlCache } from "$lib/server/resilience";
 
 type GeocodeProvider = "default" | "nominatim";
 
@@ -69,11 +69,10 @@ function fetchGraphHopperGeocodeEffect(
 	operation: "geocoding" | "reverse geocoding",
 	provider: GeocodeProvider,
 ): Effect.Effect<Response, GraphHopperGeocodeFetchError> {
-	return Effect.tryPromise({
-		try: () => fetchWithTimeout(fetchFn, url, undefined, geocodeTimeoutMs),
-		catch: (cause) =>
-			new GraphHopperGeocodeFetchError(operation, provider, cause),
-	});
+	return Effect.mapError(
+		fetchWithTimeoutEffect(fetchFn, url, undefined, geocodeTimeoutMs),
+		(cause) => new GraphHopperGeocodeFetchError(operation, provider, cause),
+	);
 }
 
 function readGraphHopperGeocodePayloadEffect(

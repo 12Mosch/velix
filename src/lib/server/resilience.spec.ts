@@ -1,6 +1,48 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
-import { FixedWindowRateLimiter, TtlCache } from "$lib/server/resilience";
+import {
+	fetchWithTimeoutEffect,
+	FixedWindowRateLimiter,
+	TtlCache,
+} from "$lib/server/resilience";
+
+describe("fetchWithTimeoutEffect", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("passes an abort signal and aborts it when the timeout expires", async () => {
+		vi.useFakeTimers();
+		let requestSignal: AbortSignal | undefined;
+		const fetchFn = vi.fn(async (_input, init) => {
+			requestSignal = init?.signal;
+
+			await new Promise<void>((resolve) => {
+				requestSignal?.addEventListener("abort", () => resolve(), {
+					once: true,
+				});
+			});
+
+			return new Response("aborted");
+		}) satisfies typeof fetch;
+
+		const responsePromise = Effect.runPromise(
+			fetchWithTimeoutEffect(fetchFn, "/slow", undefined, 50),
+		);
+
+		await vi.advanceTimersByTimeAsync(50);
+
+		await expect(responsePromise).resolves.toBeInstanceOf(Response);
+		expect(fetchFn).toHaveBeenCalledWith(
+			"/slow",
+			expect.objectContaining({
+				signal: expect.any(AbortSignal),
+			}),
+		);
+		expect(requestSignal?.aborted).toBe(true);
+	});
+});
 
 describe("TtlCache", () => {
 	afterEach(() => {

@@ -20,7 +20,7 @@ import {
 	MissingGraphHopperApiKeyError,
 	type GraphHopperRouteBoundaryError,
 } from "$lib/server/graphhopper-errors";
-import { fetchWithTimeout } from "$lib/server/resilience";
+import { fetchWithTimeoutEffect } from "$lib/server/resilience";
 
 type GraphHopperPath = {
 	bbox?: number[];
@@ -342,22 +342,21 @@ function sendRouteRequestEffect(
 	| GraphHopperRoutePayloadError
 > {
 	return Effect.gen(function* () {
-		const response = yield* Effect.tryPromise({
-			try: () =>
-				fetchWithTimeout(
-					fetchFn,
-					routeUrl,
-					{
-						method: "POST",
-						headers: {
-							"content-type": "application/json",
-						},
-						body: JSON.stringify(body),
+		const response = yield* Effect.mapError(
+			fetchWithTimeoutEffect(
+				fetchFn,
+				routeUrl,
+				{
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
 					},
-					routeTimeoutMs,
-				),
-			catch: (cause) => new GraphHopperRouteFetchError(cause),
-		});
+					body: JSON.stringify(body),
+				},
+				routeTimeoutMs,
+			),
+			(cause) => new GraphHopperRouteFetchError(cause),
+		);
 
 		if (!response.ok) {
 			const details = yield* readResponseTextEffect(response);
