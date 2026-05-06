@@ -43,6 +43,7 @@
 	import {
 		buildRouteGeoJson,
 		buildRouteClimbGeoJson,
+		buildRouteGradientGeoJson,
 		buildRouteSurfaceGeoJson,
 		buildLockedSegmentGeoJson,
 		buildSpatialConstraintGeoJson,
@@ -168,6 +169,7 @@
 	}
 
 	let routeAnalysisOpen = $state(false);
+	let gradientOverlayEnabled = $state(false);
 	let plannerMode = $state<PlannerMode>("point_to_point");
 	let startStop = $state<PlannerStop>(createPlannerStop());
 	let waypointStops = $state<PlannerStop[]>([]);
@@ -250,6 +252,12 @@
 	const activeRouteGradientMetrics = $derived(
 		activeRoute ? calculateRouteGradientMetrics(activeRoute) : null,
 	);
+	const activeRouteGradientGeoJson = $derived(
+		activeRoute ? buildRouteGradientGeoJson(activeRoute) : null,
+	);
+	const canShowGradientOverlay = $derived(
+		(activeRouteGradientGeoJson?.features.length ?? 0) > 0,
+	);
 	const activeCategorizedClimbs = $derived(
 		activeRouteClimbs.filter((climb) => climb.category !== "Uncategorized"),
 	);
@@ -263,22 +271,29 @@
 		),
 	);
 	const routeOverlays = $derived<RouteMapOverlay[]>(
-		routeAlternatives.map((route, index) => ({
-			id: `route-${index}`,
-			geoJson:
-				index === selectedRouteIndex
+		routeAlternatives.map((route, index) => {
+			const baseGeoJson = buildRouteGeoJson(route);
+			const isSelected = index === selectedRouteIndex;
+
+			return {
+				id: `route-${index}`,
+				geoJson: isSelected
 					? {
-							...buildRouteGeoJson(route),
+							...baseGeoJson,
 							features: [
-								...buildRouteGeoJson(route).features,
+								...baseGeoJson.features,
 								...buildRouteSurfaceGeoJson(route).features,
 								...buildRouteClimbGeoJson(route, activeRouteClimbs).features,
+								...(gradientOverlayEnabled && activeRouteGradientGeoJson
+									? activeRouteGradientGeoJson.features
+									: []),
 							],
 						}
-					: buildRouteGeoJson(route),
-			bounds: route.bounds,
-			isSelected: index === selectedRouteIndex,
-		})),
+					: baseGeoJson,
+				bounds: route.bounds,
+				isSelected,
+			};
+		}),
 	);
 	const constraintOverlay = $derived(
 		activeRoute?.spatialConstraint
@@ -367,6 +382,12 @@
 	$effect(() => {
 		if (!activeRoute && routeAnalysisOpen) {
 			routeAnalysisOpen = false;
+		}
+	});
+
+	$effect(() => {
+		if (gradientOverlayEnabled && !canShowGradientOverlay) {
+			gradientOverlayEnabled = false;
 		}
 	});
 
@@ -2792,6 +2813,19 @@
 				onclick={recenterActiveRoute}
 			>
 				<Route class="size-4" />
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon"
+				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-orange-300/70 data-[active=true]:bg-orange-50/90 data-[active=true]:text-orange-700"
+				type="button"
+				disabled={!canShowGradientOverlay}
+				aria-label="Gradient overlay"
+				aria-pressed={gradientOverlayEnabled}
+				data-active={gradientOverlayEnabled}
+				onclick={() => (gradientOverlayEnabled = !gradientOverlayEnabled)}
+			>
+				<MountainSnow class="size-4" />
 			</Button>
 			<Button
 				variant="ghost"

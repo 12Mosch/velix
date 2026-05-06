@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	analyzeRouteClimbs,
 	buildRouteGeoJson,
+	buildRouteGradientGeoJson,
 	buildRouteSurfaceGeoJson,
 	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
@@ -213,6 +214,76 @@ describe("buildRouteSurfaceGeoJson", () => {
 			kind: "surface",
 			surfaceBucket: "smooth",
 		});
+	});
+});
+
+describe("buildRouteGradientGeoJson", () => {
+	const gradientRoute = (
+		coordinates: PlannedRoute["coordinates"],
+	): PlannedRoute => ({
+		...buildRoute([], []),
+		coordinates,
+	});
+
+	it("classifies uphill, downhill, flat, and steep gradient buckets", () => {
+		const bucketFor = (fromElevation: number, toElevation: number) => {
+			const feature = buildRouteGradientGeoJson(
+				gradientRoute([
+					[0, 0, fromElevation],
+					[0.001, 0, toElevation],
+				]),
+			).features[0];
+
+			return feature?.properties?.kind === "gradient"
+				? feature.properties.gradientBucket
+				: null;
+		};
+
+		expect(bucketFor(100, 92)).toBe("steep_down");
+		expect(bucketFor(100, 96)).toBe("down");
+		expect(bucketFor(100, 98)).toBe("mild_down");
+		expect(bucketFor(100, 100.5)).toBe("flat");
+		expect(bucketFor(100, 102)).toBe("mild_up");
+		expect(bucketFor(100, 104)).toBe("up");
+		expect(bucketFor(100, 108)).toBe("steep_up");
+	});
+
+	it("returns no gradient features when elevation samples are missing", () => {
+		const geoJson = buildRouteGradientGeoJson(
+			gradientRoute([
+				[0, 0],
+				[0.001, 0],
+			]),
+		);
+
+		expect(geoJson.features).toEqual([]);
+	});
+
+	it("merges adjacent same-bucket segments into one feature", () => {
+		const coordinates: PlannedRoute["coordinates"] = [
+			[0, 0, 100],
+			[0.001, 0, 104],
+			[0.002, 0, 108],
+		];
+		const geoJson = buildRouteGradientGeoJson(gradientRoute(coordinates));
+
+		expect(geoJson.features).toHaveLength(1);
+		expect(geoJson.features[0]?.properties).toMatchObject({
+			kind: "gradient",
+			gradientBucket: "up",
+		});
+		expect(geoJson.features[0]?.geometry.coordinates).toEqual(coordinates);
+	});
+
+	it("skips zero-distance gradient segments", () => {
+		const geoJson = buildRouteGradientGeoJson(
+			gradientRoute([
+				[0, 0, 100],
+				[0, 0, 120],
+			]),
+		);
+
+		expect(geoJson.features).toEqual([]);
 	});
 });
 
