@@ -563,6 +563,93 @@ describe("MapView", () => {
 		);
 	});
 
+	it("manually recenters route bounds even when they match the last automatic fit", async () => {
+		const view = render(MapView, {
+			routeOverlays: testRouteOverlays,
+			fitBounds: [...testRouteBounds],
+			manualRecenterBounds: [...testRouteBounds],
+			manualRecenterRequestKey: 0,
+		});
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		expect(mapInstance.fitBounds).toHaveBeenLastCalledWith(
+			[11.5, 47.2, 11.6, 47.25],
+			expect.objectContaining({
+				maxZoom: 14,
+			}),
+		);
+
+		await view.rerender({
+			routeOverlays: testRouteOverlays,
+			fitBounds: [...testRouteBounds],
+			manualRecenterBounds: [...testRouteBounds],
+			manualRecenterRequestKey: 1,
+		});
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(2);
+		expect(mapInstance.fitBounds).toHaveBeenLastCalledWith(
+			[11.5, 47.2, 11.6, 47.25],
+			expect.objectContaining({
+				maxZoom: 14,
+			}),
+		);
+	});
+
+	it("manually recenters the same route bounds for repeated request key changes", async () => {
+		const view = render(MapView, {
+			manualRecenterBounds: [...testRouteBounds],
+			manualRecenterRequestKey: 0,
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		expect(mapInstance.fitBounds).not.toHaveBeenCalled();
+
+		await view.rerender({
+			manualRecenterBounds: [...testRouteBounds],
+			manualRecenterRequestKey: 1,
+		});
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+
+		await view.rerender({
+			manualRecenterBounds: [...testRouteBounds],
+			manualRecenterRequestKey: 2,
+		});
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(2);
+		expect(mapInstance.fitBounds.mock.calls.map((call) => call[0])).toEqual([
+			[11.5, 47.2, 11.6, 47.25],
+			[11.5, 47.2, 11.6, 47.25],
+		]);
+	});
+
+	it("ignores invalid manual route recenter bounds", async () => {
+		const view = render(MapView, {
+			manualRecenterBounds: [11.5, Number.NaN, 11.6, 47.25] as [
+				number,
+				number,
+				number,
+				number,
+			],
+			manualRecenterRequestKey: 0,
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		await view.rerender({
+			manualRecenterBounds: [11.5, Number.NaN, 11.6, 47.25] as [
+				number,
+				number,
+				number,
+				number,
+			],
+			manualRecenterRequestKey: 1,
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(mapInstance.fitBounds).not.toHaveBeenCalled();
+	});
+
 	it("adds and removes the metric scale control", async () => {
 		const view = render(MapView);
 

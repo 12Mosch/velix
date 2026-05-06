@@ -65,6 +65,8 @@
 		lockedSegmentIndexes?: number[];
 		constraintOverlay?: FeatureCollection | null;
 		fitBounds?: RouteBounds | null;
+		manualRecenterBounds?: RouteBounds | null;
+		manualRecenterRequestKey?: number;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
 		currentLocation?: {
 			point: [number, number];
@@ -119,6 +121,8 @@
 		lockedSegmentIndexes = [],
 		constraintOverlay = null,
 		fitBounds = null,
+		manualRecenterBounds = null,
+		manualRecenterRequestKey = 0,
 		hoveredRouteCoordinate = null,
 		currentLocation = null,
 		currentLocationFocusKey = 0,
@@ -138,6 +142,7 @@
 	let isStyleReady = $state(false);
 	let loadError = $state<string | null>(null);
 	let lastFittedBoundsKey: string | null = null;
+	let lastManualRecenterRequestKey = 0;
 	let currentStyleUrl: string | null = null;
 	let detachStyleLoadListener = () => {};
 	let detachCameraPreferenceListeners = () => {};
@@ -383,20 +388,42 @@
 			return 48;
 		}
 
+		const getBottomPadding = (topPadding: number, desiredPadding: number) => {
+			const minimumVisibleMapHeight = window.innerWidth >= 768 ? 180 : 150;
+			const maximumBottomPadding = Math.max(
+				96,
+				window.innerHeight - topPadding - minimumVisibleMapHeight,
+			);
+
+			return Math.min(desiredPadding, maximumBottomPadding);
+		};
+
 		if (window.innerWidth >= 768) {
+			const top = 84;
+
 			return {
-				top: 84,
+				top,
 				right: 48,
-				bottom: 232,
+				bottom: getBottomPadding(top, 360),
 				left: 420,
 			};
 		}
 
+		const top = 88;
+
 		return {
-			top: 88,
+			top,
 			right: 24,
-			bottom: 280,
+			bottom: getBottomPadding(top, 380),
 			left: 24,
+		};
+	}
+
+	function getFitBoundsOptions() {
+		return {
+			padding: getFitPadding(),
+			duration: 700,
+			maxZoom: 14,
 		};
 	}
 
@@ -413,12 +440,18 @@
 			return;
 		}
 
-		map.fitBounds(nextFitBounds as LngLatBoundsLike, {
-			padding: getFitPadding(),
-			duration: 700,
-			maxZoom: 14,
-		});
+		map.fitBounds(nextFitBounds as LngLatBoundsLike, getFitBoundsOptions());
 		lastFittedBoundsKey = nextBoundsKey;
+	}
+
+	function fitManualRecenterBounds() {
+		const nextRecenterBounds = resolveRouteBounds(manualRecenterBounds);
+
+		if (!map || !isStyleReady || !nextRecenterBounds) {
+			return;
+		}
+
+		map.fitBounds(nextRecenterBounds as LngLatBoundsLike, getFitBoundsOptions());
 	}
 
 	function getBoundsKey(bounds: RouteBounds | null) {
@@ -579,6 +612,19 @@
 		} else {
 			lastFittedBoundsKey = null;
 		}
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		if (lastManualRecenterRequestKey === manualRecenterRequestKey) {
+			return;
+		}
+
+		lastManualRecenterRequestKey = manualRecenterRequestKey;
+		fitManualRecenterBounds();
 	});
 
 	$effect(() => {
