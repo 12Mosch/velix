@@ -580,7 +580,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Sign up / login | Full | Clerk sign-in is exposed from the sidebar, with signed-in state hydrated into the app shell. |
-| OAuth optional | Missing | Clerk authentication is present, but no explicit provider-selection or alternate OAuth configuration is surfaced in the app code. |
+| OAuth optional | Full | Clerk authentication is present, with suoppert for Apple, Google & Microsoft |
 | Edit profile | Missing | No profile. |
 | Change password | Missing | No account system. |
 | Privacy settings | Missing | No account/privacy settings. |
