@@ -1,4 +1,3 @@
-import { env } from "$env/dynamic/private";
 import { Effect, Result } from "effect";
 
 import type { RouteSuggestion } from "$lib/route-planning";
@@ -10,10 +9,18 @@ import {
 	GraphHopperGeocodeFetchError,
 	GraphHopperGeocodePayloadError,
 	GraphHopperGeocodeStatusError,
-	MissingGraphHopperApiKeyError,
 	type GraphHopperGeocodeError,
 } from "$lib/server/graphhopper-errors";
-import { fetchWithTimeoutEffect, TtlCache } from "$lib/server/resilience";
+import { GraphHopperConfig } from "$lib/server/graphhopper-config";
+import {
+	GraphHopperReverseGeocodeCache,
+	GraphHopperSuggestionCache,
+	clearGraphHopperCachesForTests,
+} from "$lib/server/graphhopper-cache";
+import { GraphHopperLive } from "$lib/server/layers";
+import { ServerFetch, TimeoutFetch } from "$lib/server/resilience";
+
+export { clearGraphHopperCachesForTests };
 
 type GeocodeProvider = "default" | "nominatim";
 
@@ -34,45 +41,20 @@ type GraphHopperGeocodeResponse = {
 	hits?: GeocodeHit[];
 };
 
-const graphHopperApiBaseUrl = "https://graphhopper.com/api/1";
-
-const geocodeTimeoutMs = 4_000;
-const geocodeCacheTtlMs = 10 * 60 * 1_000;
-const maxGeocodeCacheEntries = 250;
-const suggestionCache = new TtlCache<RouteSuggestion[]>(
-	geocodeCacheTtlMs,
-	maxGeocodeCacheEntries,
-);
-const reverseGeocodeCache = new TtlCache<RouteSuggestion | null>(
-	geocodeCacheTtlMs,
-	maxGeocodeCacheEntries,
-);
-
-function getGraphHopperApiKeyEffect(): Effect.Effect<
-	string,
-	MissingGraphHopperApiKeyError
-> {
-	return Effect.gen(function* () {
-		const key = env.GRAPHHOPPER_API_KEY?.trim();
-
-		if (!key) {
-			return yield* Effect.fail(new MissingGraphHopperApiKeyError());
-		}
-
-		return key;
-	});
-}
-
 function fetchGraphHopperGeocodeEffect(
-	fetchFn: typeof fetch,
 	url: string,
+	timeoutMs: number,
 	operation: "geocoding" | "reverse geocoding",
 	provider: GeocodeProvider,
-): Effect.Effect<Response, GraphHopperGeocodeFetchError> {
-	return Effect.mapError(
-		fetchWithTimeoutEffect(fetchFn, url, undefined, geocodeTimeoutMs),
-		(cause) => new GraphHopperGeocodeFetchError(operation, provider, cause),
-	);
+): Effect.Effect<Response, GraphHopperGeocodeFetchError, TimeoutFetch> {
+	return Effect.gen(function* () {
+		const timeoutFetch = yield* TimeoutFetch;
+
+		return yield* Effect.mapError(
+			timeoutFetch.fetch(url, undefined, timeoutMs),
+			(cause) => new GraphHopperGeocodeFetchError(operation, provider, cause),
+		);
+	});
 }
 
 function readGraphHopperGeocodePayloadEffect(
@@ -136,15 +118,20 @@ function dedupeSuggestions(suggestions: RouteSuggestion[]): RouteSuggestion[] {
 }
 
 export function suggestLocationsEffect(
-	fetchFn: typeof fetch,
 	query: string,
 	limit = 5,
-): Effect.Effect<RouteSuggestion[], GraphHopperGeocodeError> {
+): Effect.Effect<
+	RouteSuggestion[],
+	GraphHopperGeocodeError,
+	GraphHopperConfig | TimeoutFetch | GraphHopperSuggestionCache
+> {
 	return Effect.gen(function* () {
-		const key = yield* getGraphHopperApiKeyEffect();
+		const config = yield* GraphHopperConfig;
+		const suggestionCache = yield* GraphHopperSuggestionCache;
+		const key = yield* config.apiKey;
 
 		const cacheKey = `${query.trim().toLowerCase()}::${limit}`;
-		const cachedSuggestions = suggestionCache.get(cacheKey);
+		const cachedSuggestions = yield* suggestionCache.get(cacheKey);
 
 		if (cachedSuggestions) {
 			return cachedSuggestions;
@@ -168,8 +155,8 @@ export function suggestLocationsEffect(
 
 			const responseResult = yield* Effect.result(
 				fetchGraphHopperGeocodeEffect(
-					fetchFn,
-					`${graphHopperApiBaseUrl}/geocode?${searchParams.toString()}`,
+					`${config.apiBaseUrl}/geocode?${searchParams.toString()}`,
+					config.geocodeTimeoutMs,
 					"geocoding",
 					provider,
 				),
@@ -205,7 +192,7 @@ export function suggestLocationsEffect(
 			).slice(0, limit);
 
 			if (suggestions.length > 0) {
-				suggestionCache.set(cacheKey, suggestions);
+				yield* suggestionCache.set(cacheKey, suggestions);
 				return suggestions;
 			}
 		}
@@ -214,7 +201,7 @@ export function suggestLocationsEffect(
 			return yield* Effect.fail(lastError);
 		}
 
-		suggestionCache.set(cacheKey, []);
+		yield* suggestionCache.set(cacheKey, []);
 		return [];
 	});
 }
@@ -224,26 +211,52 @@ export async function suggestLocations(
 	query: string,
 	limit = 5,
 ): Promise<RouteSuggestion[]> {
-	return runServerEffect(suggestLocationsEffect(fetchFn, query, limit));
+	return runServerEffect(
+		suggestLocationsEffect(query, limit).pipe(
+			Effect.provide(GraphHopperLive),
+			Effect.provideService(ServerFetch, { fetch: fetchFn }),
+		),
+	);
+}
+
+export function geocodeLocationEffect(
+	query: string,
+): Effect.Effect<
+	RouteSuggestion | null,
+	GraphHopperGeocodeError,
+	GraphHopperConfig | TimeoutFetch | GraphHopperSuggestionCache
+> {
+	return Effect.map(suggestLocationsEffect(query, 1), ([firstSuggestion]) => {
+		return firstSuggestion ?? null;
+	});
 }
 
 export async function geocodeLocation(
 	fetchFn: typeof fetch,
 	query: string,
 ): Promise<RouteSuggestion | null> {
-	const [firstSuggestion] = await suggestLocations(fetchFn, query, 1);
-	return firstSuggestion ?? null;
+	return runServerEffect(
+		geocodeLocationEffect(query).pipe(
+			Effect.provide(GraphHopperLive),
+			Effect.provideService(ServerFetch, { fetch: fetchFn }),
+		),
+	);
 }
 
 export function reverseGeocodeLocationEffect(
-	fetchFn: typeof fetch,
 	point: [number, number],
-): Effect.Effect<RouteSuggestion | null, GraphHopperGeocodeError> {
+): Effect.Effect<
+	RouteSuggestion | null,
+	GraphHopperGeocodeError,
+	GraphHopperConfig | TimeoutFetch | GraphHopperReverseGeocodeCache
+> {
 	return Effect.gen(function* () {
-		const key = yield* getGraphHopperApiKeyEffect();
+		const config = yield* GraphHopperConfig;
+		const reverseGeocodeCache = yield* GraphHopperReverseGeocodeCache;
+		const key = yield* config.apiKey;
 
 		const cacheKey = `${point[0].toFixed(5)}::${point[1].toFixed(5)}`;
-		const cachedSuggestion = reverseGeocodeCache.get(cacheKey);
+		const cachedSuggestion = yield* reverseGeocodeCache.get(cacheKey);
 
 		if (cachedSuggestion !== undefined) {
 			return cachedSuggestion;
@@ -268,8 +281,8 @@ export function reverseGeocodeLocationEffect(
 
 			const responseResult = yield* Effect.result(
 				fetchGraphHopperGeocodeEffect(
-					fetchFn,
-					`${graphHopperApiBaseUrl}/geocode?${searchParams.toString()}`,
+					`${config.apiBaseUrl}/geocode?${searchParams.toString()}`,
+					config.geocodeTimeoutMs,
 					"reverse geocoding",
 					provider,
 				),
@@ -303,7 +316,7 @@ export function reverseGeocodeLocationEffect(
 				.find((candidate): candidate is RouteSuggestion => !!candidate);
 
 			if (suggestion) {
-				reverseGeocodeCache.set(cacheKey, suggestion);
+				yield* reverseGeocodeCache.set(cacheKey, suggestion);
 				return suggestion;
 			}
 		}
@@ -312,7 +325,7 @@ export function reverseGeocodeLocationEffect(
 			return yield* Effect.fail(lastError);
 		}
 
-		reverseGeocodeCache.set(cacheKey, null);
+		yield* reverseGeocodeCache.set(cacheKey, null);
 		return null;
 	});
 }
@@ -321,10 +334,10 @@ export async function reverseGeocodeLocation(
 	fetchFn: typeof fetch,
 	point: [number, number],
 ): Promise<RouteSuggestion | null> {
-	return runServerEffect(reverseGeocodeLocationEffect(fetchFn, point));
-}
-
-export function clearGraphHopperCachesForTests(): void {
-	suggestionCache.clear();
-	reverseGeocodeCache.clear();
+	return runServerEffect(
+		reverseGeocodeLocationEffect(point).pipe(
+			Effect.provide(GraphHopperLive),
+			Effect.provideService(ServerFetch, { fetch: fetchFn }),
+		),
+	);
 }

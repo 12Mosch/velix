@@ -1,4 +1,3 @@
-import { env } from "$env/dynamic/private";
 import { Effect, Result } from "effect";
 
 import type {
@@ -17,10 +16,11 @@ import {
 	GraphHopperRouteFetchError,
 	GraphHopperRoutePayloadError,
 	GraphHopperRouteStatusError,
-	MissingGraphHopperApiKeyError,
 	type GraphHopperRouteBoundaryError,
 } from "$lib/server/graphhopper-errors";
-import { fetchWithTimeoutEffect } from "$lib/server/resilience";
+import { GraphHopperConfig } from "$lib/server/graphhopper-config";
+import { GraphHopperLive } from "$lib/server/layers";
+import { ServerFetch, TimeoutFetch } from "$lib/server/resilience";
 
 type GraphHopperPath = {
 	bbox?: number[];
@@ -113,8 +113,6 @@ export type RouteRequestResult = {
 	snappedWaypointSets: RouteCoordinate[][];
 };
 
-const graphHopperApiBaseUrl = "https://graphhopper.com/api/1";
-const routeTimeoutMs = 20_000;
 const routeDetailKeys = [
 	"surface",
 	"smoothness",
@@ -193,21 +191,6 @@ const routeRequestStrategies: RouteRequestStrategy[] = [
 		],
 	},
 ];
-
-function getGraphHopperRouteApiKeyEffect(): Effect.Effect<
-	string,
-	MissingGraphHopperApiKeyError
-> {
-	return Effect.gen(function* () {
-		const key = env.GRAPHHOPPER_API_KEY?.trim();
-
-		if (!key) {
-			return yield* Effect.fail(new MissingGraphHopperApiKeyError());
-		}
-
-		return key;
-	});
-}
 
 function buildRoadBikeCustomModel(
 	spatialConstraint?: ResolvedRouteSpatialConstraint,
@@ -332,19 +315,20 @@ function readRoutePayloadEffect(
 }
 
 function sendRouteRequestEffect(
-	fetchFn: typeof fetch,
 	routeUrl: string,
 	body: GraphHopperRouteRequestBody,
+	timeoutMs: number,
 ): Effect.Effect<
 	GraphHopperRouteResponse,
 	| GraphHopperRouteFetchError
 	| GraphHopperRouteStatusError
-	| GraphHopperRoutePayloadError
+	| GraphHopperRoutePayloadError,
+	TimeoutFetch
 > {
 	return Effect.gen(function* () {
+		const timeoutFetch = yield* TimeoutFetch;
 		const response = yield* Effect.mapError(
-			fetchWithTimeoutEffect(
-				fetchFn,
+			timeoutFetch.fetch(
 				routeUrl,
 				{
 					method: "POST",
@@ -353,7 +337,7 @@ function sendRouteRequestEffect(
 					},
 					body: JSON.stringify(body),
 				},
-				routeTimeoutMs,
+				timeoutMs,
 			),
 			(cause) => new GraphHopperRouteFetchError(cause),
 		);
@@ -370,14 +354,18 @@ function sendRouteRequestEffect(
 }
 
 export function requestRoutesEffect(
-	fetchFn: typeof fetch,
 	points: [number, number][],
 	options: RouteRequestOptions,
-): Effect.Effect<RouteRequestResult, GraphHopperRouteBoundaryError> {
+): Effect.Effect<
+	RouteRequestResult,
+	GraphHopperRouteBoundaryError,
+	GraphHopperConfig | TimeoutFetch
+> {
 	return Effect.gen(function* () {
-		const key = yield* getGraphHopperRouteApiKeyEffect();
+		const config = yield* GraphHopperConfig;
+		const key = yield* config.apiKey;
 
-		const routeUrl = `${graphHopperApiBaseUrl}/route?key=${encodeURIComponent(key)}`;
+		const routeUrl = `${config.apiBaseUrl}/route?key=${encodeURIComponent(key)}`;
 		function buildRouteRequestBody(
 			strategy: RouteRequestStrategy,
 		): GraphHopperRouteRequestBody {
@@ -431,9 +419,9 @@ export function requestRoutesEffect(
 		for (const strategy of strategies) {
 			const routeResult = yield* Effect.result(
 				sendRouteRequestEffect(
-					fetchFn,
 					routeUrl,
 					buildRouteRequestBody(strategy),
+					config.routeTimeoutMs,
 				),
 			);
 
@@ -498,5 +486,10 @@ export async function requestRoutes(
 	points: [number, number][],
 	options: RouteRequestOptions,
 ): Promise<RouteRequestResult> {
-	return runServerEffect(requestRoutesEffect(fetchFn, points, options));
+	return runServerEffect(
+		requestRoutesEffect(points, options).pipe(
+			Effect.provide(GraphHopperLive),
+			Effect.provideService(ServerFetch, { fetch: fetchFn }),
+		),
+	);
 }
