@@ -47,6 +47,7 @@
 		buildLockedSegmentGeoJson,
 		buildSpatialConstraintGeoJson,
 		analyzeRouteClimbs,
+		calculateRouteGradientMetrics,
 		getRouteElevationAnalysisPoints,
 		getRouteLegIndexForCoordinateSegment,
 		getRouteSegmentCount,
@@ -244,6 +245,9 @@
 	const activeRoundCourseTarget = $derived(getRoundCourseTarget(activeRoute));
 	const activeRouteClimbs = $derived<RouteClimb[]>(
 		activeRoute ? analyzeRouteClimbs(getRouteElevationAnalysisPoints(activeRoute.coordinates)) : [],
+	);
+	const activeRouteGradientMetrics = $derived(
+		activeRoute ? calculateRouteGradientMetrics(activeRoute) : null,
 	);
 	const activeCategorizedClimbs = $derived(
 		activeRouteClimbs.filter((climb) => climb.category !== "Uncategorized"),
@@ -3683,6 +3687,18 @@
 									</span>
 								{/if}
 							</span>
+							{#if activeRouteGradientMetrics?.averageGradientPercent !== null}
+								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+								<span class="font-semibold text-foreground">
+									Avg {formatGrade(activeRouteGradientMetrics.averageGradientPercent)}
+								</span>
+							{/if}
+							{#if activeRouteGradientMetrics?.maximumGradientPercent !== null}
+								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+								<span class="font-semibold text-foreground">
+									Max {formatGrade(activeRouteGradientMetrics.maximumGradientPercent)}
+								</span>
+							{/if}
 							<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 							<span class="font-semibold text-foreground">{getRouteDurationText(activeRoute)}</span>
 						</div>
@@ -3985,7 +4001,7 @@
 						</div>
 						{#if elevationSamples.length > 0}
 							<div
-								class="flex flex-wrap items-center justify-end gap-x-2 gap-y-0 text-xs tabular-nums text-muted-foreground"
+								class="flex min-w-0 flex-nowrap items-center justify-end gap-x-2 overflow-x-auto whitespace-nowrap text-xs tabular-nums text-muted-foreground"
 							>
 								{#if activeProfilePoint}
 									<span class="font-semibold text-foreground">
@@ -4001,6 +4017,14 @@
 								<span>max {formatElevation(elevMax)}</span>
 								<span class="text-border">|</span>
 								<span>delta {formatElevation(elevMax - elevMin)}</span>
+								{#if activeRouteGradientMetrics?.averageGradientPercent !== null}
+									<span class="text-border">|</span>
+									<span>avg {formatGrade(activeRouteGradientMetrics.averageGradientPercent)}</span>
+								{/if}
+								{#if activeRouteGradientMetrics?.maximumGradientPercent !== null}
+									<span class="text-border">|</span>
+									<span>max {formatGrade(activeRouteGradientMetrics.maximumGradientPercent)}</span>
+								{/if}
 							</div>
 						{:else}
 							<span class="text-xs text-muted-foreground">No route profile yet</span>
@@ -4010,6 +4034,7 @@
 						{#if elevationSamples.length > 0}
 							<svg
 								class="block w-full touch-none"
+								height={chartH}
 								viewBox="0 0 {chartW} {chartH}"
 								preserveAspectRatio="none"
 								role="img"

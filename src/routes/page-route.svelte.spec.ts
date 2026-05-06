@@ -796,6 +796,45 @@ describe("+page.svelte", () => {
 				),
 			)
 			.toBeInTheDocument();
+		await expect
+			.element(page.getByText(/^Max \d+\.\d%$/))
+			.not.toBeInTheDocument();
+	});
+
+	it("renders average and maximum gradient metrics for a generated route", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url =
+					typeof input === "string"
+						? input
+						: input instanceof URL
+							? input.pathname
+							: new URL(input.url).pathname;
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: successfulRoutePayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Start");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		// page.getByText(/^Avg 1\.3%$/) covers the route-summary header, while
+		// page.getByText(/^avg 1\.3%$/) covers the elevation-analysis panel.
+		await expect.element(page.getByText(/^Avg 1\.3%$/)).toBeInTheDocument();
+		await expect.element(page.getByText(/^Max \d+\.\d%$/)).toBeInTheDocument();
+		await expect.element(page.getByText(/^avg 1\.3%$/)).toBeInTheDocument();
+		await expect.element(page.getByText(/^max \d+\.\d%$/)).toBeInTheDocument();
 	});
 
 	it("renders uncategorized detected climbs in the route summary", async () => {
@@ -3124,9 +3163,20 @@ describe("+page.svelte", () => {
 			.toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 
-		await page
-			.getByRole("img", { name: "Elevation along route" })
-			.hover({ position: { x: 1, y: 12 } });
+		const chart = page.getByRole("img", { name: "Elevation along route" });
+		const chartElement = chart.element();
+		const chartBounds = chartElement.getBoundingClientRect();
+
+		chartElement.dispatchEvent(
+			new PointerEvent("pointermove", {
+				bubbles: true,
+				pointerType: "mouse",
+				pointerId: 1,
+				clientX: chartBounds.x + 2,
+				clientY: chartBounds.y + chartBounds.height / 2,
+				isPrimary: true,
+			}),
+		);
 
 		await expect.element(page.getByText("At 0.00 km")).toBeInTheDocument();
 		await expect.element(page.getByText(/^520 m$/)).toBeInTheDocument();
@@ -3135,7 +3185,14 @@ describe("+page.svelte", () => {
 			"planned-route-hover-point",
 		);
 
-		await page.getByRole("button", { name: "Analysis" }).hover();
+		chartElement.dispatchEvent(
+			new PointerEvent("pointerleave", {
+				bubbles: true,
+				pointerType: "mouse",
+				pointerId: 1,
+				isPrimary: true,
+			}),
+		);
 
 		await expect
 			.poll(() =>

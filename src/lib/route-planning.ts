@@ -162,6 +162,11 @@ export type RouteClimb = {
 	isKeyClimb: boolean;
 };
 
+export type RouteGradientMetrics = {
+	averageGradientPercent: number | null;
+	maximumGradientPercent: number | null;
+};
+
 export type PlannedRoute = {
 	mode: RouteMode;
 	source: RouteSource;
@@ -1231,6 +1236,8 @@ const climbDetectionThresholds = {
 	keyClimbCount: 3,
 } as const;
 
+const gradientAnalysisMinWindowMeters = 100;
+
 function smoothClimbPoints(points: ClimbAnalysisPoint[]): ClimbAnalysisPoint[] {
 	const radius = Math.floor(climbDetectionThresholds.smoothingWindow / 2);
 
@@ -1263,6 +1270,85 @@ function smoothClimbPoints(points: ClimbAnalysisPoint[]): ClimbAnalysisPoint[] {
 				sampleCount > 0 ? elevationTotal / sampleCount : point.elevationMeters,
 		};
 	});
+}
+
+export function calculateRouteGradientMetrics(
+	route: PlannedRoute,
+): RouteGradientMetrics {
+	const averageGradientPercent =
+		Number.isFinite(route.distanceMeters) && route.distanceMeters > 0
+			? (Math.max(0, route.ascendMeters) / route.distanceMeters) * 100
+			: null;
+
+	const validPoints = getRouteElevationAnalysisPoints(route.coordinates)
+		.filter(
+			(point) =>
+				Number.isFinite(point.distanceMeters) &&
+				Number.isFinite(point.elevationMeters),
+		)
+		.sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+	if (validPoints.length < 2) {
+		return {
+			averageGradientPercent,
+			maximumGradientPercent: null,
+		};
+	}
+
+	const smoothedPoints = smoothClimbPoints(validPoints);
+	let maximumGradientPercent: number | null = null;
+	let endIndex = 1;
+
+	for (
+		let startIndex = 0;
+		startIndex < smoothedPoints.length - 1;
+		startIndex += 1
+	) {
+		const start = smoothedPoints[startIndex];
+
+		if (!start) continue;
+
+		endIndex = Math.max(endIndex, startIndex + 1);
+
+		while (endIndex < smoothedPoints.length) {
+			const end = smoothedPoints[endIndex];
+
+			if (!end) break;
+
+			if (
+				end.distanceMeters - start.distanceMeters >=
+				gradientAnalysisMinWindowMeters
+			) {
+				break;
+			}
+
+			endIndex += 1;
+		}
+
+		const end = smoothedPoints[endIndex];
+
+		if (!end) {
+			continue;
+		}
+
+		const distanceMeters = end.distanceMeters - start.distanceMeters;
+		const elevationGainMeters = end.elevationMeters - start.elevationMeters;
+
+		if (distanceMeters <= 0 || elevationGainMeters <= 0) {
+			continue;
+		}
+
+		const gradientPercent = (elevationGainMeters / distanceMeters) * 100;
+		maximumGradientPercent =
+			maximumGradientPercent === null
+				? gradientPercent
+				: Math.max(maximumGradientPercent, gradientPercent);
+	}
+
+	return {
+		averageGradientPercent,
+		maximumGradientPercent,
+	};
 }
 
 export function classifyClimbCategory(

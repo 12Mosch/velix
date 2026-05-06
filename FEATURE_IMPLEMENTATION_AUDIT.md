@@ -192,8 +192,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Estimated ride time | Full | GraphHopper time shown for generated routes; GPX time shown if timestamps exist. |
 | Elevation gain | Full | Shown in summary and analysis. |
 | Elevation loss | Full | Shown in summary. |
-| Average gradient | Missing | Not calculated/displayed. |
-| Maximum gradient | Missing | Not calculated/displayed. |
+| Average gradient | Full | Calculated as total ascent divided by route distance and displayed in the active route summary and elevation analysis stats. |
+| Maximum gradient | Full | Calculated from smoothed elevation samples over forward windows of at least 100 m and displayed in the active route summary and elevation analysis stats. |
 | Minimum/maximum elevation | Full | Elevation panel shows min/max. |
 | Number of turns | Missing | Route requests set `instructions: false`; no turn count. |
 | Number of waypoints | Half | Waypoints are visible/listed and can include mode-specific shaping points, but no explicit count metric is shown. |
