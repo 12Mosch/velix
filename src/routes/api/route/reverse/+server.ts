@@ -7,13 +7,15 @@ import { runServerEffect } from "$lib/server/effect-runtime";
 import { reverseGeocodeLocationEffect } from "$lib/server/graphhopper";
 import { mapGraphHopperGeocodeError } from "$lib/server/graphhopper-route-errors";
 import type { GraphHopperGeocodeError } from "$lib/server/graphhopper-errors";
+import { ServerLive } from "$lib/server/layers";
+import { ServerFetch } from "$lib/server/resilience";
 import { checkReverseRateLimitEffect } from "$lib/server/route-rate-limits";
 
 export const GET: RequestHandler = async (event) => {
 	const { fetch, url } = event;
 	const latitude = Number(url.searchParams.get("lat"));
 	const longitude = Number(url.searchParams.get("lng"));
-	let program: Effect.Effect<Response, GraphHopperGeocodeError>;
+	let program: Effect.Effect<Response, GraphHopperGeocodeError, never>;
 
 	if (
 		!Number.isFinite(latitude) ||
@@ -41,13 +43,16 @@ export const GET: RequestHandler = async (event) => {
 				return rateLimitResponse;
 			}
 
-			const suggestion = yield* reverseGeocodeLocationEffect(fetch, point);
+			const suggestion = yield* reverseGeocodeLocationEffect(point);
 
 			return json({
 				label: suggestion?.label || formatCoordinateLabel(point),
 				point,
 			});
-		});
+		}).pipe(
+			Effect.provide(ServerLive),
+			Effect.provideService(ServerFetch, { fetch }),
+		);
 	}
 
 	return runServerEffect(

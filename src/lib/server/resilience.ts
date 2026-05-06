@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Clock, Context, Effect, Layer } from "effect";
 
 type FetchFn = typeof fetch;
 
@@ -21,36 +21,79 @@ export type RateLimitResult =
 			retryAfterSeconds: number;
 	  };
 
+export class FetchTimeoutError extends Error {
+	readonly _tag = "FetchTimeoutError";
+
+	constructor(readonly cause: unknown) {
+		super("Fetch request failed or timed out");
+	}
+}
+
+export class ServerFetch extends Context.Service<
+	ServerFetch,
+	{
+		readonly fetch: FetchFn;
+	}
+>()("ServerFetch") {}
+
+export class TimeoutFetch extends Context.Service<
+	TimeoutFetch,
+	{
+		readonly fetch: (
+			input: RequestInfo | URL,
+			init: RequestInit | undefined,
+			timeoutMs: number,
+		) => Effect.Effect<Response, FetchTimeoutError>;
+	}
+>()("TimeoutFetch") {}
+
+export const TimeoutFetchLive = Layer.effect(TimeoutFetch)(
+	Effect.gen(function* () {
+		const serverFetch = yield* ServerFetch;
+
+		return {
+			fetch: (input, init, timeoutMs) =>
+				Effect.tryPromise({
+					try: async (signal) => {
+						const controller = new AbortController();
+						const timeout = setTimeout(() => controller.abort(), timeoutMs);
+						const abort = () => controller.abort();
+
+						if (signal.aborted) {
+							controller.abort();
+						} else {
+							signal.addEventListener("abort", abort, { once: true });
+						}
+
+						try {
+							return await serverFetch.fetch(input, {
+								...init,
+								signal: controller.signal,
+							});
+						} finally {
+							clearTimeout(timeout);
+							signal.removeEventListener("abort", abort);
+						}
+					},
+					catch: (cause) => new FetchTimeoutError(cause),
+				}),
+		};
+	}),
+);
+
 export function fetchWithTimeoutEffect(
 	fetchFn: FetchFn,
 	input: Parameters<FetchFn>[0],
 	init: Parameters<FetchFn>[1] = {},
 	timeoutMs: number,
-): Effect.Effect<Response, unknown> {
-	return Effect.tryPromise({
-		try: async (signal) => {
-			const controller = new AbortController();
-			const timeout = setTimeout(() => controller.abort(), timeoutMs);
-			const abort = () => controller.abort();
-
-			if (signal.aborted) {
-				controller.abort();
-			} else {
-				signal.addEventListener("abort", abort, { once: true });
-			}
-
-			try {
-				return await fetchFn(input, {
-					...init,
-					signal: controller.signal,
-				});
-			} finally {
-				clearTimeout(timeout);
-				signal.removeEventListener("abort", abort);
-			}
-		},
-		catch: (cause) => cause,
-	});
+): Effect.Effect<Response, FetchTimeoutError> {
+	return Effect.gen(function* () {
+		const timeoutFetch = yield* TimeoutFetch;
+		return yield* timeoutFetch.fetch(input, init, timeoutMs);
+	}).pipe(
+		Effect.provide(TimeoutFetchLive),
+		Effect.provideService(ServerFetch, { fetch: fetchFn }),
+	);
 }
 
 export function fetchWithTimeout(
@@ -73,9 +116,9 @@ export class TtlCache<Value> {
 	) {}
 
 	getEffect(key: string): Effect.Effect<Value | undefined> {
-		return Effect.sync(() => {
+		return Effect.gen({ self: this }, function* () {
 			const entry = this.#entries.get(key);
-			const now = Date.now();
+			const now = yield* Clock.currentTimeMillis;
 
 			if (!entry) {
 				return undefined;
@@ -99,13 +142,15 @@ export class TtlCache<Value> {
 	}
 
 	setEffect(key: string, value: Value): Effect.Effect<void> {
-		return Effect.sync(() => {
+		return Effect.gen({ self: this }, function* () {
+			const now = yield* Clock.currentTimeMillis;
+
 			if (this.#entries.has(key)) {
 				this.#entries.delete(key);
 			}
 
 			this.#entries.set(key, {
-				expiresAt: Date.now() + this.ttlMs,
+				expiresAt: now + this.ttlMs,
 				value,
 			});
 
@@ -136,6 +181,27 @@ export class TtlCache<Value> {
 	}
 }
 
+export type TtlCacheService<Value> = {
+	readonly get: (key: string) => Effect.Effect<Value | undefined>;
+	readonly set: (key: string, value: Value) => Effect.Effect<void>;
+	readonly clear: Effect.Effect<void>;
+};
+
+export function makeTtlCache<Value>(options: {
+	readonly ttlMs: number;
+	readonly maxEntries: number;
+}): Effect.Effect<TtlCacheService<Value>> {
+	return Effect.sync(
+		() => new TtlCache<Value>(options.ttlMs, options.maxEntries),
+	).pipe(
+		Effect.map((cache) => ({
+			get: (key: string) => cache.getEffect(key),
+			set: (key: string, value: Value) => cache.setEffect(key, value),
+			clear: cache.clearEffect(),
+		})),
+	);
+}
+
 export class FixedWindowRateLimiter {
 	readonly #entries = new Map<string, RateLimitEntry>();
 
@@ -153,8 +219,8 @@ export class FixedWindowRateLimiter {
 	}
 
 	checkEffect(key: string): Effect.Effect<RateLimitResult> {
-		return Effect.sync(() => {
-			const now = Date.now();
+		return Effect.gen({ self: this }, function* () {
+			const now = yield* Clock.currentTimeMillis;
 			this.#pruneExpired(now);
 			const entry = this.#entries.get(key);
 
@@ -194,4 +260,23 @@ export class FixedWindowRateLimiter {
 	clear(): void {
 		Effect.runSync(this.clearEffect());
 	}
+}
+
+export type FixedWindowRateLimiterService = {
+	readonly check: (key: string) => Effect.Effect<RateLimitResult>;
+	readonly clear: Effect.Effect<void>;
+};
+
+export function makeFixedWindowRateLimiter(options: {
+	readonly maxRequests: number;
+	readonly windowMs: number;
+}): Effect.Effect<FixedWindowRateLimiterService> {
+	return Effect.sync(
+		() => new FixedWindowRateLimiter(options.maxRequests, options.windowMs),
+	).pipe(
+		Effect.map((limiter) => ({
+			check: (key: string) => limiter.checkEffect(key),
+			clear: limiter.clearEffect(),
+		})),
+	);
 }

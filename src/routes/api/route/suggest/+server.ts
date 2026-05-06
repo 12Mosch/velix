@@ -7,6 +7,8 @@ import { runServerEffect } from "$lib/server/effect-runtime";
 import { suggestLocationsEffect } from "$lib/server/graphhopper";
 import { mapGraphHopperGeocodeError } from "$lib/server/graphhopper-route-errors";
 import type { GraphHopperGeocodeError } from "$lib/server/graphhopper-errors";
+import { ServerLive } from "$lib/server/layers";
+import { ServerFetch } from "$lib/server/resilience";
 import { checkSuggestionRateLimitEffect } from "$lib/server/route-rate-limits";
 
 const minQueryLength = 3;
@@ -16,7 +18,7 @@ export const GET: RequestHandler = async (event) => {
 	const { fetch, url } = event;
 	const query = url.searchParams.get("q")?.trim() ?? "";
 	const coordinateResult = parseCoordinateSearchInput(query);
-	let program: Effect.Effect<Response, GraphHopperGeocodeError>;
+	let program: Effect.Effect<Response, GraphHopperGeocodeError, never>;
 
 	if (coordinateResult.kind === "coordinate") {
 		program = Effect.succeed(
@@ -49,16 +51,15 @@ export const GET: RequestHandler = async (event) => {
 				return rateLimitResponse;
 			}
 
-			const suggestions = yield* suggestLocationsEffect(
-				fetch,
-				query,
-				maxSuggestions,
-			);
+			const suggestions = yield* suggestLocationsEffect(query, maxSuggestions);
 
 			return json({
 				suggestions,
 			});
-		});
+		}).pipe(
+			Effect.provide(ServerLive),
+			Effect.provideService(ServerFetch, { fetch }),
+		);
 	}
 
 	return runServerEffect(
