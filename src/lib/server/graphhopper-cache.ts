@@ -16,31 +16,60 @@ export class GraphHopperReverseGeocodeCache extends Context.Service<
 	TtlCacheService<RouteSuggestion | null>
 >()("GraphHopperReverseGeocodeCache") {}
 
-const suggestionCache = Effect.runSync(
-	makeTtlCache<RouteSuggestion[]>({
-		ttlMs: geocodeCacheTtlMs,
-		maxEntries: maxGeocodeCacheEntries,
-	}),
-);
-const reverseGeocodeCache = Effect.runSync(
-	makeTtlCache<RouteSuggestion | null>({
-		ttlMs: geocodeCacheTtlMs,
-		maxEntries: maxGeocodeCacheEntries,
-	}),
-);
+let suggestionCache: TtlCacheService<RouteSuggestion[]> | undefined;
+let reverseGeocodeCache: TtlCacheService<RouteSuggestion | null> | undefined;
 
-export const GraphHopperSuggestionCacheLive = Layer.succeed(
+export const GraphHopperSuggestionCacheLive = Layer.effect(
 	GraphHopperSuggestionCache,
-)(suggestionCache);
-export const GraphHopperReverseGeocodeCacheLive = Layer.succeed(
+)(
+	Effect.suspend(() => {
+		if (suggestionCache) {
+			return Effect.succeed(suggestionCache);
+		}
+
+		return makeTtlCache<RouteSuggestion[]>({
+			ttlMs: geocodeCacheTtlMs,
+			maxEntries: maxGeocodeCacheEntries,
+		}).pipe(
+			Effect.tap((cache) =>
+				Effect.sync(() => {
+					suggestionCache = cache;
+				}),
+			),
+		);
+	}),
+);
+export const GraphHopperReverseGeocodeCacheLive = Layer.effect(
 	GraphHopperReverseGeocodeCache,
-)(reverseGeocodeCache);
+)(
+	Effect.suspend(() => {
+		if (reverseGeocodeCache) {
+			return Effect.succeed(reverseGeocodeCache);
+		}
+
+		return makeTtlCache<RouteSuggestion | null>({
+			ttlMs: geocodeCacheTtlMs,
+			maxEntries: maxGeocodeCacheEntries,
+		}).pipe(
+			Effect.tap((cache) =>
+				Effect.sync(() => {
+					reverseGeocodeCache = cache;
+				}),
+			),
+		);
+	}),
+);
 
 export function clearGraphHopperCachesForTests(): void {
 	Effect.runSync(
 		Effect.gen(function* () {
-			yield* suggestionCache.clear;
-			yield* reverseGeocodeCache.clear;
+			if (suggestionCache) {
+				yield* suggestionCache.clear;
+			}
+
+			if (reverseGeocodeCache) {
+				yield* reverseGeocodeCache.clear;
+			}
 		}),
 	);
 }

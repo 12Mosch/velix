@@ -5,9 +5,7 @@ import {
 	GraphHopperSuggestionCacheLive,
 } from "$lib/server/graphhopper-cache";
 import { GraphHopperConfigLive } from "$lib/server/graphhopper-config";
-import {
-	RouteRateLimitLive,
-} from "$lib/server/route-rate-limits";
+import { RouteRateLimitLive } from "$lib/server/route-rate-limits";
 import { TimeoutFetchLive } from "$lib/server/resilience";
 
 export const GraphHopperLive = Layer.mergeAll(
