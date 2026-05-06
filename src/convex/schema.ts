@@ -14,4 +14,22 @@ export default defineSchema({
 	})
 		.index("by_user_createdAt", ["userId", "createdAtMs"])
 		.index("by_user_routeId", ["userId", "routeId"]),
+	userPreferences: defineTable({
+		userId: v.string(),
+		themeMode: v.optional(
+			v.union(v.literal("system"), v.literal("light"), v.literal("dark")),
+		),
+		mapStyle: v.optional(
+			v.union(
+				v.literal("stadia-alidade-smooth"),
+				v.literal("stadia-alidade-smooth-dark"),
+				v.literal("stadia-stamen-terrain"),
+				v.literal("maptiler-satellite-hybrid"),
+				v.literal("maptiler-outdoor"),
+			),
+		),
+		distanceUnit: v.optional(v.union(v.literal("km"), v.literal("mi"))),
+		createdAtMs: v.number(),
+		updatedAtMs: v.number(),
+	}).index("by_user", ["userId"]),
 });

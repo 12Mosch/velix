@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { Laptop, Moon, Sun } from "@lucide/svelte";
-	import { resetMode, setMode, userPrefersMode, type UserPrefersMode } from "mode-watcher";
+	import { userPrefersMode } from "mode-watcher";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
-
-	type ThemeMode = UserPrefersMode["current"];
+	import {
+		setThemeModePreference,
+		type ThemeMode,
+	} from "$lib/theme-settings.svelte";
 
 	const themeOptions: Array<{
 		mode: ThemeMode;
@@ -34,12 +36,7 @@
 	];
 
 	function selectThemeMode(mode: ThemeMode) {
-		if (mode === "system") {
-			resetMode();
-			return;
-		}
-
-		setMode(mode);
+		setThemeModePreference(mode);
 	}
 </script>
 

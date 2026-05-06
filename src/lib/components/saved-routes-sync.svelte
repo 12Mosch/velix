@@ -1,13 +1,41 @@
 <script lang="ts">
-	import { useConvexClient } from "convex-svelte";
+	import { useConvexClient, useQuery } from "convex-svelte";
+	import { userPrefersMode } from "mode-watcher";
 	import { untrack } from "svelte";
 	import { useClerkContext } from "svelte-clerk/client";
 
+	import { api } from "../../convex/_generated/api";
+	import {
+		applyRemoteMapStylePreference,
+		initMapStylePreference,
+		mapStylePreference,
+		type BasemapId,
+	} from "$lib/map-style-settings.svelte";
 	import { savedRoutesState } from "$lib/saved-routes.svelte";
+	import {
+		applyRemoteThemeModePreference,
+		getThemeModePreference,
+	} from "$lib/theme-settings.svelte";
+	import {
+		applyRemoteDistanceUnitPreference,
+		initUnitPreference,
+		unitPreference,
+		type DistanceUnit,
+	} from "$lib/unit-settings.svelte";
 	import {
 		createSavedRoutesRemoteAdapter,
 		syncSavedRoutesOnce,
 	} from "./saved-routes-sync";
+	import {
+		createUserPreferencesRemoteAdapter,
+		diffUserPreferencesPatch,
+		hasUserPreferencesPatch,
+		serializeUserPreferencesPatch,
+		syncUserPreferencesSnapshot,
+		type UserPreferencesPatch,
+		type UserPreferencesRemoteSnapshot,
+		type UserPreferencesSyncState,
+	} from "./user-preferences-sync";
 
 	const ctx = useClerkContext();
 	const client = useConvexClient();
@@ -16,10 +44,84 @@
 	let convexAuthUnavailable = false;
 	let convexAuthError = $state<string | null>(null);
 	let syncRequestId = 0;
+	let preferencesRequestId = 0;
+	let preferencesHydratedUserId = $state<string | null>(null);
+	let lastPersistedPreferences = $state<UserPreferencesPatch | null>(null);
+	let lastPersistedPreferencesSignature = $state<string | null>(null);
+	let localPreferencesInitialized = false;
 
+	const accountPreferences = useQuery(
+		api.userPreferences.getForCurrentUser,
+		() =>
+			ctx.isLoaded && ctx.auth.userId && convexAuthenticated ? {} : "skip",
+	);
 	const clerkUserId = $derived(
 		ctx.isLoaded ? (ctx.auth.userId ?? null) : undefined,
 	);
+
+	function initLocalPreferences() {
+		if (localPreferencesInitialized) {
+			return;
+		}
+
+		localPreferencesInitialized = true;
+		initMapStylePreference();
+		initUnitPreference();
+	}
+
+	function readLocalPreferences(): UserPreferencesPatch {
+		initLocalPreferences();
+		return {
+			themeMode: getThemeModePreference(),
+			mapStyle: mapStylePreference.selectedBasemapId ?? undefined,
+			distanceUnit: unitPreference.selectedDistanceUnit,
+		};
+	}
+
+	function applyRemotePreferences(
+		_userId: string,
+		preferences: NonNullable<UserPreferencesRemoteSnapshot>,
+	): UserPreferencesPatch {
+		initLocalPreferences();
+
+		if (preferences.themeMode) {
+			applyRemoteThemeModePreference(preferences.themeMode);
+		}
+
+		if (preferences.mapStyle) {
+			applyRemoteMapStylePreference(preferences.mapStyle as BasemapId);
+		}
+
+		if (preferences.distanceUnit) {
+			applyRemoteDistanceUnitPreference(preferences.distanceUnit as DistanceUnit);
+		}
+
+		return readLocalPreferences();
+	}
+
+	const userPreferencesState: UserPreferencesSyncState = {
+		applyRemotePreferences,
+		readLocalPreferences,
+		get syncError() {
+			return savedRoutesState.syncError;
+		},
+		set syncError(value: string | null) {
+			savedRoutesState.syncError = value;
+		},
+	};
+
+	function rememberPersistedPreferences(preferences: UserPreferencesPatch | null) {
+		lastPersistedPreferences = preferences ? { ...preferences } : null;
+		lastPersistedPreferencesSignature = preferences
+			? serializeUserPreferencesPatch(preferences)
+			: null;
+	}
+
+	$effect(() => {
+		untrack(() => {
+			initLocalPreferences();
+		});
+	});
 
 	$effect(() => {
 		const userId = clerkUserId;
@@ -117,6 +219,112 @@
 				savedRoutesState.setRemoteAdapter(null);
 			});
 		};
+	});
+
+	$effect(() => {
+		const userId = ctx.auth.userId;
+		const authError = convexAuthError;
+		const remotePreferences = accountPreferences.data;
+		const remoteError = accountPreferences.error;
+		const remoteLoading = accountPreferences.isLoading;
+
+		if (!ctx.isLoaded || !userId || !convexAuthenticated || authError) {
+			preferencesRequestId += 1;
+			preferencesHydratedUserId = null;
+			rememberPersistedPreferences(null);
+			return;
+		}
+
+		if (remoteError) {
+			preferencesRequestId += 1;
+			preferencesHydratedUserId = null;
+			rememberPersistedPreferences(null);
+			savedRoutesState.syncError = `Could not load account preferences: ${remoteError.message}`;
+			return;
+		}
+
+		if (remoteLoading || remotePreferences === undefined) {
+			return;
+		}
+
+		const adapter = createUserPreferencesRemoteAdapter(client);
+		const requestId = ++preferencesRequestId;
+
+		untrack(() => {
+			void syncUserPreferencesSnapshot({
+				adapter,
+				getCurrentRequestId: () => preferencesRequestId,
+				remotePreferences,
+				requestId,
+				state: userPreferencesState,
+				userId,
+			}).then((persistedPreferences) => {
+				if (preferencesRequestId !== requestId || !persistedPreferences) {
+					return;
+				}
+
+				preferencesHydratedUserId = userId;
+				rememberPersistedPreferences(persistedPreferences);
+			});
+		});
+
+		return () => {
+			preferencesRequestId += 1;
+		};
+	});
+
+	$effect(() => {
+		const userId = ctx.auth.userId;
+		const themeMode = userPrefersMode.current;
+		const mapStyle = mapStylePreference.selectedBasemapId;
+		const distanceUnit = unitPreference.selectedDistanceUnit;
+		const persistedSignature = lastPersistedPreferencesSignature;
+
+		if (
+			!ctx.isLoaded ||
+			!userId ||
+			!convexAuthenticated ||
+			preferencesHydratedUserId !== userId ||
+			!lastPersistedPreferences
+		) {
+			return;
+		}
+
+		const nextPreferences: UserPreferencesPatch = {
+			themeMode,
+			mapStyle: mapStyle ?? undefined,
+			distanceUnit,
+		};
+		const nextSignature = serializeUserPreferencesPatch(nextPreferences);
+
+		if (nextSignature === persistedSignature) {
+			return;
+		}
+
+		const patch = diffUserPreferencesPatch(
+			lastPersistedPreferences,
+			nextPreferences,
+		);
+
+		if (!hasUserPreferencesPatch(patch)) {
+			rememberPersistedPreferences(nextPreferences);
+			return;
+		}
+
+		const adapter = createUserPreferencesRemoteAdapter(client);
+		const requestId = preferencesRequestId;
+		rememberPersistedPreferences(nextPreferences);
+
+		void adapter.save(patch).catch((error) => {
+			if (preferencesRequestId !== requestId) {
+				return;
+			}
+
+			savedRoutesState.syncError =
+				error instanceof Error
+					? `Could not save account preferences: ${error.message}`
+					: "Could not save account preferences.";
+		});
 	});
 
 	$effect(() => {
