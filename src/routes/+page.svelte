@@ -15,7 +15,7 @@
 		parseRouteGpx,
 		RouteGpxImportError,
 	} from "$lib/route-gpx-import";
-	import { downloadRouteGpx } from "$lib/route-export";
+	import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
 	import {
 		basemapOptions,
 		mapStylePreference,
@@ -2662,6 +2662,23 @@
 		}
 	}
 
+	function handleExportFit() {
+		if (!activeRoute) {
+			return;
+		}
+
+		routeExportError = null;
+
+		try {
+			downloadRouteFit(activeRoute);
+		} catch (error) {
+			routeExportError =
+				error instanceof Error
+					? `Could not export FIT: ${error.message}`
+					: "Could not export FIT.";
+		}
+	}
+
 	function openGpxImportPicker() {
 		routeImportError = null;
 		gpxImportInput?.click();
@@ -3847,6 +3864,15 @@
 								onclick={handleExportGpx}
 							>
 								Export GPX
+							</Button>
+							<Button
+								size="sm"
+								variant="outline"
+								class="font-semibold"
+								disabled={!activeRoute}
+								onclick={handleExportFit}
+							>
+								Export FIT
 							</Button>
 							<Button
 								variant="outline"

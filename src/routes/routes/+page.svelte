@@ -4,7 +4,7 @@
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
-	import { downloadRouteGpx } from "$lib/route-export";
+	import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
 	import {
 		deleteSavedRoute,
 		savedRoutesState,
@@ -216,6 +216,19 @@
 					: "Could not export GPX.";
 		}
 	}
+
+	function handleExportSavedRouteFit(route: PlannedRoute) {
+		exportError = null;
+
+		try {
+			downloadRouteFit(route);
+		} catch (error) {
+			exportError =
+				error instanceof Error
+					? `Could not export FIT: ${error.message}`
+					: "Could not export FIT.";
+		}
+	}
 </script>
 
 <div class="relative h-full w-full overflow-y-auto bg-background">
@@ -420,6 +433,13 @@
 									onclick={() => handleExportSavedRoute(savedRoute.route)}
 								>
 									Export GPX
+								</Button>
+								<Button
+									variant="outline"
+									class="font-semibold"
+									onclick={() => handleExportSavedRouteFit(savedRoute.route)}
+								>
+									Export FIT
 								</Button>
 								<Button
 									variant="outline"

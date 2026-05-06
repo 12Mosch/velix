@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { Decoder, Stream } from "@garmin/fitsdk";
 
-import { buildRouteGpx, buildRouteGpxFilename } from "$lib/route-export";
+import {
+	buildRouteFit,
+	buildRouteFitFilename,
+	buildRouteGpx,
+	buildRouteGpxFilename,
+} from "$lib/route-export";
 import type { PlannedRoute } from "$lib/route-planning";
 
 const pointToPointRoute: PlannedRoute = {
@@ -32,6 +38,29 @@ const pointToPointRoute: PlannedRoute = {
 	surfaceDetails: [],
 	smoothnessDetails: [],
 };
+
+function semicirclesToDegrees(value: number): number {
+	return (value * 180) / 2 ** 31;
+}
+
+function decodeFit(bytes: Uint8Array) {
+	const stream = Stream.fromByteArray(bytes);
+	const decoder = new Decoder(stream);
+
+	expect(Decoder.isFIT(stream)).toBe(true);
+	expect(decoder.isFIT()).toBe(true);
+	expect(decoder.checkIntegrity()).toBe(true);
+
+	const decoded = decoder.read();
+	expect(decoded.errors).toEqual([]);
+
+	return decoded.messages as {
+		fileIdMesgs?: Array<Record<string, unknown>>;
+		courseMesgs?: Array<Record<string, unknown>>;
+		recordMesgs?: Array<Record<string, unknown>>;
+		lapMesgs?: Array<Record<string, unknown>>;
+	};
+}
 
 describe("buildRouteGpx", () => {
 	it("serializes a point-to-point route as a GPX track with named waypoints", () => {
@@ -236,5 +265,133 @@ describe("buildRouteGpxFilename", () => {
 				destinationLabel: "???",
 			}),
 		).toBe("velix-route.gpx");
+	});
+});
+
+describe("buildRouteFit", () => {
+	it("serializes a point-to-point route as a FIT course with records and lap summary", () => {
+		const fit = buildRouteFit(pointToPointRoute, {
+			exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+		});
+		const messages = decodeFit(fit);
+		const fileId = messages.fileIdMesgs?.[0];
+		const course = messages.courseMesgs?.[0];
+		const records = messages.recordMesgs ?? [];
+		const lap = messages.lapMesgs?.[0];
+
+		expect(fit).toBeInstanceOf(Uint8Array);
+		expect(fileId).toMatchObject({
+			type: "course",
+			manufacturer: "development",
+			product: 1,
+			productName: "Velix",
+		});
+		expect(course).toMatchObject({
+			name: "Marienplatz, Munich, Germany to Schliersee, Germany",
+			sport: "cycling",
+		});
+		expect(records).toHaveLength(pointToPointRoute.coordinates.length);
+
+		const firstRecord = records[0];
+		const lastRecord = records[records.length - 1];
+		expect(
+			semicirclesToDegrees(firstRecord.positionLong as number),
+		).toBeCloseTo(11.5755, 5);
+		expect(semicirclesToDegrees(firstRecord.positionLat as number)).toBeCloseTo(
+			48.1374,
+			5,
+		);
+		expect(firstRecord.altitude).toBe(520);
+		expect(lastRecord.altitude).toBe(785);
+		expect(lastRecord.distance as number).toBeGreaterThan(
+			firstRecord.distance as number,
+		);
+		expect(firstRecord.timestamp).toEqual(new Date("2026-04-22T18:30:00.000Z"));
+		expect(lastRecord.timestamp).toEqual(new Date("2026-04-22T21:14:36.000Z"));
+		expect(lap).toMatchObject({
+			event: "lap",
+			eventType: "stop",
+			sport: "cycling",
+			totalAscent: 820,
+			totalDescent: 740,
+		});
+		expect(lap?.totalDistance as number).toBeCloseTo(
+			lastRecord.distance as number,
+			1,
+		);
+		expect(lap?.totalElapsedTime).toBe(9876);
+		expect(lap?.totalTimerTime).toBe(9876);
+	});
+
+	it("uses monotonic point-order timestamps when route duration is missing", () => {
+		const messages = decodeFit(
+			buildRouteFit(
+				{
+					...pointToPointRoute,
+					durationMs: Number.NaN,
+				},
+				{
+					exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+				},
+			),
+		);
+		const records = messages.recordMesgs ?? [];
+
+		expect(records[0].timestamp).toEqual(new Date("2026-04-22T18:30:00.000Z"));
+		expect(records[1].timestamp).toEqual(new Date("2026-04-22T18:30:01.000Z"));
+		expect(records[records.length - 1].timestamp).toEqual(
+			new Date("2026-04-22T18:30:05.000Z"),
+		);
+	});
+
+	it("throws when a track coordinate is missing latitude data", () => {
+		expect(() =>
+			buildRouteFit({
+				...pointToPointRoute,
+				coordinates: [
+					pointToPointRoute.coordinates[0],
+					[11.62] as unknown as PlannedRoute["coordinates"][number],
+					pointToPointRoute.coordinates[
+						pointToPointRoute.coordinates.length - 1
+					],
+				],
+			}),
+		).toThrow("Route track point 2 is missing longitude/latitude values.");
+	});
+});
+
+describe("buildRouteFitFilename", () => {
+	it("builds a point-to-point filename from the route labels", () => {
+		expect(buildRouteFitFilename(pointToPointRoute)).toBe(
+			"marienplatz-munich-germany-to-schliersee-germany.fit",
+		);
+	});
+
+	it("builds a round-course filename from the start label", () => {
+		expect(
+			buildRouteFitFilename({
+				...pointToPointRoute,
+				mode: "round_course",
+			}),
+		).toBe("marienplatz-munich-germany-round-course.fit");
+	});
+
+	it("builds an out-and-back filename from the route labels", () => {
+		expect(
+			buildRouteFitFilename({
+				...pointToPointRoute,
+				mode: "out_and_back",
+			}),
+		).toBe("marienplatz-munich-germany-to-schliersee-germany-out-and-back.fit");
+	});
+
+	it("falls back when slugging yields an empty filename", () => {
+		expect(
+			buildRouteFitFilename({
+				...pointToPointRoute,
+				startLabel: "!!!",
+				destinationLabel: "???",
+			}),
+		).toBe("velix-route.fit");
 	});
 });

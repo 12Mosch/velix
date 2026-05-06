@@ -357,6 +357,7 @@ function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
 			clickedDownload = this.download;
 			clickedHref = this.href;
 		});
+	anchorClick.mockClear();
 
 	Object.defineProperty(URL, "createObjectURL", {
 		configurable: true,
@@ -2016,6 +2017,107 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("alert"))
 			.toHaveTextContent("Could not export GPX: Download blocked");
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
+			"blob:velix-test-route",
+		);
+	});
+
+	it("exports the active route as a FIT download", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const downloadSpy = setupGpxDownloadSpies();
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		await page.getByRole("button", { name: "Export FIT" }).click();
+
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.anchorClick).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.getClickedDownload()).toBe(
+			"marienplatz-munich-germany-to-schliersee-germany.fit",
+		);
+		expect(downloadSpy.getClickedHref()).toBe("blob:velix-test-route");
+		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
+			"blob:velix-test-route",
+		);
+
+		const blob = downloadSpy.getLastBlob();
+		expect(blob).toBeInstanceOf(Blob);
+		expect(blob?.type).toBe("application/vnd.ant.fit");
+		expect((await blob?.arrayBuffer())?.byteLength).toBeGreaterThan(14);
+	});
+
+	it("shows an alert when FIT export fails", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const downloadSpy = setupGpxDownloadSpies({
+			clickError: new Error("Download blocked"),
+		});
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		await page.getByRole("button", { name: "Export FIT" }).click();
+
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent("Could not export FIT: Download blocked");
 		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
 		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
 			"blob:velix-test-route",
