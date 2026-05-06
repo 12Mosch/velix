@@ -14,6 +14,7 @@ import {
 	MAP_STYLE_STORAGE_KEY,
 	resetMapStylePreferenceForTests,
 } from "$lib/map-style-settings.svelte";
+import { MAP_CAMERA_STORAGE_KEY } from "$lib/preferences/map-camera-preferences";
 import { parseRouteGpx } from "$lib/route-gpx-import";
 import {
 	sampleElevationProfile,
@@ -1252,6 +1253,42 @@ describe("+page.svelte", () => {
 		mapInstance.fitBounds.mockClear();
 
 		await page.getByRole("button", { name: "Recenter route" }).click();
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		expect(mapInstance.fitBounds).toHaveBeenCalledWith(
+			successfulRoute.bounds,
+			expect.objectContaining({
+				maxZoom: 14,
+			}),
+		);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("fits a route opened from saved routes even when a map camera is restored", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulRoute,
+				},
+			]),
+		);
+		window.localStorage.setItem(
+			MAP_CAMERA_STORAGE_KEY,
+			JSON.stringify({
+				center: [11.57, 48.13],
+				zoom: 12.5,
+				bearing: 15,
+				pitch: 35,
+			}),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-route-1");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
 
 		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
 		expect(mapInstance.fitBounds).toHaveBeenCalledWith(

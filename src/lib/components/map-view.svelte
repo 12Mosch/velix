@@ -65,6 +65,7 @@
 		lockedSegmentIndexes?: number[];
 		constraintOverlay?: FeatureCollection | null;
 		fitBounds?: RouteBounds | null;
+		fitInitialBoundsWithRestoredCamera?: boolean;
 		manualRecenterBounds?: RouteBounds | null;
 		manualRecenterRequestKey?: number;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
@@ -121,6 +122,7 @@
 		lockedSegmentIndexes = [],
 		constraintOverlay = null,
 		fitBounds = null,
+		fitInitialBoundsWithRestoredCamera = false,
 		manualRecenterBounds = null,
 		manualRecenterRequestKey = 0,
 		hoveredRouteCoordinate = null,
@@ -787,7 +789,11 @@
 				currentStyleUrl = initialStyleUrl;
 				const restoredCamera = readMapCameraPreference(createBrowserStorage());
 
-				if (restoredCamera && resolveRouteBounds(fitBounds)) {
+				if (
+					restoredCamera &&
+					!fitInitialBoundsWithRestoredCamera &&
+					resolveRouteBounds(fitBounds)
+				) {
 					lastFittedBoundsKey = getBoundsKey(fitBounds);
 				}
 
