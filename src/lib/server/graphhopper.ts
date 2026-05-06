@@ -201,7 +201,6 @@ export function suggestLocationsEffect(
 			return yield* Effect.fail(lastError);
 		}
 
-		yield* suggestionCache.set(cacheKey, []);
 		return [];
 	});
 }

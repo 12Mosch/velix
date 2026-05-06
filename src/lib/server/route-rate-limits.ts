@@ -72,7 +72,7 @@ export function checkRouteRateLimit(
 	event: Pick<RequestEvent, "getClientAddress">,
 ): Response | null {
 	return Effect.runSync(
-		checkRouteRateLimitEffect(event).pipe(Effect.provide(RouteRateLimitLive)),
+		checkRouteRateLimitEffect(event).pipe(Effect.provide(RouteRateLimiterLive)),
 	);
 }
 
@@ -94,7 +94,7 @@ export function checkSuggestionRateLimit(
 ): Response | null {
 	return Effect.runSync(
 		checkSuggestionRateLimitEffect(event).pipe(
-			Effect.provide(RouteRateLimitLive),
+			Effect.provide(SuggestionRateLimiterLive),
 		),
 	);
 }
@@ -116,7 +116,9 @@ export function checkReverseRateLimit(
 	event: Pick<RequestEvent, "getClientAddress">,
 ): Response | null {
 	return Effect.runSync(
-		checkReverseRateLimitEffect(event).pipe(Effect.provide(RouteRateLimitLive)),
+		checkReverseRateLimitEffect(event).pipe(
+			Effect.provide(ReverseGeocodeRateLimiterLive),
+		),
 	);
 }
 
