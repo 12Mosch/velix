@@ -780,7 +780,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Copy route | Missing | No copy action. |
 | Duplicate and edit | Half | Saved route can be opened and saved as a new local route, but there is no explicit duplicate action. |
 | Remember last-used preferences | Half | Basemap is remembered; routing inputs/profile preferences are not. |
-| Remember map position when returning | Missing | No map position persistence. |
+| Remember map position when returning | Full | Map camera is restored from browser-local storage; newly changed/generated routes still auto-fit. |
 | Quick presets for common training profiles | Missing | No training profile presets. |
 | Tooltips for technical terms | Half | Sidebar/tooling includes tooltip components, but route-analysis technical terms mostly lack tooltips. |
 | Debug mode for internal development | Missing | No debug mode found. |

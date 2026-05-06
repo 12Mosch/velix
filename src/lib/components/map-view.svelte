@@ -20,6 +20,11 @@
 		initUnitPreference,
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
+	import {
+		readMapCameraPreference,
+		writeMapCameraPreference,
+	} from "$lib/preferences/map-camera-preferences";
+	import { createBrowserStorage } from "$lib/storage/browser-storage";
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
 	import type { SidebarLayoutState } from "$lib/components/ui/sidebar/context.svelte.js";
 	import type {
@@ -90,6 +95,9 @@
 	const scaleControlPosition: ControlPosition = "bottom-left";
 	const webglUnavailableMessage =
 		"Map cannot be shown because this browser or device could not create a WebGL context.";
+	const defaultZoom = 10;
+	const defaultBearing = 0;
+	const defaultPitch = 0;
 	const mapCanvasContextAttributes: WebGLContextAttributes = {
 		antialias: false,
 		depth: true,
@@ -132,6 +140,7 @@
 	let lastFittedBoundsKey: string | null = null;
 	let currentStyleUrl: string | null = null;
 	let detachStyleLoadListener = () => {};
+	let detachCameraPreferenceListeners = () => {};
 	let detachRouteEditingListeners = () => {};
 	let resizeAnimationFrameId: number | null = null;
 	let resizeLoopUntil = 0;
@@ -392,22 +401,168 @@
 	}
 
 	function fitRouteBounds() {
-		if (!map || !isStyleReady || !fitBounds) {
+		const nextFitBounds = resolveRouteBounds(fitBounds);
+
+		if (!map || !isStyleReady || !nextFitBounds) {
 			return;
 		}
 
-		const nextBoundsKey = fitBounds.join(",");
+		const nextBoundsKey = nextFitBounds.join(",");
 
 		if (nextBoundsKey === lastFittedBoundsKey) {
 			return;
 		}
 
-		map.fitBounds(fitBounds as LngLatBoundsLike, {
+		map.fitBounds(nextFitBounds as LngLatBoundsLike, {
 			padding: getFitPadding(),
 			duration: 700,
 			maxZoom: 14,
 		});
 		lastFittedBoundsKey = nextBoundsKey;
+	}
+
+	function getBoundsKey(bounds: RouteBounds | null) {
+		return resolveRouteBounds(bounds)?.join(",") ?? null;
+	}
+
+	function isFiniteNumber(value: unknown): value is number {
+		return typeof value === "number" && Number.isFinite(value);
+	}
+
+	function isValidLngLat(value: unknown): value is [number, number] {
+		if (!Array.isArray(value) || value.length !== 2) {
+			return false;
+		}
+
+		const [lng, lat] = value;
+
+		return (
+			isFiniteNumber(lng) &&
+			lng >= -180 &&
+			lng <= 180 &&
+			isFiniteNumber(lat) &&
+			lat >= -90 &&
+			lat <= 90
+		);
+	}
+
+	function isValidRouteBounds(value: unknown): value is RouteBounds {
+		if (!Array.isArray(value) || value.length !== 4) {
+			return false;
+		}
+
+		const [minLng, minLat, maxLng, maxLat] = value;
+
+		return (
+			isValidLngLat([minLng, minLat]) &&
+			isValidLngLat([maxLng, maxLat]) &&
+			minLng <= maxLng &&
+			minLat <= maxLat
+		);
+	}
+
+	function resolveRouteBounds(bounds: RouteBounds | null) {
+		return isValidRouteBounds(bounds) ? bounds : null;
+	}
+
+	function isValidMapZoom(value: unknown): value is number {
+		return isFiniteNumber(value) && value >= 0 && value <= 24;
+	}
+
+	function isValidMapBearing(value: unknown): value is number {
+		return isFiniteNumber(value) && value >= -360 && value <= 360;
+	}
+
+	function isValidMapPitch(value: unknown): value is number {
+		return isFiniteNumber(value) && value >= 0 && value <= 85;
+	}
+
+	function resolveMapCenter(cameraCenter: unknown): [number, number] {
+		if (isValidLngLat(cameraCenter)) {
+			return cameraCenter;
+		}
+
+		if (isValidLngLat(initialCenter)) {
+			return initialCenter;
+		}
+
+		return defaultCenter;
+	}
+
+	function resolveMapZoom(cameraZoom: unknown) {
+		if (isValidMapZoom(cameraZoom)) {
+			return cameraZoom;
+		}
+
+		if (isValidMapZoom(initialZoom)) {
+			return initialZoom;
+		}
+
+		return defaultZoom;
+	}
+
+	function resolveMapBearing(cameraBearing: unknown) {
+		return isValidMapBearing(cameraBearing) ? cameraBearing : defaultBearing;
+	}
+
+	function resolveMapPitch(cameraPitch: unknown) {
+		return isValidMapPitch(cameraPitch) ? cameraPitch : defaultPitch;
+	}
+
+	function persistCurrentMapCamera() {
+		if (!map) {
+			return;
+		}
+
+		const center = map.getCenter();
+		const cameraCenter = [center.lng, center.lat] as [number, number];
+
+		if (!isValidLngLat(cameraCenter)) {
+			return;
+		}
+
+		const zoom = map.getZoom();
+		const bearing = map.getBearing();
+		const pitch = map.getPitch();
+
+		if (
+			!isValidMapZoom(zoom) ||
+			!isValidMapBearing(bearing) ||
+			!isValidMapPitch(pitch)
+		) {
+			return;
+		}
+
+		writeMapCameraPreference(createBrowserStorage(), {
+			center: cameraCenter,
+			zoom,
+			bearing,
+			pitch,
+		});
+	}
+
+	function attachCameraPreferenceListeners() {
+		if (!map || typeof map.on !== "function" || typeof map.off !== "function") {
+			return;
+		}
+
+		const events = ["moveend", "zoomend", "rotateend", "pitchend"] as const;
+
+		for (const event of events) {
+			map.on(event, persistCurrentMapCamera);
+		}
+
+		detachCameraPreferenceListeners = () => {
+			if (!map || typeof map.off !== "function") {
+				return;
+			}
+
+			for (const event of events) {
+				map.off(event, persistCurrentMapCamera);
+			}
+
+			detachCameraPreferenceListeners = () => {};
+		};
 	}
 
 	$effect(() => {
@@ -584,16 +739,24 @@
 
 				maplibreglModule = maplibregl;
 				currentStyleUrl = initialStyleUrl;
+				const restoredCamera = readMapCameraPreference(createBrowserStorage());
+
+				if (restoredCamera && resolveRouteBounds(fitBounds)) {
+					lastFittedBoundsKey = getBoundsKey(fitBounds);
+				}
 
 				const options: MapOptions = {
 					attributionControl: false,
-					center: initialCenter,
+					center: resolveMapCenter(restoredCamera?.center),
 					container: mapContainer,
+					bearing: resolveMapBearing(restoredCamera?.bearing),
+					pitch: resolveMapPitch(restoredCamera?.pitch),
 					style: initialStyleUrl,
-					zoom: initialZoom,
+					zoom: resolveMapZoom(restoredCamera?.zoom),
 				};
 
 				map = new maplibregl.Map(options);
+				attachCameraPreferenceListeners();
 				syncScaleControl();
 				if (typeof map.on === "function" && typeof map.off === "function") {
 					const routeEditInteractions = createRouteEditInteractions({
@@ -648,6 +811,7 @@
 		return () => {
 			cancelled = true;
 			detachStyleLoadListener();
+			detachCameraPreferenceListeners();
 			detachRouteEditingListeners();
 			cancelSmoothResize();
 			resizeObserver?.disconnect();

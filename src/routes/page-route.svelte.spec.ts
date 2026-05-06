@@ -529,6 +529,10 @@ const {
 		}),
 		fitBounds: vi.fn(),
 		easeTo: vi.fn(),
+		getCenter: vi.fn(() => ({ lng: 11.57, lat: 48.13 })),
+		getZoom: vi.fn(() => 12.5),
+		getBearing: vi.fn(() => 15),
+		getPitch: vi.fn(() => 35),
 	};
 
 	const mapMock = vi.fn(function MockMap(_options: unknown) {
@@ -608,6 +612,10 @@ describe("+page.svelte", () => {
 		mapInstance.removeLayer.mockClear();
 		mapInstance.fitBounds.mockClear();
 		mapInstance.easeTo.mockClear();
+		mapInstance.getCenter.mockClear();
+		mapInstance.getZoom.mockClear();
+		mapInstance.getBearing.mockClear();
+		mapInstance.getPitch.mockClear();
 		mockState.eventHandlers.clear();
 		mockState.renderedFeatures.clear();
 		vi.unstubAllGlobals();
