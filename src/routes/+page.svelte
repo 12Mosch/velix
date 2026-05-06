@@ -3687,13 +3687,13 @@
 									</span>
 								{/if}
 							</span>
-							{#if activeRouteGradientMetrics?.averageGradientPercent !== null}
+							{#if activeRouteGradientMetrics && activeRouteGradientMetrics.averageGradientPercent !== null}
 								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 								<span class="font-semibold text-foreground">
 									Avg {formatGrade(activeRouteGradientMetrics.averageGradientPercent)}
 								</span>
 							{/if}
-							{#if activeRouteGradientMetrics?.maximumGradientPercent !== null}
+							{#if activeRouteGradientMetrics && activeRouteGradientMetrics.maximumGradientPercent !== null}
 								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 								<span class="font-semibold text-foreground">
 									Max {formatGrade(activeRouteGradientMetrics.maximumGradientPercent)}
@@ -4017,11 +4017,11 @@
 								<span>max {formatElevation(elevMax)}</span>
 								<span class="text-border">|</span>
 								<span>delta {formatElevation(elevMax - elevMin)}</span>
-								{#if activeRouteGradientMetrics?.averageGradientPercent !== null}
+								{#if activeRouteGradientMetrics && activeRouteGradientMetrics.averageGradientPercent !== null}
 									<span class="text-border">|</span>
 									<span>avg {formatGrade(activeRouteGradientMetrics.averageGradientPercent)}</span>
 								{/if}
-								{#if activeRouteGradientMetrics?.maximumGradientPercent !== null}
+								{#if activeRouteGradientMetrics && activeRouteGradientMetrics.maximumGradientPercent !== null}
 									<span class="text-border">|</span>
 									<span>max {formatGrade(activeRouteGradientMetrics.maximumGradientPercent)}</span>
 								{/if}

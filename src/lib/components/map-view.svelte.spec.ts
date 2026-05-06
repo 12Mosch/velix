@@ -16,6 +16,7 @@ import {
 	resetMapStylePreferenceForTests,
 	setMapStylePreference,
 } from "$lib/map-style-settings.svelte";
+import { MAP_CAMERA_STORAGE_KEY } from "$lib/preferences/map-camera-preferences";
 import {
 	DISTANCE_UNIT_STORAGE_KEY,
 	resetUnitPreferenceForTests,
@@ -225,6 +226,10 @@ const {
 		}),
 		fitBounds: vi.fn(),
 		easeTo: vi.fn(),
+		getCenter: vi.fn(() => ({ lng: 11.57, lat: 48.13 })),
+		getZoom: vi.fn(() => 12.5),
+		getBearing: vi.fn(() => 15),
+		getPitch: vi.fn(() => 35),
 	};
 
 	const mapMock = vi.fn(function MockMap(_options: unknown) {
@@ -316,6 +321,10 @@ describe("MapView", () => {
 		mapInstance.removeLayer.mockClear();
 		mapInstance.fitBounds.mockClear();
 		mapInstance.easeTo.mockClear();
+		mapInstance.getCenter.mockClear();
+		mapInstance.getZoom.mockClear();
+		mapInstance.getBearing.mockClear();
+		mapInstance.getPitch.mockClear();
 		mockState.eventHandlers.clear();
 		mockState.renderedFeatures.clear();
 		consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -390,6 +399,168 @@ describe("MapView", () => {
 		await view.unmount();
 
 		expect(mapInstance.remove).toHaveBeenCalledTimes(1);
+	});
+
+	it("constructs the map with a stored camera", async () => {
+		window.localStorage.setItem(
+			MAP_CAMERA_STORAGE_KEY,
+			JSON.stringify({
+				center: [11.57, 48.13],
+				zoom: 12.5,
+				bearing: 15,
+				pitch: 35,
+			}),
+		);
+
+		render(MapView, {
+			initialCenter: [11.5, 47.2],
+			initialZoom: 9,
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		expect(mapMock.mock.calls[0]?.[0]).toMatchObject({
+			center: [11.57, 48.13],
+			zoom: 12.5,
+			bearing: 15,
+			pitch: 35,
+		});
+	});
+
+	it("clears invalid stored camera values and falls back to the default center", async () => {
+		window.localStorage.setItem(
+			MAP_CAMERA_STORAGE_KEY,
+			JSON.stringify({
+				center: [null, null],
+				zoom: null,
+				bearing: null,
+				pitch: null,
+			}),
+		);
+
+		render(MapView, {
+			initialCenter: [Number.NaN, Number.NaN],
+			initialZoom: Number.NaN,
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+
+		expect(window.localStorage.getItem(MAP_CAMERA_STORAGE_KEY)).toBeNull();
+		expect(mapMock.mock.calls[0]?.[0]).toMatchObject({
+			center: [11.394, 47.268],
+			zoom: 10,
+			bearing: 0,
+			pitch: 0,
+		});
+	});
+
+	it("does not pass non-finite camera or bounds values to MapLibre", async () => {
+		render(MapView, {
+			initialCenter: [Number.NaN, Number.NaN],
+			initialZoom: Number.NaN,
+			routeOverlays: testRouteOverlays,
+			fitBounds: [11.5, Number.NaN, 11.6, 47.25] as [
+				number,
+				number,
+				number,
+				number,
+			],
+		});
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		expect(mapMock.mock.calls[0]?.[0]).toMatchObject({
+			center: [11.394, 47.268],
+			zoom: 10,
+			bearing: 0,
+			pitch: 0,
+		});
+		expect(mapInstance.fitBounds).not.toHaveBeenCalled();
+	});
+
+	it("persists camera state after a map camera event", async () => {
+		render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		mockState.eventHandlers.get("moveend")?.[0]?.({});
+
+		expect(window.localStorage.getItem(MAP_CAMERA_STORAGE_KEY)).toBe(
+			JSON.stringify({
+				center: [11.57, 48.13],
+				zoom: 12.5,
+				bearing: 15,
+				pitch: 35,
+			}),
+		);
+	});
+
+	it("does not persist invalid map camera values", async () => {
+		mapInstance.getCenter.mockReturnValueOnce({
+			lng: Number.NaN,
+			lat: Number.NaN,
+		});
+
+		render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		mockState.eventHandlers.get("moveend")?.[0]?.({});
+
+		expect(window.localStorage.getItem(MAP_CAMERA_STORAGE_KEY)).toBeNull();
+	});
+
+	it("skips initial route fit bounds when restoring a camera", async () => {
+		window.localStorage.setItem(
+			MAP_CAMERA_STORAGE_KEY,
+			JSON.stringify({
+				center: [11.57, 48.13],
+				zoom: 12.5,
+				bearing: 15,
+				pitch: 35,
+			}),
+		);
+
+		render(MapView, {
+			routeOverlays: testRouteOverlays,
+			fitBounds: [...testRouteBounds],
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		expect(mapInstance.fitBounds).not.toHaveBeenCalled();
+	});
+
+	it("fits route bounds when bounds change after a restored camera mount", async () => {
+		window.localStorage.setItem(
+			MAP_CAMERA_STORAGE_KEY,
+			JSON.stringify({
+				center: [11.57, 48.13],
+				zoom: 12.5,
+				bearing: 15,
+				pitch: 35,
+			}),
+		);
+
+		const view = render(MapView, {
+			routeOverlays: testRouteOverlays,
+			fitBounds: [...testRouteBounds],
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(mapInstance.fitBounds).not.toHaveBeenCalled();
+
+		await view.rerender({
+			routeOverlays: testRouteOverlays,
+			fitBounds: [11.49, 47.19, 11.61, 47.26],
+		});
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		expect(mapInstance.fitBounds).toHaveBeenCalledWith(
+			[11.49, 47.19, 11.61, 47.26],
+			expect.objectContaining({
+				maxZoom: 14,
+			}),
+		);
 	});
 
 	it("adds and removes the metric scale control", async () => {
