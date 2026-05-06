@@ -1,14 +1,13 @@
 <script lang="ts">
-	import { useConvexClient, useQuery } from "convex-svelte";
+	import { useConvexClient } from "convex-svelte";
 	import { untrack } from "svelte";
 	import { useClerkContext } from "svelte-clerk/client";
 
-	import { api } from "../../convex/_generated/api";
+	import { savedRoutesState } from "$lib/saved-routes.svelte";
 	import {
-		savedRoutesState,
-		type SavedRoutesRemoteAdapter,
-	} from "$lib/saved-routes.svelte";
-	import type { RemoteSavedRoutePayload } from "$lib/saved-routes-core";
+		createSavedRoutesRemoteAdapter,
+		syncSavedRoutesOnce,
+	} from "./saved-routes-sync";
 
 	const ctx = useClerkContext();
 	const client = useConvexClient();
@@ -16,16 +15,10 @@
 	let convexAuthenticated = $state(false);
 	let convexAuthUnavailable = false;
 	let convexAuthError = $state<string | null>(null);
+	let syncRequestId = 0;
 
 	const clerkUserId = $derived(
 		ctx.isLoaded ? (ctx.auth.userId ?? null) : undefined,
-	);
-	const canQuerySavedRoutes = $derived(
-		ctx.isLoaded && !!ctx.auth.userId && convexAuthenticated,
-	);
-	const savedRoutesQuery = useQuery(
-		api.savedRoutes.listForCurrentUser,
-		() => (canQuerySavedRoutes ? {} : "skip"),
 	);
 
 	$effect(() => {
@@ -93,75 +86,48 @@
 		const authError = convexAuthError;
 
 		if (!ctx.isLoaded || !userId || !convexAuthenticated || authError) {
+			syncRequestId += 1;
 			untrack(() => {
 				savedRoutesState.setRemoteAdapter(null);
+				if (!authError) {
+					savedRoutesState.syncError = null;
+				}
 			});
 			return;
 		}
 
-		const adapter: SavedRoutesRemoteAdapter = {
-			save: async (savedRoute: RemoteSavedRoutePayload) => {
-				await client.mutation(api.savedRoutes.upsert, { savedRoute });
-			},
-			delete: async (routeId: string) => {
-				await client.mutation(api.savedRoutes.remove, { routeId });
-			},
-			mergeLocalRoutes: async (savedRoutes: RemoteSavedRoutePayload[]) => {
-				return (await client.mutation(api.savedRoutes.mergeLocalRoutes, {
-					savedRoutes,
-				})) as {
-					inserted: number;
-					skipped: number;
-					invalid: number;
-					duplicate: number;
-				};
-			},
-		};
+		const adapter = createSavedRoutesRemoteAdapter(client);
+		const requestId = ++syncRequestId;
 
 		untrack(() => {
 			savedRoutesState.setRemoteAdapter(adapter);
-			void savedRoutesState.runLocalMergeOnce(userId);
+			savedRoutesState.syncError = null;
+			void syncSavedRoutesOnce({
+				client,
+				getCurrentRequestId: () => syncRequestId,
+				requestId,
+				state: savedRoutesState,
+				userId,
+			});
 		});
 
 		return () => {
+			syncRequestId += 1;
 			untrack(() => {
 				savedRoutesState.setRemoteAdapter(null);
 			});
 		};
-	});
-
-	$effect(() => {
-		const userId = ctx.auth.userId;
-
-		if (userId && Array.isArray(savedRoutesQuery.data)) {
-			const remoteRoutes = savedRoutesQuery.data;
-
-			untrack(() => {
-				savedRoutesState.applyRemoteRoutes(userId, remoteRoutes);
-			});
-		}
 	});
 
 	$effect(() => {
 		const authError = convexAuthError;
-		const queryError = savedRoutesQuery.error;
 
-		if (authError) {
-			untrack(() => {
-				savedRoutesState.setRemoteSyncUnavailable(authError);
-			});
-			return;
-		}
-
-		if (queryError) {
-			untrack(() => {
-				savedRoutesState.syncError = `Could not load synced routes: ${queryError.message}`;
-			});
+		if (!authError) {
 			return;
 		}
 
 		untrack(() => {
-			savedRoutesState.syncError = null;
+			savedRoutesState.setRemoteSyncUnavailable(authError);
 		});
 	});
 </script>
