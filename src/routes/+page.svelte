@@ -218,6 +218,7 @@
 	let currentLocation = $state<CurrentLocation | null>(null);
 	let currentLocationFocusKey = $state(0);
 	let recenterRouteRequestKey = $state(0);
+	let fitInitialSavedRouteBounds = $state(false);
 	let isLocating = $state(false);
 	let currentLocationError = $state<string | null>(null);
 	let gpxImportInput = $state<HTMLInputElement | null>(null);
@@ -1238,6 +1239,7 @@
 			return;
 		}
 
+		fitInitialSavedRouteBounds = true;
 		const savedRoute = getSavedRouteById(savedRouteId);
 
 		if (!savedRoute) {
@@ -2758,6 +2760,7 @@
 		lockedSegmentIndexes={sanitizedLockedSegmentIndexes}
 		constraintOverlay={constraintOverlay}
 		fitBounds={combinedRouteBounds}
+		fitInitialBoundsWithRestoredCamera={fitInitialSavedRouteBounds}
 		manualRecenterBounds={activeRoute?.bounds ?? null}
 		manualRecenterRequestKey={recenterRouteRequestKey}
 		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
