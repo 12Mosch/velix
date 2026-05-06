@@ -51,6 +51,21 @@ class UnitPreferenceState {
 		return true;
 	}
 
+	applyRemoteDistanceUnitPreference(unit: DistanceUnit): DistanceUnit | null {
+		const nextDistanceUnit = setDistanceUnitPreferenceValue(
+			distanceUnitRepository,
+			unit,
+		);
+
+		if (!nextDistanceUnit) {
+			return null;
+		}
+
+		this.selectedDistanceUnit = nextDistanceUnit;
+		this.initialized = true;
+		return nextDistanceUnit;
+	}
+
 	resetUnitPreferenceForTests() {
 		this.initialized = false;
 		this.selectedDistanceUnit = fallbackDistanceUnit;
@@ -66,6 +81,12 @@ export function initUnitPreference(): DistanceUnit {
 
 export function setDistanceUnitPreference(unit: DistanceUnit): boolean {
 	return unitPreference.setDistanceUnitPreference(unit);
+}
+
+export function applyRemoteDistanceUnitPreference(
+	unit: DistanceUnit,
+): DistanceUnit | null {
+	return unitPreference.applyRemoteDistanceUnitPreference(unit);
 }
 
 export function resetUnitPreferenceForTests() {

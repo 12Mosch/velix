@@ -59,6 +59,20 @@ class MapStylePreferenceState {
 		return true;
 	}
 
+	applyRemoteMapStylePreference(id: BasemapId): BasemapId | null {
+		const nextBasemapId = resolvePreferredBasemapId(id);
+
+		if (nextBasemapId) {
+			mapStyleRepository.write(nextBasemapId);
+		} else {
+			mapStyleRepository.clear();
+		}
+
+		this.selectedBasemapId = nextBasemapId;
+		this.initialized = true;
+		return nextBasemapId;
+	}
+
 	getSelectedBasemap(): BasemapDefinition | null {
 		return getSelectedBasemapForId(this.selectedBasemapId);
 	}
@@ -82,6 +96,10 @@ export function initMapStylePreference(): BasemapId | null {
 
 export function setMapStylePreference(id: BasemapId): boolean {
 	return mapStylePreference.setMapStylePreference(id);
+}
+
+export function applyRemoteMapStylePreference(id: BasemapId): BasemapId | null {
+	return mapStylePreference.applyRemoteMapStylePreference(id);
 }
 
 export function getSelectedBasemap() {

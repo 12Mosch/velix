@@ -26,12 +26,15 @@ vi.mock("maplibre-gl", () => ({
 import SettingsPage from "./+page.svelte";
 import {
 	MAP_STYLE_STORAGE_KEY,
+	mapStylePreference,
 	resetMapStylePreferenceForTests,
 } from "$lib/map-style-settings.svelte";
 import {
 	DISTANCE_UNIT_STORAGE_KEY,
 	resetUnitPreferenceForTests,
+	unitPreference,
 } from "$lib/unit-settings.svelte";
+import { getThemeModePreference } from "$lib/theme-settings.svelte";
 import { modeStorageKey, resetMode } from "mode-watcher";
 
 describe("settings page", () => {
@@ -91,18 +94,21 @@ describe("settings page", () => {
 			.element(getRadio("Dark"))
 			.toHaveAttribute("aria-checked", "true");
 		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("dark");
+		expect(getThemeModePreference()).toBe("dark");
 
 		await getRadio("Light").click();
 		await expect
 			.element(getRadio("Light"))
 			.toHaveAttribute("aria-checked", "true");
 		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("light");
+		expect(getThemeModePreference()).toBe("light");
 
 		await getRadio("System").click();
 		await expect
 			.element(getRadio("System"))
 			.toHaveAttribute("aria-checked", "true");
 		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("system");
+		expect(getThemeModePreference()).toBe("system");
 	});
 
 	it("persists the chosen basemap in localStorage and restores it after remount", async () => {
@@ -117,6 +123,7 @@ describe("settings page", () => {
 		expect(window.localStorage.getItem(MAP_STYLE_STORAGE_KEY)).toBe(
 			"maptiler-outdoor",
 		);
+		expect(mapStylePreference.selectedBasemapId).toBe("maptiler-outdoor");
 
 		await firstView.unmount();
 
@@ -148,6 +155,7 @@ describe("settings page", () => {
 			.element(getRadio("Miles"))
 			.toHaveAttribute("aria-checked", "true");
 		expect(window.localStorage.getItem(DISTANCE_UNIT_STORAGE_KEY)).toBe("mi");
+		expect(unitPreference.selectedDistanceUnit).toBe("mi");
 
 		await firstView.unmount();
 
