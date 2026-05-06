@@ -157,7 +157,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Surface overlay | Full | Selected route surface sections are rendered on the map from GraphHopper surface details, with smooth/mixed/coarse bucket colors and smoothness fallback coverage in `route-planning` and MapView specs. |
 | Traffic stress overlay | Missing | No traffic stress data. |
 | Wind overlay | Missing | No wind overlay. |
-| Gradient overlay | Missing | No gradient overlay. |
+| Gradient overlay | Full | Toggleable selected-route overlay derives uphill/downhill gradient buckets from route elevation samples, renders a diverging descent/flat/climb palette, and has `route-planning`, MapView, and planner page test coverage. |
 | Heatmap of popular road cycling roads | Missing | No heatmap layer. |
 | Contours / terrain | Half | Available only through terrain/outdoor basemap styles, not a separate overlay. |
 | Road classification | Missing | Road class is requested from GraphHopper details but not exposed as overlay. |

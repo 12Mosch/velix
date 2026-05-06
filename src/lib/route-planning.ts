@@ -167,6 +167,15 @@ export type RouteGradientMetrics = {
 	maximumGradientPercent: number | null;
 };
 
+export type RouteGradientBucket =
+	| "steep_down"
+	| "down"
+	| "mild_down"
+	| "flat"
+	| "mild_up"
+	| "up"
+	| "steep_up";
+
 export type PlannedRoute = {
 	mode: RouteMode;
 	source: RouteSource;
@@ -226,6 +235,11 @@ type RouteFeatureProperties =
 	| {
 			kind: "surface";
 			surfaceBucket: "smooth" | "mixed" | "coarse";
+	  }
+	| {
+			kind: "gradient";
+			gradientBucket: RouteGradientBucket;
+			gradientPercent: number;
 	  }
 	| {
 			kind: "start" | "destination" | "waypoint";
@@ -541,6 +555,110 @@ export function buildRouteClimbGeoJson(
 	return {
 		type: "FeatureCollection",
 		features,
+	};
+}
+
+function classifyGradientBucket(
+	gradientPercent: number,
+): RouteGradientBucket | null {
+	if (!Number.isFinite(gradientPercent)) {
+		return null;
+	}
+
+	if (gradientPercent <= -6) return "steep_down";
+	if (gradientPercent <= -3) return "down";
+	if (gradientPercent < -1) return "mild_down";
+	if (gradientPercent <= 1) return "flat";
+	if (gradientPercent < 3) return "mild_up";
+	if (gradientPercent < 6) return "up";
+	return "steep_up";
+}
+
+export function buildRouteGradientGeoJson(
+	route: PlannedRoute,
+): FeatureCollection<LineString, RouteFeatureProperties> {
+	const points = smoothClimbPoints(
+		getRouteElevationAnalysisPoints(route.coordinates).filter(
+			(point) =>
+				!!point.coordinate &&
+				Number.isFinite(point.distanceMeters) &&
+				Number.isFinite(point.elevationMeters),
+		),
+	);
+
+	type GradientSection = {
+		bucket: RouteGradientBucket;
+		coordinates: Position[];
+		distanceMeters: number;
+		elevationDeltaMeters: number;
+	};
+	const sections: GradientSection[] = [];
+
+	for (let index = 1; index < points.length; index += 1) {
+		const previous = points[index - 1];
+		const current = points[index];
+
+		if (!previous?.coordinate || !current?.coordinate) {
+			continue;
+		}
+
+		const distanceMeters = current.distanceMeters - previous.distanceMeters;
+		const elevationDeltaMeters =
+			current.elevationMeters - previous.elevationMeters;
+
+		if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+			continue;
+		}
+
+		const gradientPercent = (elevationDeltaMeters / distanceMeters) * 100;
+		const bucket = classifyGradientBucket(gradientPercent);
+
+		if (!bucket) {
+			continue;
+		}
+
+		const previousSection = sections[sections.length - 1];
+
+		if (previousSection?.bucket === bucket) {
+			previousSection.coordinates.push(current.coordinate as Position);
+			previousSection.distanceMeters += distanceMeters;
+			previousSection.elevationDeltaMeters += elevationDeltaMeters;
+			continue;
+		}
+
+		sections.push({
+			bucket,
+			coordinates: [
+				previous.coordinate as Position,
+				current.coordinate as Position,
+			],
+			distanceMeters,
+			elevationDeltaMeters,
+		});
+	}
+
+	return {
+		type: "FeatureCollection",
+		features: sections
+			.filter(
+				(section) =>
+					section.coordinates.length >= 2 &&
+					Number.isFinite(section.distanceMeters) &&
+					section.distanceMeters > 0,
+			)
+			.map((section) => ({
+				type: "Feature" as const,
+				properties: {
+					kind: "gradient" as const,
+					gradientBucket: section.bucket,
+					gradientPercent:
+						(section.elevationDeltaMeters / section.distanceMeters) * 100,
+				},
+				geometry: {
+					type: "LineString" as const,
+					coordinates: section.coordinates,
+				},
+			})),
 	};
 }
 

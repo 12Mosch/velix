@@ -33,6 +33,10 @@ export function getRouteSurfaceLayerId(overlayId: string) {
 	return `${getRouteSourceId(overlayId)}-surface`;
 }
 
+export function getRouteGradientLayerId(overlayId: string) {
+	return `${getRouteSourceId(overlayId)}-gradient`;
+}
+
 export function getRouteClimbLayerId(overlayId: string) {
 	return `${getRouteSourceId(overlayId)}-climbs`;
 }
@@ -59,6 +63,7 @@ export function removeRouteOverlayById(map: MapLibreMap, overlayId: string) {
 		getRouteWaypointLayerId(overlayId),
 		getRouteStartLayerId(overlayId),
 		getRouteClimbLayerId(overlayId),
+		getRouteGradientLayerId(overlayId),
 		getRouteSurfaceLayerId(overlayId),
 		getRouteLineLayerId(overlayId),
 		getRouteCasingLayerId(overlayId),
@@ -89,6 +94,9 @@ function addRouteOverlay(
 	const sourceId = getRouteSourceId(overlay.id);
 	const alternativeColor =
 		alternativeRoutePalette[index % alternativeRoutePalette.length];
+	const hasGradientFeatures = overlay.geoJson.features.some(
+		(feature) => feature.properties?.kind === "gradient",
+	);
 
 	map.addSource(sourceId, {
 		type: "geojson",
@@ -239,6 +247,48 @@ function addRouteOverlay(
 				"line-opacity": ["case", ["get", "isKeyClimb"], 0.96, 0.68],
 			},
 		});
+		if (hasGradientFeatures) {
+			map.addLayer({
+				id: getRouteGradientLayerId(overlay.id),
+				type: "line",
+				source: sourceId,
+				filter: ["==", ["get", "kind"], "gradient"],
+				layout: { "line-cap": "round", "line-join": "round" },
+				paint: {
+					"line-color": [
+						"match",
+						["get", "gradientBucket"],
+						"steep_down",
+						"rgb(29, 78, 216)",
+						"down",
+						"rgb(37, 99, 235)",
+						"mild_down",
+						"rgb(96, 165, 250)",
+						"flat",
+						"rgb(148, 163, 184)",
+						"mild_up",
+						"rgb(250, 204, 21)",
+						"up",
+						"rgb(249, 115, 22)",
+						"steep_up",
+						"rgb(220, 38, 38)",
+						"rgb(100, 116, 139)",
+					],
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						6,
+						4,
+						12,
+						6,
+						16,
+						8,
+					],
+					"line-opacity": 0.9,
+				},
+			});
+		}
 	}
 
 	if (!overlay.isSelected) {
@@ -300,7 +350,19 @@ function shouldRecreateRouteOverlay(
 	}
 
 	const renderedAsSelected = !!map.getLayer(getRouteStartLayerId(overlay.id));
-	return renderedAsSelected !== overlay.isSelected;
+	if (renderedAsSelected !== overlay.isSelected) {
+		return true;
+	}
+
+	const renderedWithGradient = !!map.getLayer(
+		getRouteGradientLayerId(overlay.id),
+	);
+	const shouldRenderGradient =
+		overlay.isSelected &&
+		overlay.geoJson.features.some(
+			(feature) => feature.properties?.kind === "gradient",
+		);
+	return renderedWithGradient !== shouldRenderGradient;
 }
 
 export function syncRouteOverlays(

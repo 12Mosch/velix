@@ -666,6 +666,91 @@ describe("+page.svelte", () => {
 			.toBeDisabled();
 	});
 
+	it("disables the gradient overlay toggle until a route with elevation exists", async () => {
+		render(PageTestShell);
+
+		await expect
+			.element(page.getByRole("button", { name: "Gradient overlay" }))
+			.toBeDisabled();
+	});
+
+	it("toggles the selected route gradient overlay after elevation loads", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url = String(input);
+
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: successfulRoutePayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-0-gradient");
+
+		const gradientToggle = page.getByRole("button", {
+			name: "Gradient overlay",
+		});
+		await expect.element(gradientToggle).not.toBeDisabled();
+		await gradientToggle.click();
+
+		await expect
+			.poll(() =>
+				mapInstance.addLayer.mock.calls.some(
+					(call) => call[0].id === "planned-route-route-0-gradient",
+				),
+			)
+			.toBe(true);
+	});
+
+	it("keeps the gradient overlay toggle disabled for routes without elevation", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url = String(input);
+
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: routeWithNoElevationPayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Start");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		await expect
+			.element(page.getByRole("button", { name: "Gradient overlay" }))
+			.toBeDisabled();
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-0-gradient");
+	});
+
 	it("submits the route form, updates the summary, and renders the route overlay", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			const url = String(input);

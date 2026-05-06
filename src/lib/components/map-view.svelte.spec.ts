@@ -57,6 +57,21 @@ const testRouteGeoJson: FeatureCollection = {
 		},
 		{
 			type: "Feature",
+			properties: {
+				kind: "gradient",
+				gradientBucket: "up",
+				gradientPercent: 4.2,
+			},
+			geometry: {
+				type: "LineString",
+				coordinates: [
+					[11.52, 47.21, 710],
+					[11.56, 47.23, 735],
+				],
+			},
+		},
+		{
+			type: "Feature",
 			properties: { kind: "waypoint", label: "Waypoint 1", order: 1 },
 			geometry: {
 				type: "Point",
@@ -363,6 +378,7 @@ describe("MapView", () => {
 			"planned-route-route-0-line",
 			"planned-route-route-0-surface",
 			"planned-route-route-0-climbs",
+			"planned-route-route-0-gradient",
 			"planned-route-route-0-start",
 			"planned-route-route-0-waypoint",
 			"planned-route-route-0-destination",
@@ -389,6 +405,15 @@ describe("MapView", () => {
 				],
 			},
 		});
+		expect(
+			mapInstance.addLayer.mock.calls.find(
+				(call) => call[0].id === "planned-route-route-0-gradient",
+			)?.[0],
+		).toMatchObject({
+			type: "line",
+			source: "planned-route-route-0",
+			filter: ["==", ["get", "kind"], "gradient"],
+		});
 		expect(mapInstance.fitBounds).toHaveBeenCalledWith(
 			[11.5, 47.2, 11.6, 47.25],
 			expect.objectContaining({
@@ -399,6 +424,29 @@ describe("MapView", () => {
 		await view.unmount();
 
 		expect(mapInstance.remove).toHaveBeenCalledTimes(1);
+	});
+
+	it("removes the route gradient layer with its route overlay", async () => {
+		const view = render(MapView, {
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		await view.rerender({
+			routeOverlays: [],
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.removeLayer.mock.calls.some(
+					(call) => call[0] === "planned-route-route-0-gradient",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.removeSource).toHaveBeenCalledWith(
+			"planned-route-route-0",
+		);
 	});
 
 	it("constructs the map with a stored camera", async () => {
@@ -1013,6 +1061,9 @@ describe("MapView", () => {
 		expect(
 			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
 		).not.toContain("planned-route-route-1-surface");
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-1-gradient");
 		expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1);
 
 		await view.rerender({
