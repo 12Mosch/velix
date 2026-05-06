@@ -130,7 +130,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Terrain / Outdoor | Full | Stadia Stamen Terrain and MapTiler Outdoor. |
 | Satellite / Hybrid | Full | MapTiler Satellite Hybrid. |
 | Basemap selection in settings | Full | Settings page has a basemap radiogroup. |
-| Quick basemap switching inside the planner | Missing | Planner only shows attribution, not a basemap switcher. |
+| Quick basemap switching inside the planner | Full | Planner has a top-right basemap menu that switches available basemaps, persists the choice, and updates the MapLibre style without recreating the map. |
 | Save basemap per device/account | Half | Saved per browser/device in `localStorage`; no account sync. |
 
 ### 2.2 Map interactions
