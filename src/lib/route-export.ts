@@ -3,6 +3,7 @@ import {
 	type PlannedRoute,
 	type RouteCoordinate,
 } from "$lib/route-planning";
+import { Encoder, Profile } from "@garmin/fitsdk";
 
 type RouteExportOptions = {
 	exportedAt?: Date;
@@ -20,6 +21,10 @@ type NormalizedCoordinate = {
 	latitude: number;
 	elevation?: number;
 };
+
+const FIT_MIME_TYPE = "application/vnd.ant.fit";
+const SEMICIRCLES_PER_DEGREE = 2 ** 31 / 180;
+const EARTH_RADIUS_METERS = 6_371_000;
 
 function escapeXml(value: string): string {
 	return value
@@ -212,6 +217,188 @@ function buildTrackPointXml(
 		.join("\n");
 }
 
+function toSemicircles(degrees: number): number {
+	return Math.round(degrees * SEMICIRCLES_PER_DEGREE);
+}
+
+function toRadians(degrees: number): number {
+	return (degrees * Math.PI) / 180;
+}
+
+function distanceBetweenMeters(
+	start: NormalizedCoordinate,
+	end: NormalizedCoordinate,
+): number {
+	const deltaLatitude = toRadians(end.latitude - start.latitude);
+	const deltaLongitude = toRadians(end.longitude - start.longitude);
+	const startLatitude = toRadians(start.latitude);
+	const endLatitude = toRadians(end.latitude);
+	const halfChord =
+		Math.sin(deltaLatitude / 2) ** 2 +
+		Math.cos(startLatitude) *
+			Math.cos(endLatitude) *
+			Math.sin(deltaLongitude / 2) ** 2;
+
+	return (
+		2 *
+		EARTH_RADIUS_METERS *
+		Math.atan2(Math.sqrt(halfChord), Math.sqrt(1 - halfChord))
+	);
+}
+
+function normalizeTrackCoordinates(
+	route: PlannedRoute,
+): NormalizedCoordinate[] {
+	return getTrackCoordinates(route).map((coordinate, index) =>
+		normalizeCoordinate(coordinate, `Route track point ${index + 1}`),
+	);
+}
+
+function deriveCumulativeDistances(
+	coordinates: NormalizedCoordinate[],
+): number[] {
+	const distances = [0];
+
+	for (let index = 1; index < coordinates.length; index += 1) {
+		distances.push(
+			distances[index - 1] +
+				distanceBetweenMeters(coordinates[index - 1], coordinates[index]),
+		);
+	}
+
+	return distances;
+}
+
+function deriveTimestamp(
+	exportedAt: Date,
+	index: number,
+	distance: number,
+	totalDistance: number,
+	durationMs: number,
+): Date {
+	const offsetMs =
+		Number.isFinite(durationMs) && durationMs > 0
+			? totalDistance > 0
+				? (distance / totalDistance) * durationMs
+				: 0
+			: index * 1000;
+
+	return new Date(exportedAt.getTime() + Math.round(offsetMs));
+}
+
+function isFiniteNonNegativeInteger(value: number): boolean {
+	return Number.isFinite(value) && value >= 0 && value <= 0xffff;
+}
+
+export function buildRouteFit(
+	route: PlannedRoute,
+	options: RouteExportOptions | null = {},
+): Uint8Array {
+	const normalizedOptions = normalizeExportOptions(options);
+	const exportedAt = normalizedOptions.exportedAt ?? new Date();
+	const title = formatRouteTitle(route);
+	const coordinates = normalizeTrackCoordinates(route);
+	const cumulativeDistances = deriveCumulativeDistances(coordinates);
+	const totalDistance = cumulativeDistances.at(-1) ?? 0;
+	const durationMs =
+		Number.isFinite(route.durationMs) && route.durationMs > 0
+			? route.durationMs
+			: Math.max(0, coordinates.length - 1) * 1000;
+	const encoder = new Encoder();
+
+	encoder.onMesg(Profile.MesgNum.FILE_ID, {
+		type: "course",
+		manufacturer: "development",
+		product: 1,
+		productName: "Velix",
+		timeCreated: exportedAt,
+	});
+	encoder.onMesg(Profile.MesgNum.COURSE, {
+		name: title,
+		sport: "cycling",
+	});
+
+	for (const [index, coordinate] of coordinates.entries()) {
+		const record: {
+			timestamp: Date;
+			positionLat: number;
+			positionLong: number;
+			distance: number;
+			altitude?: number;
+		} = {
+			timestamp: deriveTimestamp(
+				exportedAt,
+				index,
+				cumulativeDistances[index],
+				totalDistance,
+				route.durationMs,
+			),
+			positionLat: toSemicircles(coordinate.latitude),
+			positionLong: toSemicircles(coordinate.longitude),
+			distance: cumulativeDistances[index],
+		};
+
+		if (Number.isFinite(coordinate.elevation)) {
+			record.altitude = coordinate.elevation;
+		}
+
+		encoder.onMesg(Profile.MesgNum.RECORD, record);
+	}
+
+	const firstCoordinate = coordinates[0];
+	const lastCoordinate = coordinates.at(-1);
+
+	if (firstCoordinate && lastCoordinate) {
+		const lap: {
+			timestamp: Date;
+			startTime: Date;
+			startPositionLat: number;
+			startPositionLong: number;
+			endPositionLat: number;
+			endPositionLong: number;
+			totalElapsedTime: number;
+			totalTimerTime: number;
+			totalDistance: number;
+			event: string;
+			eventType: string;
+			sport: string;
+			totalAscent?: number;
+			totalDescent?: number;
+		} = {
+			timestamp: deriveTimestamp(
+				exportedAt,
+				coordinates.length - 1,
+				totalDistance,
+				totalDistance,
+				route.durationMs,
+			),
+			startTime: exportedAt,
+			startPositionLat: toSemicircles(firstCoordinate.latitude),
+			startPositionLong: toSemicircles(firstCoordinate.longitude),
+			endPositionLat: toSemicircles(lastCoordinate.latitude),
+			endPositionLong: toSemicircles(lastCoordinate.longitude),
+			totalElapsedTime: durationMs / 1000,
+			totalTimerTime: durationMs / 1000,
+			totalDistance,
+			event: "lap",
+			eventType: "stop",
+			sport: "cycling",
+		};
+
+		if (isFiniteNonNegativeInteger(route.ascendMeters)) {
+			lap.totalAscent = Math.round(route.ascendMeters);
+		}
+
+		if (isFiniteNonNegativeInteger(route.descendMeters)) {
+			lap.totalDescent = Math.round(route.descendMeters);
+		}
+
+		encoder.onMesg(Profile.MesgNum.LAP, lap);
+	}
+
+	return encoder.close();
+}
+
 export function buildRouteGpxFilename(route: PlannedRoute): string {
 	const startSlug = toSlugPart(route.startLabel);
 
@@ -232,6 +419,10 @@ export function buildRouteGpxFilename(route: PlannedRoute): string {
 	return `${startSlug}-to-${destinationSlug}.gpx`;
 }
 
+export function buildRouteFitFilename(route: PlannedRoute): string {
+	return buildRouteGpxFilename(route).replace(/\.gpx$/u, ".fit");
+}
+
 export function downloadRouteGpx(
 	route: PlannedRoute,
 	options: RouteExportOptions | null = {},
@@ -247,6 +438,31 @@ export function downloadRouteGpx(
 	try {
 		link.href = objectUrl;
 		link.download = buildRouteGpxFilename(route);
+		link.click();
+	} finally {
+		URL.revokeObjectURL(objectUrl);
+	}
+}
+
+export function downloadRouteFit(
+	route: PlannedRoute,
+	options: RouteExportOptions | null = {},
+): void {
+	const normalizedOptions = normalizeExportOptions(options);
+	const fit = buildRouteFit(route, normalizedOptions);
+	const fitBlobPart = fit.buffer.slice(
+		fit.byteOffset,
+		fit.byteOffset + fit.byteLength,
+	) as ArrayBuffer;
+	const blob = new Blob([fitBlobPart], {
+		type: FIT_MIME_TYPE,
+	});
+	const objectUrl = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+
+	try {
+		link.href = objectUrl;
+		link.download = buildRouteFitFilename(route);
 		link.click();
 	} finally {
 		URL.revokeObjectURL(objectUrl);

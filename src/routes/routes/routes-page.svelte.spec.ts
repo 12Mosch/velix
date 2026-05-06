@@ -129,6 +129,7 @@ function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
 			clickedDownload = this.download;
 			clickedHref = this.href;
 		});
+	anchorClick.mockClear();
 
 	Object.defineProperty(URL, "createObjectURL", {
 		configurable: true,
@@ -707,6 +708,55 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByRole("alert"))
 			.toHaveTextContent("Could not export GPX: Download blocked");
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
+			"blob:saved-route",
+		);
+	});
+
+	it("exports a saved route as a FIT download", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(savedRoutes),
+		);
+		const downloadSpy = setupGpxDownloadSpies();
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Export FIT" }).click();
+
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.anchorClick).toHaveBeenCalledTimes(1);
+		expect(downloadSpy.getClickedDownload()).toBe(
+			"marienplatz-munich-germany-to-schliersee-germany.fit",
+		);
+		expect(downloadSpy.getClickedHref()).toBe("blob:saved-route");
+		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
+			"blob:saved-route",
+		);
+
+		const blob = downloadSpy.getLastBlob();
+		expect(blob).toBeInstanceOf(Blob);
+		expect(blob?.type).toBe("application/vnd.ant.fit");
+		expect((await blob?.arrayBuffer())?.byteLength).toBeGreaterThan(14);
+	});
+
+	it("shows an alert when saved-route FIT export fails", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(savedRoutes),
+		);
+		const downloadSpy = setupGpxDownloadSpies({
+			clickError: new Error("Download blocked"),
+		});
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Export FIT" }).click();
+
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent("Could not export FIT: Download blocked");
 		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(1);
 		expect(downloadSpy.revokeObjectUrl).toHaveBeenCalledWith(
 			"blob:saved-route",

@@ -362,7 +362,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Feature | Status | Notes |
 | --- | --- | --- |
 | GPX export | Full | GPX download is implemented. |
-| FIT export optional | Missing | No FIT export. |
+| FIT export optional | Full | FIT export downloads a course file with full route geometry, elevation where available, and derived route timing. |
 | TCX optional | Missing | No TCX export. |
 | Download with waypoints / cue sheet | Half | GPX includes waypoint entries; no cue sheet. |
 | Export with climb metadata | Missing | No climb metadata. |
