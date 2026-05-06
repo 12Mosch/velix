@@ -195,7 +195,7 @@ const alternativeRoutePayload = {
 				[11.8598, 47.7362, 790],
 			],
 			routingWarnings: ["Alternative route warning."],
-			bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+			bounds: [11.5, 47.68, 11.92, 48.2],
 		},
 	],
 	selectedRouteIndex: 0,
@@ -658,6 +658,14 @@ describe("+page.svelte", () => {
 		expect(mapMock).toHaveBeenCalledTimes(1);
 	});
 
+	it("disables route recentering until a route exists", async () => {
+		render(PageTestShell);
+
+		await expect
+			.element(page.getByRole("button", { name: "Recenter route" }))
+			.toBeDisabled();
+	});
+
 	it("submits the route form, updates the summary, and renders the route overlay", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			const url = String(input);
@@ -767,6 +775,40 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("button", { name: "Save Draft" }))
 			.toBeInTheDocument();
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("recenters to the generated route bounds", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(successfulRoutePayload)),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		mapInstance.fitBounds.mockClear();
+
+		await page.getByRole("button", { name: "Recenter route" }).click();
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		expect(mapInstance.fitBounds).toHaveBeenCalledWith(
+			successfulRoute.bounds,
+			expect.objectContaining({
+				maxZoom: 14,
+			}),
+		);
 	});
 
 	it("renders a neutral state when no climb data is available", async () => {
@@ -1103,6 +1145,38 @@ describe("+page.svelte", () => {
 		expect(readSavedRoutesFromStorage()).toHaveLength(1);
 	});
 
+	it("recenters to restored route bounds", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulRoute,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-route-1");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		mapInstance.fitBounds.mockClear();
+
+		await page.getByRole("button", { name: "Recenter route" }).click();
+
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		expect(mapInstance.fitBounds).toHaveBeenCalledWith(
+			successfulRoute.bounds,
+			expect.objectContaining({
+				maxZoom: 14,
+			}),
+		);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("generating a second route after editing updates the same autosaved draft", async () => {
 		const secondRoute = {
 			...successfulRoute,
@@ -1190,11 +1264,22 @@ describe("+page.svelte", () => {
 			.element(page.getByText("Found 2 distinct routes for this request."))
 			.toBeInTheDocument();
 		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		mapInstance.fitBounds.mockClear();
 		await page.getByRole("button", { name: /Route 2/i }).click();
 		await expect.poll(() => document.body.textContent).toContain("68.5");
 		await expect
 			.element(page.getByText("Alternative route warning."))
 			.toBeInTheDocument();
+		expect(mapInstance.fitBounds).not.toHaveBeenCalled();
+		await page.getByRole("button", { name: "Recenter route" }).click();
+		await expect.poll(() => mapInstance.fitBounds.mock.calls.length).toBe(1);
+		expect(mapInstance.fitBounds).toHaveBeenCalledWith(
+			[11.5, 47.68, 11.92, 48.2],
+			expect.objectContaining({
+				maxZoom: 14,
+			}),
+		);
 		await expect
 			.poll(() => readSavedRoutesFromStorage()[0]?.route.distanceMeters)
 			.toBe(68450);

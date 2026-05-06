@@ -137,7 +137,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Zoom, pan, recenter | Half | MapLibre provides zoom/pan and current-location centering; no general recenter-to-route or recenter-to-start control. |
+| Zoom, pan, recenter | Full | MapLibre provides gesture zoom/pan, the current-location control centers the camera, and the planner has an active-route recenter control. |
 | Double-click / click to place points | Full | Click opens a menu to set start, destination, or waypoint. |
 | Hover on roads/segments | Missing | No road/segment hover inspection. |
 | Context menu for routing actions | Full | Map click popover supports start/destination/waypoint assignment, stop removal, and segment lock/unlock actions. |

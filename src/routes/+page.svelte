@@ -215,6 +215,7 @@
 	let isResolvingMapSelection = $state(false);
 	let currentLocation = $state<CurrentLocation | null>(null);
 	let currentLocationFocusKey = $state(0);
+	let recenterRouteRequestKey = $state(0);
 	let isLocating = $state(false);
 	let currentLocationError = $state<string | null>(null);
 	let gpxImportInput = $state<HTMLInputElement | null>(null);
@@ -571,6 +572,16 @@
 		closeCompletionMenu();
 		closeMapClickMenu();
 		await locateCurrentPosition();
+	}
+
+	function recenterActiveRoute() {
+		if (!activeRoute) {
+			return;
+		}
+
+		closeCompletionMenu();
+		closeMapClickMenu();
+		recenterRouteRequestKey += 1;
 	}
 
 	function getRouteStopInput(stop: PlannerStop): RouteStopInput {
@@ -2709,6 +2720,8 @@
 		lockedSegmentIndexes={sanitizedLockedSegmentIndexes}
 		constraintOverlay={constraintOverlay}
 		fitBounds={combinedRouteBounds}
+		manualRecenterBounds={activeRoute?.bounds ?? null}
+		manualRecenterRequestKey={recenterRouteRequestKey}
 		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
 		currentLocation={currentLocation}
 		currentLocationFocusKey={currentLocationFocusKey}
@@ -2768,6 +2781,17 @@
 				onclick={showCurrentLocationOnMap}
 			>
 				<LocateFixed class="size-4" />
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon"
+				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50"
+				type="button"
+				disabled={!activeRoute}
+				aria-label="Recenter route"
+				onclick={recenterActiveRoute}
+			>
+				<Route class="size-4" />
 			</Button>
 			<Button
 				variant="ghost"
