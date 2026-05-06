@@ -6,6 +6,7 @@ import {
 	buildRouteSurfaceGeoJson,
 	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
+	calculateRouteGradientMetrics,
 	classifyClimbCategory,
 	getEditableRouteStops,
 	getRouteLegIndexForCoordinateSegment,
@@ -588,6 +589,96 @@ describe("sampleElevationProfile", () => {
 				[11.6, 47.25],
 			]),
 		).toEqual([]);
+	});
+});
+
+describe("calculateRouteGradientMetrics", () => {
+	const routeWithMetrics = (
+		overrides: Partial<PlannedRoute>,
+	): PlannedRoute => ({
+		...buildRoute([], []),
+		...overrides,
+	});
+	const coordinates = (elevations: number[]): PlannedRoute["coordinates"] =>
+		elevations.map((elevationMeters, index) => [
+			index * 0.001,
+			0,
+			elevationMeters,
+		]) as PlannedRoute["coordinates"];
+
+	it("calculates average gradient from total ascent and route distance", () => {
+		const metrics = calculateRouteGradientMetrics(
+			routeWithMetrics({
+				distanceMeters: 10_000,
+				ascendMeters: 500,
+				coordinates: coordinates([100, 150]),
+			}),
+		);
+
+		expect(metrics.averageGradientPercent).toBe(5);
+	});
+
+	it("smooths maximum gradient so a single elevation spike is reduced", () => {
+		const metrics = calculateRouteGradientMetrics(
+			routeWithMetrics({
+				distanceMeters: 700,
+				ascendMeters: 150,
+				coordinates: coordinates([100, 100, 100, 250, 100, 100, 100]),
+			}),
+		);
+
+		expect(metrics.maximumGradientPercent).not.toBeNull();
+		expect(metrics.maximumGradientPercent).toBeGreaterThan(0);
+		expect(metrics.maximumGradientPercent).toBeLessThan(50);
+	});
+
+	it("returns null maximum gradient for flat or downhill profiles", () => {
+		expect(
+			calculateRouteGradientMetrics(
+				routeWithMetrics({
+					coordinates: coordinates([200, 180, 160, 140]),
+				}),
+			).maximumGradientPercent,
+		).toBeNull();
+		expect(
+			calculateRouteGradientMetrics(
+				routeWithMetrics({
+					coordinates: coordinates([150, 150, 150, 150]),
+				}),
+			).maximumGradientPercent,
+		).toBeNull();
+	});
+
+	it("returns null maximum gradient when elevation samples are missing", () => {
+		expect(
+			calculateRouteGradientMetrics(
+				routeWithMetrics({
+					coordinates: [
+						[0, 0],
+						[0.001, 0],
+					],
+				}),
+			).maximumGradientPercent,
+		).toBeNull();
+	});
+
+	it("returns null average gradient for invalid or zero distance", () => {
+		expect(
+			calculateRouteGradientMetrics(
+				routeWithMetrics({
+					distanceMeters: 0,
+					coordinates: coordinates([100, 120]),
+				}),
+			).averageGradientPercent,
+		).toBeNull();
+		expect(
+			calculateRouteGradientMetrics(
+				routeWithMetrics({
+					distanceMeters: Number.NaN,
+					coordinates: coordinates([100, 120]),
+				}),
+			).averageGradientPercent,
+		).toBeNull();
 	});
 });
 
