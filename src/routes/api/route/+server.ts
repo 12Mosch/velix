@@ -15,6 +15,7 @@ import {
 import type {
 	ManualRouteEditingState,
 	PlannedRoute,
+	RoundCourseCandidateError,
 	RoundCourseTarget,
 	RouteApiError,
 	RouteApiSuccess,
@@ -33,6 +34,7 @@ import { ServerLive } from "$lib/server/layers";
 import {
 	resolveRouteStopsEffect,
 	resolveSpatialConstraintEffect,
+	RoundCourseCandidateSearchError,
 	RouteGenerationError,
 	RouteValidationError,
 	searchOutAndBackRoutesEffect,
@@ -78,14 +80,15 @@ function errorResponse(
 	status: number,
 	error: string,
 	fieldErrors?: RouteApiError["fieldErrors"],
+	roundCourseCandidateErrors?: RoundCourseCandidateError[],
 ) {
-	const payload =
-		fieldErrors === undefined
-			? { error }
-			: {
-					error,
-					fieldErrors,
-				};
+	const payload: RouteApiError = {
+		error,
+		...(fieldErrors === undefined ? {} : { fieldErrors }),
+		...(roundCourseCandidateErrors === undefined
+			? {}
+			: { roundCourseCandidateErrors }),
+	};
 
 	assertRouteApiErrorPayload(payload);
 	return json(payload, { status });
@@ -94,6 +97,14 @@ function errorResponse(
 function successResponse(payload: RouteApiSuccess) {
 	assertRouteApiSuccessPayload(payload);
 	return json(payload);
+}
+
+function getRoundCourseCandidateErrors(
+	error: RouteGenerationError,
+): RoundCourseCandidateError[] | undefined {
+	return error.cause instanceof RoundCourseCandidateSearchError
+		? error.cause.candidateErrors
+		: undefined;
 }
 
 function validationFailure(
@@ -147,7 +158,12 @@ function mapRouteEndpointError(error: unknown): Effect.Effect<Response> {
 		return Effect.sync(() => {
 			console.error(error.logPrefix, error.cause ?? error);
 
-			return errorResponse(502, error.userMessage);
+			return errorResponse(
+				502,
+				error.userMessage,
+				undefined,
+				getRoundCourseCandidateErrors(error),
+			);
 		});
 	}
 
@@ -418,10 +434,16 @@ function buildRoutePoints(stops: ResolvedRouteStop[]): [number, number][] {
 	return stops.map((stop) => stop.point);
 }
 
-function successWithRoutes(routes: PlannedRoute[]) {
+function successWithRoutes(
+	routes: PlannedRoute[],
+	roundCourseCandidateErrors?: RoundCourseCandidateError[],
+) {
 	return successResponse({
 		routes,
 		selectedRouteIndex: 0,
+		...(roundCourseCandidateErrors === undefined
+			? {}
+			: { roundCourseCandidateErrors }),
 	});
 }
 
@@ -681,7 +703,7 @@ function handleRoundCourseEffect(context: RouteModeContext) {
 			spatialConstraintInput,
 			routePoints,
 		);
-		const routes = yield* searchRoundCourseRoutesEffect({
+		const routeSearchResult = yield* searchRoundCourseRoutesEffect({
 			start,
 			waypoints,
 			target: roundCourseTarget as RoundCourseTarget,
@@ -689,7 +711,10 @@ function handleRoundCourseEffect(context: RouteModeContext) {
 			manualEditing,
 		});
 
-		return successWithRoutes(routes);
+		return successWithRoutes(
+			routeSearchResult.routes,
+			routeSearchResult.candidateErrors,
+		);
 	});
 }
 

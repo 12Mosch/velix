@@ -8,7 +8,7 @@ vi.mock("$env/dynamic/private", () => ({
 
 import { env } from "$env/dynamic/private";
 import { POST } from "./+server";
-import type { RouteApiSuccess } from "$lib/route-planning";
+import type { RouteApiError, RouteApiSuccess } from "$lib/route-planning";
 import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
 import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
 
@@ -1305,6 +1305,7 @@ describe("POST /api/route", () => {
 			kind: "graphhopper",
 		});
 		expect(route?.routingProfile).toBe("racingbike");
+		expect(payload.roundCourseCandidateErrors).toBeUndefined();
 	});
 
 	it("validates the minimum target distance for round-course requests", async () => {
@@ -1827,6 +1828,118 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(200);
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.durationMs).toBe(12600000);
+		expect(payload.roundCourseCandidateErrors).toEqual([
+			{
+				roundIndex: 0,
+				candidateIndex: 0,
+				sequence: 0,
+				requestedDistanceMeters: 57750,
+				seed: 11,
+				errorTag: "GraphHopperRouteStatusError",
+				message: "Routing failed with status 500: upstream error",
+				status: 500,
+			},
+			{
+				roundIndex: 0,
+				candidateIndex: 2,
+				sequence: 2,
+				requestedDistanceMeters: 96250,
+				seed: 73,
+				errorTag: "GraphHopperRouteStatusError",
+				message: "Routing failed with status 500: upstream error",
+				status: 500,
+			},
+			{
+				roundIndex: 1,
+				candidateIndex: 0,
+				sequence: 3,
+				requestedDistanceMeters: 69300,
+				seed: 109,
+				errorTag: "GraphHopperRouteStatusError",
+				message: "Routing failed with status 500: upstream error",
+				status: 500,
+			},
+			{
+				roundIndex: 1,
+				candidateIndex: 1,
+				sequence: 4,
+				requestedDistanceMeters: 77000,
+				seed: 149,
+				errorTag: "GraphHopperRouteStatusError",
+				message: "Routing failed with status 500: upstream error",
+				status: 500,
+			},
+			{
+				roundIndex: 1,
+				candidateIndex: 2,
+				sequence: 5,
+				requestedDistanceMeters: 84700,
+				seed: 191,
+				errorTag: "GraphHopperRouteStatusError",
+				message: "Routing failed with status 500: upstream error",
+				status: 500,
+			},
+		]);
+	});
+
+	it("returns round-course candidate diagnostics when every candidate fails", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		for (let index = 0; index < 9; index += 1) {
+			fetchMock.mockResolvedValueOnce(
+				new Response("upstream error", { status: 500 }),
+			);
+		}
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Start",
+						point: [11.5755, 48.1374],
+					},
+					target: {
+						kind: "distance",
+						distanceMeters: 50000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(502);
+		const payload = (await response.json()) as RouteApiError;
+		expect(payload.error).toBe(
+			"GraphHopper could not generate a round course right now.",
+		);
+		expect(payload.roundCourseCandidateErrors).toHaveLength(9);
+		expect(payload.roundCourseCandidateErrors).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					roundIndex: 0,
+					candidateIndex: 0,
+					sequence: 0,
+					requestedDistanceMeters: 45000,
+					seed: 11,
+					errorTag: "GraphHopperRouteStatusError",
+					message: "Routing failed with status 500: upstream error",
+					status: 500,
+				}),
+				expect.objectContaining({
+					roundIndex: 2,
+					candidateIndex: 2,
+					sequence: 8,
+					seed: 331,
+					errorTag: "GraphHopperRouteStatusError",
+					message: "Routing failed with status 500: upstream error",
+					status: 500,
+				}),
+			]),
+		);
+		expect(
+			payload.roundCourseCandidateErrors?.[8]?.requestedDistanceMeters,
+		).toBeCloseTo(55000);
 	});
 
 	it("adds a warning when the closest duration target still misses badly", async () => {
@@ -2466,6 +2579,7 @@ describe("POST /api/route", () => {
 				"Manual shaping points make the round-course target best-effort.",
 			],
 		});
+		expect(payload.roundCourseCandidateErrors).toBeUndefined();
 	});
 
 	it("accepts typed coordinate labels for round-course starts and shaping waypoints", async () => {

@@ -1,9 +1,10 @@
-import { Effect, Result } from "effect";
+import { Effect } from "effect";
 
 import type {
 	ManualRouteEditingState,
 	PlannedRoute,
 	ResolvedRouteSpatialConstraint,
+	RoundCourseCandidateError,
 	RoundCourseTarget,
 	RouteCoordinate,
 	RouteDetailInterval,
@@ -20,6 +21,7 @@ import type {
 	GraphHopperRouteBoundaryError,
 } from "$lib/server/graphhopper-errors";
 import {
+	GraphHopperRouteStatusError,
 	isGraphHopperRoutePointLimitError,
 	isMissingGraphHopperApiKeyError,
 } from "$lib/server/graphhopper-errors";
@@ -61,6 +63,38 @@ type CandidateRouteResult = {
 	route: PlannedRoute;
 	requestedDistanceMeters: number;
 	sequence: number;
+};
+
+type RoundCourseCandidateAttemptContext = {
+	roundIndex: number;
+	candidateIndex: number;
+	sequence: number;
+	requestedDistanceMeters: number;
+	seed?: number;
+};
+
+type RoundCourseCandidateSuccess = RoundCourseCandidateAttemptContext & {
+	_tag: "RoundCourseCandidateSuccess";
+	candidates: CandidateRouteResult[];
+};
+
+type RoundCourseCandidateFailure = RoundCourseCandidateAttemptContext & {
+	_tag: "RoundCourseCandidateFailure";
+	error: RouteGenerationError | GraphHopperRouteBoundaryError;
+};
+
+type RoundCourseCandidateAttempt =
+	| RoundCourseCandidateSuccess
+	| RoundCourseCandidateFailure;
+
+type RoundCourseCandidateSearchResult = {
+	routes: PlannedRoute[];
+	candidateErrors: RoundCourseCandidateError[];
+};
+
+type RoundCourseRouteSearchResult = {
+	routes: PlannedRoute[];
+	candidateErrors?: RoundCourseCandidateError[];
 };
 
 export class RouteValidationError extends Error {
@@ -107,6 +141,17 @@ export class RouteGenerationError extends Error {
 		readonly cause?: unknown,
 	) {
 		super(userMessage);
+	}
+}
+
+export class RoundCourseCandidateSearchError extends Error {
+	readonly _tag = "RoundCourseCandidateSearchError";
+
+	constructor(
+		readonly candidateErrors: RoundCourseCandidateError[],
+		readonly lastError?: RouteGenerationError | GraphHopperRouteBoundaryError,
+	) {
+		super("All round-course candidate attempts failed");
 	}
 }
 
@@ -909,6 +954,29 @@ function mapRouteBoundaryToGenerationError(
 	};
 }
 
+function getErrorTag(error: Error): string {
+	return "_tag" in error && typeof error._tag === "string"
+		? error._tag
+		: error.constructor.name;
+}
+
+function serializeRoundCourseCandidateFailure(
+	failure: RoundCourseCandidateFailure,
+): RoundCourseCandidateError {
+	return {
+		roundIndex: failure.roundIndex,
+		candidateIndex: failure.candidateIndex,
+		sequence: failure.sequence,
+		requestedDistanceMeters: failure.requestedDistanceMeters,
+		...(failure.seed === undefined ? {} : { seed: failure.seed }),
+		errorTag: getErrorTag(failure.error),
+		message: failure.error.message,
+		...(failure.error instanceof GraphHopperRouteStatusError
+			? { status: failure.error.status }
+			: {}),
+	};
+}
+
 export function searchPointToPointRoutesEffect(
 	input: PointToPointRouteSearchInput,
 ): Effect.Effect<
@@ -1036,7 +1104,7 @@ function searchRoundCourseCandidateRoutesEffect(
 	spatialConstraint?: ResolvedRouteSpatialConstraint,
 	desiredCount = desiredAlternativeRoutes,
 ): Effect.Effect<
-	PlannedRoute[],
+	RoundCourseCandidateSearchResult,
 	RouteGenerationError | GraphHopperRouteBoundaryError,
 	GraphHopperConfig | TimeoutFetch
 > {
@@ -1045,9 +1113,8 @@ function searchRoundCourseCandidateRoutesEffect(
 			estimateRoundCourseDistanceMeters(target),
 		);
 		const successfulCandidates: CandidateRouteResult[] = [];
+		const candidateFailures: RoundCourseCandidateFailure[] = [];
 		let sequence = 0;
-		let lastError: GraphHopperRouteBoundaryError | RouteGenerationError | null =
-			null;
 		const attemptedRequestedDistances = new Set<string>();
 
 		for (const [roundIndex, seeds] of roundCourseSearchSeeds.entries()) {
@@ -1076,43 +1143,63 @@ function searchRoundCourseCandidateRoutesEffect(
 				continue;
 			}
 
-			const candidateResults = yield* Effect.all(
-				requestedDistances.map((requestedDistanceMeters, candidateIndex) => {
+			const attemptEffects = requestedDistances.map(
+				(requestedDistanceMeters, candidateIndex) => {
 					const candidateSequence = sequence++;
+					const seed = seeds[candidateIndex];
+					const context: RoundCourseCandidateAttemptContext = {
+						roundIndex,
+						candidateIndex,
+						sequence: candidateSequence,
+						requestedDistanceMeters,
+						...(seed === undefined ? {} : { seed }),
+					};
+
 					return requestRoutesEffect([startPoint], {
 						mode: "round_course",
 						roundTripDistanceMeters: requestedDistanceMeters,
-						roundTripSeed: seeds[candidateIndex],
+						roundTripSeed: seed,
 						roundCourseTarget: target,
 						spatialConstraint,
 					}).pipe(
-						Effect.map(({ routes }) =>
-							routes.map((route, routeIndex) => ({
-								route,
-								requestedDistanceMeters,
-								sequence:
-									candidateSequence * desiredAlternativeRoutes + routeIndex,
-							})),
+						Effect.map(
+							({ routes }): RoundCourseCandidateSuccess => ({
+								...context,
+								_tag: "RoundCourseCandidateSuccess",
+								candidates: routes.map((route, routeIndex) => ({
+									route,
+									requestedDistanceMeters,
+									sequence:
+										candidateSequence * desiredAlternativeRoutes + routeIndex,
+								})),
+							}),
 						),
-						Effect.mapError(
-							mapRouteBoundaryToGenerationError(
-								"Failed to generate GraphHopper round course",
-								"GraphHopper could not generate a round course right now.",
-							),
-						),
-						Effect.result,
+						Effect.match({
+							onFailure: (error): RoundCourseCandidateFailure => ({
+								...context,
+								_tag: "RoundCourseCandidateFailure",
+								error,
+							}),
+							onSuccess: (success) => success,
+						}),
 					);
-				}),
-				{ concurrency: "unbounded" },
+				},
+			);
+
+			const candidateResults: RoundCourseCandidateAttempt[] = yield* Effect.all(
+				attemptEffects,
+				{
+					concurrency: "unbounded",
+				},
 			);
 
 			for (const candidateResult of candidateResults) {
-				if (Result.isSuccess(candidateResult)) {
-					successfulCandidates.push(...candidateResult.success);
+				if (candidateResult._tag === "RoundCourseCandidateSuccess") {
+					successfulCandidates.push(...candidateResult.candidates);
 					continue;
 				}
 
-				lastError = candidateResult.failure;
+				candidateFailures.push(candidateResult);
 			}
 
 			const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
@@ -1152,12 +1239,28 @@ function searchRoundCourseCandidateRoutesEffect(
 		const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
 
 		if (uniqueCandidates.length === 0) {
-			return yield* Effect.fail(
-				lastError ??
+			const candidateErrors = candidateFailures.map(
+				serializeRoundCourseCandidateFailure,
+			);
+
+			if (candidateErrors.length > 0) {
+				return yield* Effect.fail(
 					new RouteGenerationError(
 						"Failed to generate GraphHopper round course",
 						"GraphHopper could not generate a round course right now.",
+						new RoundCourseCandidateSearchError(
+							candidateErrors,
+							candidateFailures[candidateFailures.length - 1]?.error,
+						),
 					),
+				);
+			}
+
+			return yield* Effect.fail(
+				new RouteGenerationError(
+					"Failed to generate GraphHopper round course",
+					"GraphHopper could not generate a round course right now.",
+				),
 			);
 		}
 
@@ -1165,42 +1268,54 @@ function searchRoundCourseCandidateRoutesEffect(
 			compareCandidateRoutes(left, right, target),
 		);
 
-		return rankedCandidates.slice(0, desiredCount).map((candidate) => {
-			const missWarning = buildRoundCourseMissWarning(candidate.route, target);
+		return {
+			routes: rankedCandidates.slice(0, desiredCount).map((candidate) => {
+				const missWarning = buildRoundCourseMissWarning(
+					candidate.route,
+					target,
+				);
 
-			if (!missWarning) {
-				return candidate.route;
-			}
+				if (!missWarning) {
+					return candidate.route;
+				}
 
-			return {
-				...candidate.route,
-				routingWarnings: [
-					...(candidate.route.routingWarnings ?? []),
-					missWarning,
-				],
-			};
-		});
+				return {
+					...candidate.route,
+					routingWarnings: [
+						...(candidate.route.routingWarnings ?? []),
+						missWarning,
+					],
+				};
+			}),
+			candidateErrors: candidateFailures.map(
+				serializeRoundCourseCandidateFailure,
+			),
+		};
 	});
 }
 
 export function searchRoundCourseRoutesEffect(
 	input: RoundCourseRouteSearchInput,
 ): Effect.Effect<
-	PlannedRoute[],
+	RoundCourseRouteSearchResult,
 	RouteGenerationError | GraphHopperRouteBoundaryError,
 	GraphHopperConfig | TimeoutFetch
 > {
 	return Effect.gen(function* () {
 		let normalizedRoutes: PlannedRoute[];
+		let candidateErrors: RoundCourseCandidateError[] | undefined;
 
 		if (input.waypoints.length === 0) {
-			normalizedRoutes = dedupeRoutes(
-				yield* searchRoundCourseCandidateRoutesEffect(
-					input.start.point,
-					input.target,
-					input.spatialConstraint,
-				),
-			).map((route) =>
+			const searchResult = yield* searchRoundCourseCandidateRoutesEffect(
+				input.start.point,
+				input.target,
+				input.spatialConstraint,
+			);
+			candidateErrors =
+				searchResult.candidateErrors.length > 0
+					? searchResult.candidateErrors
+					: undefined;
+			normalizedRoutes = dedupeRoutes(searchResult.routes).map((route) =>
 				applyManualEditing(
 					{
 						...route,
@@ -1270,6 +1385,8 @@ export function searchRoundCourseRoutesEffect(
 			);
 		}
 
-		return normalizedRoutes;
+		return candidateErrors
+			? { routes: normalizedRoutes, candidateErrors }
+			: { routes: normalizedRoutes };
 	});
 }
