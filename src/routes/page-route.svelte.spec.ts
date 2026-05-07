@@ -1317,12 +1317,14 @@ describe("+page.svelte", () => {
 			.mockResolvedValueOnce(
 				new Response(JSON.stringify(successfulRoutePayload)),
 			)
-			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						routes: [secondRoute],
-						selectedRouteIndex: 0,
-					}),
+			.mockImplementation(() =>
+				Promise.resolve(
+					new Response(
+						JSON.stringify({
+							routes: [secondRoute],
+							selectedRouteIndex: 0,
+						}),
+					),
 				),
 			);
 		vi.stubGlobal("fetch", fetchMock);
@@ -1412,7 +1414,9 @@ describe("+page.svelte", () => {
 	it("manual route lock and unlock update manualEditing in the same autosaved route", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+			.mockImplementation(() =>
+				Promise.resolve(new Response(JSON.stringify(successfulRoutePayload))),
+			);
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
@@ -1457,7 +1461,9 @@ describe("+page.svelte", () => {
 	it("undoes and redoes a manual segment lock in the same autosaved route", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+			.mockImplementation(() =>
+				Promise.resolve(new Response(JSON.stringify(successfulRoutePayload))),
+			);
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);

@@ -1,17 +1,27 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
+import { Schema } from "effect";
 
 import { parseCoordinateSearchInput } from "$lib/coordinate-search";
+import {
+	assertRouteApiErrorPayload,
+	assertRouteApiSuccessPayload,
+	decodeRouteRequestPayload,
+	RoundCourseTargetSchema,
+	RouteSpatialConstraintInputSchema,
+	type LegacyRouteRequestPayloadInput,
+	type RouteRequestPayloadInput,
+} from "$lib/route-api-schema";
 import type {
 	PlannedRoute,
 	ManualRouteEditingState,
 	ResolvedRouteSpatialConstraint,
+	RouteApiSuccess,
 	RoundCourseTarget,
 	RouteApiError,
 	RouteCoordinate,
 	RouteDetailInterval,
 	RouteMode,
-	RouteRequestPayload,
 	RouteSpatialConstraintInput,
 	RouteStopInput,
 	RouteWaypoint,
@@ -27,25 +37,6 @@ import { checkRouteRateLimit } from "$lib/server/route-rate-limits";
 
 const maxRoutePoints = 5;
 const maxWaypoints = maxRoutePoints - 2;
-type LegacyRouteRequestPayload = {
-	startQuery?: string;
-	waypointQueries?: string[];
-	destinationQuery?: string;
-};
-
-type RoundCourseRouteRequestPayloadInput = {
-	mode?: "round_course";
-	start?: RouteStopInput;
-	waypoints?: RouteStopInput[];
-	target?: unknown;
-	requestedDistanceMeters?: unknown;
-};
-type OutAndBackRouteRequestPayloadInput = {
-	mode?: "out_and_back";
-	start?: RouteStopInput;
-	waypoints?: RouteStopInput[];
-	turnaround?: RouteStopInput;
-};
 
 type StopField = "startQuery" | "destinationQuery" | "waypointQueries";
 type RouteStop = {
@@ -96,13 +87,21 @@ function errorResponse(
 	error: string,
 	fieldErrors?: RouteApiError["fieldErrors"],
 ) {
-	return json(
-		{
-			error,
-			fieldErrors,
-		},
-		{ status },
-	);
+	const payload =
+		fieldErrors === undefined
+			? { error }
+			: {
+					error,
+					fieldErrors,
+				};
+
+	assertRouteApiErrorPayload(payload);
+	return json(payload, { status });
+}
+
+function successResponse(payload: RouteApiSuccess) {
+	assertRouteApiSuccessPayload(payload);
+	return json(payload);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -141,19 +140,25 @@ function normalizeSpatialConstraintInput(
 		return {};
 	}
 
-	if (!isRecord(rawConstraint) || typeof rawConstraint.kind !== "string") {
+	let decodedConstraint: typeof RouteSpatialConstraintInputSchema.Type;
+
+	try {
+		decodedConstraint = Schema.decodeUnknownSync(
+			RouteSpatialConstraintInputSchema,
+		)(rawConstraint);
+	} catch {
 		return {
 			error: "Choose an area or corridor constraint.",
 		};
 	}
 
 	const enforcement = normalizeSpatialConstraintEnforcement(
-		rawConstraint.enforcement,
+		decodedConstraint.enforcement,
 	);
 
-	if (rawConstraint.kind === "area") {
-		const center = normalizeStopInput(rawConstraint.center);
-		const radiusMeters = normalizeFiniteNumber(rawConstraint.radiusMeters);
+	if (decodedConstraint.kind === "area") {
+		const center = normalizeStopInput(decodedConstraint.center);
+		const radiusMeters = decodedConstraint.radiusMeters;
 
 		if (!center.label && !center.point) {
 			return {
@@ -181,7 +186,7 @@ function normalizeSpatialConstraintInput(
 		};
 	}
 
-	if (rawConstraint.kind === "corridor") {
+	if (decodedConstraint.kind === "corridor") {
 		if (mode === "round_course") {
 			return {
 				error:
@@ -189,10 +194,9 @@ function normalizeSpatialConstraintInput(
 			};
 		}
 
-		const widthMeters = normalizeFiniteNumber(rawConstraint.widthMeters);
+		const widthMeters = decodedConstraint.widthMeters;
 
 		if (
-			widthMeters === null ||
 			widthMeters < minCorridorWidthMeters ||
 			widthMeters > maxCorridorWidthMeters
 		) {
@@ -546,41 +550,11 @@ function normalizeRoundCourseTarget(
 	if ("target" in payloadRecord) {
 		const rawTarget = payloadRecord.target;
 
-		if (!isRecord(rawTarget) || typeof rawTarget.kind !== "string") {
+		try {
+			return Schema.decodeUnknownSync(RoundCourseTargetSchema)(rawTarget);
+		} catch {
 			return null;
 		}
-
-		if (rawTarget.kind === "distance") {
-			const distanceMeters = normalizeFiniteNumber(rawTarget.distanceMeters);
-			return distanceMeters === null
-				? null
-				: {
-						kind: "distance",
-						distanceMeters,
-					};
-		}
-
-		if (rawTarget.kind === "duration") {
-			const durationMs = normalizeFiniteNumber(rawTarget.durationMs);
-			return durationMs === null
-				? null
-				: {
-						kind: "duration",
-						durationMs,
-					};
-		}
-
-		if (rawTarget.kind === "ascend") {
-			const ascendMeters = normalizeFiniteNumber(rawTarget.ascendMeters);
-			return ascendMeters === null
-				? null
-				: {
-						kind: "ascend",
-						ascendMeters,
-					};
-		}
-
-		return null;
 	}
 
 	if ("requestedDistanceMeters" in payloadRecord) {
@@ -1159,18 +1133,21 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 
 export const POST: RequestHandler = async (event) => {
 	const { fetch, request } = event;
-	let payload:
-		| Partial<RouteRequestPayload>
-		| RoundCourseRouteRequestPayloadInput
-		| OutAndBackRouteRequestPayloadInput
-		| LegacyRouteRequestPayload;
+	let rawPayload: unknown;
 
 	try {
-		payload = (await request.json()) as typeof payload;
+		rawPayload = await request.json();
 	} catch {
 		return errorResponse(400, "Invalid route request payload.");
 	}
 
+	const decodedPayload = decodeRouteRequestPayload(rawPayload);
+
+	if (!decodedPayload.ok) {
+		return errorResponse(400, decodedPayload.error);
+	}
+
+	const payload: RouteRequestPayloadInput = decodedPayload.payload;
 	const payloadRecord = payload as Record<string, unknown>;
 	const requestedMode =
 		payloadRecord.mode === "round_course"
@@ -1187,24 +1164,18 @@ export const POST: RequestHandler = async (event) => {
 		"spatialConstraint" in payloadRecord ||
 		"requestedDistanceMeters" in payloadRecord ||
 		"mode" in payloadRecord;
-	const structuredPayload = hasStructuredPayload
-		? (payload as Partial<RouteRequestPayload>)
-		: null;
+	const structuredPayload = hasStructuredPayload ? payload : null;
 	const structuredPointToPointPayload =
 		structuredPayload && requestedMode === "point_to_point"
-			? (structuredPayload as Partial<
-					Extract<RouteRequestPayload, { mode: "point_to_point" }>
-				>)
+			? structuredPayload
 			: null;
 	const structuredOutAndBackPayload =
 		structuredPayload && requestedMode === "out_and_back"
-			? (structuredPayload as Partial<
-					Extract<RouteRequestPayload, { mode: "out_and_back" }>
-				>)
+			? structuredPayload
 			: null;
 	const legacyPayload = hasStructuredPayload
 		? null
-		: (payload as LegacyRouteRequestPayload);
+		: (payload as LegacyRouteRequestPayloadInput);
 	const startInput = normalizeStopInput(
 		structuredPayload ? structuredPayload.start : legacyPayload?.startQuery,
 	);
@@ -1224,10 +1195,8 @@ export const POST: RequestHandler = async (event) => {
 
 	if (requestedMode === "round_course") {
 		const roundCourseTarget = normalizeRoundCourseTarget(payloadRecord);
-		const rawWaypointInputs = Array.isArray(
-			(payloadRecord as RoundCourseRouteRequestPayloadInput).waypoints,
-		)
-			? ((payloadRecord as RoundCourseRouteRequestPayloadInput).waypoints ?? [])
+		const rawWaypointInputs = Array.isArray(payloadRecord.waypoints)
+			? payloadRecord.waypoints
 			: [];
 		const waypointInputs = rawWaypointInputs.map((input) =>
 			normalizeStopInput(input),
@@ -1454,7 +1423,7 @@ export const POST: RequestHandler = async (event) => {
 				);
 			}
 
-			return json({
+			return successResponse({
 				routes: normalizedRoutes,
 				selectedRouteIndex: 0,
 			});
@@ -1668,7 +1637,7 @@ export const POST: RequestHandler = async (event) => {
 				);
 			}
 
-			return json({
+			return successResponse({
 				routes: normalizedRoutes,
 				selectedRouteIndex: 0,
 			});
@@ -1871,7 +1840,7 @@ export const POST: RequestHandler = async (event) => {
 			throw new Error("GraphHopper could not generate a route right now.");
 		}
 
-		return json({
+		return successResponse({
 			routes: normalizedRoutes,
 			selectedRouteIndex: 0,
 		});
