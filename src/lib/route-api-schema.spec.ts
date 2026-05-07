@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
 import {
+	assertRouteApiErrorPayload,
 	assertRouteApiSuccessPayload,
 	decodeRouteRequestPayload,
 	RouteSpatialConstraintInputSchema,
@@ -167,6 +168,87 @@ describe("route API schema helpers", () => {
 					},
 				],
 				selectedRouteIndex: 0,
+			}),
+		).toThrow();
+	});
+
+	it("accepts route API payloads with round-course candidate diagnostics", () => {
+		const roundCourseCandidateErrors = [
+			{
+				roundIndex: 0,
+				candidateIndex: 1,
+				sequence: 1,
+				requestedDistanceMeters: 77000,
+				seed: 37,
+				errorTag: "GraphHopperRouteStatusError",
+				message: "Routing failed with status 500",
+				status: 500,
+			},
+		];
+
+		expect(() =>
+			assertRouteApiSuccessPayload({
+				routes: [buildValidRoute()],
+				selectedRouteIndex: 0,
+				roundCourseCandidateErrors,
+			}),
+		).not.toThrow();
+
+		expect(() =>
+			assertRouteApiErrorPayload({
+				error: "GraphHopper could not generate a round course right now.",
+				roundCourseCandidateErrors,
+			}),
+		).not.toThrow();
+	});
+
+	it("rejects malformed round-course candidate diagnostics", () => {
+		const validPayload = {
+			error: "GraphHopper could not generate a round course right now.",
+			roundCourseCandidateErrors: [
+				{
+					roundIndex: 0,
+					candidateIndex: 1,
+					sequence: 1,
+					requestedDistanceMeters: 77000,
+					errorTag: "GraphHopperRouteStatusError",
+					message: "Routing failed with status 500",
+					status: 500,
+				},
+			],
+		};
+
+		expect(() =>
+			assertRouteApiErrorPayload({
+				...validPayload,
+				roundCourseCandidateErrors: [
+					{
+						...validPayload.roundCourseCandidateErrors[0],
+						status: "500",
+					},
+				],
+			}),
+		).toThrow();
+		expect(() =>
+			assertRouteApiErrorPayload({
+				...validPayload,
+				roundCourseCandidateErrors: [
+					{
+						...validPayload.roundCourseCandidateErrors[0],
+						errorTag: undefined,
+					},
+				],
+			}),
+		).toThrow();
+		expect(() =>
+			assertRouteApiErrorPayload({
+				...validPayload,
+				roundCourseCandidateErrors: [
+					{
+						...validPayload.roundCourseCandidateErrors[0],
+						requestedDistanceMeters: "77000",
+					},
+				],
 			}),
 		).toThrow();
 	});

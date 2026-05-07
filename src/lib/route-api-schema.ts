@@ -204,10 +204,23 @@ const PlannedRouteSchema = Schema.Struct({
 	surfaceDetails: Schema.Array(RouteDetailIntervalSchema),
 	smoothnessDetails: Schema.Array(RouteDetailIntervalSchema),
 });
+const RoundCourseCandidateErrorSchema = Schema.Struct({
+	roundIndex: Schema.Finite,
+	candidateIndex: Schema.Finite,
+	sequence: Schema.Finite,
+	requestedDistanceMeters: Schema.Finite,
+	seed: Schema.optionalKey(Schema.UndefinedOr(Schema.Finite)),
+	errorTag: Schema.String,
+	message: Schema.String,
+	status: Schema.optionalKey(Schema.UndefinedOr(Schema.Finite)),
+});
 
 export const RouteApiSuccessSchema = Schema.Struct({
 	routes: Schema.Array(PlannedRouteSchema),
 	selectedRouteIndex: Schema.Finite,
+	roundCourseCandidateErrors: Schema.optionalKey(
+		Schema.Array(RoundCourseCandidateErrorSchema),
+	),
 });
 
 export const RouteApiErrorSchema = Schema.Struct({
@@ -220,6 +233,9 @@ export const RouteApiErrorSchema = Schema.Struct({
 			roundCourseTarget: Schema.optionalKey(Schema.String),
 			spatialConstraint: Schema.optionalKey(Schema.String),
 		}),
+	),
+	roundCourseCandidateErrors: Schema.optionalKey(
+		Schema.Array(RoundCourseCandidateErrorSchema),
 	),
 });
 

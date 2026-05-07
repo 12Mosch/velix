@@ -202,6 +202,7 @@ export type PlannedRoute = {
 export type RouteApiSuccess = {
 	routes: PlannedRoute[];
 	selectedRouteIndex: number;
+	roundCourseCandidateErrors?: RoundCourseCandidateError[];
 };
 
 export type RouteSuggestionsApiSuccess = {
@@ -226,6 +227,18 @@ export type RouteFieldErrors = {
 export type RouteApiError = {
 	error: string;
 	fieldErrors?: RouteFieldErrors;
+	roundCourseCandidateErrors?: RoundCourseCandidateError[];
+};
+
+export type RoundCourseCandidateError = {
+	roundIndex: number;
+	candidateIndex: number;
+	sequence: number;
+	requestedDistanceMeters: number;
+	seed?: number;
+	errorTag: string;
+	message: string;
+	status?: number;
 };
 
 type RouteFeatureProperties =
