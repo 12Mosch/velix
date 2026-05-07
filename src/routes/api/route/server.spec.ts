@@ -1199,6 +1199,52 @@ describe("POST /api/route", () => {
 		});
 	});
 
+	it("rejects non-object JSON payloads as invalid route requests", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(buildEvent("not an object", fetchMock));
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Invalid route request payload.",
+		});
+	});
+
+	it("keeps invalid spatial constraints on the field-error path", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "triangle",
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Start and destination are required.",
+			fieldErrors: {
+				spatialConstraint: "Choose an area or corridor constraint.",
+			},
+		});
+	});
+
 	it("requests a GraphHopper round trip from one resolved start point", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			new Response(
