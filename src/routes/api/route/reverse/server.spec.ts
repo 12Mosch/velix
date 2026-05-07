@@ -49,6 +49,27 @@ describe("GET /api/route/reverse", () => {
 		});
 	});
 
+	it("rejects missing geographic coordinates before calling GraphHopper", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const missingLatitudeResponse = await GET(
+			buildEvent("http://localhost/api/route/reverse?lng=11.5755", fetchMock),
+		);
+		const missingLongitudeResponse = await GET(
+			buildEvent("http://localhost/api/route/reverse?lat=48.1374", fetchMock),
+		);
+
+		expect(missingLatitudeResponse.status).toBe(400);
+		expect(missingLongitudeResponse.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(missingLatitudeResponse.json()).resolves.toEqual({
+			error: "A valid lat/lng pair is required.",
+		});
+		await expect(missingLongitudeResponse.json()).resolves.toEqual({
+			error: "A valid lat/lng pair is required.",
+		});
+	});
+
 	it("returns the reverse-geocoded label for a clicked point", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
 			new Response(

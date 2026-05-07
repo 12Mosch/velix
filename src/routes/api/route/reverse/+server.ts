@@ -6,65 +6,66 @@ import { formatCoordinateLabel } from "$lib/coordinate-search";
 import { runServerEffect } from "$lib/server/effect-runtime";
 import { reverseGeocodeLocationEffect } from "$lib/server/graphhopper";
 import { mapGraphHopperGeocodeError } from "$lib/server/graphhopper-route-errors";
-import type { GraphHopperGeocodeError } from "$lib/server/graphhopper-errors";
 import { ServerLive } from "$lib/server/layers";
 import { ServerFetch } from "$lib/server/resilience";
 import { checkReverseRateLimitEffect } from "$lib/server/route-rate-limits";
 
 export const GET: RequestHandler = async (event) => {
 	const { fetch, url } = event;
-	const latitude = Number(url.searchParams.get("lat"));
-	const longitude = Number(url.searchParams.get("lng"));
-	let program: Effect.Effect<Response, GraphHopperGeocodeError, never>;
 
-	if (
-		!Number.isFinite(latitude) ||
-		!Number.isFinite(longitude) ||
-		latitude < -90 ||
-		latitude > 90 ||
-		longitude < -180 ||
-		longitude > 180
-	) {
-		program = Effect.succeed(
-			json(
+	const program = Effect.gen(function* () {
+		const latitudeParam = url.searchParams.get("lat");
+		const longitudeParam = url.searchParams.get("lng");
+		const latitude =
+			latitudeParam === null ? Number.NaN : Number(latitudeParam);
+		const longitude =
+			longitudeParam === null ? Number.NaN : Number(longitudeParam);
+
+		if (
+			!Number.isFinite(latitude) ||
+			!Number.isFinite(longitude) ||
+			latitude < -90 ||
+			latitude > 90 ||
+			longitude < -180 ||
+			longitude > 180
+		) {
+			return json(
 				{
 					error: "A valid lat/lng pair is required.",
 				},
 				{ status: 400 },
-			),
-		);
-	} else {
+			);
+		}
+
 		const point: [number, number] = [longitude, latitude];
 
-		program = Effect.gen(function* () {
-			const rateLimitResponse = yield* checkReverseRateLimitEffect(event);
+		const rateLimitResponse = yield* checkReverseRateLimitEffect(event);
 
-			if (rateLimitResponse) {
-				return rateLimitResponse;
-			}
+		if (rateLimitResponse) {
+			return rateLimitResponse;
+		}
 
-			const suggestion = yield* reverseGeocodeLocationEffect(point);
+		const suggestion = yield* reverseGeocodeLocationEffect(point);
 
-			return json({
-				label: suggestion?.label || formatCoordinateLabel(point),
-				point,
-			});
-		}).pipe(
-			Effect.provide(ServerLive),
-			Effect.provideService(ServerFetch, { fetch }),
-		);
-	}
+		return json({
+			label: suggestion?.label || formatCoordinateLabel(point),
+			point,
+		});
+	});
 
 	return runServerEffect(
-		Effect.catchTags(
-			program,
-			mapGraphHopperGeocodeError({
-				logPrefix: "Failed to reverse geocode GraphHopper location",
-				missingKeyMessage:
-					"Reverse geocoding is not configured yet. Add GRAPHHOPPER_API_KEY.",
-				upstreamMessage:
-					"GraphHopper could not label that map location right now.",
-			}),
+		program.pipe(
+			Effect.catchTags(
+				mapGraphHopperGeocodeError({
+					logPrefix: "Failed to reverse geocode GraphHopper location",
+					missingKeyMessage:
+						"Reverse geocoding is not configured yet. Add GRAPHHOPPER_API_KEY.",
+					upstreamMessage:
+						"GraphHopper could not label that map location right now.",
+				}),
+			),
+			Effect.provide(ServerLive),
+			Effect.provideService(ServerFetch, { fetch }),
 		),
 	);
 };
