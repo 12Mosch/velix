@@ -13,9 +13,11 @@ import {
 	readResponseTextEffect,
 } from "$lib/server/effect-runtime";
 import {
+	GraphHopperRouteIncompleteError,
 	GraphHopperRouteFetchError,
 	GraphHopperRoutePayloadError,
 	GraphHopperRouteStatusError,
+	GraphHopperRouteStrategyError,
 	type GraphHopperRouteBoundaryError,
 } from "$lib/server/graphhopper-errors";
 import { GraphHopperConfig } from "$lib/server/graphhopper-config";
@@ -411,7 +413,6 @@ export function requestRoutesEffect(
 
 		let payload: GraphHopperRouteResponse | null = null;
 		let selectedStrategy: RouteRequestStrategy | null = null;
-		let lastError: GraphHopperRouteBoundaryError | null = null;
 		const strategies = options.spatialConstraint
 			? routeRequestStrategies.filter((strategy) => strategy.useCustomModel)
 			: routeRequestStrategies;
@@ -445,7 +446,6 @@ export function requestRoutesEffect(
 				return yield* Effect.fail(error);
 			}
 
-			lastError = error;
 			console.warn(
 				`GraphHopper rejected ${strategy.profile}${strategy.useCustomModel ? " with road-bike tuning" : " routing"}. Trying the next routing strategy.`,
 				error,
@@ -453,11 +453,7 @@ export function requestRoutesEffect(
 		}
 
 		if (!payload || !selectedStrategy) {
-			return yield* Effect.fail(
-				lastError instanceof Error
-					? lastError
-					: new Error("GraphHopper did not accept any routing strategy"),
-			);
+			return yield* Effect.fail(new GraphHopperRouteStrategyError());
 		}
 
 		const normalizedRoutes = (payload.paths ?? [])
@@ -467,9 +463,7 @@ export function requestRoutesEffect(
 			.filter((route): route is NormalizedGraphHopperRoute => route !== null);
 
 		if (normalizedRoutes.length === 0) {
-			return yield* Effect.fail(
-				new Error("GraphHopper route response was incomplete"),
-			);
+			return yield* Effect.fail(new GraphHopperRouteIncompleteError());
 		}
 
 		return {
