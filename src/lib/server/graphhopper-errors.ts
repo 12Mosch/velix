@@ -90,12 +90,29 @@ export class GraphHopperRoutePayloadError extends Error {
 	}
 }
 
+export class GraphHopperRouteIncompleteError extends Error {
+	readonly _tag = "GraphHopperRouteIncompleteError";
+
+	constructor() {
+		super("GraphHopper route response was incomplete");
+	}
+}
+
+export class GraphHopperRouteStrategyError extends Error {
+	readonly _tag = "GraphHopperRouteStrategyError";
+
+	constructor() {
+		super("GraphHopper did not accept any routing strategy");
+	}
+}
+
 export type GraphHopperRouteBoundaryError =
 	| MissingGraphHopperApiKeyError
 	| GraphHopperRouteFetchError
 	| GraphHopperRouteStatusError
 	| GraphHopperRoutePayloadError
-	| Error;
+	| GraphHopperRouteIncompleteError
+	| GraphHopperRouteStrategyError;
 
 export function isMissingGraphHopperApiKeyError(
 	error: unknown,

@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { Effect, Result, Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { parseCoordinateSearchInput } from "$lib/coordinate-search";
 import {
@@ -13,73 +13,48 @@ import {
 	type RouteRequestPayloadInput,
 } from "$lib/route-api-schema";
 import type {
-	PlannedRoute,
 	ManualRouteEditingState,
-	ResolvedRouteSpatialConstraint,
-	RouteApiSuccess,
+	PlannedRoute,
 	RoundCourseTarget,
 	RouteApiError,
-	RouteCoordinate,
-	RouteDetailInterval,
+	RouteApiSuccess,
 	RouteFieldErrors,
 	RouteMode,
 	RouteSpatialConstraintInput,
 	RouteStopInput,
-	RouteWaypoint,
 	SpatialConstraintEnforcement,
 } from "$lib/route-planning";
 import { runServerEffect } from "$lib/server/effect-runtime";
-import { geocodeLocationEffect } from "$lib/server/graphhopper";
 import {
 	isGraphHopperRoutePointLimitError,
 	isMissingGraphHopperApiKeyError,
-	type MissingGraphHopperApiKeyError,
 } from "$lib/server/graphhopper-errors";
-import { requestRoutesEffect } from "$lib/server/graphhopper-routing";
 import { ServerLive } from "$lib/server/layers";
+import {
+	resolveRouteStopsEffect,
+	resolveSpatialConstraintEffect,
+	RouteGenerationError,
+	RouteValidationError,
+	searchOutAndBackRoutesEffect,
+	searchPointToPointRoutesEffect,
+	searchRoundCourseRoutesEffect,
+	SpatialConstraintValidationError,
+	UnresolvedLocationError,
+	type ResolvedRouteStop,
+	type RouteStopResolutionInput,
+} from "$lib/server/route-orchestration";
 import { ServerFetch } from "$lib/server/resilience";
 import { checkRouteRateLimitEffect } from "$lib/server/route-rate-limits";
 
 const maxRoutePoints = 5;
 const maxWaypoints = maxRoutePoints - 2;
-
-type StopField = "startQuery" | "destinationQuery" | "waypointQueries";
-type RouteStop = {
-	kind: "start" | "waypoint" | "destination";
-	input: RouteStopInput;
-	field: StopField;
-	index?: number;
-	label?: string;
-	point?: [number, number];
-};
-
-type CandidateRouteResult = {
-	route: PlannedRoute;
-	requestedDistanceMeters: number;
-	sequence: number;
-};
-
-class RouteEndpointResponseError {
-	readonly _tag = "RouteEndpointResponseError";
-
-	constructor(readonly response: Response) {}
-}
-
-class RouteGenerationError {
-	readonly _tag = "RouteGenerationError";
-
-	constructor(
-		readonly logPrefix: string,
-		readonly userMessage: string,
-		readonly cause?: unknown,
-	) {}
-}
-
-type RouteEndpointError = RouteEndpointResponseError | RouteGenerationError;
-type RouteGenerationMappedError =
-	| RouteEndpointError
-	| MissingGraphHopperApiKeyError
-	| Error;
+const minRoundCourseDurationMs = 15 * 60 * 1000;
+const minRoundCourseAscendMeters = 50;
+const minRoundCourseDistanceMeters = 10_000;
+const minAreaRadiusMeters = 1_000;
+const maxAreaRadiusMeters = 250_000;
+const minCorridorWidthMeters = 2_000;
+const maxCorridorWidthMeters = 80_000;
 
 type RouteRequestEvent = Parameters<RequestHandler>[0];
 
@@ -94,30 +69,6 @@ type RouteModeContext = {
 	structuredOutAndBackPayload: RouteRequestPayloadInput | null;
 	legacyPayload: LegacyRouteRequestPayloadInput | null;
 };
-
-const minRoundCourseDurationMs = 15 * 60 * 1000;
-const minRoundCourseAscendMeters = 50;
-const minRoundCourseDistanceMeters = 10_000;
-const maxRoundCourseDistanceMeters = 220_000;
-const durationTargetSpeedMetersPerHour = 22_000;
-const ascendTargetMetersPerKm = 12;
-const desiredAlternativeRoutes = 3;
-const alternativeRouteMaxWeightFactor = 1.4;
-const alternativeRouteMaxShareFactor = 0.6;
-const roundCourseDistanceSearchMultipliers = [0.9, 1, 1.1] as const;
-const broadRoundCourseSearchMultipliers = [0.75, 1, 1.25] as const;
-const tightRoundCourseSearchMultipliers = [0.9, 1, 1.1] as const;
-const roundCourseSearchSeeds = [
-	[11, 37, 73],
-	[109, 149, 191],
-	[233, 277, 331],
-] as const;
-const minAreaRadiusMeters = 1_000;
-const maxAreaRadiusMeters = 250_000;
-const minCorridorWidthMeters = 2_000;
-const maxCorridorWidthMeters = 80_000;
-const areaPolygonSegments = 48;
-const earthRadiusMeters = 6_371_008.8;
 
 function getTooManyWaypointsMessage() {
 	return `You can add up to ${maxWaypoints} waypoints per route.`;
@@ -145,41 +96,31 @@ function successResponse(payload: RouteApiSuccess) {
 	return json(payload);
 }
 
-function failResponse(
-	response: Response,
-): Effect.Effect<never, RouteEndpointResponseError> {
-	return Effect.fail(new RouteEndpointResponseError(response));
-}
-
-function routeGenerationFailure(
-	logPrefix: string,
-	userMessage: string,
-	cause?: unknown,
-): Effect.Effect<never, RouteGenerationError> {
-	return Effect.fail(new RouteGenerationError(logPrefix, userMessage, cause));
-}
-
-function mapGenerationError(
-	logPrefix: string,
-	userMessage: string,
-): (error: unknown) => RouteGenerationMappedError {
-	return (error) => {
-		if (
-			error instanceof RouteEndpointResponseError ||
-			error instanceof RouteGenerationError ||
-			isMissingGraphHopperApiKeyError(error) ||
-			isGraphHopperRoutePointLimitError(error)
-		) {
-			return error as RouteGenerationMappedError;
-		}
-
-		return new RouteGenerationError(logPrefix, userMessage, error);
-	};
+function validationFailure(
+	status: number,
+	error: string,
+	fieldErrors?: RouteFieldErrors,
+): Effect.Effect<never, RouteValidationError> {
+	return Effect.fail(new RouteValidationError(status, error, fieldErrors));
 }
 
 function mapRouteEndpointError(error: unknown): Effect.Effect<Response> {
-	if (error instanceof RouteEndpointResponseError) {
-		return Effect.succeed(error.response);
+	if (error instanceof RouteValidationError) {
+		return Effect.succeed(
+			errorResponse(error.status, error.error, error.fieldErrors),
+		);
+	}
+
+	if (error instanceof SpatialConstraintValidationError) {
+		return Effect.succeed(
+			errorResponse(error.status, error.error, {
+				spatialConstraint: error.fieldError,
+			}),
+		);
+	}
+
+	if (error instanceof UnresolvedLocationError) {
+		return Effect.succeed(errorResponse(422, error.error, error.fieldErrors));
 	}
 
 	if (isMissingGraphHopperApiKeyError(error)) {
@@ -353,337 +294,6 @@ function normalizeManualEditingInput(
 		: undefined;
 }
 
-function applyManualEditing(
-	route: PlannedRoute,
-	manualEditing: ManualRouteEditingState | undefined,
-): PlannedRoute {
-	return manualEditing
-		? {
-				...route,
-				manualEditing,
-			}
-		: route;
-}
-
-function toRadians(degrees: number): number {
-	return (degrees * Math.PI) / 180;
-}
-
-function toDegrees(radians: number): number {
-	return (radians * 180) / Math.PI;
-}
-
-function getDistanceMeters(left: [number, number], right: [number, number]) {
-	const leftLat = toRadians(left[1]);
-	const rightLat = toRadians(right[1]);
-	const deltaLat = toRadians(right[1] - left[1]);
-	const deltaLng = toRadians(right[0] - left[0]);
-	const a =
-		Math.sin(deltaLat / 2) ** 2 +
-		Math.cos(leftLat) * Math.cos(rightLat) * Math.sin(deltaLng / 2) ** 2;
-
-	return (
-		earthRadiusMeters *
-		2 *
-		Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)))
-	);
-}
-
-function isSamePoint(left: [number, number], right: [number, number]) {
-	return left[0] === right[0] && left[1] === right[1];
-}
-
-function closePolygonRing(points: [number, number][]): [number, number][] {
-	const firstPoint = points[0];
-	const lastPoint = points[points.length - 1];
-
-	if (!firstPoint) {
-		return [];
-	}
-
-	if (lastPoint && isSamePoint(firstPoint, lastPoint)) {
-		return points;
-	}
-
-	return [...points, firstPoint];
-}
-
-function getRingSignedArea(points: [number, number][]): number {
-	let area = 0;
-
-	for (let index = 0; index < points.length - 1; index += 1) {
-		const point = points[index];
-		const nextPoint = points[index + 1];
-
-		if (!point || !nextPoint) {
-			continue;
-		}
-
-		area += point[0] * nextPoint[1] - nextPoint[0] * point[1];
-	}
-
-	return area / 2;
-}
-
-function ensureCounterClockwiseRing(
-	points: [number, number][],
-): [number, number][] {
-	const closedRing = closePolygonRing(points);
-	const openRing = closedRing.slice(0, -1);
-
-	if (getRingSignedArea(closedRing) >= 0) {
-		return closedRing;
-	}
-
-	return closePolygonRing([...openRing].reverse());
-}
-
-function buildAreaPolygon(
-	center: [number, number],
-	radiusMeters: number,
-): [number, number][] {
-	const centerLng = toRadians(center[0]);
-	const centerLat = toRadians(center[1]);
-	const angularDistance = radiusMeters / earthRadiusMeters;
-	const coordinates: [number, number][] = [];
-
-	for (let index = 0; index < areaPolygonSegments; index += 1) {
-		const bearing = (2 * Math.PI * index) / areaPolygonSegments;
-		const lat = Math.asin(
-			Math.sin(centerLat) * Math.cos(angularDistance) +
-				Math.cos(centerLat) * Math.sin(angularDistance) * Math.cos(bearing),
-		);
-		const lng =
-			centerLng +
-			Math.atan2(
-				Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(centerLat),
-				Math.cos(angularDistance) - Math.sin(centerLat) * Math.sin(lat),
-			);
-
-		coordinates.push([toDegrees(lng), toDegrees(lat)]);
-	}
-
-	return ensureCounterClockwiseRing(coordinates);
-}
-
-function getProjectionOrigin(points: [number, number][]) {
-	const lng =
-		points.reduce((sum, point) => sum + point[0], 0) /
-		Math.max(points.length, 1);
-	const lat =
-		points.reduce((sum, point) => sum + point[1], 0) /
-		Math.max(points.length, 1);
-
-	return {
-		lng,
-		lat,
-		cosLat: Math.cos(toRadians(lat)),
-	};
-}
-
-function buildCorridorPolygon(
-	points: [number, number][],
-	widthMeters: number,
-): [number, number][] {
-	const uniquePoints = points.filter((point, index) => {
-		const previousPoint = points[index - 1];
-		return !previousPoint || getDistanceMeters(previousPoint, point) > 1;
-	});
-	const fallbackPoint =
-		uniquePoints[0] ?? points[0] ?? ([0, 0] as [number, number]);
-	const controlPoints: [number, number][] =
-		uniquePoints.length >= 2
-			? uniquePoints
-			: [fallbackPoint, [fallbackPoint[0] + 0.0001, fallbackPoint[1]]];
-	const origin = getProjectionOrigin(controlPoints);
-	const halfWidthMeters = widthMeters / 2;
-	const projected = controlPoints.map((point) => ({
-		x:
-			toRadians(point[0] - origin.lng) *
-			earthRadiusMeters *
-			Math.max(origin.cosLat, 1e-6),
-		y: toRadians(point[1] - origin.lat) * earthRadiusMeters,
-	}));
-	const segments = projected.slice(0, -1).map((point, index) => {
-		const nextPoint = projected[index + 1] ?? point;
-		const dx = nextPoint.x - point.x;
-		const dy = nextPoint.y - point.y;
-		const length = Math.hypot(dx, dy) || 1;
-		const unit = {
-			x: dx / length,
-			y: dy / length,
-		};
-
-		return {
-			unit,
-			normal: {
-				x: -unit.y,
-				y: unit.x,
-			},
-		};
-	});
-	const left: Array<{ x: number; y: number }> = [];
-	const right: Array<{ x: number; y: number }> = [];
-
-	for (const [index, point] of projected.entries()) {
-		const previousSegment = segments[Math.max(0, index - 1)] ?? segments[0];
-		const nextSegment =
-			segments[Math.min(index, segments.length - 1)] ?? previousSegment;
-		const summedNormal = {
-			x: (previousSegment?.normal.x ?? 0) + (nextSegment?.normal.x ?? 0),
-			y: (previousSegment?.normal.y ?? 0) + (nextSegment?.normal.y ?? 0),
-		};
-		const summedLength = Math.hypot(summedNormal.x, summedNormal.y);
-		const miter =
-			summedLength > 1e-6
-				? {
-						x: summedNormal.x / summedLength,
-						y: summedNormal.y / summedLength,
-					}
-				: (nextSegment?.normal ?? { x: 0, y: 1 });
-		const denominator =
-			miter.x * (nextSegment?.normal.x ?? 0) +
-			miter.y * (nextSegment?.normal.y ?? 0);
-		const miterLength =
-			Math.abs(denominator) > 1e-6
-				? Math.min(Math.abs(halfWidthMeters / denominator), halfWidthMeters * 2)
-				: halfWidthMeters;
-		const offset = {
-			x: miter.x * miterLength,
-			y: miter.y * miterLength,
-		};
-
-		left.push({
-			x: point.x + offset.x,
-			y: point.y + offset.y,
-		});
-		right.push({
-			x: point.x - offset.x,
-			y: point.y - offset.y,
-		});
-	}
-
-	const unproject = (point: { x: number; y: number }): [number, number] => [
-		origin.lng +
-			toDegrees(point.x / (earthRadiusMeters * Math.max(origin.cosLat, 1e-6))),
-		origin.lat + toDegrees(point.y / earthRadiusMeters),
-	];
-	return ensureCounterClockwiseRing(
-		[...right.reverse(), ...left].map(unproject),
-	);
-}
-
-function resolveSpatialConstraintEffect(
-	input: RouteSpatialConstraintInput | undefined,
-	routePoints: [number, number][],
-) {
-	return Effect.gen(function* () {
-		if (!input) {
-			return {};
-		}
-
-		if (input.kind === "area") {
-			const resolvedCenter = input.center.point
-				? {
-						label: input.center.label || "Selected area center",
-						point: input.center.point,
-					}
-				: yield* geocodeLocationEffect(input.center.label);
-
-			if (!resolvedCenter?.point) {
-				return {
-					status: 422,
-					error: "We couldn't resolve the area center.",
-					fieldError: "We couldn't resolve that area center.",
-				};
-			}
-			const resolvedCenterPoint = resolvedCenter.point;
-
-			if (
-				input.enforcement === "strict" &&
-				routePoints.some(
-					(point) =>
-						getDistanceMeters(point, resolvedCenterPoint) > input.radiusMeters,
-				)
-			) {
-				return {
-					status: 400,
-					error: "Route stops must be inside the requested area.",
-					fieldError:
-						"Move the area or increase its radius so all stops are inside it.",
-				};
-			}
-
-			return {
-				constraint: {
-					kind: "area" as const,
-					label: resolvedCenter.label,
-					center: resolvedCenterPoint,
-					radiusMeters: input.radiusMeters,
-					enforcement: input.enforcement,
-					polygon: buildAreaPolygon(resolvedCenterPoint, input.radiusMeters),
-				},
-			};
-		}
-
-		return {
-			constraint: {
-				kind: "corridor" as const,
-				widthMeters: input.widthMeters,
-				enforcement: input.enforcement,
-				polygon: buildCorridorPolygon(routePoints, input.widthMeters),
-			},
-		};
-	});
-}
-
-function resolveStopEffect(stop: RouteStop) {
-	return Effect.gen(function* () {
-		if (stop.input.point) {
-			return {
-				...stop,
-				label: stop.input.label,
-				point: stop.input.point,
-			};
-		}
-
-		const resolved = yield* geocodeLocationEffect(stop.input.label);
-		return resolved
-			? {
-					...stop,
-					label: resolved.label,
-					point: resolved.point,
-				}
-			: stop;
-	});
-}
-
-function spatialConstraintErrorResponse(resolvedSpatialConstraint: {
-	constraint?: ResolvedRouteSpatialConstraint;
-	error?: string;
-	status?: number;
-	fieldError?: string;
-}): Response | null {
-	if (!resolvedSpatialConstraint.fieldError) {
-		return null;
-	}
-
-	return errorResponse(
-		resolvedSpatialConstraint.status ?? 400,
-		resolvedSpatialConstraint.error ?? "Route bounds are invalid.",
-		{
-			spatialConstraint: resolvedSpatialConstraint.fieldError,
-		},
-	);
-}
-
-function clampRoundCourseDistanceMeters(distanceMeters: number): number {
-	return Math.min(
-		maxRoundCourseDistanceMeters,
-		Math.max(minRoundCourseDistanceMeters, distanceMeters),
-	);
-}
-
 function getRoundCourseTargetError(rawTarget: unknown): string {
 	if (isRecord(rawTarget) && rawTarget.kind === "duration") {
 		return "Enter a target time.";
@@ -722,514 +332,6 @@ function normalizeRoundCourseTarget(
 	}
 
 	return null;
-}
-
-function estimateRoundCourseDistanceMeters(target: RoundCourseTarget): number {
-	if (target.kind === "distance") {
-		return target.distanceMeters;
-	}
-
-	if (target.kind === "duration") {
-		return (
-			(target.durationMs / (60 * 60 * 1000)) * durationTargetSpeedMetersPerHour
-		);
-	}
-
-	return (target.ascendMeters / ascendTargetMetersPerKm) * 1000;
-}
-
-function getRoundCourseTargetRelativeError(
-	route: PlannedRoute,
-	target: RoundCourseTarget,
-): number {
-	if (target.kind === "duration") {
-		return Math.abs(route.durationMs - target.durationMs) / target.durationMs;
-	}
-
-	if (target.kind === "ascend") {
-		return (
-			Math.abs(route.ascendMeters - target.ascendMeters) / target.ascendMeters
-		);
-	}
-
-	return (
-		Math.abs(route.distanceMeters - target.distanceMeters) /
-		target.distanceMeters
-	);
-}
-
-function getRoundCourseTargetValue(
-	route: PlannedRoute,
-	target: RoundCourseTarget,
-): number {
-	if (target.kind === "duration") {
-		return route.durationMs;
-	}
-
-	if (target.kind === "ascend") {
-		return route.ascendMeters;
-	}
-
-	return route.distanceMeters;
-}
-
-function getRoundCourseRequestedTargetValue(target: RoundCourseTarget): number {
-	if (target.kind === "duration") {
-		return target.durationMs;
-	}
-
-	if (target.kind === "ascend") {
-		return target.ascendMeters;
-	}
-
-	return target.distanceMeters;
-}
-
-function getRequestedDistanceRelativeError(
-	route: PlannedRoute,
-	requestedDistanceMeters: number,
-): number {
-	return (
-		Math.abs(route.distanceMeters - requestedDistanceMeters) /
-		Math.max(requestedDistanceMeters, 1)
-	);
-}
-
-function compareCandidateRoutes(
-	left: CandidateRouteResult,
-	right: CandidateRouteResult,
-	target: RoundCourseTarget,
-): number {
-	const targetErrorDifference =
-		getRoundCourseTargetRelativeError(left.route, target) -
-		getRoundCourseTargetRelativeError(right.route, target);
-
-	if (Math.abs(targetErrorDifference) > 1e-9) {
-		return targetErrorDifference;
-	}
-
-	const requestedDistanceErrorDifference =
-		getRequestedDistanceRelativeError(
-			left.route,
-			left.requestedDistanceMeters,
-		) -
-		getRequestedDistanceRelativeError(
-			right.route,
-			right.requestedDistanceMeters,
-		);
-
-	if (Math.abs(requestedDistanceErrorDifference) > 1e-9) {
-		return requestedDistanceErrorDifference;
-	}
-
-	const leftDurationError =
-		target.kind === "duration"
-			? Math.abs(left.route.durationMs - target.durationMs)
-			: left.route.durationMs;
-	const rightDurationError =
-		target.kind === "duration"
-			? Math.abs(right.route.durationMs - target.durationMs)
-			: right.route.durationMs;
-	const durationErrorDifference = leftDurationError - rightDurationError;
-
-	if (Math.abs(durationErrorDifference) > 1e-9) {
-		return durationErrorDifference;
-	}
-
-	return left.sequence - right.sequence;
-}
-
-function interpolateRoundCourseDistanceMeters(
-	under: CandidateRouteResult,
-	over: CandidateRouteResult,
-	target: RoundCourseTarget,
-): number | null {
-	const targetValue = getRoundCourseRequestedTargetValue(target);
-	const underValue = getRoundCourseTargetValue(under.route, target);
-	const overValue = getRoundCourseTargetValue(over.route, target);
-	const valueDelta = overValue - underValue;
-
-	if (Math.abs(valueDelta) < 1e-9) {
-		return null;
-	}
-
-	const ratio = (targetValue - underValue) / valueDelta;
-
-	return (
-		under.requestedDistanceMeters +
-		(over.requestedDistanceMeters - under.requestedDistanceMeters) * ratio
-	);
-}
-
-function getNextRoundCourseBaseDistanceMeters(
-	candidates: CandidateRouteResult[],
-	target: RoundCourseTarget,
-): number {
-	const rankedCandidates = [...candidates].sort((left, right) =>
-		compareCandidateRoutes(left, right, target),
-	);
-	const bestCandidate = rankedCandidates[0];
-
-	if (!bestCandidate) {
-		return clampRoundCourseDistanceMeters(
-			estimateRoundCourseDistanceMeters(target),
-		);
-	}
-
-	if (target.kind === "distance") {
-		const actualDistanceMeters = Math.max(
-			bestCandidate.route.distanceMeters,
-			1,
-		);
-		const correctedDistanceMeters =
-			(bestCandidate.requestedDistanceMeters * target.distanceMeters) /
-			actualDistanceMeters;
-
-		return clampRoundCourseDistanceMeters(correctedDistanceMeters);
-	}
-
-	const targetValue = getRoundCourseRequestedTargetValue(target);
-	const underCandidates = rankedCandidates
-		.filter(
-			(candidate) =>
-				getRoundCourseTargetValue(candidate.route, target) <= targetValue,
-		)
-		.sort(
-			(left, right) =>
-				targetValue -
-				getRoundCourseTargetValue(left.route, target) -
-				(targetValue - getRoundCourseTargetValue(right.route, target)),
-		);
-	const overCandidates = rankedCandidates
-		.filter(
-			(candidate) =>
-				getRoundCourseTargetValue(candidate.route, target) >= targetValue,
-		)
-		.sort(
-			(left, right) =>
-				getRoundCourseTargetValue(left.route, target) -
-				targetValue -
-				(getRoundCourseTargetValue(right.route, target) - targetValue),
-		);
-	const underCandidate = underCandidates[0];
-	const overCandidate = overCandidates[0];
-
-	if (underCandidate && overCandidate && underCandidate !== overCandidate) {
-		const interpolatedDistanceMeters = interpolateRoundCourseDistanceMeters(
-			underCandidate,
-			overCandidate,
-			target,
-		);
-
-		if (interpolatedDistanceMeters !== null) {
-			return clampRoundCourseDistanceMeters(interpolatedDistanceMeters);
-		}
-	}
-
-	const bestValue = Math.max(
-		getRoundCourseTargetValue(bestCandidate.route, target),
-		1,
-	);
-	const adjustment = Math.min(1.6, Math.max(0.625, targetValue / bestValue));
-
-	return clampRoundCourseDistanceMeters(
-		bestCandidate.requestedDistanceMeters * adjustment,
-	);
-}
-
-function formatDurationWarning(durationMs: number): string {
-	const totalMinutes = Math.round(durationMs / 60000);
-	const hours = Math.floor(totalMinutes / 60);
-	const minutes = totalMinutes % 60;
-
-	return `${hours}:${minutes.toString().padStart(2, "0")} h`;
-}
-
-function buildRoundCourseMissWarning(
-	route: PlannedRoute,
-	target: RoundCourseTarget,
-): string | null {
-	if (target.kind === "distance") {
-		return null;
-	}
-
-	const relativeError = getRoundCourseTargetRelativeError(route, target);
-
-	if (relativeError <= 0.15) {
-		return null;
-	}
-
-	if (target.kind === "duration") {
-		return `Requested ${formatDurationWarning(target.durationMs)}, but the closest round course came out to ${formatDurationWarning(route.durationMs)}.`;
-	}
-
-	return `Requested ${Math.round(target.ascendMeters).toLocaleString()} m up, but the closest round course came out to ${Math.round(route.ascendMeters).toLocaleString()} m up.`;
-}
-
-function buildRouteUniquenessKey(route: PlannedRoute): string {
-	const sampleCount = Math.min(route.coordinates.length, 12);
-	const sampledCoordinates =
-		sampleCount === 0
-			? []
-			: Array.from({ length: sampleCount }, (_, index) => {
-					const coordinateIndex =
-						sampleCount === 1
-							? 0
-							: Math.round(
-									(index * (route.coordinates.length - 1)) / (sampleCount - 1),
-								);
-					const coordinate = route.coordinates[coordinateIndex];
-
-					return coordinate
-						? `${coordinate[0].toFixed(4)},${coordinate[1].toFixed(4)}`
-						: "";
-				});
-
-	return [
-		Math.round(route.distanceMeters / 250),
-		Math.round(route.durationMs / 60000),
-		Math.round(route.ascendMeters / 25),
-		...sampledCoordinates,
-	].join("|");
-}
-
-function dedupeRoutes(routes: PlannedRoute[]): PlannedRoute[] {
-	const uniqueRoutes = new Map<string, PlannedRoute>();
-
-	for (const route of routes) {
-		const key = buildRouteUniquenessKey(route);
-
-		if (!uniqueRoutes.has(key)) {
-			uniqueRoutes.set(key, route);
-		}
-	}
-
-	return [...uniqueRoutes.values()];
-}
-
-function dedupeCandidateRoutes(
-	candidates: CandidateRouteResult[],
-): CandidateRouteResult[] {
-	const uniqueCandidates = new Map<string, CandidateRouteResult>();
-
-	for (const candidate of candidates) {
-		const key = buildRouteUniquenessKey(candidate.route);
-
-		if (!uniqueCandidates.has(key)) {
-			uniqueCandidates.set(key, candidate);
-		}
-	}
-
-	return [...uniqueCandidates.values()];
-}
-
-function mirrorDetailIntervals(
-	details: RouteDetailInterval[],
-	coordinateCount: number,
-): RouteDetailInterval[] {
-	const outboundExtent = Math.max(
-		coordinateCount - 1,
-		...details.map((detail) => detail.to),
-		0,
-	);
-
-	return [
-		...details,
-		...details
-			.slice()
-			.reverse()
-			.map((detail) => ({
-				from: outboundExtent + (outboundExtent - detail.to),
-				to: outboundExtent + (outboundExtent - detail.from),
-				value: detail.value,
-			})),
-	];
-}
-
-function buildOutAndBackRoute(
-	outboundRoute: PlannedRoute,
-	startLabel: string,
-	turnaroundLabel: string,
-	snappedStart: RouteCoordinate,
-	snappedTurnaround: RouteCoordinate,
-	shapingWaypoints: RouteWaypoint[] = [],
-): PlannedRoute {
-	const outboundCoordinates =
-		outboundRoute.coordinates.length >= 2
-			? outboundRoute.coordinates
-			: [snappedStart, snappedTurnaround];
-
-	return {
-		...outboundRoute,
-		mode: "out_and_back",
-		startLabel,
-		destinationLabel: turnaroundLabel,
-		waypoints: [
-			...shapingWaypoints,
-			{
-				label: turnaroundLabel,
-				coordinate: snappedTurnaround,
-			},
-		],
-		distanceMeters: outboundRoute.distanceMeters * 2,
-		durationMs: outboundRoute.durationMs * 2,
-		ascendMeters: outboundRoute.ascendMeters + outboundRoute.descendMeters,
-		descendMeters: outboundRoute.descendMeters + outboundRoute.ascendMeters,
-		coordinates: [
-			...outboundCoordinates,
-			...outboundCoordinates.slice(0, -1).reverse(),
-		],
-		surfaceDetails: mirrorDetailIntervals(
-			outboundRoute.surfaceDetails,
-			outboundCoordinates.length,
-		),
-		smoothnessDetails: mirrorDetailIntervals(
-			outboundRoute.smoothnessDetails,
-			outboundCoordinates.length,
-		),
-	};
-}
-
-function searchRoundCourseRoutesEffect(
-	startPoint: [number, number],
-	target: RoundCourseTarget,
-	spatialConstraint?: ResolvedRouteSpatialConstraint,
-	desiredCount = desiredAlternativeRoutes,
-) {
-	return Effect.gen(function* () {
-		let baseDistanceMeters = clampRoundCourseDistanceMeters(
-			estimateRoundCourseDistanceMeters(target),
-		);
-		const successfulCandidates: CandidateRouteResult[] = [];
-		let sequence = 0;
-		let lastError: unknown = null;
-		const attemptedRequestedDistances = new Set<string>();
-
-		for (const [roundIndex, seeds] of roundCourseSearchSeeds.entries()) {
-			const multipliers =
-				target.kind === "distance"
-					? roundCourseDistanceSearchMultipliers
-					: roundIndex === 0
-						? broadRoundCourseSearchMultipliers
-						: tightRoundCourseSearchMultipliers;
-			const requestedDistances = multipliers
-				.map((multiplier) =>
-					clampRoundCourseDistanceMeters(baseDistanceMeters * multiplier),
-				)
-				.filter((requestedDistanceMeters) => {
-					const key = `${roundIndex}:${Math.round(requestedDistanceMeters)}`;
-
-					if (attemptedRequestedDistances.has(key)) {
-						return false;
-					}
-
-					attemptedRequestedDistances.add(key);
-					return true;
-				});
-
-			if (requestedDistances.length === 0) {
-				continue;
-			}
-
-			const candidateResults = yield* Effect.all(
-				requestedDistances.map((requestedDistanceMeters, candidateIndex) => {
-					const candidateSequence = sequence++;
-					return requestRoutesEffect([startPoint], {
-						mode: "round_course",
-						roundTripDistanceMeters: requestedDistanceMeters,
-						roundTripSeed: seeds[candidateIndex],
-						roundCourseTarget: target,
-						spatialConstraint,
-					}).pipe(
-						Effect.map(({ routes }) =>
-							routes.map((route, routeIndex) => ({
-								route,
-								requestedDistanceMeters,
-								sequence:
-									candidateSequence * desiredAlternativeRoutes + routeIndex,
-							})),
-						),
-						Effect.result,
-					);
-				}),
-				{ concurrency: "unbounded" },
-			);
-
-			for (const candidateResult of candidateResults) {
-				if (Result.isSuccess(candidateResult)) {
-					successfulCandidates.push(...candidateResult.success);
-					continue;
-				}
-
-				lastError = candidateResult.failure;
-			}
-
-			const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
-
-			if (uniqueCandidates.length === 0) {
-				continue;
-			}
-
-			const bestCandidate = [...uniqueCandidates].sort((left, right) =>
-				compareCandidateRoutes(left, right, target),
-			)[0];
-
-			if (roundIndex === 0) {
-				baseDistanceMeters = getNextRoundCourseBaseDistanceMeters(
-					uniqueCandidates,
-					target,
-				);
-				continue;
-			}
-
-			if (
-				target.kind !== "distance" &&
-				roundIndex === 1 &&
-				bestCandidate &&
-				getRoundCourseTargetRelativeError(bestCandidate.route, target) > 0.15
-			) {
-				baseDistanceMeters = getNextRoundCourseBaseDistanceMeters(
-					uniqueCandidates,
-					target,
-				);
-				continue;
-			}
-
-			break;
-		}
-
-		const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
-
-		if (uniqueCandidates.length === 0) {
-			return yield* Effect.fail(
-				lastError instanceof Error
-					? lastError
-					: new Error(
-							"GraphHopper could not generate a round course right now.",
-						),
-			);
-		}
-
-		const rankedCandidates = [...uniqueCandidates].sort((left, right) =>
-			compareCandidateRoutes(left, right, target),
-		);
-
-		return rankedCandidates.slice(0, desiredCount).map((candidate) => {
-			const missWarning = buildRoundCourseMissWarning(candidate.route, target);
-
-			if (!missWarning) {
-				return candidate.route;
-			}
-
-			return {
-				...candidate.route,
-				routingWarnings: [
-					...(candidate.route.routingWarnings ?? []),
-					missWarning,
-				],
-			};
-		});
-	});
 }
 
 function normalizeStopInput(value: unknown): RouteStopInput {
@@ -1293,458 +395,61 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 	};
 }
 
-function handleRoundCourseEffect(context: RouteModeContext) {
-	return Effect.gen(function* () {
-		const {
-			event,
-			payloadRecord,
-			startInput,
-			spatialConstraintInput,
-			manualEditing,
-			fieldErrors,
-		} = context;
-		const roundCourseTarget = normalizeRoundCourseTarget(payloadRecord);
-		const rawWaypointInputs = Array.isArray(payloadRecord.waypoints)
-			? payloadRecord.waypoints
-			: [];
-		const waypointInputs = rawWaypointInputs.map((input) =>
-			normalizeStopInput(input),
+function buildWaypointFieldErrors(waypointInputs: RouteStopInput[]) {
+	return waypointInputs.map((waypoint) =>
+		waypoint.label ? null : "Enter a waypoint or remove this stop.",
+	);
+}
+
+function addWaypointValidationErrors(
+	fieldErrors: RouteFieldErrors,
+	waypointInputs: RouteStopInput[],
+) {
+	const waypointFieldErrors = buildWaypointFieldErrors(waypointInputs);
+
+	if (waypointFieldErrors.some((error) => !!error)) {
+		fieldErrors.waypointQueries = waypointFieldErrors.map(
+			(error) => error ?? "",
 		);
+	}
+}
 
-		if (!startInput.label) {
-			fieldErrors.startQuery = "Enter a start point.";
-		}
+function buildRoutePoints(stops: ResolvedRouteStop[]): [number, number][] {
+	return stops.map((stop) => stop.point);
+}
 
-		if (waypointInputs.length > maxWaypoints) {
-			const waypointError = getTooManyWaypointsMessage();
-			return yield* failResponse(
-				errorResponse(400, waypointError, {
-					...fieldErrors,
-					waypointQueries: waypointInputs.map(() => waypointError),
-				}),
-			);
-		}
-
-		const waypointFieldErrors = waypointInputs.map(
-			(waypoint: RouteStopInput) =>
-				waypoint.label ? null : "Enter a waypoint or remove this stop.",
-		);
-
-		if (waypointFieldErrors.some((error: string | null) => !!error)) {
-			fieldErrors.waypointQueries = waypointFieldErrors.map(
-				(error: string | null) => error ?? "",
-			);
-		}
-
-		if (!roundCourseTarget) {
-			fieldErrors.roundCourseTarget = getRoundCourseTargetError(
-				payloadRecord.target,
-			);
-		} else if (
-			(roundCourseTarget.kind === "distance" &&
-				roundCourseTarget.distanceMeters <= 0) ||
-			(roundCourseTarget.kind === "duration" &&
-				roundCourseTarget.durationMs < minRoundCourseDurationMs) ||
-			(roundCourseTarget.kind === "ascend" &&
-				roundCourseTarget.ascendMeters < minRoundCourseAscendMeters)
-		) {
-			fieldErrors.roundCourseTarget = getRoundCourseTargetError(
-				payloadRecord.target,
-			);
-		}
-
-		if (Object.keys(fieldErrors).length > 0) {
-			return yield* failResponse(
-				errorResponse(
-					400,
-					"Start and a round-course target are required.",
-					fieldErrors,
-				),
-			);
-		}
-
-		if (
-			roundCourseTarget &&
-			spatialConstraintInput?.kind === "area" &&
-			spatialConstraintInput.enforcement === "strict" &&
-			roundCourseTarget.kind === "distance" &&
-			roundCourseTarget.distanceMeters >
-				2 * Math.PI * spatialConstraintInput.radiusMeters
-		) {
-			return yield* failResponse(
-				errorResponse(
-					400,
-					"Increase the area radius or reduce the target distance.",
-					{
-						spatialConstraint:
-							"Increase the area radius or reduce the target distance.",
-					},
-				),
-			);
-		}
-
-		const rateLimitResponse = yield* checkRouteRateLimitEffect(event);
-
-		if (rateLimitResponse) {
-			return rateLimitResponse;
-		}
-
-		return yield* Effect.gen(function* () {
-			const resolvedStart = startInput.point
-				? {
-						label: startInput.label,
-						point: startInput.point,
-					}
-				: yield* geocodeLocationEffect(startInput.label);
-
-			if (!resolvedStart?.point || !resolvedStart.label) {
-				return yield* failResponse(
-					errorResponse(422, "We couldn't resolve the start point.", {
-						startQuery: "We couldn't resolve that start point.",
-					}),
-				);
-			}
-
-			const resolvedWaypoints = yield* Effect.all(
-				waypointInputs.map((input, index) =>
-					Effect.gen(function* () {
-						if (input.point) {
-							return {
-								index,
-								label: input.label,
-								point: input.point,
-							};
-						}
-
-						const resolved = yield* geocodeLocationEffect(input.label);
-						return resolved
-							? {
-									index,
-									label: resolved.label,
-									point: resolved.point,
-								}
-							: {
-									index,
-									label: "",
-									point: undefined,
-								};
-					}),
-				),
-				{ concurrency: "unbounded" },
-			);
-			const unresolvedWaypoints = waypointInputs.map(() => "");
-
-			for (const waypoint of resolvedWaypoints) {
-				if (waypoint.label && waypoint.point) {
-					continue;
-				}
-
-				unresolvedWaypoints[waypoint.index] =
-					"We couldn't resolve that waypoint.";
-			}
-
-			if (unresolvedWaypoints.some((error: string) => error.length > 0)) {
-				return yield* failResponse(
-					errorResponse(422, "We couldn't resolve one or more locations.", {
-						waypointQueries: unresolvedWaypoints,
-					}),
-				);
-			}
-
-			const routePoints = [
-				resolvedStart.point,
-				...resolvedWaypoints.map(
-					(waypoint) => waypoint.point as [number, number],
-				),
-			];
-
-			const resolvedSpatialConstraint = yield* resolveSpatialConstraintEffect(
-				spatialConstraintInput,
-				routePoints,
-			);
-			const spatialConstraintResponse = spatialConstraintErrorResponse(
-				resolvedSpatialConstraint,
-			);
-
-			if (spatialConstraintResponse) {
-				return yield* failResponse(spatialConstraintResponse);
-			}
-
-			let normalizedRoutes: PlannedRoute[];
-
-			if (resolvedWaypoints.length === 0) {
-				normalizedRoutes = dedupeRoutes(
-					yield* searchRoundCourseRoutesEffect(
-						resolvedStart.point,
-						roundCourseTarget as RoundCourseTarget,
-						resolvedSpatialConstraint.constraint,
-					),
-				).map((route) =>
-					applyManualEditing(
-						{
-							...route,
-							startLabel: resolvedStart.label,
-							destinationLabel: resolvedStart.label,
-							waypoints: [],
-						},
-						manualEditing,
-					),
-				);
-			} else {
-				const { routes, snappedWaypointSets } = yield* requestRoutesEffect(
-					[...routePoints, resolvedStart.point],
-					{
-						mode: "point_to_point",
-						spatialConstraint: resolvedSpatialConstraint.constraint,
-						alternativeMaxPaths: desiredAlternativeRoutes,
-						alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
-						alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
-					},
-				);
-
-				normalizedRoutes = dedupeRoutes(
-					routes.map((route, routeIndex) => {
-						const snappedWaypoints = snappedWaypointSets[routeIndex] ?? [];
-
-						return {
-							...route,
-							mode: "round_course" as const,
-							startLabel: resolvedStart.label,
-							destinationLabel: resolvedStart.label,
-							roundCourseTarget: roundCourseTarget as RoundCourseTarget,
-							waypoints: resolvedWaypoints.map(
-								(waypoint, waypointIndex): RouteWaypoint => ({
-									label: waypoint.label,
-									coordinate:
-										snappedWaypoints[waypointIndex + 1] ??
-										(waypoint.point as [number, number]),
-								}),
-							),
-							routingWarnings: [
-								...(route.routingWarnings ?? []),
-								"Manual shaping points make the round-course target best-effort.",
-							],
-						};
-					}),
-				).map((route) => applyManualEditing(route, manualEditing));
-			}
-
-			if (normalizedRoutes.length === 0) {
-				return yield* routeGenerationFailure(
-					"Failed to generate GraphHopper round course",
-					"GraphHopper could not generate a round course right now.",
-				);
-			}
-
-			return successResponse({
-				routes: normalizedRoutes,
-				selectedRouteIndex: 0,
-			});
-		}).pipe(
-			Effect.mapError(
-				mapGenerationError(
-					"Failed to generate GraphHopper round course",
-					"GraphHopper could not generate a round course right now.",
-				),
-			),
-		);
+function successWithRoutes(routes: PlannedRoute[]) {
+	return successResponse({
+		routes,
+		selectedRouteIndex: 0,
 	});
 }
 
-function handleOutAndBackEffect(context: RouteModeContext) {
-	return Effect.gen(function* () {
-		const {
-			event,
-			startInput,
-			spatialConstraintInput,
-			manualEditing,
-			fieldErrors,
-			structuredOutAndBackPayload,
-		} = context;
-		const turnaroundInput = normalizeStopInput(
-			structuredOutAndBackPayload?.turnaround,
-		);
-		const rawWaypointInputs = Array.isArray(
-			structuredOutAndBackPayload?.waypoints,
-		)
-			? structuredOutAndBackPayload.waypoints
-			: [];
-		const waypointInputs = rawWaypointInputs.map((input) =>
-			normalizeStopInput(input),
-		);
-
-		if (!startInput.label) {
-			fieldErrors.startQuery = "Enter a start point.";
-		}
-
-		if (waypointInputs.length > maxWaypoints) {
-			const waypointError = getTooManyWaypointsMessage();
-			return yield* failResponse(
-				errorResponse(400, waypointError, {
-					...fieldErrors,
-					waypointQueries: waypointInputs.map(() => waypointError),
-				}),
-			);
-		}
-
-		const waypointFieldErrors = waypointInputs.map(
-			(waypoint: RouteStopInput) =>
-				waypoint.label ? null : "Enter a waypoint or remove this stop.",
-		);
-
-		if (waypointFieldErrors.some((error: string | null) => !!error)) {
-			fieldErrors.waypointQueries = waypointFieldErrors.map(
-				(error: string | null) => error ?? "",
-			);
-		}
-
-		if (!turnaroundInput.label) {
-			fieldErrors.destinationQuery = "Enter a turnaround point.";
-		}
-
-		if (Object.keys(fieldErrors).length > 0) {
-			return yield* failResponse(
-				errorResponse(400, "Start and turnaround are required.", fieldErrors),
-			);
-		}
-
-		const rateLimitResponse = yield* checkRouteRateLimitEffect(event);
-
-		if (rateLimitResponse) {
-			return rateLimitResponse;
-		}
-
-		return yield* Effect.gen(function* () {
-			const stops: RouteStop[] = [
-				{ kind: "start", input: startInput, field: "startQuery" },
-				...waypointInputs.map((input: RouteStopInput, index: number) => ({
-					kind: "waypoint" as const,
-					input,
-					field: "waypointQueries" as const,
-					index,
-				})),
-				{
-					kind: "destination",
-					input: turnaroundInput,
-					field: "destinationQuery",
-				},
-			];
-			const resolvedStops = yield* Effect.all(stops.map(resolveStopEffect), {
-				concurrency: "unbounded",
-			});
-			const unresolvedWaypoints = waypointInputs.map(() => "");
-
-			for (const stop of resolvedStops) {
-				if (stop.label && stop.point) {
-					continue;
-				}
-
-				if (stop.field === "startQuery") {
-					fieldErrors.startQuery = "We couldn't resolve that start point.";
-				} else if (typeof stop.index === "number") {
-					unresolvedWaypoints[stop.index] =
-						"We couldn't resolve that waypoint.";
-				} else {
-					fieldErrors.destinationQuery =
-						"We couldn't resolve that turnaround point.";
-				}
-			}
-
-			if (unresolvedWaypoints.some((error: string) => error.length > 0)) {
-				fieldErrors.waypointQueries = unresolvedWaypoints;
-			}
-
-			if (
-				fieldErrors.startQuery ||
-				fieldErrors.destinationQuery ||
-				fieldErrors.waypointQueries
-			) {
-				return yield* failResponse(
-					errorResponse(
-						422,
-						"We couldn't resolve one or more locations.",
-						fieldErrors,
-					),
-				);
-			}
-
-			const routePoints = resolvedStops.map(
-				(stop) => stop.point as [number, number],
-			);
-			const resolvedSpatialConstraint = yield* resolveSpatialConstraintEffect(
-				spatialConstraintInput,
-				routePoints,
-			);
-			const spatialConstraintResponse = spatialConstraintErrorResponse(
-				resolvedSpatialConstraint,
-			);
-
-			if (spatialConstraintResponse) {
-				return yield* failResponse(spatialConstraintResponse);
-			}
-
-			const { routes, snappedWaypointSets } = yield* requestRoutesEffect(
-				routePoints,
-				{
-					mode: "out_and_back",
-					spatialConstraint: resolvedSpatialConstraint.constraint,
-					alternativeMaxPaths: desiredAlternativeRoutes,
-					alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
-					alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
-				},
-			);
-			const normalizedRoutes = dedupeRoutes(
-				routes.map((route, routeIndex) => {
-					const snappedWaypoints = snappedWaypointSets[routeIndex] ?? [];
-					const snappedStart =
-						snappedWaypoints[0] ??
-						(resolvedStops[0]?.point as [number, number]);
-					const snappedTurnaround =
-						snappedWaypoints[snappedWaypoints.length - 1] ??
-						(resolvedStops[resolvedStops.length - 1]?.point as [
-							number,
-							number,
-						]);
-					const shapingWaypoints = resolvedStops.slice(1, -1).map(
-						(stop, waypointIndex): RouteWaypoint => ({
-							label: stop.label ?? stop.input.label,
-							coordinate:
-								snappedWaypoints[waypointIndex + 1] ??
-								(stop.point as [number, number]),
-						}),
-					);
-
-					return buildOutAndBackRoute(
-						route,
-						resolvedStops[0]?.label ?? "",
-						resolvedStops[resolvedStops.length - 1]?.label ?? "",
-						snappedStart,
-						snappedTurnaround,
-						shapingWaypoints,
-					);
-				}),
-			).map((route) => applyManualEditing(route, manualEditing));
-
-			if (normalizedRoutes.length === 0) {
-				return yield* routeGenerationFailure(
-					"Failed to generate GraphHopper out-and-back route",
-					"GraphHopper could not generate an out-and-back route right now.",
-				);
-			}
-
-			return successResponse({
-				routes: normalizedRoutes,
-				selectedRouteIndex: 0,
-			});
-		}).pipe(
-			Effect.mapError(
-				mapGenerationError(
-					"Failed to generate GraphHopper out-and-back route",
-					"GraphHopper could not generate an out-and-back route right now.",
-				),
-			),
-		);
-	});
+function buildStopResolutionInput(
+	startInput: RouteStopInput,
+	waypointInputs: RouteStopInput[],
+	destinationInput?: RouteStopInput,
+	destinationUnresolvedMessage = "We couldn't resolve that destination.",
+): RouteStopResolutionInput[] {
+	return [
+		{ kind: "start", input: startInput, field: "startQuery" },
+		...waypointInputs.map((input, index) => ({
+			kind: "waypoint" as const,
+			input,
+			field: "waypointQueries" as const,
+			index,
+		})),
+		...(destinationInput
+			? [
+					{
+						kind: "destination" as const,
+						input: destinationInput,
+						field: "destinationQuery" as const,
+						unresolvedMessage: destinationUnresolvedMessage,
+					},
+				]
+			: []),
+	];
 }
 
 function handlePointToPointEffect(context: RouteModeContext) {
@@ -1776,33 +481,24 @@ function handlePointToPointEffect(context: RouteModeContext) {
 		if (waypointInputs.length > maxWaypoints) {
 			const waypointError = getTooManyWaypointsMessage();
 			fieldErrors.waypointQueries = waypointInputs.map(() => waypointError);
-			return yield* failResponse(
-				errorResponse(400, waypointError, fieldErrors),
-			);
+			return yield* validationFailure(400, waypointError, fieldErrors);
 		}
 
 		if (!startInput.label) {
 			fieldErrors.startQuery = "Enter a start point.";
 		}
 
-		const waypointFieldErrors = waypointInputs.map(
-			(waypoint: RouteStopInput) =>
-				waypoint.label ? null : "Enter a waypoint or remove this stop.",
-		);
-
-		if (waypointFieldErrors.some((error: string | null) => !!error)) {
-			fieldErrors.waypointQueries = waypointFieldErrors.map(
-				(error: string | null) => error ?? "",
-			);
-		}
+		addWaypointValidationErrors(fieldErrors, waypointInputs);
 
 		if (!destinationInput.label) {
 			fieldErrors.destinationQuery = "Enter a destination.";
 		}
 
 		if (Object.keys(fieldErrors).length > 0) {
-			return yield* failResponse(
-				errorResponse(400, "Start and destination are required.", fieldErrors),
+			return yield* validationFailure(
+				400,
+				"Start and destination are required.",
+				fieldErrors,
 			);
 		}
 
@@ -1812,132 +508,188 @@ function handlePointToPointEffect(context: RouteModeContext) {
 			return rateLimitResponse;
 		}
 
-		return yield* Effect.gen(function* () {
-			const stops: RouteStop[] = [
-				{ kind: "start", input: startInput, field: "startQuery" },
-				...waypointInputs.map((input: RouteStopInput, index: number) => ({
-					kind: "waypoint" as const,
-					input,
-					field: "waypointQueries" as const,
-					index,
-				})),
-				{
-					kind: "destination",
-					input: destinationInput,
-					field: "destinationQuery",
-				},
-			];
+		const resolvedStops = yield* resolveRouteStopsEffect(
+			buildStopResolutionInput(startInput, waypointInputs, destinationInput),
+		);
+		const routePoints = buildRoutePoints(resolvedStops);
+		const { constraint } = yield* resolveSpatialConstraintEffect(
+			spatialConstraintInput,
+			routePoints,
+		);
+		const routes = yield* searchPointToPointRoutesEffect({
+			stops: resolvedStops,
+			spatialConstraint: constraint,
+			manualEditing,
+		});
 
-			const resolvedStops = yield* Effect.all(stops.map(resolveStopEffect), {
-				concurrency: "unbounded",
+		return successWithRoutes(routes);
+	});
+}
+
+function handleOutAndBackEffect(context: RouteModeContext) {
+	return Effect.gen(function* () {
+		const {
+			event,
+			startInput,
+			spatialConstraintInput,
+			manualEditing,
+			fieldErrors,
+			structuredOutAndBackPayload,
+		} = context;
+		const turnaroundInput = normalizeStopInput(
+			structuredOutAndBackPayload?.turnaround,
+		);
+		const rawWaypointInputs = Array.isArray(
+			structuredOutAndBackPayload?.waypoints,
+		)
+			? structuredOutAndBackPayload.waypoints
+			: [];
+		const waypointInputs = rawWaypointInputs.map((input) =>
+			normalizeStopInput(input),
+		);
+
+		if (!startInput.label) {
+			fieldErrors.startQuery = "Enter a start point.";
+		}
+
+		if (waypointInputs.length > maxWaypoints) {
+			const waypointError = getTooManyWaypointsMessage();
+			return yield* validationFailure(400, waypointError, {
+				...fieldErrors,
+				waypointQueries: waypointInputs.map(() => waypointError),
 			});
-			const unresolvedWaypoints = waypointInputs.map(() => "");
+		}
 
-			for (const stop of resolvedStops) {
-				if (stop.label && stop.point) {
-					continue;
-				}
+		addWaypointValidationErrors(fieldErrors, waypointInputs);
 
-				if (stop.field === "startQuery") {
-					fieldErrors.startQuery = "We couldn't resolve that start point.";
-					continue;
-				}
+		if (!turnaroundInput.label) {
+			fieldErrors.destinationQuery = "Enter a turnaround point.";
+		}
 
-				if (stop.field === "destinationQuery") {
-					fieldErrors.destinationQuery =
-						"We couldn't resolve that destination.";
-					continue;
-				}
-
-				if (typeof stop.index === "number") {
-					unresolvedWaypoints[stop.index] =
-						"We couldn't resolve that waypoint.";
-				}
-			}
-
-			if (unresolvedWaypoints.some((error: string) => error.length > 0)) {
-				fieldErrors.waypointQueries = unresolvedWaypoints;
-			}
-
-			if (
-				fieldErrors.startQuery ||
-				fieldErrors.destinationQuery ||
-				fieldErrors.waypointQueries
-			) {
-				return yield* failResponse(
-					errorResponse(
-						422,
-						"We couldn't resolve one or more locations.",
-						fieldErrors,
-					),
-				);
-			}
-
-			const routePoints = resolvedStops.map(
-				(stop) => stop.point as [number, number],
+		if (Object.keys(fieldErrors).length > 0) {
+			return yield* validationFailure(
+				400,
+				"Start and turnaround are required.",
+				fieldErrors,
 			);
-			const resolvedSpatialConstraint = yield* resolveSpatialConstraintEffect(
-				spatialConstraintInput,
-				routePoints,
-			);
-			const spatialConstraintResponse = spatialConstraintErrorResponse(
-				resolvedSpatialConstraint,
-			);
+		}
 
-			if (spatialConstraintResponse) {
-				return yield* failResponse(spatialConstraintResponse);
-			}
+		const rateLimitResponse = yield* checkRouteRateLimitEffect(event);
 
-			const { routes, snappedWaypointSets } = yield* requestRoutesEffect(
-				routePoints,
-				{
-					mode: "point_to_point",
-					spatialConstraint: resolvedSpatialConstraint.constraint,
-					alternativeMaxPaths: desiredAlternativeRoutes,
-					alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
-					alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
-				},
-			);
-			const normalizedRoutes = dedupeRoutes(
-				routes.map((route, routeIndex) => {
-					const snappedWaypoints = snappedWaypointSets[routeIndex] ?? [];
+		if (rateLimitResponse) {
+			return rateLimitResponse;
+		}
 
-					return {
-						...route,
-						startLabel: resolvedStops[0]?.label ?? "",
-						destinationLabel:
-							resolvedStops[resolvedStops.length - 1]?.label ?? "",
-						waypoints: resolvedStops.slice(1, -1).map(
-							(stop, index): RouteWaypoint => ({
-								label: stop.label ?? stop.input.label,
-								coordinate:
-									snappedWaypoints[index + 1] ??
-									(stop.point as [number, number]),
-							}),
-						),
-					};
-				}),
-			).map((route) => applyManualEditing(route, manualEditing));
-
-			if (normalizedRoutes.length === 0) {
-				return yield* routeGenerationFailure(
-					"Failed to generate GraphHopper route",
-					"GraphHopper could not generate a route right now.",
-				);
-			}
-
-			return successResponse({
-				routes: normalizedRoutes,
-				selectedRouteIndex: 0,
-			});
-		}).pipe(
-			Effect.mapError(
-				mapGenerationError(
-					"Failed to generate GraphHopper route",
-					"GraphHopper could not generate a route right now.",
-				),
+		const resolvedStops = yield* resolveRouteStopsEffect(
+			buildStopResolutionInput(
+				startInput,
+				waypointInputs,
+				turnaroundInput,
+				"We couldn't resolve that turnaround point.",
 			),
 		);
+		const routePoints = buildRoutePoints(resolvedStops);
+		const { constraint } = yield* resolveSpatialConstraintEffect(
+			spatialConstraintInput,
+			routePoints,
+		);
+		const routes = yield* searchOutAndBackRoutesEffect({
+			stops: resolvedStops,
+			spatialConstraint: constraint,
+			manualEditing,
+		});
+
+		return successWithRoutes(routes);
+	});
+}
+
+function handleRoundCourseEffect(context: RouteModeContext) {
+	return Effect.gen(function* () {
+		const {
+			event,
+			payloadRecord,
+			startInput,
+			spatialConstraintInput,
+			manualEditing,
+			fieldErrors,
+		} = context;
+		const roundCourseTarget = normalizeRoundCourseTarget(payloadRecord);
+		const rawWaypointInputs = Array.isArray(payloadRecord.waypoints)
+			? payloadRecord.waypoints
+			: [];
+		const waypointInputs = rawWaypointInputs.map((input) =>
+			normalizeStopInput(input),
+		);
+
+		if (!startInput.label) {
+			fieldErrors.startQuery = "Enter a start point.";
+		}
+
+		if (waypointInputs.length > maxWaypoints) {
+			const waypointError = getTooManyWaypointsMessage();
+			return yield* validationFailure(400, waypointError, {
+				...fieldErrors,
+				waypointQueries: waypointInputs.map(() => waypointError),
+			});
+		}
+
+		addWaypointValidationErrors(fieldErrors, waypointInputs);
+
+		if (!roundCourseTarget) {
+			fieldErrors.roundCourseTarget = getRoundCourseTargetError(
+				payloadRecord.target,
+			);
+		} else if (
+			(roundCourseTarget.kind === "distance" &&
+				roundCourseTarget.distanceMeters < minRoundCourseDistanceMeters) ||
+			(roundCourseTarget.kind === "duration" &&
+				roundCourseTarget.durationMs < minRoundCourseDurationMs) ||
+			(roundCourseTarget.kind === "ascend" &&
+				roundCourseTarget.ascendMeters < minRoundCourseAscendMeters)
+		) {
+			fieldErrors.roundCourseTarget = getRoundCourseTargetError(
+				payloadRecord.target,
+			);
+		}
+
+		if (Object.keys(fieldErrors).length > 0) {
+			return yield* validationFailure(
+				400,
+				"Start and a round-course target are required.",
+				fieldErrors,
+			);
+		}
+
+		const rateLimitResponse = yield* checkRouteRateLimitEffect(event);
+
+		if (rateLimitResponse) {
+			return rateLimitResponse;
+		}
+
+		const resolvedStops = yield* resolveRouteStopsEffect(
+			buildStopResolutionInput(startInput, waypointInputs),
+		);
+		const start = resolvedStops[0];
+
+		if (!start) {
+			return yield* validationFailure(400, "Start is required.");
+		}
+
+		const waypoints = resolvedStops.slice(1);
+		const routePoints = buildRoutePoints(resolvedStops);
+		const { constraint } = yield* resolveSpatialConstraintEffect(
+			spatialConstraintInput,
+			routePoints,
+		);
+		const routes = yield* searchRoundCourseRoutesEffect({
+			start,
+			waypoints,
+			target: roundCourseTarget as RoundCourseTarget,
+			spatialConstraint: constraint,
+			manualEditing,
+		});
+
+		return successWithRoutes(routes);
 	});
 }
 
@@ -1948,14 +700,12 @@ export const POST: RequestHandler = async (event) => {
 		const rawPayload = yield* Effect.tryPromise({
 			try: () => request.json(),
 			catch: () =>
-				new RouteEndpointResponseError(
-					errorResponse(400, "Invalid route request payload."),
-				),
+				new RouteValidationError(400, "Invalid route request payload."),
 		});
 		const decodedPayload = decodeRouteRequestPayload(rawPayload);
 
 		if (!decodedPayload.ok) {
-			return yield* failResponse(errorResponse(400, decodedPayload.error));
+			return yield* validationFailure(400, decodedPayload.error);
 		}
 
 		const payload: RouteRequestPayloadInput = decodedPayload.payload;

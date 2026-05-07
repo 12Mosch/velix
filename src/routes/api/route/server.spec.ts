@@ -732,8 +732,12 @@ describe("POST /api/route", () => {
 		});
 	});
 
-	it("fails fast when a strict round-course area is too small for the target distance", async () => {
-		const fetchMock = vi.fn<typeof fetch>();
+	it("does not reject strict round-course areas based on target circumference", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockImplementation(() =>
+				Promise.resolve(buildRoundCourseResponse([11.5756, 48.1375, 522])),
+			);
 
 		const response = await POST(
 			buildEvent(
@@ -761,15 +765,8 @@ describe("POST /api/route", () => {
 			),
 		);
 
-		expect(response.status).toBe(400);
-		expect(fetchMock).not.toHaveBeenCalled();
-		await expect(response.json()).resolves.toEqual({
-			error: "Increase the area radius or reduce the target distance.",
-			fieldErrors: {
-				spatialConstraint:
-					"Increase the area radius or reduce the target distance.",
-			},
-		});
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalled();
 	});
 
 	it("does not fall back to unconstrained GraphHopper strategies for active constraints", async () => {
@@ -1310,7 +1307,7 @@ describe("POST /api/route", () => {
 		expect(route?.routingProfile).toBe("racingbike");
 	});
 
-	it("validates the required target distance for round-course requests", async () => {
+	it("validates the minimum target distance for round-course requests", async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 
 		const response = await POST(
@@ -1320,7 +1317,7 @@ describe("POST /api/route", () => {
 					start: {
 						label: "Munich",
 					},
-					requestedDistanceMeters: 0,
+					requestedDistanceMeters: 9999,
 				},
 				fetchMock,
 			),
