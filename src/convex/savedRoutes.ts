@@ -4,7 +4,6 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
 	deserializeRemoteSavedRoute,
-	isRecord,
 	normalizePlannedRoute,
 	serializeSavedRouteForRemote,
 	type RemoteSavedRoutePayload,
@@ -30,10 +29,6 @@ async function getAuthenticatedUserId(ctx: QueryCtx | MutationCtx) {
 function validateRemoteSavedRoutePayload(
 	value: unknown,
 ): ValidatedRemoteSavedRoute | null {
-	if (!isRecord(value)) {
-		return null;
-	}
-
 	const savedRoute = deserializeRemoteSavedRoute(value);
 	if (!savedRoute) {
 		return null;

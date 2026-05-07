@@ -1,14 +1,11 @@
-import type {
-	ImportedRouteStopDerivation,
-	ManualRouteEditingState,
-	PlannedRoute,
-	ResolvedRouteSpatialConstraint,
-	RoundCourseTarget,
-	RouteMode,
-	RouteSource,
-	RouteWaypoint,
-	SpatialConstraintEnforcement,
-} from "./route-planning";
+import { Schema } from "effect";
+
+import {
+	PlannedRouteSchema,
+	RemoteSavedRoutePayloadSchema,
+	RouteModeSchema,
+} from "./route-api-schema";
+import type { ManualRouteEditingState, PlannedRoute } from "./route-planning";
 import {
 	getRouteSegmentCount,
 	sanitizeLockedSegmentIndexes,
@@ -32,181 +29,79 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object";
 }
 
-function isFiniteNumber(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value);
-}
-
-function isRouteMode(value: unknown): value is RouteMode {
-	return (
-		value === "point_to_point" ||
-		value === "round_course" ||
-		value === "out_and_back"
-	);
-}
-
-function isImportedRouteStopDerivation(
+function decodeOrNull<S extends Schema.Decoder<unknown, never>>(
+	schema: S,
 	value: unknown,
-): value is ImportedRouteStopDerivation {
-	return value === "rtept" || value === "wpt" || value === "track";
-}
-
-function isRouteCoordinate(
-	value: unknown,
-): value is PlannedRoute["coordinates"][number] {
-	if (!Array.isArray(value) || (value.length !== 2 && value.length !== 3)) {
-		return false;
+): S["Type"] | null {
+	try {
+		return Schema.decodeUnknownSync(schema)(value);
+	} catch {
+		return null;
 	}
-
-	return value.every(isFiniteNumber);
-}
-
-function isRoutePoint(value: unknown): value is [number, number] {
-	return (
-		Array.isArray(value) && value.length === 2 && value.every(isFiniteNumber)
-	);
-}
-
-function isRouteBounds(value: unknown): value is PlannedRoute["bounds"] {
-	return (
-		Array.isArray(value) && value.length === 4 && value.every(isFiniteNumber)
-	);
-}
-
-function isRouteDetailInterval(
-	value: unknown,
-): value is PlannedRoute["surfaceDetails"][number] {
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	return (
-		isFiniteNumber(value.from) &&
-		isFiniteNumber(value.to) &&
-		typeof value.value === "string"
-	);
-}
-
-function isRouteWaypoint(value: unknown): value is RouteWaypoint {
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	return typeof value.label === "string" && isRouteCoordinate(value.coordinate);
-}
-
-function isRoundCourseTarget(value: unknown): value is RoundCourseTarget {
-	if (!isRecord(value) || typeof value.kind !== "string") {
-		return false;
-	}
-
-	if (value.kind === "distance") {
-		return isFiniteNumber(value.distanceMeters);
-	}
-
-	if (value.kind === "duration") {
-		return isFiniteNumber(value.durationMs);
-	}
-
-	if (value.kind === "ascend") {
-		return isFiniteNumber(value.ascendMeters);
-	}
-
-	return false;
-}
-
-function isSpatialConstraintEnforcement(
-	value: unknown,
-): value is SpatialConstraintEnforcement {
-	return value === "strict" || value === "preferred";
 }
 
 function isSameRoutePoint(left: [number, number], right: [number, number]) {
 	return left[0] === right[0] && left[1] === right[1];
 }
 
-function normalizeSpatialConstraint(
-	value: unknown,
-): ResolvedRouteSpatialConstraint | undefined | null {
-	if (value === undefined) {
-		return undefined;
-	}
-
-	if (!isRecord(value) || !isSpatialConstraintEnforcement(value.enforcement)) {
+function normalizeDateString(value: unknown): string | null {
+	if (typeof value !== "string") {
 		return null;
 	}
 
-	const polygon = value.polygon;
-	if (
-		!Array.isArray(polygon) ||
-		polygon.length < 4 ||
-		!polygon.every(isRoutePoint)
-	) {
-		return null;
-	}
+	const ms = Date.parse(value);
+	return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+function isClosedPolygon(polygon: [number, number][]) {
 	const firstPoint = polygon[0];
 	const lastPoint = polygon[polygon.length - 1];
 
-	if (!firstPoint || !lastPoint || !isSameRoutePoint(firstPoint, lastPoint)) {
-		return null;
-	}
-
-	if (value.kind === "area") {
-		return typeof value.label === "string" &&
-			isRoutePoint(value.center) &&
-			isFiniteNumber(value.radiusMeters)
-			? {
-					kind: "area",
-					label: value.label,
-					center: value.center,
-					radiusMeters: value.radiusMeters,
-					enforcement: value.enforcement,
-					polygon,
-				}
-			: null;
-	}
-
-	if (value.kind === "corridor") {
-		return isFiniteNumber(value.widthMeters)
-			? {
-					kind: "corridor",
-					widthMeters: value.widthMeters,
-					enforcement: value.enforcement,
-					polygon,
-				}
-			: null;
-	}
-
-	return null;
+	return !!firstPoint && !!lastPoint && isSameRoutePoint(firstPoint, lastPoint);
 }
 
-function normalizeRouteSource(value: unknown): RouteSource | null {
-	if (value === undefined) {
-		return { kind: "graphhopper" };
-	}
+function hasAtLeastTwoCoordinates(route: PlannedRoute) {
+	return route.coordinates.length >= 2;
+}
 
-	if (!isRecord(value) || typeof value.kind !== "string") {
+function normalizeLegacyPlannedRouteInput(
+	value: Record<string, unknown>,
+): Record<string, unknown> | null {
+	const requestedDistanceMeters =
+		value.requestedDistanceMeters === undefined
+			? undefined
+			: typeof value.requestedDistanceMeters === "number" &&
+					Number.isFinite(value.requestedDistanceMeters)
+				? value.requestedDistanceMeters
+				: null;
+
+	if (requestedDistanceMeters === null) {
 		return null;
 	}
 
-	if (value.kind === "graphhopper") {
-		return { kind: "graphhopper" };
+	const candidate: Record<string, unknown> = {
+		...value,
+		mode: decodeOrNull(RouteModeSchema, value.mode) ?? "point_to_point",
+		source: value.source ?? { kind: "graphhopper" },
+		waypoints: value.waypoints ?? [],
+	};
+	delete candidate.manualEditing;
+
+	if (requestedDistanceMeters !== undefined) {
+		candidate.requestedDistanceMeters = requestedDistanceMeters;
 	}
 
 	if (
-		value.kind === "gpx_import" &&
-		typeof value.filename === "string" &&
-		isImportedRouteStopDerivation(value.stopDerivation) &&
-		typeof value.hasDuration === "boolean"
+		value.roundCourseTarget === undefined &&
+		requestedDistanceMeters !== undefined
 	) {
-		return {
-			kind: "gpx_import",
-			filename: value.filename,
-			stopDerivation: value.stopDerivation,
-			hasDuration: value.hasDuration,
+		candidate.roundCourseTarget = {
+			kind: "distance",
+			distanceMeters: requestedDistanceMeters,
 		};
 	}
 
-	return null;
+	return candidate;
 }
 
 function normalizeManualEditing(
@@ -246,97 +141,23 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		return null;
 	}
 
-	const waypointValues = value.waypoints;
-	const mode = isRouteMode(value.mode) ? value.mode : "point_to_point";
-	const source = normalizeRouteSource(value.source);
-	const requestedDistanceMeters =
-		value.requestedDistanceMeters === undefined
-			? undefined
-			: isFiniteNumber(value.requestedDistanceMeters)
-				? value.requestedDistanceMeters
-				: null;
-	const roundCourseTarget =
-		value.roundCourseTarget === undefined
-			? requestedDistanceMeters == null
-				? undefined
-				: {
-						kind: "distance" as const,
-						distanceMeters: requestedDistanceMeters,
-					}
-			: isRoundCourseTarget(value.roundCourseTarget)
-				? value.roundCourseTarget
-				: null;
-	const spatialConstraint = normalizeSpatialConstraint(value.spatialConstraint);
-
-	if (
-		source === null ||
-		typeof value.startLabel !== "string" ||
-		typeof value.destinationLabel !== "string" ||
-		requestedDistanceMeters === null ||
-		roundCourseTarget === null ||
-		spatialConstraint === null ||
-		(value.routingProfile !== undefined &&
-			typeof value.routingProfile !== "string") ||
-		(value.routingStrategy !== undefined &&
-			typeof value.routingStrategy !== "string") ||
-		(value.routingWarnings !== undefined &&
-			(!Array.isArray(value.routingWarnings) ||
-				!value.routingWarnings.every(
-					(warning) => typeof warning === "string",
-				))) ||
-		!isRouteBounds(value.bounds) ||
-		!isFiniteNumber(value.distanceMeters) ||
-		!isFiniteNumber(value.durationMs) ||
-		!isFiniteNumber(value.ascendMeters) ||
-		!isFiniteNumber(value.descendMeters) ||
-		!Array.isArray(value.coordinates) ||
-		value.coordinates.length < 2 ||
-		!value.coordinates.every(isRouteCoordinate) ||
-		!Array.isArray(value.surfaceDetails) ||
-		!value.surfaceDetails.every(isRouteDetailInterval) ||
-		!Array.isArray(value.smoothnessDetails) ||
-		!value.smoothnessDetails.every(isRouteDetailInterval)
-	) {
+	const candidate = normalizeLegacyPlannedRouteInput(value);
+	if (!candidate) {
 		return null;
 	}
 
-	if (
-		waypointValues !== undefined &&
-		(!Array.isArray(waypointValues) || !waypointValues.every(isRouteWaypoint))
-	) {
+	const normalizedRoute = decodeOrNull(PlannedRouteSchema, candidate);
+	if (!normalizedRoute || !hasAtLeastTwoCoordinates(normalizedRoute)) {
 		return null;
 	}
 
-	const normalizedRoute: PlannedRoute = {
-		mode,
-		source,
-		startLabel: value.startLabel,
-		destinationLabel: value.destinationLabel,
-		roundCourseTarget,
-		spatialConstraint,
-		routingProfile:
-			typeof value.routingProfile === "string"
-				? value.routingProfile
-				: undefined,
-		routingStrategy:
-			typeof value.routingStrategy === "string"
-				? value.routingStrategy
-				: undefined,
-		routingWarnings: Array.isArray(value.routingWarnings)
-			? value.routingWarnings.filter(
-					(warning): warning is string => typeof warning === "string",
-				)
-			: undefined,
-		waypoints: Array.isArray(waypointValues) ? waypointValues : [],
-		bounds: value.bounds,
-		distanceMeters: value.distanceMeters,
-		durationMs: value.durationMs,
-		ascendMeters: value.ascendMeters,
-		descendMeters: value.descendMeters,
-		coordinates: value.coordinates,
-		surfaceDetails: value.surfaceDetails,
-		smoothnessDetails: value.smoothnessDetails,
-	};
+	if (normalizedRoute.spatialConstraint) {
+		const polygon = normalizedRoute.spatialConstraint.polygon;
+		if (polygon.length < 4 || !isClosedPolygon(polygon)) {
+			return null;
+		}
+	}
+
 	const manualEditing = normalizeManualEditing(
 		value.manualEditing,
 		normalizedRoute,
@@ -353,81 +174,25 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 }
 
 export function isPlannedRoute(value: unknown): value is PlannedRoute {
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	return (
-		normalizeRouteSource(value.source) !== null &&
-		(value.mode === undefined || isRouteMode(value.mode)) &&
-		typeof value.startLabel === "string" &&
-		typeof value.destinationLabel === "string" &&
-		(value.requestedDistanceMeters === undefined ||
-			isFiniteNumber(value.requestedDistanceMeters)) &&
-		(value.roundCourseTarget === undefined ||
-			isRoundCourseTarget(value.roundCourseTarget)) &&
-		(value.routingProfile === undefined ||
-			typeof value.routingProfile === "string") &&
-		(value.spatialConstraint === undefined ||
-			normalizeSpatialConstraint(value.spatialConstraint) !== null) &&
-		(value.routingStrategy === undefined ||
-			typeof value.routingStrategy === "string") &&
-		(value.routingWarnings === undefined ||
-			(Array.isArray(value.routingWarnings) &&
-				value.routingWarnings.every(
-					(warning) => typeof warning === "string",
-				))) &&
-		(value.manualEditing === undefined ||
-			(isRecord(value.manualEditing) &&
-				Array.isArray(value.manualEditing.lockedSegmentIndexes) &&
-				value.manualEditing.lockedSegmentIndexes.every((index) =>
-					Number.isInteger(index),
-				))) &&
-		(value.waypoints === undefined ||
-			(Array.isArray(value.waypoints) &&
-				value.waypoints.every(isRouteWaypoint))) &&
-		isRouteBounds(value.bounds) &&
-		isFiniteNumber(value.distanceMeters) &&
-		isFiniteNumber(value.durationMs) &&
-		isFiniteNumber(value.ascendMeters) &&
-		isFiniteNumber(value.descendMeters) &&
-		Array.isArray(value.coordinates) &&
-		value.coordinates.length >= 2 &&
-		value.coordinates.every(isRouteCoordinate) &&
-		Array.isArray(value.surfaceDetails) &&
-		value.surfaceDetails.every(isRouteDetailInterval) &&
-		Array.isArray(value.smoothnessDetails) &&
-		value.smoothnessDetails.every(isRouteDetailInterval)
-	);
+	return normalizePlannedRoute(value) !== null;
 }
 
+const RawSavedRouteSchema = Schema.Struct({
+	id: Schema.String,
+	createdAt: Schema.String,
+	route: Schema.Unknown,
+});
+
 function getNormalizedSavedRoute(value: unknown): SavedRoute | null {
-	if (!isRecord(value)) {
+	const candidate = decodeOrNull(RawSavedRouteSchema, value);
+	if (!candidate || candidate.id.length === 0) {
 		return null;
 	}
 
-	const candidate = value as Partial<SavedRoute>;
-	const normalizedRoute = normalizePlannedRoute(candidate.route);
-	const createdAtMs =
-		typeof candidate.createdAt === "string"
-			? Date.parse(candidate.createdAt)
-			: NaN;
+	const createdAt = normalizeDateString(candidate.createdAt);
+	const route = normalizePlannedRoute(candidate.route);
 
-	if (
-		typeof candidate.id === "string" &&
-		candidate.id.length > 0 &&
-		typeof candidate.createdAt === "string" &&
-		Number.isFinite(createdAtMs) &&
-		normalizedRoute !== null
-	) {
-		return {
-			id: candidate.id,
-			createdAt: new Date(createdAtMs).toISOString(),
-			route: normalizedRoute,
-		};
-	}
-
-	return null;
+	return createdAt && route ? { id: candidate.id, createdAt, route } : null;
 }
 
 export function isSavedRoute(value: unknown): value is SavedRoute {
@@ -481,26 +246,19 @@ export function serializeSavedRouteForRemote(
 }
 
 export function deserializeRemoteSavedRoute(value: unknown): SavedRoute | null {
-	if (!isRecord(value)) {
+	const candidate = decodeOrNull(RemoteSavedRoutePayloadSchema, value);
+	if (!candidate || candidate.id.length === 0) {
 		return null;
 	}
 
-	const id = typeof value.id === "string" ? value.id : "";
-	const createdAtMs =
-		typeof value.createdAt === "string" ? Date.parse(value.createdAt) : NaN;
-
-	if (
-		id.length === 0 ||
-		typeof value.createdAt !== "string" ||
-		!Number.isFinite(createdAtMs) ||
-		typeof value.routeJson !== "string"
-	) {
+	const createdAt = normalizeDateString(candidate.createdAt);
+	if (!createdAt) {
 		return null;
 	}
 
 	let parsedRoute: unknown;
 	try {
-		parsedRoute = JSON.parse(value.routeJson) as unknown;
+		parsedRoute = JSON.parse(candidate.routeJson) as unknown;
 	} catch {
 		return null;
 	}
@@ -511,8 +269,8 @@ export function deserializeRemoteSavedRoute(value: unknown): SavedRoute | null {
 	}
 
 	return {
-		id,
-		createdAt: new Date(createdAtMs).toISOString(),
+		id: candidate.id,
+		createdAt,
 		route,
 	};
 }
