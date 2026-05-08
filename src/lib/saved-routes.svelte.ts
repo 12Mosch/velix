@@ -18,6 +18,7 @@ import {
 	type SavedRoute,
 } from "$lib/saved-routes-core";
 import { createBrowserStorage } from "$lib/storage/browser-storage";
+import { Effect } from "effect";
 
 export {
 	buildSavedRoute,
@@ -47,47 +48,53 @@ class SavedRoutesState {
 	pendingRemoteRouteIds = $state<Set<string>>(new Set());
 
 	initSavedRoutes(): SavedRoute[] {
-		return savedRoutesUseCases.initSavedRoutes(this);
+		return Effect.runSync(savedRoutesUseCases.initSavedRoutes(this));
 	}
 
 	setAuthUser(userId: string | null | undefined) {
-		savedRoutesUseCases.setAuthUser(this, userId);
+		Effect.runSync(savedRoutesUseCases.setAuthUser(this, userId));
 	}
 
 	applyRemoteRoutes(userId: string, routes: unknown[]) {
-		savedRoutesUseCases.applyRemoteSavedRoutes(this, userId, routes);
+		Effect.runSync(
+			savedRoutesUseCases.applyRemoteSavedRoutes(this, userId, routes),
+		);
 	}
 
 	setRemoteAdapter(adapter: SavedRoutesRemoteRepository | null) {
-		savedRoutesUseCases.setRemoteRepository(adapter);
+		Effect.runSync(savedRoutesUseCases.setRemoteRepository(adapter));
 	}
 
 	setRemoteSyncUnavailable(message: string) {
-		savedRoutesUseCases.setRemoteSyncUnavailable(this, message);
+		Effect.runSync(savedRoutesUseCases.setRemoteSyncUnavailable(this, message));
 	}
 
 	async runLocalMergeOnce(userId: string) {
-		await savedRoutesUseCases.runLocalSavedRoutesMergeOnce(this, userId);
+		await Effect.runPromise(
+			savedRoutesUseCases.runLocalSavedRoutesMergeOnce(this, userId),
+		);
 	}
 
 	addSavedRoute(route: PlannedRoute): SavedRoute {
-		return savedRoutesUseCases.createSavedRoute(this, route);
+		return Effect.runSync(savedRoutesUseCases.createSavedRoute(this, route));
 	}
 
 	upsertSavedRoute(route: PlannedRoute, id?: string): SavedRoute {
-		return savedRoutesUseCases.upsertSavedRoute(this, route, id);
+		return Effect.runSync(
+			savedRoutesUseCases.upsertSavedRoute(this, route, id),
+		);
 	}
 
 	getSavedRouteById(id: string | null | undefined): SavedRoute | null {
-		return savedRoutesUseCases.getSavedRouteById(this, id);
+		return Effect.runSync(savedRoutesUseCases.getSavedRouteById(this, id));
 	}
 
 	deleteSavedRoute(id: string): boolean {
-		return savedRoutesUseCases.deleteSavedRoute(this, id);
+		return Effect.runSync(savedRoutesUseCases.deleteSavedRoute(this, id));
 	}
 
 	resetSavedRoutesForTests() {
-		savedRoutesUseCases.reset(this);
+		Effect.runSync(savedRoutesUseCases.reset(this));
 	}
 }
 
