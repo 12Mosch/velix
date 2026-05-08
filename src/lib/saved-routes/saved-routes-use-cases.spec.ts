@@ -11,6 +11,7 @@ import {
 } from "$lib/saved-routes/saved-routes-use-cases";
 import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
 import type { BrowserStorage } from "$lib/storage/browser-storage";
+import { Effect } from "effect";
 
 const route: PlannedRoute = {
 	mode: "point_to_point",
@@ -82,14 +83,16 @@ describe("saved routes use cases", () => {
 	it("optimistically saves signed-in routes and clears pending state after remote success", async () => {
 		const save = vi.fn().mockResolvedValue(undefined);
 
-		useCases.setAuthUser(state, "user_1");
-		useCases.setRemoteRepository({
-			save,
-			delete: vi.fn(),
-			mergeLocalRoutes: vi.fn(),
-		});
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save,
+				delete: vi.fn(),
+				mergeLocalRoutes: vi.fn(),
+			}),
+		);
 
-		const savedRoute = useCases.createSavedRoute(state, route);
+		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
 
 		expect(state.savedRoutes).toEqual([savedRoute]);
 		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
@@ -105,26 +108,30 @@ describe("saved routes use cases", () => {
 		vi.useFakeTimers();
 
 		try {
-			useCases.setAuthUser(state, "user_1");
+			Effect.runSync(useCases.setAuthUser(state, "user_1"));
 			vi.setSystemTime(new Date("2026-04-19T09:30:00.000Z"));
-			const older = useCases.createSavedRoute(state, route);
+			const older = Effect.runSync(useCases.createSavedRoute(state, route));
 			vi.setSystemTime(new Date("2026-04-20T09:30:00.000Z"));
 			const newer = {
-				...useCases.createSavedRoute(state, route),
+				...Effect.runSync(useCases.createSavedRoute(state, route)),
 				id: "newer",
 			};
 
-			useCases.applyRemoteSavedRoutes(state, "other_user", [
-				serializeSavedRouteForRemote(newer),
-			]);
+			Effect.runSync(
+				useCases.applyRemoteSavedRoutes(state, "other_user", [
+					serializeSavedRouteForRemote(newer),
+				]),
+			);
 			expect(state.savedRoutes.map((savedRoute) => savedRoute.id)).not.toEqual([
 				"newer",
 			]);
 
-			useCases.applyRemoteSavedRoutes(state, "user_1", [
-				serializeSavedRouteForRemote(older),
-				serializeSavedRouteForRemote(newer),
-			]);
+			Effect.runSync(
+				useCases.applyRemoteSavedRoutes(state, "user_1", [
+					serializeSavedRouteForRemote(older),
+					serializeSavedRouteForRemote(newer),
+				]),
+			);
 			expect(state.savedRoutes.map((savedRoute) => savedRoute.id)).toEqual([
 				"newer",
 				older.id,
@@ -135,8 +142,50 @@ describe("saved routes use cases", () => {
 		}
 	});
 
+	it("keeps pending optimistic saves when applying a remote snapshot", () => {
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save: vi.fn(() => new Promise<void>(() => {})),
+				delete: vi.fn(),
+				mergeLocalRoutes: vi.fn(),
+			}),
+		);
+		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+
+		Effect.runSync(useCases.applyRemoteSavedRoutes(state, "user_1", []));
+
+		expect(state.savedRoutes).toEqual([savedRoute]);
+		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
+		expect(repository.readUserRoutes("user_1")).toEqual([savedRoute]);
+	});
+
+	it("does not resurrect pending optimistic deletes from a remote snapshot", async () => {
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save: vi.fn().mockResolvedValue(undefined),
+				delete: vi.fn(() => new Promise<void>(() => {})),
+				mergeLocalRoutes: vi.fn(),
+			}),
+		);
+		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		await flushPromises();
+
+		Effect.runSync(useCases.deleteSavedRoute(state, savedRoute.id));
+		Effect.runSync(
+			useCases.applyRemoteSavedRoutes(state, "user_1", [
+				serializeSavedRouteForRemote(savedRoute),
+			]),
+		);
+
+		expect(state.savedRoutes).toEqual([]);
+		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
+		expect(repository.readUserRoutes("user_1")).toEqual([]);
+	});
+
 	it("runs anonymous route merge once per signed-in user", async () => {
-		const anonymous = useCases.createSavedRoute(state, route);
+		const anonymous = Effect.runSync(useCases.createSavedRoute(state, route));
 		const mergeLocalRoutes = vi.fn().mockResolvedValue({
 			inserted: 1,
 			skipped: 0,
@@ -144,19 +193,189 @@ describe("saved routes use cases", () => {
 			duplicate: 0,
 		});
 
-		useCases.setAuthUser(state, "user_1");
-		useCases.setRemoteRepository({
-			save: vi.fn(),
-			delete: vi.fn(),
-			mergeLocalRoutes,
-		});
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save: vi.fn(),
+				delete: vi.fn(),
+				mergeLocalRoutes,
+			}),
+		);
 
-		await useCases.runLocalSavedRoutesMergeOnce(state, "user_1");
-		await useCases.runLocalSavedRoutesMergeOnce(state, "user_1");
+		await Effect.runPromise(
+			useCases.runLocalSavedRoutesMergeOnce(state, "user_1"),
+		);
+		await Effect.runPromise(
+			useCases.runLocalSavedRoutesMergeOnce(state, "user_1"),
+		);
 
 		expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
 		expect(mergeLocalRoutes).toHaveBeenCalledWith([
 			serializeSavedRouteForRemote(anonymous),
 		]);
+	});
+
+	it("sets syncError after remote save failure without losing the optimistic route", async () => {
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save: vi.fn().mockRejectedValue(new Error("network down")),
+				delete: vi.fn(),
+				mergeLocalRoutes: vi.fn(),
+			}),
+		);
+
+		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		expect(state.savedRoutes).toEqual([savedRoute]);
+		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
+
+		await flushPromises();
+
+		expect(state.savedRoutes).toEqual([savedRoute]);
+		expect(state.pendingRemoteRouteIds).toEqual(new Set());
+		expect(state.syncError).toBe("Could not sync saved route: network down");
+	});
+
+	it("does not apply stale remote save failures after sign-out", async () => {
+		let rejectSave: (error: Error) => void = () => {};
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save: vi.fn(
+					() =>
+						new Promise<void>((_, reject) => {
+							rejectSave = reject;
+						}),
+				),
+				delete: vi.fn(),
+				mergeLocalRoutes: vi.fn(),
+			}),
+		);
+		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
+
+		Effect.runSync(useCases.setAuthUser(state, null));
+		rejectSave(new Error("late failure"));
+		await flushPromises();
+
+		expect(state.authStatus).toBe("signedOut");
+		expect(state.pendingRemoteRouteIds).toEqual(new Set());
+		expect(state.syncError).toBeNull();
+	});
+
+	it("reuses an in-flight anonymous route merge for concurrent calls", async () => {
+		const anonymous = Effect.runSync(useCases.createSavedRoute(state, route));
+		let resolveMerge: () => void = () => {};
+		const mergeLocalRoutes = vi.fn(
+			() =>
+				new Promise<{
+					inserted: number;
+					skipped: number;
+					invalid: number;
+					duplicate: number;
+				}>((resolve) => {
+					resolveMerge = () =>
+						resolve({
+							inserted: 1,
+							skipped: 0,
+							invalid: 0,
+							duplicate: 0,
+						});
+				}),
+		);
+
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save: vi.fn(),
+				delete: vi.fn(),
+				mergeLocalRoutes,
+			}),
+		);
+
+		const firstMerge = Effect.runPromise(
+			useCases.runLocalSavedRoutesMergeOnce(state, "user_1"),
+		);
+		const secondMerge = Effect.runPromise(
+			useCases.runLocalSavedRoutesMergeOnce(state, "user_1"),
+		);
+
+		await vi.waitFor(() => {
+			expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
+		});
+		resolveMerge();
+		await Promise.all([firstMerge, secondMerge]);
+
+		expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
+		expect(mergeLocalRoutes).toHaveBeenCalledWith([
+			serializeSavedRouteForRemote(anonymous),
+		]);
+	});
+
+	it("does not apply stale local merge failures after sign-out", async () => {
+		Effect.runSync(useCases.createSavedRoute(state, route));
+		let rejectMerge: (error: Error) => void = () => {};
+		const mergeLocalRoutes = vi.fn(
+			() =>
+				new Promise<{
+					inserted: number;
+					skipped: number;
+					invalid: number;
+					duplicate: number;
+				}>((_, reject) => {
+					rejectMerge = reject;
+				}),
+		);
+
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save: vi.fn(),
+				delete: vi.fn(),
+				mergeLocalRoutes,
+			}),
+		);
+
+		const merge = Effect.runPromise(
+			useCases.runLocalSavedRoutesMergeOnce(state, "user_1"),
+		);
+		await vi.waitFor(() => {
+			expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
+		});
+
+		Effect.runSync(useCases.setAuthUser(state, null));
+		rejectMerge(new Error("late merge failure"));
+		await merge;
+
+		expect(state.authStatus).toBe("signedOut");
+		expect(state.syncError).toBeNull();
+		expect(repository.readMergedUserIds().has("user_1")).toBe(false);
+	});
+
+	it("keeps optimistic delete and sets syncError after remote delete failure", async () => {
+		Effect.runSync(useCases.setAuthUser(state, "user_1"));
+		Effect.runSync(
+			useCases.setRemoteRepository({
+				save: vi.fn().mockResolvedValue(undefined),
+				delete: vi.fn().mockRejectedValue(new Error("delete down")),
+				mergeLocalRoutes: vi.fn(),
+			}),
+		);
+		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		await flushPromises();
+
+		const deleted = Effect.runSync(
+			useCases.deleteSavedRoute(state, savedRoute.id),
+		);
+
+		expect(deleted).toBe(true);
+		expect(state.savedRoutes).toEqual([]);
+		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
+
+		await flushPromises();
+
+		expect(state.savedRoutes).toEqual([]);
+		expect(state.pendingRemoteRouteIds).toEqual(new Set());
+		expect(state.syncError).toBe("Could not delete synced route: delete down");
 	});
 });
