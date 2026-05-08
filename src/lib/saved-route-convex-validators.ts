@@ -6,9 +6,13 @@ const routeModeValidator = v.union(
 	v.literal("out_and_back"),
 );
 
-// Convex does not provide tuple or min-length array validators. These arrays
-// are structurally narrowed here, then exact lengths and semantic constraints
-// are enforced by normalizePlannedRoute at the mutation boundary.
+// Convex validators are transport/database shape gates required at the Convex
+// boundary. Effect schemas plus saved-route normalization remain the semantic
+// source of truth after this boundary.
+//
+// Convex does not provide tuple or min-length array validators. Tuple lengths,
+// coordinate counts, closed polygons, legacy defaults, timestamps, and
+// manual-edit sanitization are enforced by saved-route normalization.
 const routeCoordinateValidator = v.array(v.number());
 const routePointValidator = v.array(v.number());
 

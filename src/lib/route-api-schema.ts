@@ -112,46 +112,46 @@ export const RouteRequestPayloadInputSchema = Schema.Struct({
 	destinationQuery: Schema.optionalKey(Schema.String),
 });
 
-const RouteModeSchema = Schema.Literals([
+export const RouteModeSchema = Schema.Literals([
 	"point_to_point",
 	"round_course",
 	"out_and_back",
 ]);
-const RouteCoordinate2Schema = Schema.Tuple([Schema.Finite, Schema.Finite]);
-const RouteCoordinate3Schema = Schema.Tuple([
-	Schema.Finite,
-	Schema.Finite,
-	Schema.Finite,
-]);
-const RouteCoordinateSchema = Schema.Union([
+export const RouteCoordinate2Schema = Schema.mutable(
+	Schema.Tuple([Schema.Finite, Schema.Finite]),
+);
+export const RouteCoordinate3Schema = Schema.mutable(
+	Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite]),
+);
+export const RouteCoordinateSchema = Schema.Union([
 	RouteCoordinate2Schema,
 	RouteCoordinate3Schema,
 ]);
-const RouteDetailIntervalSchema = Schema.Struct({
+export const RouteDetailIntervalSchema = Schema.Struct({
 	from: Schema.Finite,
 	to: Schema.Finite,
 	value: Schema.String,
 });
-const ManualRouteEditingStateSchema = Schema.Struct({
-	lockedSegmentIndexes: Schema.Array(Schema.Finite),
+export const ManualRouteEditingStateSchema = Schema.Struct({
+	lockedSegmentIndexes: Schema.mutable(Schema.Array(Schema.Finite)),
 });
-const ResolvedRouteSpatialConstraintSchema = Schema.Union([
+export const ResolvedRouteSpatialConstraintSchema = Schema.Union([
 	Schema.Struct({
 		kind: Schema.Literal("area"),
 		label: Schema.String,
 		center: RouteCoordinate2Schema,
 		radiusMeters: Schema.Finite,
 		enforcement: Schema.Literals(["strict", "preferred"]),
-		polygon: Schema.Array(RouteCoordinate2Schema),
+		polygon: Schema.mutable(Schema.Array(RouteCoordinate2Schema)),
 	}),
 	Schema.Struct({
 		kind: Schema.Literal("corridor"),
 		widthMeters: Schema.Finite,
 		enforcement: Schema.Literals(["strict", "preferred"]),
-		polygon: Schema.Array(RouteCoordinate2Schema),
+		polygon: Schema.mutable(Schema.Array(RouteCoordinate2Schema)),
 	}),
 ]);
-const RouteSourceSchema = Schema.Union([
+export const RouteSourceSchema = Schema.Union([
 	Schema.Struct({
 		kind: Schema.Literal("graphhopper"),
 	}),
@@ -162,7 +162,7 @@ const RouteSourceSchema = Schema.Union([
 		hasDuration: Schema.Boolean,
 	}),
 ]);
-const PlannedRouteSchema = Schema.Struct({
+export const PlannedRouteSchema = Schema.Struct({
 	mode: RouteModeSchema,
 	source: RouteSourceSchema,
 	startLabel: Schema.String,
@@ -179,30 +179,39 @@ const PlannedRouteSchema = Schema.Struct({
 	routingProfile: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
 	routingStrategy: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
 	routingWarnings: Schema.optionalKey(
-		Schema.UndefinedOr(Schema.Array(Schema.String)),
+		Schema.UndefinedOr(Schema.mutable(Schema.Array(Schema.String))),
 	),
 	manualEditing: Schema.optionalKey(
 		Schema.UndefinedOr(ManualRouteEditingStateSchema),
 	),
-	waypoints: Schema.Array(
-		Schema.Struct({
-			label: Schema.String,
-			coordinate: RouteCoordinateSchema,
-		}),
+	waypoints: Schema.mutable(
+		Schema.Array(
+			Schema.Struct({
+				label: Schema.String,
+				coordinate: RouteCoordinateSchema,
+			}),
+		),
 	),
-	bounds: Schema.Tuple([
-		Schema.Finite,
-		Schema.Finite,
-		Schema.Finite,
-		Schema.Finite,
-	]),
+	bounds: Schema.mutable(
+		Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite, Schema.Finite]),
+	),
 	distanceMeters: Schema.Finite,
 	durationMs: Schema.Finite,
 	ascendMeters: Schema.Finite,
 	descendMeters: Schema.Finite,
-	coordinates: Schema.Array(RouteCoordinateSchema),
-	surfaceDetails: Schema.Array(RouteDetailIntervalSchema),
-	smoothnessDetails: Schema.Array(RouteDetailIntervalSchema),
+	coordinates: Schema.mutable(Schema.Array(RouteCoordinateSchema)),
+	surfaceDetails: Schema.mutable(Schema.Array(RouteDetailIntervalSchema)),
+	smoothnessDetails: Schema.mutable(Schema.Array(RouteDetailIntervalSchema)),
+});
+export const SavedRouteSchema = Schema.Struct({
+	id: Schema.String,
+	createdAt: Schema.String,
+	route: PlannedRouteSchema,
+});
+export const RemoteSavedRoutePayloadSchema = Schema.Struct({
+	id: Schema.String,
+	createdAt: Schema.String,
+	routeJson: Schema.String,
 });
 const RoundCourseCandidateErrorSchema = Schema.Struct({
 	roundIndex: Schema.Finite,
@@ -245,6 +254,9 @@ export type StructuredRouteRequestPayloadInput =
 	typeof StructuredRouteRequestPayloadSchema.Type;
 export type LegacyRouteRequestPayloadInput =
 	typeof LegacyRouteRequestPayloadSchema.Type;
+export type SavedRoutePayload = typeof SavedRouteSchema.Type;
+export type RemoteSavedRoutePayloadInput =
+	typeof RemoteSavedRoutePayloadSchema.Type;
 
 export type DecodeRoutePayloadResult =
 	| {
@@ -257,6 +269,16 @@ export type DecodeRoutePayloadResult =
 	  };
 
 type IsAssignable<To, From extends To> = From;
+type SavedRouteShape = {
+	id: string;
+	createdAt: string;
+	route: PlannedRoute;
+};
+type RemoteSavedRoutePayloadShape = {
+	id: string;
+	createdAt: string;
+	routeJson: string;
+};
 type _RouteStopCompatibility = IsAssignable<
 	typeof RouteStopInputSchema.Type,
 	RouteStopInput | string
@@ -278,8 +300,8 @@ type _RouteApiErrorCompatibility = IsAssignable<
 	RouteApiError
 >;
 type _PlannedRouteCompatibility = IsAssignable<
-	typeof PlannedRouteSchema.Type,
-	PlannedRoute
+	PlannedRoute,
+	typeof PlannedRouteSchema.Type
 >;
 type _ResolvedSpatialConstraintCompatibility = IsAssignable<
 	typeof ResolvedRouteSpatialConstraintSchema.Type,
@@ -293,6 +315,14 @@ type _RouteModeCompatibility = IsAssignable<
 	typeof RouteModeSchema.Type,
 	RouteMode
 >;
+type _SavedRouteCompatibility = IsAssignable<
+	SavedRouteShape,
+	typeof SavedRouteSchema.Type
+>;
+type _RemoteSavedRoutePayloadCompatibility = IsAssignable<
+	RemoteSavedRoutePayloadShape,
+	typeof RemoteSavedRoutePayloadSchema.Type
+>;
 
 void (null as unknown as _RouteStopCompatibility);
 void (null as unknown as _RoundCourseTargetCompatibility);
@@ -303,6 +333,8 @@ void (null as unknown as _PlannedRouteCompatibility);
 void (null as unknown as _ResolvedSpatialConstraintCompatibility);
 void (null as unknown as _RouteCoordinateCompatibility);
 void (null as unknown as _RouteModeCompatibility);
+void (null as unknown as _SavedRouteCompatibility);
+void (null as unknown as _RemoteSavedRoutePayloadCompatibility);
 
 export function decodeRouteRequestPayload(
 	value: unknown,

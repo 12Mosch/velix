@@ -136,6 +136,97 @@ describe("saved-routes-core", () => {
 		});
 	});
 
+	it("rejects invalid route source shapes through schema normalization", () => {
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				source: { kind: "gpx_import", filename: "route.gpx" },
+			}),
+		).toBeNull();
+	});
+
+	it("rejects invalid round-course targets through schema normalization", () => {
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				roundCourseTarget: { kind: "duration", durationMs: "3600000" },
+			}),
+		).toBeNull();
+	});
+
+	it("synthesizes round-course target from legacy requested distance", () => {
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				requestedDistanceMeters: 50_000,
+			})?.roundCourseTarget,
+		).toEqual({
+			kind: "distance",
+			distanceMeters: 50_000,
+		});
+	});
+
+	it("rejects structurally valid spatial constraint polygons that are not closed", () => {
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				spatialConstraint: {
+					kind: "area",
+					label: "Munich",
+					center: [11.5755, 48.1374],
+					radiusMeters: 5000,
+					enforcement: "preferred",
+					polygon: [
+						[11.5, 48.1],
+						[11.6, 48.1],
+						[11.6, 48.2],
+						[11.4, 48.2],
+					],
+				},
+			}),
+		).toBeNull();
+	});
+
+	it("sanitizes manual editing locks and omits them when all are out of range", () => {
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				manualEditing: { lockedSegmentIndexes: [0, 99] },
+			})?.manualEditing,
+		).toEqual({ lockedSegmentIndexes: [0] });
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				manualEditing: { lockedSegmentIndexes: [99] },
+			}),
+		).not.toHaveProperty("manualEditing");
+	});
+
+	it("preserves manual editing locks when loading saved routes", () => {
+		const savedRoute: SavedRoute = {
+			id: "manual-edit-route",
+			createdAt: "2026-04-19T09:30:00.000Z",
+			route: {
+				...baseRoute,
+				manualEditing: { lockedSegmentIndexes: [0] },
+			},
+		};
+
+		expect(parseSavedRoutes(JSON.stringify([savedRoute]))[0]?.route).toEqual({
+			...savedRoute.route,
+			manualEditing: { lockedSegmentIndexes: [0] },
+		});
+	});
+
+	it("rejects invalid manual editing indexes", () => {
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				manualEditing: { lockedSegmentIndexes: [0, 1.5] },
+			}),
+		).toBeNull();
+	});
+
 	it("serializes long remote routes without exposing coordinates as Convex arrays", () => {
 		const coordinates: SavedRoute["route"]["coordinates"] = Array.from(
 			{ length: 19_487 },

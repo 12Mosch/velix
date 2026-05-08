@@ -5,6 +5,9 @@ import {
 	assertRouteApiErrorPayload,
 	assertRouteApiSuccessPayload,
 	decodeRouteRequestPayload,
+	PlannedRouteSchema,
+	RemoteSavedRoutePayloadSchema,
+	SavedRouteSchema,
 	RouteSpatialConstraintInputSchema,
 } from "$lib/route-api-schema";
 
@@ -147,6 +150,56 @@ describe("route API schema helpers", () => {
 			kind: "corridor",
 			widthMeters: 12000,
 		});
+	});
+
+	it("accepts valid planned route shapes", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(PlannedRouteSchema)(buildValidRoute()),
+		).not.toThrow();
+	});
+
+	it("rejects malformed planned route coordinate tuple lengths", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(PlannedRouteSchema)({
+				...buildValidRoute(),
+				coordinates: [[11.5755, 48.1374, 520, 1]],
+			}),
+		).toThrow();
+	});
+
+	it("accepts valid saved route shapes", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(SavedRouteSchema)({
+				id: "saved-route",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				route: buildValidRoute(),
+			}),
+		).not.toThrow();
+	});
+
+	it("validates remote saved route payload shapes", () => {
+		const decode = Schema.decodeUnknownSync(RemoteSavedRoutePayloadSchema);
+
+		expect(() =>
+			decode({
+				id: "saved-route",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				routeJson: JSON.stringify(buildValidRoute()),
+			}),
+		).not.toThrow();
+		expect(() =>
+			decode({
+				id: "saved-route",
+				createdAt: "2026-04-19T09:30:00.000Z",
+			}),
+		).toThrow();
+		expect(() =>
+			decode({
+				id: "saved-route",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				routeJson: buildValidRoute(),
+			}),
+		).toThrow();
 	});
 
 	it("catches malformed success payloads", () => {
