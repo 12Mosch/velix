@@ -14,6 +14,15 @@ export default defineSchema({
 	})
 		.index("by_user_createdAt", ["userId", "createdAtMs"])
 		.index("by_user_routeId", ["userId", "routeId"]),
+	sharedRoutes: defineTable({
+		shareToken: v.string(),
+		ownerUserId: v.string(),
+		sourceRouteId: v.optional(v.string()),
+		createdAtMs: v.number(),
+		routeJson: v.string(),
+	})
+		.index("by_shareToken", ["shareToken"])
+		.index("by_owner_createdAt", ["ownerUserId", "createdAtMs"]),
 	userPreferences: defineTable({
 		userId: v.string(),
 		themeMode: v.optional(

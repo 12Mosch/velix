@@ -6,7 +6,7 @@ Status legend:
 - **Half**: there is visible or code-level support, but the implementation is incomplete, limited, or missing important expected behavior.
 - **Missing**: no meaningful implementation was found.
 
-Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/routes/routes-page.svelte.spec.ts`, `src/routes/settings/+page.svelte`, `src/routes/settings/settings-page.svelte.spec.ts`, `src/lib/theme-settings.svelte.ts`, `src/lib/components/app-theme-settings.svelte`, `src/lib/components/saved-routes-sync.svelte`, `src/lib/components/user-preferences-sync.ts`, `src/lib/components/user-preferences-sync.spec.ts`, `src/convex/userPreferences.ts`, `src/convex/userPreferences.spec.ts`, `src/convex/schema.ts`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
+Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/routes/routes-page.svelte.spec.ts`, `src/routes/settings/+page.svelte`, `src/routes/settings/settings-page.svelte.spec.ts`, `src/lib/theme-settings.svelte.ts`, `src/lib/components/app-theme-settings.svelte`, `src/lib/components/saved-routes-sync.svelte`, `src/lib/components/user-preferences-sync.ts`, `src/lib/components/user-preferences-sync.spec.ts`, `src/convex/userPreferences.ts`, `src/convex/userPreferences.spec.ts`, `src/convex/sharedRoutes.ts`, `src/convex/sharedRoutes.spec.ts`, `src/convex/schema.ts`, `src/lib/shared-routes.ts`, `src/lib/shared-routes.spec.ts`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, `src/lib/components/map-view.svelte.spec.ts`, and `src/routes/share/[token]/+page.svelte`.
 
 ## 1. Routing & Route Builder
 
@@ -476,11 +476,13 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Share route via link | Missing | Saved routes are local only. |
-| Public route page | Missing | No public route pages. |
-| Private route with share link | Missing | No share links. |
+| Share route via link | Full | Signed-in users can create Convex-backed public snapshot links from the planner or saved-route cards. |
+| Public route page | Full | `/share/<token>` renders a read-only shared route with map, summary, save-copy, and export actions. |
+| Private route with share link | Half | Unlisted token links are private-ish public snapshots, but there is no revocation, expiry, or permission management yet. |
 | Embed a route | Missing | No embed support. |
 | Static route preview image | Missing | No static preview generation. |
+
+Share links are immutable public snapshots. Creating one requires a signed-in user and `PUBLIC_CONVEX_URL`; viewing one does not require sign-in.
 
 ### 9.2 Community content
 

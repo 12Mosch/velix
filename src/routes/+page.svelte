@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
+	import { env } from "$env/dynamic/public";
+	import { useConvexClient } from "convex-svelte";
+	import { api } from "../convex/_generated/api";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
@@ -40,7 +43,15 @@
 		savedRoutesState,
 		upsertSavedRoute,
 	} from "$lib/saved-routes.svelte";
-	import { cloneRoute } from "$lib/saved-routes-core";
+	import {
+		cloneRoute,
+		serializeSavedRouteForRemote,
+	} from "$lib/saved-routes-core";
+	import {
+		buildShareUrl,
+		copyTextToClipboard,
+		generateShareToken,
+	} from "$lib/shared-routes";
 	import {
 		buildRouteGeoJson,
 		buildRouteClimbGeoJson,
@@ -148,6 +159,7 @@
 		Redo2,
 		Route,
 		ShieldCheck,
+		Share2,
 		TrendingDown,
 		TrendingUp,
 		Undo2,
@@ -156,6 +168,20 @@
 	} from "@lucide/svelte";
 
 	const sidebar = useSidebar();
+
+	function getOptionalConvexClient() {
+		if (!env.PUBLIC_CONVEX_URL) {
+			return null;
+		}
+
+		try {
+			return useConvexClient();
+		} catch {
+			return null;
+		}
+	}
+
+	const convexClient = getOptionalConvexClient();
 
 	function createPlannerStop(
 		label = "",
@@ -201,6 +227,10 @@
 	let lockedSegmentIndexes = $state<number[]>([]);
 	let lastGeneratedRouteCount = $state<number | null>(null);
 	let routeExportError = $state<string | null>(null);
+	let routeShareErrors = $state<Record<string, string | null>>({});
+	let routeShareUrls = $state<Record<string, string | null>>({});
+	let isSharingRoute = $state(false);
+	let activeRouteShareCopied = $state<Record<string, boolean>>({});
 	let saveSyncError = $state<string | null>(null);
 	let activeSavedRouteId = $state<string | null>(null);
 	let plannerDraftRouteId = $state<string | null>(null);
@@ -246,6 +276,18 @@
 	const isOutAndBackMode = $derived(plannerMode === "out_and_back");
 	const activeRoute = $derived(
 		selectedRouteIndex === null ? null : routeAlternatives[selectedRouteIndex] ?? null,
+	);
+	const activeRouteShareKey = $derived(
+		activeRoute ? (plannerDraftRouteId ?? activeSavedRouteId ?? getRouteShareSignature(activeRoute)) : null,
+	);
+	const activeRouteShareError = $derived(
+		activeRouteShareKey ? (routeShareErrors[activeRouteShareKey] ?? null) : null,
+	);
+	const activeRouteShareUrl = $derived(
+		activeRouteShareKey ? (routeShareUrls[activeRouteShareKey] ?? null) : null,
+	);
+	const isActiveRouteShareCopied = $derived(
+		activeRouteShareKey ? Boolean(activeRouteShareCopied[activeRouteShareKey]) : false,
 	);
 	const activeRoundCourseTarget = $derived(getRoundCourseTarget(activeRoute));
 	const activeRouteClimbs = $derived<RouteClimb[]>(
@@ -385,6 +427,22 @@
 		if (!activeRoute && routeAnalysisOpen) {
 			routeAnalysisOpen = false;
 		}
+	});
+
+	$effect(() => {
+		const keepKeys = new Set(
+			savedRoutesState.savedRoutes.map((savedRoute) => savedRoute.id),
+		);
+		if (activeRouteShareKey) {
+			keepKeys.add(activeRouteShareKey);
+		}
+
+		routeShareErrors = pruneRouteShareState(routeShareErrors, keepKeys);
+		routeShareUrls = pruneRouteShareState(routeShareUrls, keepKeys);
+		activeRouteShareCopied = pruneRouteShareState(
+			activeRouteShareCopied,
+			keepKeys,
+		);
 	});
 
 	$effect(() => {
@@ -982,6 +1040,50 @@
 		return {
 			...activeRoute,
 			...(manualEditing ? { manualEditing } : {}),
+		};
+	}
+
+	function getRouteShareSignature(route: PlannedRoute): string {
+		return [
+			"unsaved",
+			route.mode,
+			route.startLabel,
+			route.destinationLabel,
+			route.distanceMeters,
+			route.durationMs,
+			route.coordinates.length,
+		].join(":");
+	}
+
+	function pruneRouteShareState<T>(
+		state: Record<string, T>,
+		keepKeys: Set<string>,
+	): Record<string, T> {
+		const entries = Object.entries(state).filter(([key]) => keepKeys.has(key));
+
+		return entries.length === Object.keys(state).length
+			? state
+			: Object.fromEntries(entries);
+	}
+
+	function setRouteShareError(routeKey: string, error: string | null) {
+		routeShareErrors = {
+			...routeShareErrors,
+			[routeKey]: error,
+		};
+	}
+
+	function setRouteShareUrl(routeKey: string, url: string | null) {
+		routeShareUrls = {
+			...routeShareUrls,
+			[routeKey]: url,
+		};
+	}
+
+	function setRouteShareCopied(routeKey: string, copied: boolean) {
+		activeRouteShareCopied = {
+			...activeRouteShareCopied,
+			[routeKey]: copied,
 		};
 	}
 
@@ -2648,6 +2750,81 @@
 		isActiveRouteSaved = true;
 	}
 
+	async function handleShareActiveRoute() {
+		if (!activeRoute) {
+			return;
+		}
+
+		const routeKey = activeRouteShareKey;
+		if (!routeKey) {
+			return;
+		}
+		let shareErrorKey = routeKey;
+
+		setRouteShareError(routeKey, null);
+		setRouteShareUrl(routeKey, null);
+		setRouteShareCopied(routeKey, false);
+
+		if (!convexClient || !env.PUBLIC_CONVEX_URL) {
+			setRouteShareError(
+				routeKey,
+				"Route sharing needs Convex to be configured.",
+			);
+			return;
+		}
+
+		if (savedRoutesState.authStatus !== "signedIn") {
+			setRouteShareError(routeKey, "Sign in to share routes.");
+			return;
+		}
+
+		isSharingRoute = true;
+
+		try {
+			const savedRoute = saveActiveRouteDraft();
+
+			if (!savedRoute) {
+				return;
+			}
+
+			const savedRouteKey = savedRoute.id;
+			shareErrorKey = savedRouteKey;
+			setRouteShareError(savedRouteKey, null);
+			setRouteShareUrl(savedRouteKey, null);
+			setRouteShareCopied(savedRouteKey, false);
+
+			const shareToken = generateShareToken();
+			const result = await convexClient.mutation(api.sharedRoutes.create, {
+				shareToken,
+				sourceRouteId: savedRoute.id,
+				savedRoute: serializeSavedRouteForRemote(savedRoute),
+			});
+			const shareUrl = buildShareUrl(window.location.origin, result.shareToken);
+			const copied = await copyTextToClipboard(shareUrl);
+
+			if (!copied) {
+				setRouteShareUrl(savedRouteKey, shareUrl);
+				setRouteShareError(
+					savedRouteKey,
+					"Share link created, but copying failed.",
+				);
+				return;
+			}
+
+			setRouteShareUrl(savedRouteKey, null);
+			setRouteShareCopied(savedRouteKey, true);
+		} catch (error) {
+			setRouteShareError(
+				shareErrorKey,
+				error instanceof Error
+					? `Could not share route: ${error.message}`
+					: "Could not share route.",
+			);
+		} finally {
+			isSharingRoute = false;
+		}
+	}
+
 	function handleExportGpx() {
 		if (!activeRoute) {
 			return;
@@ -3904,6 +4081,16 @@
 								Export FIT
 							</Button>
 							<Button
+								size="sm"
+								variant="outline"
+								class="gap-1 font-semibold"
+								disabled={!activeRoute || isSharingRoute}
+								onclick={handleShareActiveRoute}
+							>
+								<Share2 class="size-3.5" />
+								{isSharingRoute ? "Sharing..." : isActiveRouteShareCopied ? "Copied" : "Share"}
+							</Button>
+							<Button
 								variant="outline"
 								size="sm"
 								class="gap-1 font-semibold"
@@ -3929,6 +4116,24 @@
 						role="alert"
 					>
 						{routeExportError}
+					</div>
+				{/if}
+
+				{#if activeRouteShareError}
+					<div
+						class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+						role="alert"
+					>
+						{activeRouteShareError}
+						{#if activeRouteShareUrl}
+							<input
+								class="mt-2 w-full rounded-md border border-destructive/20 bg-background px-2 py-1 font-mono text-xs text-foreground"
+								readonly
+								value={activeRouteShareUrl}
+								aria-label="Share link"
+								onfocus={(event) => event.currentTarget.select()}
+							/>
+						{/if}
 					</div>
 				{/if}
 

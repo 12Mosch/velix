@@ -1,17 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
+
+const publicEnv = vi.hoisted(() => ({
+	PUBLIC_CONVEX_URL: "",
+}));
+const convexClientMock = vi.hoisted(() => ({
+	mutation: vi.fn(),
+	query: vi.fn(),
+}));
+
+vi.mock("$env/dynamic/public", () => ({
+	env: publicEnv,
+}));
+
+vi.mock("convex-svelte", () => ({
+	useConvexClient: () => convexClientMock,
+}));
+
 import {
 	resetSavedRoutesForTests,
 	SAVED_ROUTES_STORAGE_KEY,
 	savedRoutesState,
 } from "$lib/saved-routes.svelte";
 import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
+import { api } from "../../convex/_generated/api";
 import {
 	DISTANCE_UNIT_STORAGE_KEY,
 	resetUnitPreferenceForTests,
 } from "$lib/unit-settings.svelte";
 import RoutesPage from "./+page.svelte";
+
+const originalCreateObjectURL = URL.createObjectURL;
+const originalRevokeObjectURL = URL.revokeObjectURL;
 
 const savedRoutes = [
 	{
@@ -160,11 +181,44 @@ function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
 
 describe("routes/+page.svelte", () => {
 	beforeEach(() => {
+		vi.restoreAllMocks();
+		Object.defineProperty(URL, "createObjectURL", {
+			configurable: true,
+			writable: true,
+			value: originalCreateObjectURL,
+		});
+		Object.defineProperty(URL, "revokeObjectURL", {
+			configurable: true,
+			writable: true,
+			value: originalRevokeObjectURL,
+		});
 		window.localStorage.clear();
 		resetSavedRoutesForTests();
 		resetUnitPreferenceForTests();
 		window.history.replaceState({}, "", "/routes");
+		publicEnv.PUBLIC_CONVEX_URL = "";
+		convexClientMock.mutation.mockReset();
+		convexClientMock.query.mockReset();
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: {
+				writeText: vi.fn().mockResolvedValue(undefined),
+			},
+		});
+	});
+
+	afterEach(() => {
 		vi.restoreAllMocks();
+		Object.defineProperty(URL, "createObjectURL", {
+			configurable: true,
+			writable: true,
+			value: originalCreateObjectURL,
+		});
+		Object.defineProperty(URL, "revokeObjectURL", {
+			configurable: true,
+			writable: true,
+			value: originalRevokeObjectURL,
+		});
 	});
 
 	it("shows an empty state when there are no saved routes", async () => {
@@ -219,6 +273,64 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByRole("link", { name: "Open route" }))
 			.toHaveAttribute("href", "/?savedRoute=saved-route-1");
+	});
+
+	it("shows a Share action on saved-route cards", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(savedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await expect
+			.element(page.getByRole("button", { name: "Share" }))
+			.toBeInTheDocument();
+	});
+
+	it("shares a saved route through Convex and copies the public link", async () => {
+		publicEnv.PUBLIC_CONVEX_URL = "https://convex.example";
+		convexClientMock.mutation.mockResolvedValue({
+			shareToken: "abc123_DEF456-7890",
+			urlPath: "/share/abc123_DEF456-7890",
+		});
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Share" }).click();
+		await expect
+			.element(page.getByRole("button", { name: "Copied" }))
+			.toBeInTheDocument();
+
+		expect(convexClientMock.mutation).toHaveBeenCalledWith(
+			api.sharedRoutes.create,
+			expect.objectContaining({
+				sourceRouteId: "saved-route-1",
+				savedRoute: serializeSavedRouteForRemote(
+					savedRoutesState.savedRoutes[0],
+				),
+			}),
+		);
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+			expect.stringMatching(/\/share\/abc123_DEF456-7890$/u),
+		);
+	});
+
+	it("surfaces a clear share error when Convex is unavailable", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(savedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Share" }).click();
+
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent("Route sharing needs Convex to be configured.");
 	});
 
 	it("renders remote routes already applied through savedRoutesState", async () => {

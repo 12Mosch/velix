@@ -4,6 +4,7 @@
 		Bookmark,
 		Clock3,
 		Copy,
+		Link,
 		MapPinned,
 		MountainSnow,
 		Route,
@@ -11,7 +12,10 @@
 		Trash2,
 		X,
 	} from "@lucide/svelte";
+	import { env } from "$env/dynamic/public";
+	import { useConvexClient } from "convex-svelte";
 	import { onMount } from "svelte";
+	import { api } from "../../convex/_generated/api";
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
@@ -29,12 +33,32 @@
 		type SavedRoute,
 		savedRoutesState,
 	} from "$lib/saved-routes.svelte";
+	import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
+	import {
+		buildShareUrl,
+		copyTextToClipboard,
+		generateShareToken,
+	} from "$lib/shared-routes";
 	import {
 		formatDistance,
 		initUnitPreference,
 		parseDistanceInputToMeters,
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
+
+	function getOptionalConvexClient() {
+		if (!env.PUBLIC_CONVEX_URL) {
+			return null;
+		}
+
+		try {
+			return useConvexClient();
+		} catch {
+			return null;
+		}
+	}
+
+	const convexClient = getOptionalConvexClient();
 
 	onMount(() => {
 		initUnitPreference();
@@ -47,6 +71,10 @@
 	let maxDistanceInput = $state("");
 	let minElevationInput = $state("");
 	let maxElevationInput = $state("");
+	let sharingRouteId = $state<string | null>(null);
+	let shareError = $state<string | null>(null);
+	let pendingShareUrl = $state<string | null>(null);
+	let copiedShareRouteId = $state<string | null>(null);
 	const isLoadingSyncedRoutes = $derived(
 		savedRoutesState.authStatus === "signedIn" &&
 			!savedRoutesState.remoteReady &&
@@ -341,6 +369,51 @@
 					: "Could not export FIT.";
 		}
 	}
+
+	async function handleShareSavedRoute(savedRoute: SavedRoute) {
+		shareError = null;
+		pendingShareUrl = null;
+		copiedShareRouteId = null;
+
+		if (!convexClient || !env.PUBLIC_CONVEX_URL) {
+			shareError = "Route sharing needs Convex to be configured.";
+			return;
+		}
+
+		if (savedRoutesState.authStatus !== "signedIn") {
+			shareError = "Sign in to share routes.";
+			return;
+		}
+
+		sharingRouteId = savedRoute.id;
+
+		try {
+			const shareToken = generateShareToken();
+			const result = await convexClient.mutation(api.sharedRoutes.create, {
+				shareToken,
+				sourceRouteId: savedRoute.id,
+				savedRoute: serializeSavedRouteForRemote(savedRoute),
+			});
+			const shareUrl = buildShareUrl(window.location.origin, result.shareToken);
+			const copied = await copyTextToClipboard(shareUrl);
+
+			if (!copied) {
+				pendingShareUrl = shareUrl;
+				shareError = "Share link created, but copying failed.";
+				return;
+			}
+
+			pendingShareUrl = null;
+			copiedShareRouteId = savedRoute.id;
+		} catch (error) {
+			shareError =
+				error instanceof Error
+					? `Could not share route: ${error.message}`
+					: "Could not share route.";
+		} finally {
+			sharingRouteId = null;
+		}
+	}
 </script>
 
 {#snippet savedRouteCardSkeleton()}
@@ -400,6 +473,24 @@
 				role="alert"
 			>
 				{savedRoutesState.syncError}
+			</div>
+		{/if}
+
+		{#if shareError}
+			<div
+				class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+				role="alert"
+			>
+				{shareError}
+				{#if pendingShareUrl}
+					<input
+						class="mt-2 w-full rounded-md border border-destructive/20 bg-background px-2 py-1 font-mono text-xs text-foreground"
+						readonly
+						value={pendingShareUrl}
+						aria-label="Share link"
+						onfocus={(event) => event.currentTarget.select()}
+					/>
+				{/if}
 			</div>
 		{/if}
 
@@ -655,6 +746,21 @@
 								>
 									<Copy class="size-3.5" />
 									Duplicate
+								</Button>
+								<Button
+									variant="outline"
+									class="gap-1 font-semibold"
+									disabled={sharingRouteId === savedRoute.id}
+									onclick={() => handleShareSavedRoute(savedRoute)}
+								>
+									<Link class="size-3.5" />
+									{#if sharingRouteId === savedRoute.id}
+										Sharing...
+									{:else if copiedShareRouteId === savedRoute.id}
+										Copied
+									{:else}
+										Share
+									{/if}
 								</Button>
 								<Button
 									variant="outline"
