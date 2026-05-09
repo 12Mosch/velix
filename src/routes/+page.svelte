@@ -6,6 +6,7 @@
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
+	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 	import MapView from "$lib/components/map-view.svelte";
@@ -2738,6 +2739,42 @@
 	}
 </script>
 
+{#snippet completionSuggestionsSkeleton()}
+	<div class="px-1 py-1">
+		<span class="sr-only">Searching places...</span>
+		{#each [0, 1, 2] as row}
+			<div class="flex items-center justify-between gap-3 px-2 py-2">
+				<Skeleton class={`h-3.5 ${row === 0 ? "w-44" : row === 1 ? "w-36" : "w-52"}`} />
+				<Skeleton class="size-3.5 shrink-0 rounded-full" />
+			</div>
+		{/each}
+	</div>
+{/snippet}
+
+{#snippet routeSummarySkeleton()}
+	<div
+		class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3"
+		role="status"
+		aria-live="polite"
+		aria-label={getSubmitButtonText()}
+	>
+		<span class="sr-only">
+			{isRoundCourseMode
+				? "Calculating the round course..."
+				: isOutAndBackMode
+					? "Calculating the out-and-back route..."
+					: "Calculating the road-bike route..."}
+		</span>
+		<Skeleton class="h-7 w-24 rounded-md" />
+		<span class="hidden text-border sm:inline" aria-hidden="true">·</span>
+		<Skeleton class="h-6 w-20 rounded-md" />
+		<span class="hidden text-border sm:inline" aria-hidden="true">·</span>
+		<Skeleton class="h-6 w-20 rounded-md" />
+		<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+		<Skeleton class="h-6 w-24 rounded-md" />
+	</div>
+{/snippet}
+
 <div class="relative flex h-full w-full flex-col overflow-hidden bg-background">
 	<input
 		bind:this={gpxImportInput}
@@ -2985,12 +3022,11 @@
 											id={getCompletionListId(startCompletionTarget)}
 											role="listbox"
 											aria-label="Start suggestions"
+											aria-busy={isCompletionLoading}
 											class="max-h-64 overflow-y-auto py-1"
 										>
 											{#if isCompletionLoading}
-												<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-													Searching places...
-												</div>
+												{@render completionSuggestionsSkeleton()}
 											{:else if completionSuggestions.length > 0}
 												{#each completionSuggestions as suggestion, index (`start-${suggestion.label}-${index}`)}
 													<button
@@ -3230,12 +3266,11 @@
 																		id={getCompletionListId(getWaypointCompletionTarget(index))}
 																		role="listbox"
 																		aria-label={`Waypoint ${index + 1} suggestions`}
+																		aria-busy={isCompletionLoading}
 																		class="max-h-64 overflow-y-auto py-1"
 																	>
 																		{#if isCompletionLoading}
-																			<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-																				Searching places...
-																			</div>
+																			{@render completionSuggestionsSkeleton()}
 																		{:else if completionSuggestions.length > 0}
 																			{#each completionSuggestions as suggestion, suggestionIndex (`waypoint-${index}-${suggestion.label}-${suggestionIndex}`)}
 																				<button
@@ -3375,12 +3410,11 @@
 												id={getCompletionListId(destinationCompletionTarget)}
 												role="listbox"
 													aria-label={getDestinationSuggestionsLabel()}
+												aria-busy={isCompletionLoading}
 												class="max-h-64 overflow-y-auto py-1"
 											>
 												{#if isCompletionLoading}
-													<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-														Searching places...
-													</div>
+													{@render completionSuggestionsSkeleton()}
 												{:else if completionSuggestions.length > 0}
 													{#each completionSuggestions as suggestion, index (`destination-${suggestion.label}-${index}`)}
 														<button
@@ -3522,12 +3556,11 @@
 												id={getCompletionListId(constraintCenterCompletionTarget)}
 												role="listbox"
 												aria-label="Area center suggestions"
+												aria-busy={isCompletionLoading}
 												class="max-h-64 overflow-y-auto py-1"
 											>
 												{#if isCompletionLoading}
-													<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-														Searching places...
-													</div>
+													{@render completionSuggestionsSkeleton()}
 												{:else if completionSuggestions.length > 0}
 													{#each completionSuggestions as suggestion, index (`constraint-${suggestion.label}-${index}`)}
 														<button
@@ -3726,7 +3759,9 @@
 				class="rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-sm md:p-3.5"
 			>
 				<div class="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-					{#if activeRoute}
+					{#if isRouting}
+						{@render routeSummarySkeleton()}
+					{:else if activeRoute}
 						<div
 							class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground tabular-nums sm:text-sm"
 						>
@@ -3783,26 +3818,14 @@
 					{:else}
 						<div class="flex min-w-0 flex-col gap-1">
 							<span class="text-sm font-semibold text-foreground">
-								{isRouting
-									? isRoundCourseMode
-										? "Calculating the round course..."
-										: isOutAndBackMode
-											? "Calculating the out-and-back route..."
-										: "Calculating the road-bike route..."
-									: isRoundCourseMode
+								{isRoundCourseMode
 										? "Generate a round course to see live distance, climbing, and elevation."
 										: isOutAndBackMode
 											? "Generate an out-and-back route to see live distance, climbing, and elevation."
 										: "Generate a route to see live distance, climbing, and elevation."}
 							</span>
 							<span class="text-xs text-muted-foreground">
-								{isRouting
-									? isRoundCourseMode
-										? "GraphHopper is resolving the start point and building a loop ride."
-										: isOutAndBackMode
-											? "GraphHopper is resolving the stops and mirroring the return leg."
-										: "GraphHopper is resolving locations and building the route."
-									: isRoundCourseMode
+								{isRoundCourseMode
 										? "The map overlay and summary will update once a loop route is found."
 										: isOutAndBackMode
 											? "The map overlay and summary will update once the outbound leg is mirrored."
@@ -3840,10 +3863,13 @@
 							<Button
 								variant="outline"
 								size="sm"
-								class="font-semibold"
+								class="gap-1.5 font-semibold"
 								disabled={isImportingGpx}
 								onclick={openGpxImportPicker}
 							>
+								{#if isImportingGpx}
+									<Skeleton class="size-3 rounded-full" />
+								{/if}
 								{isImportingGpx ? "Importing GPX..." : "Import GPX"}
 							</Button>
 							<Button

@@ -84,6 +84,16 @@ const routeWithNoElevationPayload = {
 	],
 	selectedRouteIndex: 0,
 };
+
+function createDeferredResponse(body: unknown) {
+	let resolve!: () => void;
+	const promise = new Promise<Response>((deferredResolve) => {
+		resolve = () => deferredResolve(new Response(JSON.stringify(body)));
+	});
+
+	return { promise, resolve };
+}
+
 const uncategorizedClimbRoutePayload = {
 	routes: [
 		{
@@ -862,6 +872,45 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("button", { name: "Save Draft" }))
 			.toBeInTheDocument();
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("shows route summary skeletons while route generation is pending", async () => {
+		const routeDeferred = createDeferredResponse(successfulRoutePayload);
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			if (url === "/api/route") {
+				return routeDeferred.promise;
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.element(page.getByRole("status", { name: "Calculating route..." }))
+			.toBeInTheDocument();
+		expect(
+			document.querySelectorAll('[data-slot="skeleton"]').length,
+		).toBeGreaterThan(0);
+
+		routeDeferred.resolve();
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect.poll(() => document.body.textContent).toContain("820");
+		await expect
+			.element(page.getByRole("status", { name: "Calculating route..." }))
+			.not.toBeInTheDocument();
 	});
 
 	it("recenters to the generated route bounds", async () => {
@@ -3347,6 +3396,41 @@ describe("+page.svelte", () => {
 			.toBeInTheDocument();
 	});
 
+	it("shows skeleton rows while autocomplete suggestions are loading", async () => {
+		const suggestionDeferred = createDeferredResponse(suggestionPayload);
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest?")) {
+				return suggestionDeferred.promise;
+			}
+
+			throw new Error(`Unexpected fetch request: ${String(input)}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Mari");
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+
+		await expect
+			.element(page.getByRole("listbox", { name: "Start suggestions" }))
+			.toHaveAttribute("aria-busy", "true");
+		expect(
+			document.querySelectorAll('[data-slot="skeleton"]').length,
+		).toBeGreaterThanOrEqual(3);
+
+		suggestionDeferred.resolve();
+
+		await expect
+			.element(
+				page.getByRole("option", { name: "Marienplatz, Munich, Germany" }),
+			)
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("listbox", { name: "Start suggestions" }))
+			.toHaveAttribute("aria-busy", "false");
+	});
+
 	it("selects a keyboard-highlighted suggestion into the start field", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			if (String(input).startsWith("/api/route/suggest?")) {
@@ -3363,6 +3447,11 @@ describe("+page.svelte", () => {
 
 		await startInput.fill("Mari");
 		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+		await expect
+			.element(
+				page.getByRole("option", { name: "Marienplatz, Munich, Germany" }),
+			)
+			.toBeInTheDocument();
 		const startInputElement = startInput.element();
 		startInputElement.dispatchEvent(
 			new KeyboardEvent("keydown", {
