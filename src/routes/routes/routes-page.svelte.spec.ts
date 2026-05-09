@@ -94,7 +94,12 @@ const searchableSavedRoutes = [
 			},
 			startLabel: "48.13740, 11.57550",
 			destinationLabel: "47.73620, 11.85980",
-			waypoints: [],
+			waypoints: [
+				{
+					label: "Bavarian foothills, Germany",
+					coordinate: [11.62, 48.1, 545],
+				},
+			],
 			bounds: [11.5755, 47.7362, 11.8598, 48.1374],
 			distanceMeters: 71234,
 			durationMs: 0,
@@ -587,7 +592,7 @@ describe("routes/+page.svelte", () => {
 			.fill("no route has this");
 
 		await expect
-			.element(page.getByText("No routes match your search"))
+			.element(page.getByText("No routes match your filters"))
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByText("No saved routes yet"))
@@ -611,6 +616,203 @@ describe("routes/+page.svelte", () => {
 		await page.getByRole("button", { name: "Clear route search" }).click();
 
 		await expect.element(page.getByText("3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.toBeInTheDocument();
+	});
+
+	it("filters saved routes by minimum distance in the selected distance unit", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page.getByRole("textbox", { name: "Min distance (km)" }).fill("60");
+
+		await expect.element(page.getByText("2 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.not.toBeInTheDocument();
+	});
+
+	it("filters saved routes by maximum distance in the selected distance unit", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page.getByRole("textbox", { name: "Max distance (km)" }).fill("60");
+
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.not.toBeInTheDocument();
+	});
+
+	it("filters saved routes by elevation gain range", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page.getByRole("textbox", { name: "Min elevation (m)" }).fill("800");
+		await page.getByRole("textbox", { name: "Max elevation (m)" }).fill("900");
+
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.not.toBeInTheDocument();
+	});
+
+	it("combines saved-route search with elevation filters", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page
+			.getByRole("textbox", { name: "Search saved routes" })
+			.fill("germany");
+		await page.getByRole("textbox", { name: "Min elevation (m)" }).fill("900");
+
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.not.toBeInTheDocument();
+	});
+
+	it("clears route filters while preserving the current saved-route search", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page
+			.getByRole("textbox", { name: "Search saved routes" })
+			.fill("germany");
+		await page.getByRole("textbox", { name: "Min distance (km)" }).fill("60");
+		await page.getByRole("textbox", { name: "Min elevation (m)" }).fill("800");
+		await expect.element(page.getByText("2 of 3 routes")).toBeInTheDocument();
+
+		await page.getByRole("button", { name: "Clear filters" }).click();
+
+		await expect.element(page.getByText("3 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByRole("textbox", { name: "Search saved routes" }))
+			.toHaveValue("germany");
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+	});
+
+	it("clears saved-route search and filters from the no-results state", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page
+			.getByRole("textbox", { name: "Search saved routes" })
+			.fill("germany");
+		await page.getByRole("textbox", { name: "Min elevation (m)" }).fill("1000");
+		await expect
+			.element(page.getByText("No routes match your filters"))
+			.toBeInTheDocument();
+
+		await page
+			.getByRole("button", { name: "Clear search and filters" })
+			.click();
+
+		await expect.element(page.getByText("3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByRole("textbox", { name: "Search saved routes" }))
+			.toHaveValue("");
+		await expect
+			.element(page.getByRole("textbox", { name: "Min elevation (m)" }))
+			.toHaveValue("");
+	});
+
+	it("uses miles when filtering saved routes with a miles distance preference", async () => {
+		window.localStorage.setItem(DISTANCE_UNIT_STORAGE_KEY, "mi");
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page.getByRole("textbox", { name: "Max distance (mi)" }).fill("35");
+
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.not.toBeInTheDocument();
+	});
+
+	it("treats invalid saved-route filter input as inactive", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page
+			.getByRole("textbox", { name: "Min distance (km)" })
+			.fill("not a number");
+		await page
+			.getByRole("textbox", { name: "Max elevation (m)" })
+			.fill("also invalid");
+
+		await expect.element(page.getByText("3 of 3 routes")).toBeInTheDocument();
 		await expect
 			.element(page.getByText("Marienplatz, Munich, Germany"))
 			.toBeInTheDocument();
