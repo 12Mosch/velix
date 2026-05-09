@@ -1558,7 +1558,9 @@ describe("+page.svelte", () => {
 	it("undoes and redoes sidebar waypoint route edits", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+			.mockImplementation(() =>
+				Promise.resolve(new Response(JSON.stringify(successfulRoutePayload))),
+			);
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
