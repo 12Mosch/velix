@@ -6,7 +6,7 @@ Status legend:
 - **Half**: there is visible or code-level support, but the implementation is incomplete, limited, or missing important expected behavior.
 - **Missing**: no meaningful implementation was found.
 
-Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/routes/routes-page.svelte.spec.ts`, `src/routes/settings/+page.svelte`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
+Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/routes/routes-page.svelte.spec.ts`, `src/routes/settings/+page.svelte`, `src/routes/settings/settings-page.svelte.spec.ts`, `src/lib/theme-settings.svelte.ts`, `src/lib/components/app-theme-settings.svelte`, `src/lib/components/saved-routes-sync.svelte`, `src/lib/components/user-preferences-sync.ts`, `src/lib/components/user-preferences-sync.spec.ts`, `src/convex/userPreferences.ts`, `src/convex/userPreferences.spec.ts`, `src/convex/schema.ts`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, and `src/lib/components/map-view.svelte.spec.ts`.
 
 ## 1. Routing & Route Builder
 
@@ -131,7 +131,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Satellite / Hybrid | Full | MapTiler Satellite Hybrid. |
 | Basemap selection in settings | Full | Settings page has a basemap radiogroup. |
 | Quick basemap switching inside the planner | Full | Planner has a top-right basemap menu that switches available basemaps, persists the choice, and updates the MapLibre style without recreating the map. |
-| Save basemap per device/account | Half | Saved per browser/device in `localStorage`; no account sync. |
+| Save basemap per device/account | Full | Saved per browser/device and synced to signed-in accounts through user preferences. |
 
 ### 2.2 Map interactions
 
@@ -525,7 +525,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Preferred distance categories | Missing | No preference. |
 | Preferred surfaces | Missing | No preference. |
 | Weight traffic lights / traffic more or less strongly | Missing | No traffic-light/traffic weighting control. |
-| Dark / light app theme | Missing | No theme setting found. |
+| Dark / light app theme | Full | Settings expose System, Light, and Dark theme choices; the preference is persisted locally and synced for signed-in accounts. |
 | Units km/mi | Full | Distance preferences are persisted in settings and the planner, saved routes, and scale bar display km/mi accordingly. |
 | Default export format | Missing | GPX only, no setting. |
 
@@ -595,7 +595,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Language | Missing | No language setting. |
 | Units | Full | A distance unit setting is available in app settings and applies across the planner, saved routes, and map scale. |
 | Default homepage | Missing | No default homepage setting. |
-| Theme | Missing | No theme setting. |
+| Theme | Full | App settings include a theme radiogroup for System, Light, and Dark modes, backed by mode-watcher persistence and account preference sync. |
 | Map interaction options | Missing | No map interaction settings. |
 | Default overlay | Missing | No overlay system/settings. |
 | Default export settings | Missing | No export settings. |
@@ -629,7 +629,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | --- | --- | --- |
 | Start a draft on desktop, continue on mobile | Missing | Local storage only; no account sync. |
 | Continue the last route on another device | Missing | No cross-device sync. |
-| Sync personal settings | Missing | Settings are local only. |
+| Sync personal settings | Full | Signed-in account preference sync covers theme mode, basemap, and distance units via Convex user preferences. |
 
 ## 14. Notifications & Smart Suggestions
 
