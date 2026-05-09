@@ -1,29 +1,9 @@
 <script lang="ts">
-	import { onMount } from "svelte";
-
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import { Button } from "$lib/components/ui/button/index.js";
-	import { Input } from "$lib/components/ui/input/index.js";
-	import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
-	import {
-		deleteSavedRoute,
-		savedRoutesState,
-		initSavedRoutes,
-		type SavedRoute,
-	} from "$lib/saved-routes.svelte";
-	import {
-		formatDistance,
-		initUnitPreference,
-	} from "$lib/unit-settings.svelte";
-	import {
-		isImportedRoute,
-		type PlannedRoute,
-		type RoundCourseTarget,
-	} from "$lib/route-planning";
 	import {
 		ArrowLeft,
 		Bookmark,
 		Clock3,
+		Copy,
 		MapPinned,
 		MountainSnow,
 		Route,
@@ -31,6 +11,27 @@
 		Trash2,
 		X,
 	} from "@lucide/svelte";
+	import { onMount } from "svelte";
+	import { Badge } from "$lib/components/ui/badge/index.js";
+	import { Button } from "$lib/components/ui/button/index.js";
+	import { Input } from "$lib/components/ui/input/index.js";
+	import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
+	import {
+		isImportedRoute,
+		type PlannedRoute,
+		type RoundCourseTarget,
+	} from "$lib/route-planning";
+	import {
+		addSavedRoute,
+		deleteSavedRoute,
+		initSavedRoutes,
+		type SavedRoute,
+		savedRoutesState,
+	} from "$lib/saved-routes.svelte";
+	import {
+		formatDistance,
+		initUnitPreference,
+	} from "$lib/unit-settings.svelte";
 
 	onMount(() => {
 		initUnitPreference();
@@ -202,6 +203,10 @@
 
 	function handleDeleteSavedRoute(id: string) {
 		deleteSavedRoute(id);
+	}
+
+	function handleDuplicateSavedRoute(route: PlannedRoute) {
+		addSavedRoute(route);
 	}
 
 	function handleExportSavedRoute(route: PlannedRoute) {
@@ -440,6 +445,14 @@
 									onclick={() => handleExportSavedRouteFit(savedRoute.route)}
 								>
 									Export FIT
+								</Button>
+								<Button
+									variant="outline"
+									class="gap-1 font-semibold"
+									onclick={() => handleDuplicateSavedRoute(savedRoute.route)}
+								>
+									<Copy class="size-3.5" />
+									Duplicate
 								</Button>
 								<Button
 									variant="outline"
