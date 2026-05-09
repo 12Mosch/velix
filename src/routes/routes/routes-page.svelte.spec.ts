@@ -181,6 +181,22 @@ describe("routes/+page.svelte", () => {
 			.toHaveAttribute("href", "/");
 	});
 
+	it("renders saved-route skeletons while remote sync is loading", async () => {
+		savedRoutesState.setAuthUser("user_1");
+
+		render(RoutesPage);
+
+		await expect
+			.element(page.getByRole("status", { name: "Loading saved routes" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("No saved routes yet"))
+			.not.toBeInTheDocument();
+		expect(
+			document.querySelectorAll('[data-slot="skeleton"]').length,
+		).toBeGreaterThanOrEqual(9);
+	});
+
 	it("lists saved routes from localStorage and links back to the planner", async () => {
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,

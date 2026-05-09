@@ -773,7 +773,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Auto-save during planning | Full | Once a route exists, generated/imported route edits autosave into the saved-routes draft with the same draft ID; pre-generation form-only drafts are not persisted. |
 | Empty states with meaningful quick actions | Full | Saved routes page has an empty state linking to the planner plus a distinct no-search-results state with a clear action; planner has empty metric states. |
 | Keyboard shortcuts | Half | Search suggestion menus support keyboard navigation; no app-level shortcut system. |
-| Loading skeletons | Missing | Skeleton component exists, but route planner uses text loading states. |
+| Loading skeletons | Full | Skeletons are used for saved-route sync loading, route-generation summary placeholders, autocomplete lookup results, and map initialization while preserving accessible status text. |
 | Route generation progress state | Half | Buttons and summary text show calculating states; no detailed progress. |
 | Failure recovery for routing errors | Half | Errors are shown; no guided recovery beyond manual edits. |
 | "Try again with relaxed constraints" | Missing | No constraint relaxation action. |

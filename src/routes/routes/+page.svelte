@@ -15,6 +15,7 @@
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
+	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 	import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
 	import {
 		isImportedRoute,
@@ -342,6 +343,37 @@
 	}
 </script>
 
+{#snippet savedRouteCardSkeleton()}
+	<div class="rounded-xl border border-border bg-background p-4 shadow-lg md:p-5">
+		<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+			<div class="min-w-0 flex-1 space-y-3">
+				<div class="space-y-2">
+					<div class="flex items-center gap-2">
+						<Skeleton class="h-3 w-24 rounded-md" />
+						<Skeleton class="h-5 w-20 rounded-full" />
+					</div>
+					<Skeleton class="h-6 w-56 max-w-full rounded-md" />
+					<div class="flex items-center gap-2">
+						<Skeleton class="size-4 rounded-full" />
+						<Skeleton class="h-4 w-48 max-w-full rounded-md" />
+					</div>
+				</div>
+				<div class="flex flex-wrap gap-2.5">
+					<Skeleton class="h-8 w-24 rounded-md" />
+					<Skeleton class="h-8 w-28 rounded-md" />
+					<Skeleton class="h-8 w-24 rounded-md" />
+				</div>
+			</div>
+			<div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+				<Skeleton class="h-9 w-24 rounded-md" />
+				<Skeleton class="h-9 w-20 rounded-md" />
+				<Skeleton class="h-9 w-24 rounded-md" />
+				<Skeleton class="h-9 w-20 rounded-md" />
+			</div>
+		</div>
+	</div>
+{/snippet}
+
 <div class="relative h-full w-full overflow-y-auto bg-background">
 	<div class="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 md:p-6">
 		<div class="flex items-center gap-3">
@@ -372,8 +404,16 @@
 		{/if}
 
 		{#if isLoadingSyncedRoutes}
-			<div class="rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground shadow-sm">
-				Loading saved routes...
+			<div
+				class="grid gap-3"
+				role="status"
+				aria-live="polite"
+				aria-label="Loading saved routes"
+			>
+				<span class="sr-only">Loading saved routes</span>
+				{#each [0, 1, 2] as _}
+					{@render savedRouteCardSkeleton()}
+				{/each}
 			</div>
 		{:else if savedRoutesState.savedRoutes.length === 0}
 			<div class="rounded-xl border border-border bg-background p-6 shadow-lg md:p-8">

@@ -342,6 +342,23 @@ describe("MapView", () => {
 		mapInstance.getPitch.mockClear();
 		mockState.eventHandlers.clear();
 		mockState.renderedFeatures.clear();
+		mapInstance.once.mockImplementation(
+			(event: string, callback: () => void) => {
+				if (event === "load" || event === "style.load") {
+					callback();
+				}
+
+				return mapInstance;
+			},
+		);
+		mapInstance.setStyle.mockImplementation(() => {
+			mockState.sources.clear();
+			mockState.layers.clear();
+			for (const callback of mockState.eventHandlers.get("style.load") ?? []) {
+				callback({});
+			}
+			return mapInstance;
+		});
 		consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 	});
 
@@ -1272,6 +1289,68 @@ describe("MapView", () => {
 			.toBe(true);
 	});
 
+	it("renders a skeleton overlay during the initial map load", async () => {
+		mapInstance.once.mockImplementation(
+			(event: string, callback: () => void) => {
+				if (event === "load") {
+					mockState.eventHandlers.set("load", [callback]);
+				}
+
+				return mapInstance;
+			},
+		);
+		mapInstance.setStyle.mockImplementation(() => mapInstance);
+
+		const view = render(MapView);
+
+		await expect
+			.element(page.getByRole("region", { name: "Route map" }))
+			.toHaveAttribute("aria-busy", "true");
+		expect(
+			document.querySelectorAll('[data-slot="skeleton"]').length,
+		).toBeGreaterThan(0);
+		expect(
+			document.querySelector('[data-testid="map-loading-skeleton"]'),
+		).not.toBeNull();
+
+		await view.unmount();
+	});
+
+	it("hides the skeleton overlay after the map load event", async () => {
+		let loadCallback: (() => void) | undefined;
+		mapInstance.once.mockImplementation(
+			(event: string, callback: () => void) => {
+				if (event === "load") {
+					loadCallback = callback;
+				}
+
+				return mapInstance;
+			},
+		);
+		mapInstance.setStyle.mockImplementation(() => mapInstance);
+
+		const view = render(MapView);
+
+		await expect
+			.element(page.getByRole("region", { name: "Route map" }))
+			.toHaveAttribute("aria-busy", "true");
+		expect(
+			document.querySelector('[data-testid="map-loading-skeleton"]'),
+		).not.toBeNull();
+
+		await expect.poll(() => loadCallback).toBeTypeOf("function");
+		loadCallback?.();
+
+		await expect
+			.element(page.getByRole("region", { name: "Route map" }))
+			.toHaveAttribute("aria-busy", "false");
+		expect(
+			document.querySelector('[data-testid="map-loading-skeleton"]'),
+		).toBeNull();
+
+		await view.unmount();
+	});
+
 	it("renders a WebGL fallback instead of constructing a map when WebGL is unavailable", async () => {
 		const originalCreateElement = document.createElement.bind(document) as (
 			tagName: string,
@@ -1298,6 +1377,9 @@ describe("MapView", () => {
 		await expect
 			.element(page.getByText(webglUnavailableMessage))
 			.toBeInTheDocument();
+		expect(
+			document.querySelector('[data-testid="map-loading-skeleton"]'),
+		).toBeNull();
 
 		expect(mapMock).not.toHaveBeenCalled();
 		expect(consoleError).not.toHaveBeenCalled();
@@ -1348,6 +1430,9 @@ describe("MapView", () => {
 		await expect
 			.element(page.getByText("Map failed to load"))
 			.toBeInTheDocument();
+		expect(
+			document.querySelector('[data-testid="map-loading-skeleton"]'),
+		).toBeNull();
 		await expect.poll(() => consoleError.mock.calls.length).toBe(1);
 
 		expect(consoleError).toHaveBeenCalledWith(

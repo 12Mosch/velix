@@ -24,6 +24,7 @@
 		readMapCameraPreference,
 		writeMapCameraPreference,
 	} from "$lib/preferences/map-camera-preferences";
+	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 	import { createBrowserStorage } from "$lib/storage/browser-storage";
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
 	import type { SidebarLayoutState } from "$lib/components/ui/sidebar/context.svelte.js";
@@ -893,6 +894,20 @@
 	<div
 		class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.22),transparent_36%),linear-gradient(to_bottom,rgba(255,255,255,0.08),transparent_24%)]"
 	></div>
+	{#if !isLoaded && !loadError}
+		<div
+			class="pointer-events-none absolute inset-0 overflow-hidden bg-muted/80"
+			aria-hidden="true"
+			data-testid="map-loading-skeleton"
+		>
+			<Skeleton class="absolute left-[8%] top-[12%] h-3 w-[34%] rotate-[-8deg] rounded-full bg-secondary" />
+			<Skeleton class="absolute right-[10%] top-[22%] h-3 w-[38%] rotate-[14deg] rounded-full bg-secondary" />
+			<Skeleton class="absolute left-[18%] top-[46%] h-3 w-[52%] rotate-[4deg] rounded-full bg-secondary" />
+			<Skeleton class="absolute bottom-[24%] right-[14%] h-3 w-[42%] rotate-[-16deg] rounded-full bg-secondary" />
+			<Skeleton class="absolute bottom-[14%] left-[10%] h-24 w-32 rounded-lg bg-secondary/80" />
+			<Skeleton class="absolute right-4 top-4 h-10 w-10 rounded-md bg-secondary/80" />
+		</div>
+	{/if}
 	{#if loadError}
 		<div class="pointer-events-none absolute inset-0 flex items-start justify-center p-4">
 			<div
