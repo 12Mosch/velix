@@ -333,7 +333,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Seasonal collections | Missing | No seasonal collections. |
 | Training-specific collections | Missing | No training collections. |
 | Search saved routes | Full | Saved routes page has local, case-insensitive search across visible card text, including places, waypoints, route type/source badges, saved date text, distance, climb, duration, and round-course targets. |
-| Filter by distance, elevation, region, purpose | Missing | No filters. |
+| Filter by distance, elevation, region, purpose | Half | Saved routes can be locally filtered by distance and elevation gain; region and purpose filters are not implemented. |
 
 ### 5.3 Versioning
 
@@ -571,7 +571,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | --- | --- | --- |
 | Search personal routes | Full | Saved-route list search filters the personal library by visible route card text and shows matched-count and no-match states. |
 | Search community routes | Missing | No community route system. |
-| Filter by tags / distance / region / training goal | Missing | No route filters/tags. |
+| Filter by tags / distance / region / training goal | Half | Distance filtering exists for personal saved routes, with elevation gain filtering also available; tags, region, and training-goal filters remain missing. |
 
 ## 12. Account & Settings
 

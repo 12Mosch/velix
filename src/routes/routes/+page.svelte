@@ -31,6 +31,8 @@
 	import {
 		formatDistance,
 		initUnitPreference,
+		parseDistanceInputToMeters,
+		unitPreference,
 	} from "$lib/unit-settings.svelte";
 
 	onMount(() => {
@@ -40,6 +42,10 @@
 
 	let exportError = $state<string | null>(null);
 	let searchQuery = $state("");
+	let minDistanceInput = $state("");
+	let maxDistanceInput = $state("");
+	let minElevationInput = $state("");
+	let maxElevationInput = $state("");
 	const isLoadingSyncedRoutes = $derived(
 		savedRoutesState.authStatus === "signedIn" &&
 			!savedRoutesState.remoteReady &&
@@ -47,14 +53,40 @@
 			savedRoutesState.savedRoutes.length === 0,
 	);
 	const normalizedSearchQuery = $derived(normalizeSearchText(searchQuery));
+	const minDistanceMeters = $derived(
+		parseSavedRouteDistanceFilter(minDistanceInput),
+	);
+	const maxDistanceMeters = $derived(
+		parseSavedRouteDistanceFilter(maxDistanceInput),
+	);
+	const minElevationMeters = $derived(
+		parseSavedRouteElevationFilter(minElevationInput),
+	);
+	const maxElevationMeters = $derived(
+		parseSavedRouteElevationFilter(maxElevationInput),
+	);
+	const hasActiveFilters = $derived(
+		Boolean(
+			minDistanceInput.trim() ||
+				maxDistanceInput.trim() ||
+				minElevationInput.trim() ||
+				maxElevationInput.trim(),
+		),
+	);
 	const filteredSavedRoutes = $derived(
-		normalizedSearchQuery
-			? savedRoutesState.savedRoutes.filter((savedRoute) =>
-					normalizeSearchText(buildSavedRouteSearchText(savedRoute)).includes(
-						normalizedSearchQuery,
-					),
-				)
-			: savedRoutesState.savedRoutes,
+		savedRoutesState.savedRoutes.filter((savedRoute) => {
+			const matchesSearch =
+				!normalizedSearchQuery ||
+				normalizeSearchText(buildSavedRouteSearchText(savedRoute)).includes(
+					normalizedSearchQuery,
+				);
+
+			return (
+				matchesSearch &&
+				matchesDistanceFilters(savedRoute) &&
+				matchesElevationFilters(savedRoute)
+			);
+		}),
 	);
 
 	function formatDuration(durationMs: number): string {
@@ -156,6 +188,20 @@
 		return value.trim().toLocaleLowerCase();
 	}
 
+	function parseSavedRouteDistanceFilter(value: string): number | null {
+		return parseDistanceInputToMeters(value);
+	}
+
+	function parseSavedRouteElevationFilter(value: string): number | null {
+		const trimmedValue = value.trim();
+		if (!trimmedValue) return null;
+
+		const numericValue = Number(trimmedValue.replace(",", "."));
+		if (!Number.isFinite(numericValue) || numericValue < 0) return null;
+
+		return numericValue;
+	}
+
 	function getRouteTypeBadges(route: PlannedRoute): string[] {
 		const badges: string[] = [];
 
@@ -199,6 +245,66 @@
 
 	function clearSearch() {
 		searchQuery = "";
+	}
+
+	function hasActiveSearchOrFilters(): boolean {
+		return Boolean(normalizedSearchQuery || hasActiveFilters);
+	}
+
+	function clearFilters() {
+		minDistanceInput = "";
+		maxDistanceInput = "";
+		minElevationInput = "";
+		maxElevationInput = "";
+	}
+
+	function clearSearchAndFilters() {
+		clearSearch();
+		clearFilters();
+	}
+
+	function matchesDistanceFilters(savedRoute: SavedRoute): boolean {
+		if (
+			minDistanceMeters !== null &&
+			maxDistanceMeters !== null &&
+			minDistanceMeters > maxDistanceMeters
+		) {
+			return false;
+		}
+
+		const distanceMeters = savedRoute.route.distanceMeters;
+
+		if (minDistanceMeters !== null && distanceMeters < minDistanceMeters) {
+			return false;
+		}
+
+		if (maxDistanceMeters !== null && distanceMeters > maxDistanceMeters) {
+			return false;
+		}
+
+		return true;
+	}
+
+	function matchesElevationFilters(savedRoute: SavedRoute): boolean {
+		if (
+			minElevationMeters !== null &&
+			maxElevationMeters !== null &&
+			minElevationMeters > maxElevationMeters
+		) {
+			return false;
+		}
+
+		const elevationMeters = savedRoute.route.ascendMeters;
+
+		if (minElevationMeters !== null && elevationMeters < minElevationMeters) {
+			return false;
+		}
+
+		if (maxElevationMeters !== null && elevationMeters > maxElevationMeters) {
+			return false;
+		}
+
+		return true;
 	}
 
 	function handleDeleteSavedRoute(id: string) {
@@ -293,7 +399,7 @@
 						variant="secondary"
 						class="h-6 border-primary/20 bg-primary/10 px-2.5 text-[10px] font-semibold uppercase tracking-wide text-primary"
 					>
-						{#if normalizedSearchQuery}
+						{#if hasActiveSearchOrFilters()}
 							{`${filteredSavedRoutes.length} of ${savedRoutesState.savedRoutes.length}`}
 							{savedRoutesState.savedRoutes.length === 1 ? " route" : " routes"}
 						{:else}
@@ -327,6 +433,62 @@
 				</div>
 			</div>
 
+			<div class="rounded-xl border border-border bg-background p-3 shadow-sm">
+				<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+					<label class="grid gap-1.5 text-xs font-medium text-muted-foreground">
+						<span>Min distance ({unitPreference.selectedDistanceUnit})</span>
+						<Input
+							type="text"
+							inputmode="decimal"
+							autocomplete="off"
+							placeholder="Any"
+							aria-label={`Min distance (${unitPreference.selectedDistanceUnit})`}
+							bind:value={minDistanceInput}
+						/>
+					</label>
+					<label class="grid gap-1.5 text-xs font-medium text-muted-foreground">
+						<span>Max distance ({unitPreference.selectedDistanceUnit})</span>
+						<Input
+							type="text"
+							inputmode="decimal"
+							autocomplete="off"
+							placeholder="Any"
+							aria-label={`Max distance (${unitPreference.selectedDistanceUnit})`}
+							bind:value={maxDistanceInput}
+						/>
+					</label>
+					<label class="grid gap-1.5 text-xs font-medium text-muted-foreground">
+						<span>Min elevation (m)</span>
+						<Input
+							type="text"
+							inputmode="decimal"
+							autocomplete="off"
+							placeholder="Any"
+							aria-label="Min elevation (m)"
+							bind:value={minElevationInput}
+						/>
+					</label>
+					<label class="grid gap-1.5 text-xs font-medium text-muted-foreground">
+						<span>Max elevation (m)</span>
+						<Input
+							type="text"
+							inputmode="decimal"
+							autocomplete="off"
+							placeholder="Any"
+							aria-label="Max elevation (m)"
+							bind:value={maxElevationInput}
+						/>
+					</label>
+				</div>
+				{#if hasActiveFilters}
+					<div class="mt-3 flex justify-end">
+						<Button type="button" variant="outline" size="sm" onclick={clearFilters}>
+							Clear filters
+						</Button>
+					</div>
+				{/if}
+			</div>
+
 			{#if filteredSavedRoutes.length === 0}
 				<div class="rounded-xl border border-border bg-background p-6 shadow-lg md:p-8">
 					<div class="flex flex-col items-start gap-4">
@@ -335,14 +497,14 @@
 						</div>
 						<div class="space-y-1.5">
 							<h2 class="font-heading text-lg font-semibold tracking-tight text-foreground">
-								No routes match your search
+								No routes match your filters
 							</h2>
 							<p class="max-w-xl text-sm leading-6 text-muted-foreground">
-								Try a place, route type, distance, climb, duration, or saved date from a route card.
+								Adjust the search, distance, or elevation filters to find saved routes.
 							</p>
 						</div>
-						<Button type="button" variant="outline" onclick={clearSearch}>
-							Clear search
+						<Button type="button" variant="outline" onclick={clearSearchAndFilters}>
+							Clear search and filters
 						</Button>
 					</div>
 				</div>
