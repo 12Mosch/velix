@@ -10,7 +10,7 @@ import type {
 	RouteMode,
 	RouteSpatialConstraintInput,
 	RouteStopInput,
-} from "$lib/route-planning";
+} from "./route-planning";
 
 const finiteCoordinateInput = Schema.TupleWithRest(
 	Schema.Tuple([Schema.Finite, Schema.Finite]),
