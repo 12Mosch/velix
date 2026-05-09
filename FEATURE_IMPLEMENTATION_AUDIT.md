@@ -319,7 +319,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Save route | Full | Active route can be saved locally and, for signed-in users, synced to the account-backed saved-routes collection with manual editing lock metadata. |
 | Save as draft | Full | Button is labeled "Save Draft"; guests save locally and signed-in users persist the draft into the synced saved-routes collection. |
 | Publish final route | Missing | No publish/public route flow. |
-| Auto-save while editing | Missing | No auto-save. |
+| Auto-save while editing | Full | Active generated/imported routes are debounced into the saved-routes draft, reuse the same saved-route ID across edits, and include manual editing lock metadata. |
 | Save route variants | Half | User can select an alternative and save it; no grouped variant set. |
 
 ### 5.2 Organization
@@ -770,7 +770,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Auto-save during planning | Missing | No auto-save. |
+| Auto-save during planning | Full | Once a route exists, generated/imported route edits autosave into the saved-routes draft with the same draft ID; pre-generation form-only drafts are not persisted. |
 | Empty states with meaningful quick actions | Full | Saved routes page has an empty state linking to the planner plus a distinct no-search-results state with a clear action; planner has empty metric states. |
 | Keyboard shortcuts | Half | Search suggestion menus support keyboard navigation; no app-level shortcut system. |
 | Loading skeletons | Missing | Skeleton component exists, but route planner uses text loading states. |
