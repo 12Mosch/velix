@@ -1,17 +1,17 @@
-import { page } from "vitest/browser";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
-
-import RoutesPage from "./+page.svelte";
 import {
 	resetSavedRoutesForTests,
 	SAVED_ROUTES_STORAGE_KEY,
 	savedRoutesState,
 } from "$lib/saved-routes.svelte";
+import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
 import {
 	DISTANCE_UNIT_STORAGE_KEY,
 	resetUnitPreferenceForTests,
 } from "$lib/unit-settings.svelte";
+import RoutesPage from "./+page.svelte";
 
 const savedRoutes = [
 	{
@@ -640,6 +640,50 @@ describe("routes/+page.svelte", () => {
 			.element(page.getByText("No saved routes yet"))
 			.toBeInTheDocument();
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+	});
+
+	it("duplicates a saved route with a new id and keeps the original route payload", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(savedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Duplicate" }).click();
+
+		const storedRoutes = JSON.parse(
+			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
+		);
+		expect(storedRoutes).toHaveLength(2);
+		expect(storedRoutes[0].id).not.toBe(savedRoutes[0].id);
+		expect(storedRoutes[0].route).toEqual(savedRoutes[0].route);
+		expect(storedRoutes[1]).toEqual(savedRoutes[0]);
+		await expect.element(page.getByText("2 routes")).toBeInTheDocument();
+	});
+
+	it("duplicates optimistically and calls the remote adapter when signed in", async () => {
+		const save = vi.fn().mockResolvedValue(undefined);
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
+		savedRoutesState.setRemoteAdapter({
+			save,
+			delete: vi.fn(),
+			mergeLocalRoutes: vi.fn(),
+		});
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Duplicate" }).click();
+
+		expect(savedRoutesState.savedRoutes).toHaveLength(2);
+		expect(savedRoutesState.savedRoutes[0]?.id).not.toBe(savedRoutes[0].id);
+		expect(savedRoutesState.savedRoutes[0]?.route).toEqual(
+			savedRoutes[0].route,
+		);
+		expect(save).toHaveBeenCalledWith(
+			serializeSavedRouteForRemote(savedRoutesState.savedRoutes[0]),
+		);
 	});
 
 	it("deletes optimistically and calls the remote adapter when signed in", async () => {
