@@ -5,6 +5,7 @@ import {
 	type RouteClimb,
 	type RoundCourseTarget,
 	type SpatialConstraintEnforcement,
+	type WindDirectionBucket,
 } from "$lib/route-planning";
 
 export function formatCoordinateLabel(point: [number, number]) {
@@ -77,6 +78,29 @@ export function formatElevation(meters: number): string {
 
 export function formatGrade(percent: number): string {
 	return `${percent.toFixed(1)}%`;
+}
+
+export function formatWindSpeed(kmh: number): string {
+	return `${Math.round(kmh).toLocaleString()} km/h`;
+}
+
+export function formatWindBucket(bucket: WindDirectionBucket): string {
+	if (bucket === "headwind") return "Headwind";
+	if (bucket === "cross_headwind") return "Cross-headwind";
+	if (bucket === "crosswind") return "Crosswind";
+	if (bucket === "cross_tailwind") return "Cross-tailwind";
+	return "Tailwind";
+}
+
+export function formatWindComponent(kmh: number): string {
+	if (kmh === 0) {
+		return "0 km/h neutral";
+	}
+
+	const rounded = Math.round(Math.abs(kmh));
+	return kmh < 0
+		? `${rounded.toLocaleString()} km/h tail`
+		: `${rounded.toLocaleString()} km/h head`;
 }
 
 export function formatDuration(durationMs: number): string {

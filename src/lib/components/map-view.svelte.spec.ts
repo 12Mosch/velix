@@ -139,6 +139,32 @@ function createAlternativeRouteGeoJson(): FeatureCollection {
 
 	return geoJson;
 }
+
+function createWindRouteGeoJson(): FeatureCollection {
+	const geoJson = JSON.parse(
+		JSON.stringify(testRouteGeoJson),
+	) as FeatureCollection;
+	geoJson.features.push({
+		type: "Feature",
+		properties: {
+			kind: "wind",
+			windBucket: "headwind",
+			headwindComponentKmh: 18,
+			crosswindComponentKmh: 0,
+			speedKmh: 18,
+			directionDegrees: 0,
+		},
+		geometry: {
+			type: "LineString",
+			coordinates: [
+				[11.5, 47.2, 700],
+				[11.6, 47.25, 760],
+			],
+		},
+	});
+
+	return geoJson;
+}
 const testRouteOverlays = [
 	{
 		id: "route-0",
@@ -154,6 +180,12 @@ const alternativeRouteOverlays = [
 		geoJson: createAlternativeRouteGeoJson(),
 		bounds: [11.49, 47.19, 11.61, 47.26] as [number, number, number, number],
 		isSelected: false,
+	},
+];
+const windRouteOverlays = [
+	{
+		...testRouteOverlays[0],
+		geoJson: createWindRouteGeoJson(),
 	},
 ];
 
@@ -458,6 +490,60 @@ describe("MapView", () => {
 			.poll(() =>
 				mapInstance.removeLayer.mock.calls.some(
 					(call) => call[0] === "planned-route-route-0-gradient",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.removeSource).toHaveBeenCalledWith(
+			"planned-route-route-0",
+		);
+	});
+
+	it("creates a wind layer for selected route wind features", async () => {
+		render(MapView, {
+			routeOverlays: windRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toContain(
+			"planned-route-route-0-wind",
+		);
+		expect(
+			mapInstance.addLayer.mock.calls.find(
+				(call) => call[0].id === "planned-route-route-0-wind",
+			)?.[0],
+		).toMatchObject({
+			type: "line",
+			source: "planned-route-route-0",
+			filter: ["==", ["get", "kind"], "wind"],
+		});
+	});
+
+	it("does not create a wind layer when wind features are absent", async () => {
+		render(MapView, {
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-0-wind");
+	});
+
+	it("recreates a selected route overlay when wind layer presence changes", async () => {
+		const view = render(MapView, {
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		await view.rerender({
+			routeOverlays: windRouteOverlays,
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.addLayer.mock.calls.some(
+					(call) => call[0].id === "planned-route-route-0-wind",
 				),
 			)
 			.toBe(true);

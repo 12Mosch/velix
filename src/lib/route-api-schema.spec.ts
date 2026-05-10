@@ -158,6 +158,82 @@ describe("route API schema helpers", () => {
 		).not.toThrow();
 	});
 
+	it("accepts planned routes with optional wind analysis", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(PlannedRouteSchema)({
+				...buildValidRoute(),
+				windAnalysis: {
+					source: "open_meteo",
+					fetchedAt: "2026-05-10T10:00:00.000Z",
+					forecastTime: "2026-05-10T10:00",
+					samples: [
+						{
+							coordinate: [11.5755, 48.1374],
+							speedKmh: 18,
+							directionDegrees: 270,
+							time: "2026-05-10T10:00",
+							source: "open_meteo",
+						},
+					],
+					segments: [
+						{
+							from: 0,
+							to: 1,
+							speedKmh: 18,
+							directionDegrees: 270,
+							routeBearingDegrees: 180,
+							relativeAngleDegrees: 90,
+							headwindComponentKmh: 0,
+							crosswindComponentKmh: 18,
+							bucket: "crosswind",
+						},
+					],
+					averageHeadwindKmh: 0,
+					maxHeadwindKmh: 0,
+					averageTailwindKmh: 0,
+					maxCrosswindKmh: 18,
+					headwindDistanceMeters: 0,
+					tailwindDistanceMeters: 0,
+					crosswindDistanceMeters: 61234,
+				},
+			}),
+		).not.toThrow();
+	});
+
+	it("rejects invalid wind buckets", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(PlannedRouteSchema)({
+				...buildValidRoute(),
+				windAnalysis: {
+					source: "open_meteo",
+					fetchedAt: "2026-05-10T10:00:00.000Z",
+					forecastTime: "2026-05-10T10:00",
+					samples: [],
+					segments: [
+						{
+							from: 0,
+							to: 1,
+							speedKmh: 18,
+							directionDegrees: 270,
+							routeBearingDegrees: 180,
+							relativeAngleDegrees: 90,
+							headwindComponentKmh: 0,
+							crosswindComponentKmh: 18,
+							bucket: "sideways",
+						},
+					],
+					averageHeadwindKmh: 0,
+					maxHeadwindKmh: 0,
+					averageTailwindKmh: 0,
+					maxCrosswindKmh: 18,
+					headwindDistanceMeters: 0,
+					tailwindDistanceMeters: 0,
+					crosswindDistanceMeters: 61234,
+				},
+			}),
+		).toThrow();
+	});
+
 	it("rejects malformed planned route coordinate tuple lengths", () => {
 		expect(() =>
 			Schema.decodeUnknownSync(PlannedRouteSchema)({

@@ -8,6 +8,8 @@ Status legend:
 
 Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/routes/routes-page.svelte.spec.ts`, `src/routes/settings/+page.svelte`, `src/routes/settings/settings-page.svelte.spec.ts`, `src/lib/theme-settings.svelte.ts`, `src/lib/components/app-theme-settings.svelte`, `src/lib/components/saved-routes-sync.svelte`, `src/lib/components/user-preferences-sync.ts`, `src/lib/components/user-preferences-sync.spec.ts`, `src/convex/userPreferences.ts`, `src/convex/userPreferences.spec.ts`, `src/convex/sharedRoutes.ts`, `src/convex/sharedRoutes.spec.ts`, `src/convex/schema.ts`, `src/lib/shared-routes.ts`, `src/lib/shared-routes.spec.ts`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, `src/lib/components/map-view.svelte.spec.ts`, and `src/routes/share/[token]/+page.svelte`.
 
+Wind implementation evidence reviewed on 2026-05-10: `src/lib/server/open-meteo.ts`, `src/lib/server/open-meteo.spec.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/server/route-orchestration.spec.ts`, `src/lib/route-api-schema.ts`, `src/lib/saved-route-convex-validators.ts`, `src/lib/map/map-view-renderer.ts`, `src/lib/route-planner/formatters.ts`, `scripts/run-vitest.mjs`, and `package.json`. Verification: `npm run check` passed, and `npm run test -- --run` passed with 33 test files and 414 tests.
+
 ## 1. Routing & Route Builder
 
 ### 1.1 Route planning entry
@@ -85,7 +87,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Maximum urban share | Missing | No urban-share parameter. |
 | Minimum share of quiet roads | Missing | No quiet-road parameter. |
 | Desired surface mix | Missing | Surface mix is analyzed, not parameterized. |
-| Consider wind direction | Missing | A wind button exists visually, but no wind logic. |
+| Consider wind direction | Half | Generated routes now attach Open-Meteo 10 m wind analysis, expose headwind/tailwind/crosswind summaries, and support a selected-route wind overlay. Wind is not a GraphHopper optimizer or user-selectable routing constraint. |
 | Start and end elevation | Missing | Elevation is analyzed from route geometry, not specified by user. |
 | Same start/end point or different | Full | Point-to-point and round-course modes cover this. |
 | Route should be more direct or higher quality | Missing | No directness/quality tradeoff control. |
@@ -156,13 +158,13 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Locked route segment overlay | Full | Locked route legs are rendered as amber dashed overlays above the selected route line. |
 | Surface overlay | Full | Selected route surface sections are rendered on the map from GraphHopper surface details, with smooth/mixed/coarse bucket colors and smoothness fallback coverage in `route-planning` and MapView specs. |
 | Traffic stress overlay | Missing | No traffic stress data. |
-| Wind overlay | Missing | No wind overlay. |
+| Wind overlay | Full | Selected generated routes with `windAnalysis` can show a toggleable wind line overlay, bucketed as headwind, cross-headwind, crosswind, cross-tailwind, and tailwind. |
 | Gradient overlay | Full | Toggleable selected-route overlay derives uphill/downhill gradient buckets from route elevation samples, renders a diverging descent/flat/climb palette, and has `route-planning`, MapView, and planner page test coverage. |
 | Heatmap of popular road cycling roads | Missing | No heatmap layer. |
 | Contours / terrain | Half | Available only through terrain/outdoor basemap styles, not a separate overlay. |
 | Road classification | Missing | Road class is requested from GraphHopper details but not exposed as overlay. |
 | Hillshade | Half | May be present in terrain basemap; no dedicated overlay control. |
-| Weather overlay | Missing | No weather data. |
+| Weather overlay | Missing | No general weather overlay beyond the dedicated wind overlay. |
 | Hazard / warning overlay | Missing | No hazard layer. |
 | Mark OSM data issues | Missing | No OSM issue layer. |
 | Show saved routes as overlays | Missing | Saved routes are listed separately, not overlaid on the planner map. |
@@ -228,7 +230,7 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 | Sections by road type | Missing | Road class details are fetched from GraphHopper but not stored/displayed in `PlannedRoute`. |
 | Sections with high interruption probability | Missing | No interruption probability analysis. |
 | Sections suitable for intervals | Missing | No interval suitability analysis. |
-| Sections with headwind / tailwind | Missing | No wind analysis. |
+| Sections with headwind / tailwind | Full | `RouteWindSegment` analysis stores per-segment route bearing, wind bearing, relative angle, headwind/crosswind components, and wind bucket; the analysis panel lists the strongest wind sections. |
 | Segment-level duration and distance estimates | Missing | Segment lock state exists for editing, but no segment list with durations/distances. |
 
 ### 3.4 Elevation profile
@@ -250,12 +252,12 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Wind direction | Missing | Wind icon exists, no data/logic. |
-| Headwind / tailwind share | Missing | No wind analysis. |
-| Wind-critical sections | Missing | No wind analysis. |
+| Wind direction | Full | Open-Meteo current 10 m wind direction is sampled along generated routes and stored on `windAnalysis.samples`/segments. |
+| Headwind / tailwind share | Full | Wind summary tracks average headwind/tailwind plus headwind, crosswind, and tailwind distance splits. |
+| Wind-critical sections | Full | Segment-level wind analysis classifies each route interval and the UI lists the strongest headwind/crosswind sections. |
 | Temperature | Missing | No weather data. |
 | Rain probability | Missing | No weather data. |
-| Weather warnings | Missing | No weather data. |
+| Weather warnings | Missing | Wind-provider failures produce non-blocking route warnings, but there are no forecast hazard/weather warning alerts. |
 | Time-of-day-based hints | Missing | No time-of-day logic. |
 | Sun position / lighting conditions optional | Missing | No lighting/sun logic. |
 
@@ -316,7 +318,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Save route | Full | Active route can be saved locally and, for signed-in users, synced to the account-backed saved-routes collection with manual editing lock metadata. |
+| Save route | Full | Active route can be saved locally and, for signed-in users, synced to the account-backed saved-routes collection with manual editing lock metadata and optional wind analysis. |
 | Save as draft | Full | Button is labeled "Save Draft"; guests save locally and signed-in users persist the draft into the synced saved-routes collection. |
 | Publish final route | Missing | No publish/public route flow. |
 | Auto-save while editing | Full | Active generated/imported routes are debounced into the saved-routes draft, reuse the same saved-route ID across edits, and include manual editing lock metadata. |
@@ -420,7 +422,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Major climbs | Full | Climb detection implemented: analysis panel, profile bands, map overlay, and key-climb highlights present. |
 | Dangerous road transitions | Missing | No transition/hazard analysis. |
 | Gravel / poor-surface warnings | Half | Rough surfaces are penalized and surface mix is shown; no explicit route warning by section. |
-| Long exposed headwind sections | Missing | No wind analysis. |
+| Long exposed headwind sections | Half | Wind-critical sections are calculated and listed, but there is no dedicated long-exposure warning threshold or readiness warning yet. |
 | Supply points along the route | Missing | No supply POIs. |
 
 ### 7.3 Ride-readiness checks
@@ -465,7 +467,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Route of the day | Missing | No inspiration system. |
-| Wind-optimized recommendation | Missing | No wind system. |
+| Wind-optimized recommendation | Missing | Wind analysis exists for generated routes, but there is no recommendation/generation workflow optimized around wind. |
 | Seasonal recommendations | Missing | No recommendation system. |
 | Regional highlights | Missing | No recommendation system. |
 | Nearby suggestions | Missing | No current-location/nearby recommendation system. |
@@ -476,7 +478,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Share route via link | Full | Signed-in users can create Convex-backed public snapshot links from the planner or saved-route cards. |
+| Share route via link | Full | Signed-in users can create Convex-backed public snapshot links from the planner or saved-route cards; route snapshots preserve optional wind analysis in the route JSON. |
 | Public route page | Full | `/share/<token>` renders a read-only shared route with map, summary, save-copy, and export actions. |
 | Private route with share link | Half | Unlisted token links are private-ish public snapshots, but there is no revocation, expiry, or permission management yet. |
 | Embed a route | Missing | No embed support. |
@@ -539,7 +541,7 @@ Share links are immutable public snapshots. Creating one requires a signed-in us
 | Default start point | Missing | No default start point. |
 | Known training areas | Missing | No training areas. |
 | Prioritize local heatmaps | Missing | No heatmaps. |
-| Preferred riding direction / wind logic optional | Missing | No direction/wind preference. |
+| Preferred riding direction / wind logic optional | Missing | Generated routes include optional wind analysis, but there is no preference for riding direction or wind-aware generation. |
 
 ### 10.3 Performance and training profile
 
@@ -640,7 +642,7 @@ Share links are immutable public snapshots. Creating one requires a signed-in us
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Weather warning for a planned route | Missing | No weather system. |
-| Major wind change | Missing | No weather/wind system. |
+| Major wind change | Missing | Wind is sampled during generated route analysis, but there is no background refresh or change notification. |
 | Sync successful / failed | Half | Signed-in saved-routes sync is implemented and failures are surfaced in the routes view; there is no dedicated success notification. |
 | Export ready | Half | Export downloads immediately; no notification system. |
 | Route contains potentially unsuitable sections | Half | Routing fallback warnings exist; no section-level unsuitable alerts. |
@@ -755,7 +757,7 @@ Share links are immutable public snapshots. Creating one requires a signed-in us
 | Time-dependent traffic routing | Missing | No traffic-time model. |
 | Seasonal road-quality logic | Missing | No seasonal model. |
 | Construction / closure integration | Missing | No closure integration. |
-| Live wind along the route | Missing | No live wind data. |
+| Live wind along the route | Half | Generated routes sample current/near-term Open-Meteo wind at up to five route positions and derive segment analysis; there is no continuous live refresh or time-shifted forecast playback. |
 | Lighting / night-riding logic | Missing | No lighting logic. |
 
 ### 18.3 Personal performance layer

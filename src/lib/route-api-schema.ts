@@ -127,6 +127,45 @@ export const RouteCoordinateSchema = Schema.Union([
 	RouteCoordinate2Schema,
 	RouteCoordinate3Schema,
 ]);
+export const WindDirectionBucketSchema = Schema.Literals([
+	"headwind",
+	"cross_headwind",
+	"crosswind",
+	"cross_tailwind",
+	"tailwind",
+]);
+export const RouteWindSampleSchema = Schema.Struct({
+	coordinate: RouteCoordinate2Schema,
+	speedKmh: Schema.Finite,
+	directionDegrees: Schema.Finite,
+	time: Schema.String,
+	source: Schema.Literal("open_meteo"),
+});
+export const RouteWindSegmentSchema = Schema.Struct({
+	from: Schema.Finite,
+	to: Schema.Finite,
+	speedKmh: Schema.Finite,
+	directionDegrees: Schema.Finite,
+	routeBearingDegrees: Schema.Finite,
+	relativeAngleDegrees: Schema.Finite,
+	headwindComponentKmh: Schema.Finite,
+	crosswindComponentKmh: Schema.Finite,
+	bucket: WindDirectionBucketSchema,
+});
+export const RouteWindAnalysisSchema = Schema.Struct({
+	source: Schema.Literal("open_meteo"),
+	fetchedAt: Schema.String,
+	forecastTime: Schema.String,
+	samples: Schema.mutable(Schema.Array(RouteWindSampleSchema)),
+	segments: Schema.mutable(Schema.Array(RouteWindSegmentSchema)),
+	averageHeadwindKmh: Schema.Finite,
+	maxHeadwindKmh: Schema.Finite,
+	averageTailwindKmh: Schema.Finite,
+	maxCrosswindKmh: Schema.Finite,
+	headwindDistanceMeters: Schema.Finite,
+	tailwindDistanceMeters: Schema.Finite,
+	crosswindDistanceMeters: Schema.Finite,
+});
 export const RouteDetailIntervalSchema = Schema.Struct({
 	from: Schema.Finite,
 	to: Schema.Finite,
@@ -202,6 +241,7 @@ export const PlannedRouteSchema = Schema.Struct({
 	coordinates: Schema.mutable(Schema.Array(RouteCoordinateSchema)),
 	surfaceDetails: Schema.mutable(Schema.Array(RouteDetailIntervalSchema)),
 	smoothnessDetails: Schema.mutable(Schema.Array(RouteDetailIntervalSchema)),
+	windAnalysis: Schema.optionalKey(Schema.UndefinedOr(RouteWindAnalysisSchema)),
 });
 export const SavedRouteSchema = Schema.Struct({
 	id: Schema.String,

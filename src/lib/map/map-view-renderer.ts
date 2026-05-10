@@ -37,6 +37,10 @@ export function getRouteGradientLayerId(overlayId: string) {
 	return `${getRouteSourceId(overlayId)}-gradient`;
 }
 
+export function getRouteWindLayerId(overlayId: string) {
+	return `${getRouteSourceId(overlayId)}-wind`;
+}
+
 export function getRouteClimbLayerId(overlayId: string) {
 	return `${getRouteSourceId(overlayId)}-climbs`;
 }
@@ -63,6 +67,7 @@ export function removeRouteOverlayById(map: MapLibreMap, overlayId: string) {
 		getRouteWaypointLayerId(overlayId),
 		getRouteStartLayerId(overlayId),
 		getRouteClimbLayerId(overlayId),
+		getRouteWindLayerId(overlayId),
 		getRouteGradientLayerId(overlayId),
 		getRouteSurfaceLayerId(overlayId),
 		getRouteLineLayerId(overlayId),
@@ -96,6 +101,9 @@ function addRouteOverlay(
 		alternativeRoutePalette[index % alternativeRoutePalette.length];
 	const hasGradientFeatures = overlay.geoJson.features.some(
 		(feature) => feature.properties?.kind === "gradient",
+	);
+	const hasWindFeatures = overlay.geoJson.features.some(
+		(feature) => feature.properties?.kind === "wind",
 	);
 
 	map.addSource(sourceId, {
@@ -289,6 +297,44 @@ function addRouteOverlay(
 				},
 			});
 		}
+		if (hasWindFeatures) {
+			map.addLayer({
+				id: getRouteWindLayerId(overlay.id),
+				type: "line",
+				source: sourceId,
+				filter: ["==", ["get", "kind"], "wind"],
+				layout: { "line-cap": "round", "line-join": "round" },
+				paint: {
+					"line-color": [
+						"match",
+						["get", "windBucket"],
+						"headwind",
+						"rgb(220, 38, 38)",
+						"cross_headwind",
+						"rgb(249, 115, 22)",
+						"crosswind",
+						"rgb(100, 116, 139)",
+						"cross_tailwind",
+						"rgb(13, 148, 136)",
+						"tailwind",
+						"rgb(22, 163, 74)",
+						"rgb(100, 116, 139)",
+					],
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						6,
+						4,
+						12,
+						6,
+						16,
+						8,
+					],
+					"line-opacity": 0.85,
+				},
+			});
+		}
 	}
 
 	if (!overlay.isSelected) {
@@ -362,7 +408,17 @@ function shouldRecreateRouteOverlay(
 		overlay.geoJson.features.some(
 			(feature) => feature.properties?.kind === "gradient",
 		);
-	return renderedWithGradient !== shouldRenderGradient;
+	if (renderedWithGradient !== shouldRenderGradient) {
+		return true;
+	}
+
+	const renderedWithWind = !!map.getLayer(getRouteWindLayerId(overlay.id));
+	const shouldRenderWind =
+		overlay.isSelected &&
+		overlay.geoJson.features.some(
+			(feature) => feature.properties?.kind === "wind",
+		);
+	return renderedWithWind !== shouldRenderWind;
 }
 
 export function syncRouteOverlays(

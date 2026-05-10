@@ -84,6 +84,49 @@ const manualRouteEditingValidator = v.object({
 	lockedSegmentIndexes: v.array(v.number()),
 });
 
+const windDirectionBucketValidator = v.union(
+	v.literal("headwind"),
+	v.literal("cross_headwind"),
+	v.literal("crosswind"),
+	v.literal("cross_tailwind"),
+	v.literal("tailwind"),
+);
+
+const routeWindSampleValidator = v.object({
+	coordinate: routePointValidator,
+	speedKmh: v.number(),
+	directionDegrees: v.number(),
+	time: v.string(),
+	source: v.literal("open_meteo"),
+});
+
+const routeWindSegmentValidator = v.object({
+	from: v.number(),
+	to: v.number(),
+	speedKmh: v.number(),
+	directionDegrees: v.number(),
+	routeBearingDegrees: v.number(),
+	relativeAngleDegrees: v.number(),
+	headwindComponentKmh: v.number(),
+	crosswindComponentKmh: v.number(),
+	bucket: windDirectionBucketValidator,
+});
+
+const routeWindAnalysisValidator = v.object({
+	source: v.literal("open_meteo"),
+	fetchedAt: v.string(),
+	forecastTime: v.string(),
+	samples: v.array(routeWindSampleValidator),
+	segments: v.array(routeWindSegmentValidator),
+	averageHeadwindKmh: v.number(),
+	maxHeadwindKmh: v.number(),
+	averageTailwindKmh: v.number(),
+	maxCrosswindKmh: v.number(),
+	headwindDistanceMeters: v.number(),
+	tailwindDistanceMeters: v.number(),
+	crosswindDistanceMeters: v.number(),
+});
+
 export const plannedRouteValidator = v.object({
 	mode: v.optional(routeModeValidator),
 	source: v.optional(routeSourceValidator),
@@ -107,6 +150,7 @@ export const plannedRouteValidator = v.object({
 	coordinates: v.array(routeCoordinateValidator),
 	surfaceDetails: v.array(routeDetailIntervalValidator),
 	smoothnessDetails: v.array(routeDetailIntervalValidator),
+	windAnalysis: v.optional(routeWindAnalysisValidator),
 });
 
 export const remoteSavedRoutePayloadValidator = v.object({
