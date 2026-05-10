@@ -59,6 +59,7 @@
 		buildRouteSurfaceGeoJson,
 		buildRouteWindGeoJson,
 		buildLockedSegmentGeoJson,
+		buildRouteAvoidanceGeoJson,
 		buildSpatialConstraintGeoJson,
 		analyzeRouteClimbs,
 		calculateRouteGradientMetrics,
@@ -76,12 +77,14 @@
 		sanitizeLockedSegmentIndexes,
 		type ManualRouteEditingState,
 		type PlannedRoute,
+		type ResolvedRouteAvoidance,
 		type RoundCourseTarget,
 		type RouteApiError,
 		type RouteApiSuccess,
 		type RouteMapOverlay,
 		type RouteClimb,
 		type RouteRequestPayload,
+		type RouteAvoidanceInput,
 		type RouteSpatialConstraintInput,
 		type RouteStopInput,
 		type RouteSuggestion,
@@ -232,6 +235,7 @@
 	let routeAlternatives = $state<PlannedRoute[]>([]);
 	let selectedRouteIndex = $state<number | null>(null);
 	let lockedSegmentIndexes = $state<number[]>([]);
+	let avoidedRoads = $state<ResolvedRouteAvoidance[]>([]);
 	let lastGeneratedRouteCount = $state<number | null>(null);
 	let routeExportError = $state<string | null>(null);
 	let routeShareErrors = $state<Record<string, string | null>>({});
@@ -379,6 +383,9 @@
 		activeRoute?.spatialConstraint
 			? buildSpatialConstraintGeoJson(activeRoute.spatialConstraint)
 			: null,
+	);
+	const avoidanceOverlay = $derived(
+		avoidedRoads.length > 0 ? buildRouteAvoidanceGeoJson(avoidedRoads) : null,
 	);
 	const activeRouteSegmentCount = $derived(
 		activeRoute ? getRouteSegmentCount(activeRoute) : 0,
@@ -881,6 +888,9 @@
 
 	function syncStopsFromRoute(route: PlannedRoute) {
 		plannerMode = route.mode;
+		if (route.avoidances) {
+			avoidedRoads = route.avoidances;
+		}
 		const roundCourseTarget = getRoundCourseTarget(route);
 		roundCourseTargetKind = roundCourseTarget?.kind ?? "distance";
 		roundCourseDistanceMetersInput =
@@ -979,6 +989,32 @@
 			: routeWithoutManualEditing;
 	}
 
+	function withAvoidancesState(
+		route: PlannedRoute,
+		avoidances: ResolvedRouteAvoidance[],
+	): PlannedRoute {
+		const { avoidances: _avoidances, ...routeWithoutAvoidances } = route;
+
+		return avoidances.length > 0
+			? {
+					...routeWithoutAvoidances,
+					avoidances: avoidances.map((avoidance) => ({
+						...avoidance,
+						centerline: avoidance.centerline.map((point) => [point[0], point[1]]),
+						polygon: avoidance.polygon.map((point) => [point[0], point[1]]),
+					})),
+				}
+			: routeWithoutAvoidances;
+	}
+
+	function withPlannerRouteState(
+		route: PlannedRoute,
+		indexes: number[],
+		avoidances: ResolvedRouteAvoidance[],
+	): PlannedRoute {
+		return withAvoidancesState(withManualEditingState(route, indexes), avoidances);
+	}
+
 	function syncActiveRouteManualEditing(indexes: number[]) {
 		if (selectedRouteIndex === null) {
 			return;
@@ -1022,11 +1058,15 @@
 					getRouteSegmentCount(selectedRoute),
 				)
 			: [];
+		const nextAvoidedRoads = selectedRoute?.avoidances ?? avoidedRoads;
 		routeAlternatives = routes.map((route, index) =>
-			index === nextIndex ? withManualEditingState(route, nextLockedSegmentIndexes) : route,
+			index === nextIndex
+				? withPlannerRouteState(route, nextLockedSegmentIndexes, nextAvoidedRoads)
+				: withAvoidancesState(route, nextAvoidedRoads),
 		);
 		selectedRouteIndex = nextIndex;
 		lockedSegmentIndexes = nextLockedSegmentIndexes;
+		avoidedRoads = nextAvoidedRoads.map((avoidance) => ({ ...avoidance }));
 	}
 
 	function setSingleRouteState(route: PlannedRoute) {
@@ -1034,6 +1074,7 @@
 			route.manualEditing?.lockedSegmentIndexes ?? [],
 			getRouteSegmentCount(route),
 		);
+		avoidedRoads = route.avoidances ?? [];
 		setRouteAlternativesState([route], 0);
 	}
 
@@ -1050,10 +1091,11 @@
 
 		selectedRouteIndex = index;
 		lockedSegmentIndexes = nextLockedSegmentIndexes;
+		avoidedRoads = selectedRoute.avoidances ?? avoidedRoads;
 		routeAlternatives = routeAlternatives.map((route, routeIndex) =>
 			routeIndex === index
-				? withManualEditingState(route, nextLockedSegmentIndexes)
-				: route,
+				? withPlannerRouteState(route, nextLockedSegmentIndexes, avoidedRoads)
+				: withAvoidancesState(route, avoidedRoads),
 		);
 		activeProfileIndex = null;
 		chartScrubPointerId = null;
@@ -1091,7 +1133,7 @@
 
 		const manualEditing = getManualEditingRequest();
 		return {
-			...activeRoute,
+			...withAvoidancesState(activeRoute, avoidedRoads),
 			...(manualEditing ? { manualEditing } : {}),
 		};
 	}
@@ -1184,6 +1226,16 @@
 		};
 	}
 
+	function cloneAvoidances(
+		avoidances: ResolvedRouteAvoidance[],
+	): ResolvedRouteAvoidance[] {
+		return avoidances.map((avoidance) => ({
+			...avoidance,
+			centerline: avoidance.centerline.map((point) => [point[0], point[1]]),
+			polygon: avoidance.polygon.map((point) => [point[0], point[1]]),
+		}));
+	}
+
 	function captureRouteEditSnapshot(
 		options: RouteEditSnapshotOptions = {},
 	): RouteEditSnapshot {
@@ -1193,6 +1245,7 @@
 				: [...routeAlternatives],
 			selectedRouteIndex,
 			lockedSegmentIndexes: [...lockedSegmentIndexes],
+			avoidedRoads: cloneAvoidances(avoidedRoads),
 			plannerMode,
 			startStop: clonePlannerStop(startStop),
 			waypointStops: waypointStops.map((waypoint) => clonePlannerStop(waypoint)),
@@ -1220,6 +1273,7 @@
 		routeAlternatives = snapshot.routeAlternatives.map((route) => cloneRoute(route));
 		selectedRouteIndex = snapshot.selectedRouteIndex;
 		lockedSegmentIndexes = [...snapshot.lockedSegmentIndexes];
+		avoidedRoads = cloneAvoidances(snapshot.avoidedRoads);
 		plannerMode = snapshot.plannerMode;
 		startStop = clonePlannerStop(snapshot.startStop);
 		waypointStops = snapshot.waypointStops.map((waypoint) =>
@@ -1367,6 +1421,7 @@
 
 		plannerMode = nextMode;
 		lockedSegmentIndexes = [];
+		avoidedRoads = [];
 		if (nextMode === "round_course") {
 			roundCourseTargetKind = "distance";
 			if (spatialConstraintKind === "corridor") {
@@ -2271,6 +2326,157 @@
 		return true;
 	}
 
+	function getDistanceToSegmentMeters(
+		point: [number, number],
+		start: [number, number],
+		end: [number, number],
+	) {
+		const lat = ((point[1] + start[1] + end[1]) / 3 * Math.PI) / 180;
+		const metersPerLng = 111_320 * Math.cos(lat);
+		const metersPerLat = 110_540;
+		const startX = (start[0] - point[0]) * metersPerLng;
+		const startY = (start[1] - point[1]) * metersPerLat;
+		const endX = (end[0] - point[0]) * metersPerLng;
+		const endY = (end[1] - point[1]) * metersPerLat;
+		const dx = endX - startX;
+		const dy = endY - startY;
+		const lengthSquared = dx * dx + dy * dy;
+
+		if (lengthSquared <= 0) {
+			return Math.hypot(startX, startY);
+		}
+
+		const ratio = Math.max(
+			0,
+			Math.min(1, -(startX * dx + startY * dy) / lengthSquared),
+		);
+		return Math.hypot(startX + dx * ratio, startY + dy * ratio);
+	}
+
+	function isPointNearLine(
+		point: [number, number],
+		line: [number, number][],
+		toleranceMeters: number,
+	) {
+		return line.slice(0, -1).some((start, index) => {
+			const end = line[index + 1];
+			return end
+				? getDistanceToSegmentMeters(point, start, end) <= toleranceMeters
+				: false;
+		});
+	}
+
+	function getAvoidanceForSelection(selection: MapClickSelection) {
+		if (!selection.selectedSegment) {
+			return null;
+		}
+
+		const point = selection.point;
+		return (
+			avoidedRoads.find((avoidance) =>
+				isPointNearLine(point, avoidance.centerline, avoidance.bufferMeters + 20),
+			) ?? null
+		);
+	}
+
+	function isMapSelectionRoadAvoided(selection: MapClickSelection) {
+		return !!selection.selectedSegment && !!getAvoidanceForSelection(selection);
+	}
+
+	function buildAvoidancePlaceholderPolygon(
+		centerline: [number, number][],
+		bufferMeters: number,
+	): [number, number][] {
+		const lngs = centerline.map((point) => point[0]);
+		const lats = centerline.map((point) => point[1]);
+		const centerLat = lats.reduce((sum, lat) => sum + lat, 0) / Math.max(lats.length, 1);
+		const deltaLng = bufferMeters / Math.max(111_320 * Math.cos((centerLat * Math.PI) / 180), 1);
+		const deltaLat = bufferMeters / 110_540;
+		const minLng = Math.min(...lngs) - deltaLng;
+		const maxLng = Math.max(...lngs) + deltaLng;
+		const minLat = Math.min(...lats) - deltaLat;
+		const maxLat = Math.max(...lats) + deltaLat;
+
+		return [
+			[minLng, minLat],
+			[maxLng, minLat],
+			[maxLng, maxLat],
+			[minLng, maxLat],
+			[minLng, minLat],
+		];
+	}
+
+	function getSelectedAvoidanceCenterline(selection: MapClickSelection) {
+		if (!activeRoute || !selection.selectedSegment) {
+			return null;
+		}
+
+		const selectedIndex = selection.selectedSegment.coordinateSegmentIndex;
+		const startIndex = Math.max(0, selectedIndex - 3);
+		const endIndex = Math.min(activeRoute.coordinates.length - 1, selectedIndex + 4);
+		const centerline = activeRoute.coordinates
+			.slice(startIndex, endIndex + 1)
+			.map((coordinate): [number, number] => [coordinate[0], coordinate[1]])
+			.slice(0, 8);
+
+		return centerline.length >= 2 ? centerline : null;
+	}
+
+	async function toggleMapSelectionRoadAvoidance(selection: MapClickSelection) {
+		if (!activeRoute || !selection.selectedSegment || isRouting) {
+			return false;
+		}
+
+		closeCompletionMenu();
+		closeMapClickMenu();
+		await performAsyncRouteEdit(async () => {
+			const existingAvoidance = getAvoidanceForSelection(selection);
+			const previousAvoidedRoads = avoidedRoads;
+
+			if (existingAvoidance) {
+				avoidedRoads = avoidedRoads.filter((avoidance) => avoidance !== existingAvoidance);
+				const routed = await rerouteAfterManualEdit();
+				if (!routed) avoidedRoads = previousAvoidedRoads;
+				return routed;
+			}
+
+			const centerline = getSelectedAvoidanceCenterline(selection);
+			if (!centerline) {
+				return false;
+			}
+
+			const bufferMeters = 35;
+			avoidedRoads = [
+				...avoidedRoads,
+				{
+					kind: "road_segment",
+					label: `Avoided road ${avoidedRoads.length + 1}`,
+					centerline,
+					bufferMeters,
+					polygon: buildAvoidancePlaceholderPolygon(centerline, bufferMeters),
+				},
+			];
+			const routed = await rerouteAfterManualEdit();
+			if (!routed) avoidedRoads = previousAvoidedRoads;
+			return routed;
+		}, { includeRoutesGeometry: true });
+		return true;
+	}
+
+	function removeAvoidedRoad(index: number) {
+		if (index < 0 || index >= avoidedRoads.length || isRouting) {
+			return;
+		}
+
+		void performAsyncRouteEdit(async () => {
+			const previousAvoidedRoads = avoidedRoads;
+			avoidedRoads = avoidedRoads.filter((_, itemIndex) => itemIndex !== index);
+			const routed = await rerouteAfterManualEdit();
+			if (!routed) avoidedRoads = previousAvoidedRoads;
+			return routed;
+		}, { includeRoutesGeometry: true });
+	}
+
 	function getWaypointInsertionTarget(point: [number, number]) {
 		const hasCompleteOrderedStops =
 			plannerMode === "point_to_point" &&
@@ -2426,10 +2632,22 @@
 			: undefined;
 	}
 
+	function getAvoidanceRequest(): RouteAvoidanceInput[] | undefined {
+		return avoidedRoads.length > 0
+			? avoidedRoads.map((avoidance) => ({
+					kind: "road_segment",
+					centerline: avoidance.centerline,
+					bufferMeters: avoidance.bufferMeters,
+					label: avoidance.label,
+				}))
+			: undefined;
+	}
+
 	function buildCurrentRouteRequest(
 		manualEditing = getManualEditingRequest(),
 	): RouteRequestPayload & { manualEditing?: ManualRouteEditingState } {
 		const spatialConstraint = buildSpatialConstraintRequest();
+		const avoidances = getAvoidanceRequest();
 		const baseRequest: RouteRequestPayload =
 			plannerMode === "round_course"
 				? {
@@ -2464,6 +2682,7 @@
 		return {
 			...baseRequest,
 			...(manualEditing ? { manualEditing } : {}),
+			...(avoidances ? { avoidances } : {}),
 		};
 	}
 
@@ -2512,7 +2731,7 @@
 		const manualEditing = getManualEditingRequest();
 
 		return routes.map((route) => ({
-			...route,
+			...withAvoidancesState(route, route.avoidances ?? avoidedRoads),
 			...(manualEditing ? { manualEditing } : {}),
 		}));
 	}
@@ -3026,6 +3245,7 @@
 		lockedSegmentOverlay={lockedSegmentOverlay}
 		lockedSegmentIndexes={sanitizedLockedSegmentIndexes}
 		constraintOverlay={constraintOverlay}
+		avoidanceOverlay={avoidanceOverlay}
 		fitBounds={combinedRouteBounds}
 		fitInitialBoundsWithRestoredCamera={fitInitialSavedRouteBounds}
 		manualRecenterBounds={activeRoute?.bounds ?? null}
@@ -3141,11 +3361,14 @@
 				removeActionLabel={getRemoveActionLabel}
 				isWaypointInsertionLocked={isMapWaypointInsertionLocked}
 				isSegmentLocked={isMapSelectionSegmentLocked}
+				isSegmentAvoided={isMapSelectionRoadAvoided}
 				onApplyAsStart={() => applyMapPointAsStop({ kind: "startQuery" })}
 				onApplyAsWaypoint={() => applyMapPointAsStop({ kind: "waypoint" })}
 				onApplyAsDestination={() => applyMapPointAsStop({ kind: "destinationQuery" })}
 				onToggleSegmentLock={() =>
 					mapClickSelection && toggleMapSelectionSegmentLock(mapClickSelection)}
+				onToggleRoadAvoidance={() =>
+					mapClickSelection && void toggleMapSelectionRoadAvoidance(mapClickSelection)}
 				onRemoveStop={removeSelectedMapStop}
 				onClose={closeMapClickMenu}
 			/>
@@ -4224,6 +4447,34 @@
 						<div>{activeImportedRouteSource.filename}</div>
 						<div>{getImportedRouteStopSummary(activeRoute)}</div>
 						<div>Edit stops, then Generate Route to recalculate.</div>
+					</div>
+				{/if}
+
+				{#if avoidedRoads.length > 0}
+					<div class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+						<div class="mb-2 flex items-center justify-between gap-3">
+							<div class="text-xs font-semibold uppercase tracking-wide text-destructive">
+								{avoidedRoads.length} avoided
+							</div>
+						</div>
+						<div class="flex flex-wrap gap-2">
+							{#each avoidedRoads as avoidance, index (`avoidance-${index}`)}
+								<div class="flex items-center gap-1 rounded-md border border-destructive/20 bg-background/80 px-2 py-1 text-xs font-medium text-foreground">
+									<span>{avoidance.label}</span>
+									<Button
+										variant="ghost"
+										size="icon"
+										class="size-6 text-muted-foreground hover:text-destructive"
+										type="button"
+										disabled={isRouting}
+										aria-label={`Remove ${avoidance.label}`}
+										onclick={() => removeAvoidedRoad(index)}
+									>
+										<X class="size-3.5" />
+									</Button>
+								</div>
+							{/each}
+						</div>
 					</div>
 				{/if}
 

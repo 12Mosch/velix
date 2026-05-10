@@ -67,12 +67,28 @@ export type ResolvedRouteSpatialConstraint =
 			polygon: [number, number][];
 	  };
 
+export type RouteAvoidanceInput = {
+	kind: "road_segment";
+	centerline: [number, number][];
+	bufferMeters: number;
+	label?: string;
+};
+
+export type ResolvedRouteAvoidance = {
+	kind: "road_segment";
+	label: string;
+	centerline: [number, number][];
+	bufferMeters: number;
+	polygon: [number, number][];
+};
+
 export type PointToPointRouteRequestPayload = {
 	mode: "point_to_point";
 	start: RouteStopInput;
 	waypoints: RouteStopInput[];
 	destination: RouteStopInput;
 	spatialConstraint?: RouteSpatialConstraintInput;
+	avoidances?: RouteAvoidanceInput[];
 };
 
 export type RoundCourseTarget =
@@ -95,6 +111,7 @@ export type RoundCourseRouteRequestPayload = {
 	waypoints?: RouteStopInput[];
 	target: RoundCourseTarget;
 	spatialConstraint?: RouteSpatialConstraintInput;
+	avoidances?: RouteAvoidanceInput[];
 };
 
 export type OutAndBackRouteRequestPayload = {
@@ -103,6 +120,7 @@ export type OutAndBackRouteRequestPayload = {
 	waypoints?: RouteStopInput[];
 	turnaround: RouteStopInput;
 	spatialConstraint?: RouteSpatialConstraintInput;
+	avoidances?: RouteAvoidanceInput[];
 };
 
 export type RouteRequestPayload =
@@ -237,6 +255,7 @@ export type PlannedRoute = {
 	requestedDistanceMeters?: number;
 	roundCourseTarget?: RoundCourseTarget;
 	spatialConstraint?: ResolvedRouteSpatialConstraint;
+	avoidances?: ResolvedRouteAvoidance[];
 	routingProfile?: string;
 	routingStrategy?: string;
 	routingWarnings?: string[];
@@ -276,6 +295,7 @@ export type RouteFieldErrors = {
 	waypointQueries?: string[];
 	roundCourseTarget?: string;
 	spatialConstraint?: string;
+	avoidances?: string;
 };
 
 export type RouteApiError = {
@@ -329,6 +349,13 @@ type SpatialConstraintFeatureProperties = {
 	label?: string;
 	radiusMeters?: number;
 	widthMeters?: number;
+};
+
+type RouteAvoidanceFeatureProperties = {
+	kind: "route_avoidance";
+	avoidanceKind: "road_segment";
+	label: string;
+	index: number;
 };
 
 type LockedSegmentFeatureProperties = {
@@ -912,6 +939,68 @@ export function buildSpatialConstraintGeoJson(
 				},
 			},
 		],
+	};
+}
+
+function closeRouteAvoidancePolygon(
+	polygon: [number, number][],
+): [number, number][] {
+	const firstPoint = polygon[0];
+	const lastPoint = polygon[polygon.length - 1];
+
+	if (!firstPoint) {
+		return [];
+	}
+
+	return lastPoint &&
+		firstPoint[0] === lastPoint[0] &&
+		firstPoint[1] === lastPoint[1]
+		? polygon
+		: [...polygon, firstPoint];
+}
+
+export function buildRouteAvoidanceGeoJson(
+	avoidances: ResolvedRouteAvoidance[],
+): FeatureCollection<Polygon | LineString, RouteAvoidanceFeatureProperties> {
+	return {
+		type: "FeatureCollection",
+		features: avoidances.flatMap((avoidance, index) => {
+			const properties: RouteAvoidanceFeatureProperties = {
+				kind: "route_avoidance",
+				avoidanceKind: avoidance.kind,
+				label: avoidance.label,
+				index,
+			};
+			const features: Feature<
+				Polygon | LineString,
+				RouteAvoidanceFeatureProperties
+			>[] = [];
+			const polygon = closeRouteAvoidancePolygon(avoidance.polygon);
+
+			if (polygon.length >= 4) {
+				features.push({
+					type: "Feature",
+					properties,
+					geometry: {
+						type: "Polygon",
+						coordinates: [polygon as Position[]],
+					},
+				});
+			}
+
+			if (avoidance.centerline.length >= 2) {
+				features.push({
+					type: "Feature",
+					properties,
+					geometry: {
+						type: "LineString",
+						coordinates: avoidance.centerline as Position[],
+					},
+				});
+			}
+
+			return features;
+		}),
 	};
 }
 

@@ -2,12 +2,14 @@ import { Schema, SchemaGetter } from "effect";
 
 import type {
 	PlannedRoute,
+	ResolvedRouteAvoidance,
 	ResolvedRouteSpatialConstraint,
 	RoundCourseTarget,
 	RouteApiError,
 	RouteApiSuccess,
 	RouteCoordinate,
 	RouteMode,
+	RouteAvoidanceInput,
 	RouteSpatialConstraintInput,
 	RouteStopInput,
 } from "./route-planning";
@@ -71,6 +73,13 @@ export const RouteSpatialConstraintInputSchema = Schema.Union([
 	}),
 ]);
 
+export const RouteAvoidanceInputSchema = Schema.Struct({
+	kind: Schema.Literal("road_segment"),
+	centerline: Schema.mutable(Schema.Array(RouteCoordinateInputSchema)),
+	bufferMeters: Schema.Finite,
+	label: Schema.optionalKey(Schema.String),
+});
+
 export const ManualRouteEditingInputSchema = Schema.Struct({
 	lockedSegmentIndexes: Schema.optionalKey(Schema.Array(Schema.Unknown)),
 });
@@ -86,6 +95,7 @@ export const StructuredRouteRequestPayloadSchema = Schema.Struct({
 	target: Schema.optionalKey(Schema.Unknown),
 	requestedDistanceMeters: Schema.optionalKey(Schema.Unknown),
 	spatialConstraint: Schema.optionalKey(Schema.Unknown),
+	avoidances: Schema.optionalKey(Schema.Unknown),
 	manualEditing: Schema.optionalKey(Schema.Unknown),
 });
 
@@ -106,6 +116,7 @@ export const RouteRequestPayloadInputSchema = Schema.Struct({
 	target: Schema.optionalKey(Schema.Unknown),
 	requestedDistanceMeters: Schema.optionalKey(Schema.Unknown),
 	spatialConstraint: Schema.optionalKey(Schema.Unknown),
+	avoidances: Schema.optionalKey(Schema.Unknown),
 	manualEditing: Schema.optionalKey(Schema.Unknown),
 	startQuery: Schema.optionalKey(Schema.String),
 	waypointQueries: Schema.optionalKey(Schema.Unknown),
@@ -190,6 +201,13 @@ export const ResolvedRouteSpatialConstraintSchema = Schema.Union([
 		polygon: Schema.mutable(Schema.Array(RouteCoordinate2Schema)),
 	}),
 ]);
+export const ResolvedRouteAvoidanceSchema = Schema.Struct({
+	kind: Schema.Literal("road_segment"),
+	label: Schema.String,
+	centerline: Schema.mutable(Schema.Array(RouteCoordinate2Schema)),
+	bufferMeters: Schema.Finite,
+	polygon: Schema.mutable(Schema.Array(RouteCoordinate2Schema)),
+});
 export const RouteSourceSchema = Schema.Union([
 	Schema.Struct({
 		kind: Schema.Literal("graphhopper"),
@@ -214,6 +232,11 @@ export const PlannedRouteSchema = Schema.Struct({
 	),
 	spatialConstraint: Schema.optionalKey(
 		Schema.UndefinedOr(ResolvedRouteSpatialConstraintSchema),
+	),
+	avoidances: Schema.optionalKey(
+		Schema.UndefinedOr(
+			Schema.mutable(Schema.Array(ResolvedRouteAvoidanceSchema)),
+		),
 	),
 	routingProfile: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
 	routingStrategy: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
@@ -281,6 +304,7 @@ export const RouteApiErrorSchema = Schema.Struct({
 			waypointQueries: Schema.optionalKey(Schema.Array(Schema.String)),
 			roundCourseTarget: Schema.optionalKey(Schema.String),
 			spatialConstraint: Schema.optionalKey(Schema.String),
+			avoidances: Schema.optionalKey(Schema.String),
 		}),
 	),
 	roundCourseCandidateErrors: Schema.optionalKey(
@@ -331,6 +355,10 @@ type _RouteSpatialConstraintCompatibility = IsAssignable<
 	typeof RouteSpatialConstraintInputSchema.Type,
 	RouteSpatialConstraintInput
 >;
+type _RouteAvoidanceCompatibility = IsAssignable<
+	typeof RouteAvoidanceInputSchema.Type,
+	RouteAvoidanceInput
+>;
 type _RouteApiSuccessCompatibility = IsAssignable<
 	typeof RouteApiSuccessSchema.Type,
 	RouteApiSuccess
@@ -346,6 +374,10 @@ type _PlannedRouteCompatibility = IsAssignable<
 type _ResolvedSpatialConstraintCompatibility = IsAssignable<
 	typeof ResolvedRouteSpatialConstraintSchema.Type,
 	ResolvedRouteSpatialConstraint
+>;
+type _ResolvedRouteAvoidanceCompatibility = IsAssignable<
+	typeof ResolvedRouteAvoidanceSchema.Type,
+	ResolvedRouteAvoidance
 >;
 type _RouteCoordinateCompatibility = IsAssignable<
 	typeof RouteCoordinateSchema.Type,

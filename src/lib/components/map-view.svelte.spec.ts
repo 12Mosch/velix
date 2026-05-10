@@ -118,6 +118,48 @@ const testConstraintGeoJson: FeatureCollection = {
 		},
 	],
 };
+const testAvoidanceGeoJson: FeatureCollection = {
+	type: "FeatureCollection",
+	features: [
+		{
+			type: "Feature",
+			properties: {
+				kind: "route_avoidance",
+				avoidanceKind: "road_segment",
+				label: "Avoided road 1",
+				index: 0,
+			},
+			geometry: {
+				type: "Polygon",
+				coordinates: [
+					[
+						[11.5, 47.2],
+						[11.6, 47.2],
+						[11.6, 47.25],
+						[11.5, 47.25],
+						[11.5, 47.2],
+					],
+				],
+			},
+		},
+		{
+			type: "Feature",
+			properties: {
+				kind: "route_avoidance",
+				avoidanceKind: "road_segment",
+				label: "Avoided road 1",
+				index: 0,
+			},
+			geometry: {
+				type: "LineString",
+				coordinates: [
+					[11.52, 47.21],
+					[11.58, 47.24],
+				],
+			},
+		},
+	],
+};
 const testRouteBounds = [11.5, 47.2, 11.6, 47.25] as const;
 const webglUnavailableMessage =
 	"Map cannot be shown because this browser or device could not create a WebGL context.";
@@ -916,6 +958,66 @@ describe("MapView", () => {
 		);
 		expect(mapInstance.addLayer.mock.calls.at(-1)?.[0].id).toBe(
 			"route-constraint-line",
+		);
+	});
+
+	it("renders and removes the route avoidance overlay", async () => {
+		const view = render(MapView, {
+			avoidanceOverlay: testAvoidanceGeoJson,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(mapInstance.addSource).toHaveBeenCalledWith(
+			"route-avoidances",
+			expect.objectContaining({
+				type: "geojson",
+				data: testAvoidanceGeoJson,
+			}),
+		);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
+			"route-avoidances-fill",
+			"route-avoidances-outline",
+			"route-avoidances-centerline",
+		]);
+
+		await view.rerender({
+			avoidanceOverlay: null,
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.removeSource.mock.calls.some(
+					(call) => call[0] === "route-avoidances",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
+			"route-avoidances-centerline",
+		);
+		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
+			"route-avoidances-outline",
+		);
+		expect(mapInstance.removeLayer).toHaveBeenCalledWith(
+			"route-avoidances-fill",
+		);
+	});
+
+	it("re-adds the route avoidance overlay after a basemap style change", async () => {
+		render(MapView, {
+			avoidanceOverlay: testAvoidanceGeoJson,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
+
+		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
+		expect(mapInstance.addSource.mock.calls.at(-1)?.[0]).toBe(
+			"route-avoidances",
+		);
+		expect(mapInstance.addLayer.mock.calls.at(-1)?.[0].id).toBe(
+			"route-avoidances-centerline",
 		);
 	});
 

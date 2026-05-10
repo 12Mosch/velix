@@ -69,6 +69,14 @@ const spatialConstraintValidator = v.union(
 	}),
 );
 
+const routeAvoidanceValidator = v.object({
+	kind: v.literal("road_segment"),
+	label: v.string(),
+	centerline: v.array(routePointValidator),
+	bufferMeters: v.number(),
+	polygon: v.array(routePointValidator),
+});
+
 const routeDetailIntervalValidator = v.object({
 	from: v.number(),
 	to: v.number(),
@@ -135,6 +143,7 @@ export const plannedRouteValidator = v.object({
 	requestedDistanceMeters: v.optional(v.number()),
 	roundCourseTarget: v.optional(roundCourseTargetValidator),
 	spatialConstraint: v.optional(spatialConstraintValidator),
+	avoidances: v.optional(v.array(routeAvoidanceValidator)),
 	routingProfile: v.optional(v.string()),
 	routingStrategy: v.optional(v.string()),
 	routingWarnings: v.optional(v.array(v.string())),

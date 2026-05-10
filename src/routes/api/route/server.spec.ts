@@ -425,6 +425,131 @@ describe("POST /api/route", () => {
 		});
 	});
 
+	it("sends road avoidances through GraphHopper custom-model areas", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					avoidances: [
+						{
+							kind: "road_segment",
+							centerline: [
+								[11.6, 48.1],
+								[11.61, 48.11],
+							],
+							bufferMeters: 35,
+						},
+					],
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody["ch.disable"]).toBe(true);
+		expect(requestBody.custom_model.areas.features[0]).toMatchObject({
+			id: "avoid_road_0",
+			geometry: {
+				type: "Polygon",
+			},
+		});
+		expect(requestBody.custom_model.priority[0]).toEqual({
+			if: "in_avoid_road_0",
+			multiply_by: "0",
+		});
+
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.avoidances?.[0]).toMatchObject({
+			kind: "road_segment",
+			label: "Avoided road 1",
+			centerline: [
+				[11.6, 48.1],
+				[11.61, 48.11],
+			],
+			bufferMeters: 35,
+		});
+		expect(payload.routes[0]?.avoidances?.[0]?.polygon.at(-1)).toEqual(
+			payload.routes[0]?.avoidances?.[0]?.polygon[0],
+		);
+	});
+
+	it("combines spatial constraints and road avoidances in one custom model", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					spatialConstraint: {
+						kind: "area",
+						center: { label: "Oberland", point: [11.72, 47.93] },
+						radiusMeters: 90000,
+						enforcement: "strict",
+					},
+					avoidances: [
+						{
+							kind: "road_segment",
+							centerline: [
+								[11.6, 48.1],
+								[11.61, 48.11],
+							],
+							bufferMeters: 35,
+						},
+					],
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		const areaIds = requestBody.custom_model.areas.features.map(
+			(feature: { id: string }) => feature.id,
+		);
+		expect(areaIds).toEqual(
+			expect.arrayContaining(["route_constraint", "avoid_road_0"]),
+		);
+		expect(requestBody.custom_model.priority).toEqual(
+			expect.arrayContaining([
+				{ if: "in_avoid_road_0", multiply_by: "0" },
+				{ if: "in_route_constraint", multiply_by: "1" },
+				{ else: "", multiply_by: "0" },
+			]),
+		);
+	});
+
 	it("accepts typed coordinates for an area constraint center without geocoding", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			buildRouteResponse([
@@ -831,6 +956,94 @@ describe("POST /api/route", () => {
 			return body.profile;
 		});
 		expect(requestProfiles).toEqual(["racingbike", "bike"]);
+	});
+
+	it("does not fall back to unconstrained GraphHopper strategies for active avoidances", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+			new Response("custom model rejected", {
+				status: 400,
+			}),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					avoidances: [
+						{
+							kind: "road_segment",
+							centerline: [
+								[11.6, 48.1],
+								[11.61, 48.11],
+							],
+							bufferMeters: 35,
+						},
+					],
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(502);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(2);
+		const routingCalls = fetchMock.mock.calls.filter((call) => {
+			const url = getFetchCallUrl(call[0]);
+			return !url.includes("api.open-meteo.com") && url.includes("/route");
+		});
+		for (const call of routingCalls) {
+			const body = JSON.parse(String(call[1]?.body));
+			expect(body.custom_model).toBeDefined();
+			expect(body.custom_model.priority[0]).toEqual({
+				if: "in_avoid_road_0",
+				multiply_by: "0",
+			});
+		}
+	});
+
+	it("returns a validation error for malformed road avoidance input", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+					avoidances: [
+						{
+							kind: "road_segment",
+							centerline: [[11.6, 48.1]],
+							bufferMeters: 35,
+						},
+					],
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toMatchObject({
+			fieldErrors: {
+				avoidances: "Choose a valid road segment to avoid.",
+			},
+		});
 	});
 
 	it("generates an out-and-back route by mirroring the outbound leg", async () => {

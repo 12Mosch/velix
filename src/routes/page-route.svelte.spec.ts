@@ -72,6 +72,32 @@ const successfulRoutePayload = {
 	routes: [successfulRoute],
 	selectedRouteIndex: 0,
 };
+const successfulAvoidedRoute = {
+	...successfulRoute,
+	avoidances: [
+		{
+			kind: "road_segment",
+			label: "Avoided road 1",
+			centerline: [
+				[11.5755, 48.1374],
+				[11.62, 48.1],
+				[11.68, 48.05],
+			],
+			bufferMeters: 35,
+			polygon: [
+				[11.57, 48.13],
+				[11.69, 48.13],
+				[11.69, 48.04],
+				[11.57, 48.04],
+				[11.57, 48.13],
+			],
+		},
+	],
+};
+const successfulAvoidedRoutePayload = {
+	routes: [successfulAvoidedRoute],
+	selectedRouteIndex: 0,
+};
 const routeWithNoElevationPayload = {
 	routes: [
 		{
@@ -1505,6 +1531,77 @@ describe("+page.svelte", () => {
 			.toBeUndefined();
 		expect(readSavedRoutesFromStorage()).toHaveLength(1);
 		expect(readSavedRoutesFromStorage()[0]?.id).toBe(savedRouteId);
+	});
+
+	it("avoids and removes a selected route segment through the map menu", async () => {
+		let routeCallCount = 0;
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockImplementation((input, init) => {
+				if (String(input) === "/api/route") {
+					routeCallCount += 1;
+					if (routeCallCount === 2) {
+						const requestBody = JSON.parse(String(init?.body));
+						expect(requestBody.avoidances).toHaveLength(1);
+						expect(requestBody.avoidances[0]).toMatchObject({
+							kind: "road_segment",
+							bufferMeters: 35,
+						});
+					}
+					if (routeCallCount === 3) {
+						const requestBody = JSON.parse(String(init?.body));
+						expect(requestBody.avoidances).toBeUndefined();
+					}
+
+					return Promise.resolve(
+						new Response(
+							JSON.stringify(
+								routeCallCount === 1
+									? successfulRoutePayload
+									: routeCallCount === 2
+										? successfulAvoidedRoutePayload
+										: successfulRoutePayload,
+							),
+						),
+					);
+				}
+
+				throw new Error(`Unexpected fetch request: ${String(input)}`);
+			});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+		await waitForAutosavedRoutes();
+
+		const clickHandlers = mockState.eventHandlers.get("click") ?? [];
+		clickHandlers[0]?.({
+			lngLat: { lng: 11.62, lat: 48.1 },
+			point: { x: 1162, y: 4810 },
+		});
+		await page.getByRole("button", { name: "Avoid road" }).click();
+
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.avoidances?.length)
+			.toBe(1);
+		await expect.element(page.getByText("1 avoided")).toBeInTheDocument();
+
+		clickHandlers[0]?.({
+			lngLat: { lng: 11.62, lat: 48.1 },
+			point: { x: 1162, y: 4810 },
+		});
+		await page
+			.getByRole("menu", { name: "Set clicked map point" })
+			.getByRole("button", { name: "Remove avoided road" })
+			.click();
+
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.avoidances)
+			.toBeUndefined();
+		expect(routeCallCount).toBe(3);
 	});
 
 	it("undoes and redoes a manual segment lock in the same autosaved route", async () => {

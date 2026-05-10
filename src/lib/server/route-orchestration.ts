@@ -3,6 +3,7 @@ import { Effect, Result } from "effect";
 import type {
 	ManualRouteEditingState,
 	PlannedRoute,
+	ResolvedRouteAvoidance,
 	ResolvedRouteSpatialConstraint,
 	RouteWindAnalysis,
 	RouteWindSample,
@@ -12,6 +13,7 @@ import type {
 	RouteCoordinate,
 	RouteDetailInterval,
 	RouteFieldErrors,
+	RouteAvoidanceInput,
 	RouteSpatialConstraintInput,
 	RouteStopInput,
 	RouteWaypoint,
@@ -54,6 +56,7 @@ export type ResolvedRouteStop = RouteStopResolutionInput & {
 export type PointToPointRouteSearchInput = {
 	stops: ResolvedRouteStop[];
 	spatialConstraint?: ResolvedRouteSpatialConstraint;
+	avoidances?: ResolvedRouteAvoidance[];
 	manualEditing?: ManualRouteEditingState;
 };
 
@@ -64,6 +67,7 @@ export type RoundCourseRouteSearchInput = {
 	waypoints: ResolvedRouteStop[];
 	target: RoundCourseTarget;
 	spatialConstraint?: ResolvedRouteSpatialConstraint;
+	avoidances?: ResolvedRouteAvoidance[];
 	manualEditing?: ManualRouteEditingState;
 };
 
@@ -561,6 +565,13 @@ function buildCorridorPolygon(
 	points: [number, number][],
 	widthMeters: number,
 ): [number, number][] {
+	return buildBufferedLinePolygon(points, widthMeters);
+}
+
+export function buildBufferedLinePolygon(
+	points: [number, number][],
+	widthMeters: number,
+): [number, number][] {
 	const uniquePoints = points.filter((point, index) => {
 		const previousPoint = points[index - 1];
 		return !previousPoint || getDistanceMeters(previousPoint, point) > 1;
@@ -647,6 +658,25 @@ function buildCorridorPolygon(
 	return ensureCounterClockwiseRing(
 		[...right.reverse(), ...left].map(unproject),
 	);
+}
+
+export function resolveRouteAvoidances(
+	avoidances: RouteAvoidanceInput[] | undefined,
+): ResolvedRouteAvoidance[] | undefined {
+	if (!avoidances || avoidances.length === 0) {
+		return undefined;
+	}
+
+	return avoidances.map((avoidance, index) => ({
+		kind: "road_segment" as const,
+		label: avoidance.label?.trim() || `Avoided road ${index + 1}`,
+		centerline: avoidance.centerline,
+		bufferMeters: avoidance.bufferMeters,
+		polygon: buildBufferedLinePolygon(
+			avoidance.centerline,
+			avoidance.bufferMeters * 2,
+		),
+	}));
 }
 
 export function resolveSpatialConstraintEffect(
@@ -1247,6 +1277,7 @@ export function searchPointToPointRoutesEffect(
 			{
 				mode: "point_to_point",
 				spatialConstraint: input.spatialConstraint,
+				avoidances: input.avoidances,
 				alternativeMaxPaths: desiredAlternativeRoutes,
 				alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
 				alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
@@ -1304,6 +1335,7 @@ export function searchOutAndBackRoutesEffect(
 			{
 				mode: "out_and_back",
 				spatialConstraint: input.spatialConstraint,
+				avoidances: input.avoidances,
 				alternativeMaxPaths: desiredAlternativeRoutes,
 				alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
 				alternativeMaxShareFactor: alternativeRouteMaxShareFactor,
@@ -1358,6 +1390,7 @@ function searchRoundCourseCandidateRoutesEffect(
 	startPoint: [number, number],
 	target: RoundCourseTarget,
 	spatialConstraint?: ResolvedRouteSpatialConstraint,
+	avoidances?: ResolvedRouteAvoidance[],
 	desiredCount = desiredAlternativeRoutes,
 ): Effect.Effect<
 	RoundCourseCandidateSearchResult,
@@ -1417,6 +1450,7 @@ function searchRoundCourseCandidateRoutesEffect(
 						roundTripSeed: seed,
 						roundCourseTarget: target,
 						spatialConstraint,
+						avoidances,
 					}).pipe(
 						Effect.map(
 							({ routes }): RoundCourseCandidateSuccess => ({
@@ -1566,6 +1600,7 @@ export function searchRoundCourseRoutesEffect(
 				input.start.point,
 				input.target,
 				input.spatialConstraint,
+				input.avoidances,
 			);
 			candidateErrors =
 				searchResult.candidateErrors.length > 0
@@ -1593,6 +1628,7 @@ export function searchRoundCourseRoutesEffect(
 				{
 					mode: "point_to_point",
 					spatialConstraint: input.spatialConstraint,
+					avoidances: input.avoidances,
 					alternativeMaxPaths: desiredAlternativeRoutes,
 					alternativeMaxWeightFactor: alternativeRouteMaxWeightFactor,
 					alternativeMaxShareFactor: alternativeRouteMaxShareFactor,

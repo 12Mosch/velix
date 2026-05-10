@@ -10,6 +10,8 @@ Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec
 
 Wind implementation evidence reviewed on 2026-05-10: `src/lib/server/open-meteo.ts`, `src/lib/server/open-meteo.spec.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/server/route-orchestration.spec.ts`, `src/lib/route-api-schema.ts`, `src/lib/saved-route-convex-validators.ts`, `src/lib/map/map-view-renderer.ts`, `src/lib/route-planner/formatters.ts`, `scripts/run-vitest.mjs`, and `package.json`. Verification: `npm run check` passed, and `npm run test -- --run` passed with 33 test files and 414 tests.
 
+Avoid-road implementation evidence reviewed on 2026-05-10: `src/lib/route-api-schema.ts`, `src/lib/server/graphhopper-routing.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/map/map-view-renderer.ts`, `src/lib/components/route-planner/map-click-menu.svelte`, `src/routes/+page.svelte`, `src/lib/route-planning.spec.ts`, `src/lib/route-api-schema.spec.ts`, `src/routes/api/route/server.spec.ts`, `src/lib/components/map-view.svelte.spec.ts`, `src/routes/page-route.svelte.spec.ts`, and `src/lib/saved-routes-core.spec.ts`.
+
 ## 1. Routing & Route Builder
 
 ### 1.1 Route planning entry
@@ -115,7 +117,7 @@ Wind implementation evidence reviewed on 2026-05-10: `src/lib/server/open-meteo.
 | Lock / pin a segment | Full | Clicking a route segment can lock/unlock the corresponding route leg; locked segments render with an amber overlay and protect adjacent stops from drag/remove/reorder. |
 | Recalculate a subsection | Half | Manual edits reroute the full route while preserving locked leg intent; there is no GraphHopper-level exact subsection-only recalculation. |
 | Force a specific road | Half | Segment dragging adds shaping points that force the route through selected coordinates, but there is no exact road-edge/OSM-way forcing UI. |
-| Avoid a specific road | Missing | No avoid-road control. |
+| Avoid a specific road | Full | Users can click an active route segment, mark it as avoided, and Velix reroutes with a GraphHopper custom-model exclusion corridor; avoided roads render on the map, persist with saved/shared routes, and can be removed/undone. |
 | Plan sections manually or automatically | Missing | No per-section mode. |
 | Undo / Redo | Full | Route edits can be undone/redone via toolbar buttons and keyboard shortcuts, backed by route edit snapshots. |
 | History of recent editing steps | Half | Undo/redo keeps a bounded stack of recent edit snapshots, but there is no visible history timeline or step list. |

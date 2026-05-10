@@ -40,11 +40,13 @@
 		removeCurrentLocationOverlay as removeRenderedCurrentLocationOverlay,
 		removeHoveredRouteOverlay as removeRenderedHoveredRouteOverlay,
 		removeLockedSegmentOverlay as removeRenderedLockedSegmentOverlay,
+		removeRouteAvoidanceOverlay as removeRenderedRouteAvoidanceOverlay,
 		removeRouteOverlays as removeRenderedRouteOverlays,
 		syncConstraintOverlay,
 		syncCurrentLocationOverlay,
 		syncHoveredRouteOverlay,
 		syncLockedSegmentOverlay,
+		syncRouteAvoidanceOverlay,
 		syncRouteOverlays,
 	} from "$lib/map/map-view-renderer";
 	import {
@@ -65,6 +67,7 @@
 		lockedSegmentOverlay?: FeatureCollection | null;
 		lockedSegmentIndexes?: number[];
 		constraintOverlay?: FeatureCollection | null;
+		avoidanceOverlay?: FeatureCollection | null;
 		fitBounds?: RouteBounds | null;
 		fitInitialBoundsWithRestoredCamera?: boolean;
 		manualRecenterBounds?: RouteBounds | null;
@@ -122,6 +125,7 @@
 		lockedSegmentOverlay = null,
 		lockedSegmentIndexes = [],
 		constraintOverlay = null,
+		avoidanceOverlay = null,
 		fitBounds = null,
 		fitInitialBoundsWithRestoredCamera = false,
 		manualRecenterBounds = null,
@@ -324,6 +328,12 @@
 		}
 	}
 
+	function removeRouteAvoidanceOverlay() {
+		if (map && isStyleReady) {
+			removeRenderedRouteAvoidanceOverlay(map);
+		}
+	}
+
 	function removeLockedSegmentOverlay() {
 		if (map && isStyleReady) {
 			removeRenderedLockedSegmentOverlay(map);
@@ -360,6 +370,14 @@
 		}
 
 		syncConstraintOverlay(map, constraintOverlay);
+	}
+
+	function ensureRouteAvoidanceOverlay() {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		syncRouteAvoidanceOverlay(map, avoidanceOverlay);
 	}
 
 	function ensureLockedSegmentOverlay() {
@@ -607,6 +625,7 @@
 		}
 
 		ensureConstraintOverlay();
+		ensureRouteAvoidanceOverlay();
 		ensureRouteOverlays();
 		ensureLockedSegmentOverlay();
 
@@ -870,6 +889,7 @@
 			resizeObserver?.disconnect();
 			removeRouteOverlays();
 			removeConstraintOverlay();
+			removeRouteAvoidanceOverlay();
 			removeLockedSegmentOverlay();
 			removeHoveredRouteOverlay();
 			removeCurrentLocationOverlay();
