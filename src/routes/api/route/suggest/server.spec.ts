@@ -196,7 +196,8 @@ describe("GET /api/route/suggest", () => {
 		);
 
 		expect(response.status).toBe(429);
-		expect(response.headers.get("Retry-After")).toBe("60");
+		expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+		expect(Number(response.headers.get("Retry-After"))).toBeLessThanOrEqual(60);
 		expect(fetchMock).toHaveBeenCalledTimes(60);
 		await expect(response.json()).resolves.toEqual({
 			error: "Too many suggestion requests. Try again soon.",

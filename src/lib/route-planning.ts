@@ -176,6 +176,59 @@ export type RouteGradientBucket =
 	| "up"
 	| "steep_up";
 
+export type WindDirectionBucket =
+	| "headwind"
+	| "cross_headwind"
+	| "crosswind"
+	| "cross_tailwind"
+	| "tailwind";
+
+export type RouteWindSample = {
+	coordinate: [number, number];
+	speedKmh: number;
+	directionDegrees: number;
+	time: string;
+	source: "open_meteo";
+};
+
+export type RouteWindSegment = {
+	from: number;
+	to: number;
+	speedKmh: number;
+	directionDegrees: number;
+	routeBearingDegrees: number;
+	relativeAngleDegrees: number;
+	headwindComponentKmh: number;
+	crosswindComponentKmh: number;
+	bucket: WindDirectionBucket;
+};
+
+export type RouteWindAnalysis = {
+	source: "open_meteo";
+	fetchedAt: string;
+	forecastTime: string;
+	samples: RouteWindSample[];
+	segments: RouteWindSegment[];
+	averageHeadwindKmh: number;
+	maxHeadwindKmh: number;
+	averageTailwindKmh: number;
+	maxCrosswindKmh: number;
+	headwindDistanceMeters: number;
+	tailwindDistanceMeters: number;
+	crosswindDistanceMeters: number;
+};
+
+export type RouteWindSummary = {
+	forecastTime: string;
+	averageHeadwindKmh: number;
+	averageTailwindKmh: number;
+	maxHeadwindKmh: number;
+	maxCrosswindKmh: number;
+	headwindDistanceMeters: number;
+	tailwindDistanceMeters: number;
+	crosswindDistanceMeters: number;
+};
+
 export type PlannedRoute = {
 	mode: RouteMode;
 	source: RouteSource;
@@ -197,6 +250,7 @@ export type PlannedRoute = {
 	coordinates: RouteCoordinate[];
 	surfaceDetails: RouteDetailInterval[];
 	smoothnessDetails: RouteDetailInterval[];
+	windAnalysis?: RouteWindAnalysis;
 };
 
 export type RouteApiSuccess = {
@@ -253,6 +307,14 @@ type RouteFeatureProperties =
 			kind: "gradient";
 			gradientBucket: RouteGradientBucket;
 			gradientPercent: number;
+	  }
+	| {
+			kind: "wind";
+			windBucket: WindDirectionBucket;
+			headwindComponentKmh: number;
+			crosswindComponentKmh: number;
+			speedKmh: number;
+			directionDegrees: number;
 	  }
 	| {
 			kind: "start" | "destination" | "waypoint";
@@ -313,10 +375,80 @@ const smoothnessSurfaceFallback = {
 
 const earthRadiusMeters = 6371008.8;
 
+function toDegrees(radians: number): number {
+	return (radians * 180) / Math.PI;
+}
+
 function toStopPoint(
 	coordinate: RouteCoordinate | [number, number],
 ): [number, number] {
 	return [coordinate[0], coordinate[1]];
+}
+
+function normalizeDegrees(degrees: number): number {
+	return ((degrees % 360) + 360) % 360;
+}
+
+function getSignedRelativeAngleDegrees(fromDegrees: number, toDegrees: number) {
+	const angle = normalizeDegrees(fromDegrees - toDegrees);
+	return angle > 180 ? angle - 360 : angle;
+}
+
+export function calculateBearingDegrees(
+	from: RouteCoordinate | [number, number],
+	to: RouteCoordinate | [number, number],
+): number {
+	const fromLng = toRadians(from[0]);
+	const fromLat = toRadians(from[1]);
+	const toLng = toRadians(to[0]);
+	const toLat = toRadians(to[1]);
+	const deltaLng = toLng - fromLng;
+	const y = Math.sin(deltaLng) * Math.cos(toLat);
+	const x =
+		Math.cos(fromLat) * Math.sin(toLat) -
+		Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLng);
+
+	return normalizeDegrees(toDegrees(Math.atan2(y, x)));
+}
+
+export function classifyWindBucket(
+	relativeAngleDegrees: number,
+): WindDirectionBucket {
+	const absoluteAngle = Math.abs(
+		getSignedRelativeAngleDegrees(relativeAngleDegrees, 0),
+	);
+
+	if (absoluteAngle <= 30) return "headwind";
+	if (absoluteAngle < 75) return "cross_headwind";
+	if (absoluteAngle <= 105) return "crosswind";
+	if (absoluteAngle < 150) return "cross_tailwind";
+	return "tailwind";
+}
+
+export function calculateWindComponents(options: {
+	speedKmh: number;
+	windDirectionDegrees: number;
+	routeBearingDegrees: number;
+}): {
+	relativeAngleDegrees: number;
+	headwindComponentKmh: number;
+	crosswindComponentKmh: number;
+	bucket: WindDirectionBucket;
+} {
+	const relativeAngleDegrees = getSignedRelativeAngleDegrees(
+		options.windDirectionDegrees,
+		options.routeBearingDegrees,
+	);
+	const relativeRadians = toRadians(relativeAngleDegrees);
+	const headwindComponentKmh = options.speedKmh * Math.cos(relativeRadians);
+	const crosswindComponentKmh = options.speedKmh * Math.sin(relativeRadians);
+
+	return {
+		relativeAngleDegrees,
+		headwindComponentKmh,
+		crosswindComponentKmh,
+		bucket: classifyWindBucket(relativeAngleDegrees),
+	};
 }
 
 function normalizeDetailValue(value: string): string {
@@ -672,6 +804,75 @@ export function buildRouteGradientGeoJson(
 					coordinates: section.coordinates,
 				},
 			})),
+	};
+}
+
+export function buildRouteWindGeoJson(
+	route: PlannedRoute,
+): FeatureCollection<LineString, RouteFeatureProperties> {
+	const features =
+		route.windAnalysis?.segments.flatMap(
+			(segment): Feature<LineString, RouteFeatureProperties>[] => {
+				const from = Math.trunc(segment.from);
+				const to = Math.trunc(segment.to);
+
+				if (
+					from < 0 ||
+					to < 0 ||
+					to <= from ||
+					from !== segment.from ||
+					to !== segment.to ||
+					to >= route.coordinates.length
+				) {
+					return [];
+				}
+
+				const coordinates = route.coordinates.slice(from, to + 1) as Position[];
+
+				if (coordinates.length < 2) {
+					return [];
+				}
+
+				return [
+					{
+						type: "Feature",
+						properties: {
+							kind: "wind",
+							windBucket: segment.bucket,
+							headwindComponentKmh: segment.headwindComponentKmh,
+							crosswindComponentKmh: segment.crosswindComponentKmh,
+							speedKmh: segment.speedKmh,
+							directionDegrees: segment.directionDegrees,
+						},
+						geometry: {
+							type: "LineString",
+							coordinates,
+						},
+					},
+				];
+			},
+		) ?? [];
+
+	return {
+		type: "FeatureCollection",
+		features,
+	};
+}
+
+export function getWindSummary(route: PlannedRoute): RouteWindSummary | null {
+	if (!route.windAnalysis) {
+		return null;
+	}
+
+	return {
+		forecastTime: route.windAnalysis.forecastTime,
+		averageHeadwindKmh: route.windAnalysis.averageHeadwindKmh,
+		averageTailwindKmh: route.windAnalysis.averageTailwindKmh,
+		maxHeadwindKmh: route.windAnalysis.maxHeadwindKmh,
+		maxCrosswindKmh: route.windAnalysis.maxCrosswindKmh,
+		headwindDistanceMeters: route.windAnalysis.headwindDistanceMeters,
+		tailwindDistanceMeters: route.windAnalysis.tailwindDistanceMeters,
+		crosswindDistanceMeters: route.windAnalysis.crosswindDistanceMeters,
 	};
 }
 

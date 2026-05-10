@@ -57,6 +57,7 @@
 		buildRouteClimbGeoJson,
 		buildRouteGradientGeoJson,
 		buildRouteSurfaceGeoJson,
+		buildRouteWindGeoJson,
 		buildLockedSegmentGeoJson,
 		buildSpatialConstraintGeoJson,
 		analyzeRouteClimbs,
@@ -66,6 +67,7 @@
 		getRouteSegmentCount,
 		getRouteStopInputs,
 		getSurfaceMix,
+		getWindSummary,
 		getWaypointInsertionIndex,
 		isImportedRoute,
 		isRouteStopLocked,
@@ -84,6 +86,7 @@
 		type RouteStopInput,
 		type RouteSuggestion,
 		type RouteSuggestionsApiSuccess,
+		type RouteWindSegment,
 		type SpatialConstraintEnforcement,
 	} from "$lib/route-planning";
 	import {
@@ -116,6 +119,9 @@
 		formatElevation,
 		formatExactDistance,
 		formatGrade,
+		formatWindBucket,
+		formatWindComponent,
+		formatWindSpeed,
 		formatRoundCourseDurationInput,
 		formatRoundCourseTarget,
 		formatSpatialConstraintEnforcement,
@@ -197,6 +203,7 @@
 
 	let routeAnalysisOpen = $state(false);
 	let gradientOverlayEnabled = $state(false);
+	let windOverlayEnabled = $state(false);
 	let plannerMode = $state<PlannerMode>("point_to_point");
 	let startStop = $state<PlannerStop>(createPlannerStop());
 	let waypointStops = $state<PlannerStop[]>([]);
@@ -302,6 +309,32 @@
 	const canShowGradientOverlay = $derived(
 		(activeRouteGradientGeoJson?.features.length ?? 0) > 0,
 	);
+	const activeRouteWindGeoJson = $derived(
+		activeRoute ? buildRouteWindGeoJson(activeRoute) : null,
+	);
+	const canShowWindOverlay = $derived(
+		(activeRouteWindGeoJson?.features.length ?? 0) > 0,
+	);
+	const activeWindSummary = $derived(
+		activeRoute ? getWindSummary(activeRoute) : null,
+	);
+	const strongestWindSegments = $derived(
+		activeRoute?.windAnalysis
+			? [...activeRoute.windAnalysis.segments]
+					.sort(
+						(left, right) =>
+							Math.max(
+								Math.abs(right.headwindComponentKmh),
+								Math.abs(right.crosswindComponentKmh),
+							) -
+							Math.max(
+								Math.abs(left.headwindComponentKmh),
+								Math.abs(left.crosswindComponentKmh),
+							),
+					)
+					.slice(0, 5)
+			: [],
+	);
 	const activeCategorizedClimbs = $derived(
 		activeRouteClimbs.filter((climb) => climb.category !== "Uncategorized"),
 	);
@@ -330,6 +363,9 @@
 								...buildRouteClimbGeoJson(route, activeRouteClimbs).features,
 								...(gradientOverlayEnabled && activeRouteGradientGeoJson
 									? activeRouteGradientGeoJson.features
+									: []),
+								...(windOverlayEnabled && activeRouteWindGeoJson
+									? activeRouteWindGeoJson.features
 									: []),
 							],
 						}
@@ -448,6 +484,12 @@
 	$effect(() => {
 		if (gradientOverlayEnabled && !canShowGradientOverlay) {
 			gradientOverlayEnabled = false;
+		}
+	});
+
+	$effect(() => {
+		if (windOverlayEnabled && !canShowWindOverlay) {
+			windOverlayEnabled = false;
 		}
 	});
 
@@ -694,6 +736,17 @@
 		}
 
 		return null;
+	}
+
+	function getWindSegmentDistanceRange(
+		route: PlannedRoute,
+		segment: RouteWindSegment,
+	): string {
+		const segmentCount = Math.max(route.coordinates.length - 1, 1);
+		const fromDistance = (route.distanceMeters * segment.from) / segmentCount;
+		const toDistance = (route.distanceMeters * segment.to) / segmentCount;
+
+		return `${formatExactDistance(fromDistance)}-${formatExactDistance(toDistance)}`;
 	}
 
 	function getDestinationFieldLabel() {
@@ -3064,8 +3117,13 @@
 			<Button
 				variant="ghost"
 				size="icon"
-				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground"
+				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-teal-300/70 data-[active=true]:bg-teal-50/90 data-[active=true]:text-teal-700"
+				type="button"
+				disabled={!canShowWindOverlay}
 				aria-label="Wind and conditions"
+				aria-pressed={windOverlayEnabled}
+				data-active={windOverlayEnabled}
+				onclick={() => (windOverlayEnabled = !windOverlayEnabled)}
 			>
 				<Wind class="size-4" />
 			</Button>
@@ -3989,6 +4047,17 @@
 									Max {formatGrade(activeRouteGradientMetrics.maximumGradientPercent)}
 								</span>
 							{/if}
+							{#if activeWindSummary}
+								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+								<span class="flex items-center gap-1 font-semibold text-foreground">
+									<Wind class="size-3.5 shrink-0 text-teal-600 dark:text-teal-400" />
+									{#if activeWindSummary.averageHeadwindKmh < 0}
+										Tailwind {formatWindSpeed(activeWindSummary.averageTailwindKmh)}
+									{:else}
+										Avg headwind {formatWindSpeed(activeWindSummary.averageHeadwindKmh)}
+									{/if}
+								</span>
+							{/if}
 							<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 							<span class="font-semibold text-foreground">{getRouteDurationText(activeRoute)}</span>
 						</div>
@@ -4542,6 +4611,70 @@
 											{isImportedRoute(activeRoute)
 												? "Surface analysis becomes available after re-routing this imported track."
 												: "Surface details were not available for this route."}
+										</p>
+									{/if}
+								</div>
+
+								<div class="space-y-2">
+									<div class="flex items-center justify-between text-xs text-muted-foreground">
+										<span class="flex items-center gap-1">
+											<Wind class="size-3" /> Wind
+										</span>
+										{#if activeWindSummary}
+											<span>{activeWindSummary.forecastTime}</span>
+										{/if}
+									</div>
+									{#if activeWindSummary}
+										<div class="grid gap-1.5 text-xs">
+											<div class="grid grid-cols-2 gap-1.5">
+												<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
+													<div class="text-muted-foreground">Average</div>
+													<div class="font-semibold text-foreground">
+														{activeWindSummary.averageHeadwindKmh < 0
+															? `${formatWindSpeed(activeWindSummary.averageTailwindKmh)} tailwind`
+															: `${formatWindSpeed(activeWindSummary.averageHeadwindKmh)} headwind`}
+													</div>
+												</div>
+												<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
+													<div class="text-muted-foreground">Max crosswind</div>
+													<div class="font-semibold text-foreground">
+														{formatWindSpeed(activeWindSummary.maxCrosswindKmh)}
+													</div>
+												</div>
+											</div>
+											<div class="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+												<span>Headwind {formatDistance(activeWindSummary.headwindDistanceMeters)}</span>
+												<span>Crosswind {formatDistance(activeWindSummary.crosswindDistanceMeters)}</span>
+												<span>Tailwind {formatDistance(activeWindSummary.tailwindDistanceMeters)}</span>
+												<span>Max headwind {formatWindSpeed(activeWindSummary.maxHeadwindKmh)}</span>
+											</div>
+											{#if strongestWindSegments.length > 0}
+												<div class="grid gap-1.5">
+													{#each strongestWindSegments as segment}
+														<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
+															<div class="mb-1 flex items-center justify-between gap-2">
+																<span class="font-semibold text-foreground">
+																	{formatWindBucket(segment.bucket)}
+																</span>
+																<span class="text-muted-foreground">
+																	{formatWindSpeed(segment.speedKmh)}
+																</span>
+															</div>
+															<div class="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+																<span>{getWindSegmentDistanceRange(activeRoute, segment)}</span>
+																<span>{formatWindComponent(segment.headwindComponentKmh)}</span>
+																<span>{formatWindSpeed(Math.abs(segment.crosswindComponentKmh))} cross</span>
+															</div>
+														</div>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									{:else}
+										<p class="text-xs text-muted-foreground">
+											{isImportedRoute(activeRoute)
+												? "Wind analysis becomes available after re-routing this imported track."
+												: "Wind analysis was not available for this route."}
 										</p>
 									{/if}
 								</div>

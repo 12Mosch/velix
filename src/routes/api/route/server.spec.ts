@@ -13,6 +13,8 @@ import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
 import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
 
 let eventId = 0;
+const windUnavailableWarning =
+	"Wind data is temporarily unavailable, so wind analysis was skipped.";
 
 function buildEvent(
 	body: unknown,
@@ -138,8 +140,26 @@ function buildRoundCourseResponseWithoutSnappedWaypoints() {
 
 type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
 
+function getFetchCallUrl(input: Parameters<typeof fetch>[0]): string {
+	if (input instanceof Request) {
+		return input.url;
+	}
+
+	if (input instanceof URL) {
+		return input.toString();
+	}
+
+	return String(input);
+}
+
+function getNonWeatherFetchCalls(fetchMock: FetchMock) {
+	return fetchMock.mock.calls.filter(
+		(call) => !getFetchCallUrl(call[0]).includes("api.open-meteo.com"),
+	);
+}
+
 function getRoundTripRequestedDistances(fetchMock: FetchMock): number[] {
-	return fetchMock.mock.calls
+	return getNonWeatherFetchCalls(fetchMock)
 		.map((call) => {
 			const body = call[1]?.body;
 
@@ -196,7 +216,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
 		const routeRequest = fetchMock.mock.calls[0];
 		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
 		expect(requestBody.points).toEqual([
@@ -299,7 +319,7 @@ describe("POST /api/route", () => {
 
 		expect(response.status).toBe(429);
 		expect(response.headers.get("Retry-After")).toBe("60");
-		expect(fetchMock).toHaveBeenCalledTimes(10);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(10);
 		await expect(response.json()).resolves.toEqual({
 			error: "Too many route requests. Try again soon.",
 		});
@@ -330,7 +350,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
 		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
 		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
 		expect(requestBody.points).toEqual([
@@ -379,7 +399,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
 		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
 		expect(requestBody.custom_model.areas.features[0]).toMatchObject({
 			id: "route_constraint",
@@ -440,7 +460,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
 		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.spatialConstraint).toMatchObject({
@@ -503,7 +523,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(2);
 		expect(String(fetchMock.mock.calls[0]?.[0])).toContain("geocode");
 		const requestBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
 		expect(requestBody.custom_model.priority.slice(0, 2)).toEqual([
@@ -804,7 +824,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(502);
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(2);
 		const requestProfiles = fetchMock.mock.calls.map((call) => {
 			const body = JSON.parse(String(call[1]?.body));
 			expect(body.custom_model).toBeDefined();
@@ -839,7 +859,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
 		const routeRequest = fetchMock.mock.calls[0];
 		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
 		expect(requestBody.points).toEqual([
@@ -930,7 +950,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(422);
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(2);
 		await expect(response.json()).resolves.toEqual({
 			error: "We couldn't resolve one or more locations.",
 			fieldErrors: {
@@ -1011,7 +1031,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(4);
 		expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
 			"provider=nominatim",
 		);
@@ -1068,7 +1088,7 @@ describe("POST /api/route", () => {
 		});
 		expect(route?.routingProfile).toBe("racingbike");
 		expect(route?.routingStrategy).toContain("racingbike");
-		expect(route?.routingWarnings).toEqual([]);
+		expect(route?.routingWarnings).toEqual([windUnavailableWarning]);
 		expect(route?.surfaceDetails).toEqual([
 			{ from: 0, to: 2, value: "ASPHALT" },
 			{ from: 2, to: 3, value: "COMPACTED" },
@@ -1281,7 +1301,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(7);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(7);
 		const routeRequest = fetchMock.mock.calls[1];
 		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
 		expect(requestBody.profile).toBe("racingbike");
@@ -1472,14 +1492,16 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(7);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(7);
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.durationMs).toBe(12600000);
 		expect(payload.routes[0]?.roundCourseTarget).toEqual({
 			kind: "duration",
 			durationMs: 12600000,
 		});
-		expect(payload.routes[0]?.routingWarnings).toEqual([]);
+		expect(payload.routes[0]?.routingWarnings).toEqual([
+			windUnavailableWarning,
+		]);
 	});
 
 	it("runs a third adaptive duration search round only when the first two rounds miss badly", async () => {
@@ -1534,7 +1556,9 @@ describe("POST /api/route", () => {
 		]);
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.durationMs).toBe(12600000);
-		expect(payload.routes[0]?.routingWarnings).toEqual([]);
+		expect(payload.routes[0]?.routingWarnings).toEqual([
+			windUnavailableWarning,
+		]);
 	});
 
 	it("stops duration target search after two rounds when a candidate is close enough", async () => {
@@ -1583,10 +1607,12 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(7);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(7);
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.durationMs).toBe(12300000);
-		expect(payload.routes[0]?.routingWarnings).toEqual([]);
+		expect(payload.routes[0]?.routingWarnings).toEqual([
+			windUnavailableWarning,
+		]);
 	});
 
 	it("searches round-course candidates for climb targets and returns the closest match", async () => {
@@ -1774,7 +1800,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(200);
 		const requestedDistances = getRoundTripRequestedDistances(fetchMock);
 		expect(requestedDistances).toEqual([10000, 12500, 10000, 11000]);
-		expect(fetchMock).toHaveBeenCalledTimes(5);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(5);
 	});
 
 	it("returns the best successful round-course candidate when some search attempts fail", async () => {
@@ -1992,6 +2018,7 @@ describe("POST /api/route", () => {
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.routingWarnings).toEqual([
 			"Requested 3:30 h, but the closest round course came out to 2:55 h.",
+			windUnavailableWarning,
 		]);
 	});
 
@@ -2121,7 +2148,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(422);
-		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(4);
 		await expect(response.json()).resolves.toEqual({
 			error: "We couldn't resolve one or more locations.",
 			fieldErrors: {
@@ -2435,7 +2462,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(5);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(5);
 
 		const racingbikeTunedRouteRequest = JSON.parse(
 			String(fetchMock.mock.calls[2]?.[1]?.body),
@@ -2466,7 +2493,10 @@ describe("POST /api/route", () => {
 				{
 					routingProfile: "bike",
 					routingStrategy: expect.stringContaining("bike"),
-					routingWarnings: [expect.stringContaining("racingbike profile")],
+					routingWarnings: [
+						expect.stringContaining("racingbike profile"),
+						windUnavailableWarning,
+					],
 				},
 			],
 			selectedRouteIndex: 0,
@@ -2577,6 +2607,7 @@ describe("POST /api/route", () => {
 			],
 			routingWarnings: [
 				"Manual shaping points make the round-course target best-effort.",
+				windUnavailableWarning,
 			],
 		});
 		expect(payload.roundCourseCandidateErrors).toBeUndefined();
@@ -2613,7 +2644,7 @@ describe("POST /api/route", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
 		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
 		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
 		expect(requestBody.points).toEqual([

@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
 	analyzeRouteClimbs,
+	buildRouteWindGeoJson,
 	buildRouteGeoJson,
 	buildRouteGradientGeoJson,
 	buildRouteSurfaceGeoJson,
 	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
+	calculateBearingDegrees,
 	calculateRouteGradientMetrics,
+	calculateWindComponents,
 	classifyClimbCategory,
+	classifyWindBucket,
 	getEditableRouteStops,
 	getRouteLegIndexForCoordinateSegment,
 	getRouteSegmentCount,
@@ -120,6 +124,100 @@ describe("buildRouteGeoJson", () => {
 		expect(geoJson.features[2]?.properties).toMatchObject({
 			kind: "waypoint",
 			label: "Turnaround",
+		});
+	});
+});
+
+describe("wind route analysis helpers", () => {
+	it("calculates cardinal bearings", () => {
+		expect(Math.round(calculateBearingDegrees([0, 0], [0, 1]))).toBe(0);
+		expect(Math.round(calculateBearingDegrees([0, 0], [1, 0]))).toBe(90);
+		expect(Math.round(calculateBearingDegrees([0, 0], [0, -1]))).toBe(180);
+		expect(Math.round(calculateBearingDegrees([0, 0], [-1, 0]))).toBe(270);
+	});
+
+	it("classifies wind components by relative route angle", () => {
+		expect(classifyWindBucket(0)).toBe("headwind");
+		expect(classifyWindBucket(180)).toBe("tailwind");
+		expect(classifyWindBucket(90)).toBe("crosswind");
+		expect(classifyWindBucket(45)).toBe("cross_headwind");
+		expect(classifyWindBucket(135)).toBe("cross_tailwind");
+
+		expect(
+			calculateWindComponents({
+				speedKmh: 20,
+				windDirectionDegrees: 0,
+				routeBearingDegrees: 0,
+			}),
+		).toMatchObject({
+			bucket: "headwind",
+			headwindComponentKmh: 20,
+		});
+		expect(
+			Math.round(
+				calculateWindComponents({
+					speedKmh: 20,
+					windDirectionDegrees: 180,
+					routeBearingDegrees: 0,
+				}).headwindComponentKmh,
+			),
+		).toBe(-20);
+	});
+
+	it("builds wind GeoJSON features and skips invalid intervals", () => {
+		const route: PlannedRoute = {
+			...buildRoute([], []),
+			coordinates: [
+				[0, 0],
+				[0, 1],
+				[1, 1],
+			],
+			windAnalysis: {
+				source: "open_meteo",
+				fetchedAt: "2026-05-10T10:00:00.000Z",
+				forecastTime: "2026-05-10T10:00",
+				samples: [],
+				segments: [
+					{
+						from: 0,
+						to: 1,
+						speedKmh: 18,
+						directionDegrees: 0,
+						routeBearingDegrees: 0,
+						relativeAngleDegrees: 0,
+						headwindComponentKmh: 18,
+						crosswindComponentKmh: 0,
+						bucket: "headwind",
+					},
+					{
+						from: 2,
+						to: 9,
+						speedKmh: 18,
+						directionDegrees: 0,
+						routeBearingDegrees: 0,
+						relativeAngleDegrees: 0,
+						headwindComponentKmh: 18,
+						crosswindComponentKmh: 0,
+						bucket: "headwind",
+					},
+				],
+				averageHeadwindKmh: 18,
+				maxHeadwindKmh: 18,
+				averageTailwindKmh: 0,
+				maxCrosswindKmh: 0,
+				headwindDistanceMeters: 1000,
+				tailwindDistanceMeters: 0,
+				crosswindDistanceMeters: 0,
+			},
+		};
+
+		const geoJson = buildRouteWindGeoJson(route);
+
+		expect(geoJson.features).toHaveLength(1);
+		expect(geoJson.features[0]?.properties).toMatchObject({
+			kind: "wind",
+			windBucket: "headwind",
+			speedKmh: 18,
 		});
 	});
 });
