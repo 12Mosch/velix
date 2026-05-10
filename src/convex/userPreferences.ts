@@ -1,7 +1,9 @@
 import { v } from "convex/values";
+import { Effect } from "effect";
 
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
+import { runConvexEffect, tryConvexPromise } from "./effect";
 
 const themeModeValidator = v.union(
 	v.literal("system"),
@@ -17,21 +19,27 @@ const mapStyleValidator = v.union(
 );
 const distanceUnitValidator = v.union(v.literal("km"), v.literal("mi"));
 
-async function getAuthenticatedUserId(ctx: QueryCtx | MutationCtx) {
-	const identity = await ctx.auth.getUserIdentity();
+class UserPreferencesAuthenticationError extends Error {
+	readonly _tag = "UserPreferencesAuthenticationError";
 
-	if (!identity) {
-		throw new Error("Authentication is required to sync user preferences.");
+	constructor() {
+		super("Authentication is required to sync user preferences.");
 	}
-
-	return identity.subject;
 }
 
-async function getPreferenceRow(ctx: QueryCtx | MutationCtx, userId: string) {
-	return await ctx.db
-		.query("userPreferences")
-		.withIndex("by_user", (q) => q.eq("userId", userId))
-		.unique();
+function getAuthenticatedUserIdEffect(
+	ctx: QueryCtx | MutationCtx,
+): Effect.Effect<string, Error | UserPreferencesAuthenticationError> {
+	return tryConvexPromise(
+		() => ctx.auth.getUserIdentity(),
+		"Could not read authenticated user.",
+	).pipe(
+		Effect.flatMap((identity) =>
+			identity
+				? Effect.succeed(identity.subject)
+				: Effect.fail(new UserPreferencesAuthenticationError()),
+		),
+	);
 }
 
 function snapshotFromRow(row: {
@@ -55,14 +63,80 @@ function snapshotFromRow(row: {
 	};
 }
 
+function getPreferenceRowEffect(ctx: QueryCtx | MutationCtx, userId: string) {
+	return tryConvexPromise(
+		() =>
+			ctx.db
+				.query("userPreferences")
+				.withIndex("by_user", (q) => q.eq("userId", userId))
+				.unique(),
+		"Could not read user preferences.",
+	);
+}
+
+export function getForCurrentUserHandler(ctx: QueryCtx) {
+	return runConvexEffect(
+		Effect.gen(function* () {
+			const userId = yield* getAuthenticatedUserIdEffect(ctx);
+			const row = yield* getPreferenceRowEffect(ctx, userId);
+
+			return row ? snapshotFromRow(row) : null;
+		}),
+	);
+}
+
+export function upsertForCurrentUserHandler(
+	ctx: MutationCtx,
+	args: {
+		preferences: {
+			themeMode?: "system" | "light" | "dark";
+			mapStyle?:
+				| "stadia-alidade-smooth"
+				| "stadia-alidade-smooth-dark"
+				| "stadia-stamen-terrain"
+				| "maptiler-satellite-hybrid"
+				| "maptiler-outdoor";
+			distanceUnit?: "km" | "mi";
+		};
+	},
+) {
+	return runConvexEffect(
+		Effect.gen(function* () {
+			const userId = yield* getAuthenticatedUserIdEffect(ctx);
+			const existingPreferences = yield* getPreferenceRowEffect(ctx, userId);
+			const now = Date.now();
+
+			if (existingPreferences) {
+				yield* tryConvexPromise(
+					() =>
+						ctx.db.patch(existingPreferences._id, {
+							...args.preferences,
+							updatedAtMs: now,
+						}),
+					"Could not update user preferences.",
+				);
+				return { inserted: false };
+			}
+
+			yield* tryConvexPromise(
+				() =>
+					ctx.db.insert("userPreferences", {
+						userId,
+						...args.preferences,
+						createdAtMs: now,
+						updatedAtMs: now,
+					}),
+				"Could not insert user preferences.",
+			);
+
+			return { inserted: true };
+		}),
+	);
+}
+
 export const getForCurrentUser = query({
 	args: {},
-	handler: async (ctx) => {
-		const userId = await getAuthenticatedUserId(ctx);
-		const row = await getPreferenceRow(ctx, userId);
-
-		return row ? snapshotFromRow(row) : null;
-	},
+	handler: getForCurrentUserHandler,
 });
 
 export const upsertForCurrentUser = mutation({
@@ -73,26 +147,5 @@ export const upsertForCurrentUser = mutation({
 			distanceUnit: v.optional(distanceUnitValidator),
 		}),
 	},
-	handler: async (ctx, args) => {
-		const userId = await getAuthenticatedUserId(ctx);
-		const existingPreferences = await getPreferenceRow(ctx, userId);
-		const now = Date.now();
-
-		if (existingPreferences) {
-			await ctx.db.patch(existingPreferences._id, {
-				...args.preferences,
-				updatedAtMs: now,
-			});
-			return { inserted: false };
-		}
-
-		await ctx.db.insert("userPreferences", {
-			userId,
-			...args.preferences,
-			createdAtMs: now,
-			updatedAtMs: now,
-		});
-
-		return { inserted: true };
-	},
+	handler: upsertForCurrentUserHandler,
 });
