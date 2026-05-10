@@ -187,6 +187,50 @@ describe("saved-routes-core", () => {
 		).toBeNull();
 	});
 
+	it("preserves valid avoided roads and rejects malformed avoidance polygons", () => {
+		const routeWithAvoidance = {
+			...baseRoute,
+			avoidances: [
+				{
+					kind: "road_segment",
+					label: "Avoided road 1",
+					centerline: [
+						[11.5755, 48.1374],
+						[11.58, 48.14],
+					],
+					bufferMeters: 35,
+					polygon: [
+						[11.57, 48.13],
+						[11.59, 48.13],
+						[11.59, 48.15],
+						[11.57, 48.15],
+						[11.57, 48.13],
+					],
+				},
+			],
+		} satisfies SavedRoute["route"];
+
+		expect(normalizePlannedRoute(routeWithAvoidance)?.avoidances).toEqual(
+			routeWithAvoidance.avoidances,
+		);
+		expect(
+			normalizePlannedRoute({
+				...routeWithAvoidance,
+				avoidances: [
+					{
+						...routeWithAvoidance.avoidances[0],
+						polygon: [
+							[11.57, 48.13],
+							[11.59, 48.13],
+							[11.59, 48.15],
+							[11.57, 48.15],
+						],
+					},
+				],
+			}),
+		).toBeNull();
+	});
+
 	it("sanitizes manual editing locks and omits them when all are out of range", () => {
 		expect(
 			normalizePlannedRoute({

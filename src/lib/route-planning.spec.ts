@@ -6,6 +6,7 @@ import {
 	buildRouteGeoJson,
 	buildRouteGradientGeoJson,
 	buildRouteSurfaceGeoJson,
+	buildRouteAvoidanceGeoJson,
 	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
 	calculateBearingDegrees,
@@ -412,6 +413,45 @@ describe("buildSpatialConstraintGeoJson", () => {
 		expect(feature?.geometry.coordinates[0]?.at(-1)).toEqual(
 			feature?.geometry.coordinates[0]?.[0],
 		);
+	});
+});
+
+describe("buildRouteAvoidanceGeoJson", () => {
+	it("builds polygon and centerline features for avoided roads", () => {
+		const geoJson = buildRouteAvoidanceGeoJson([
+			{
+				kind: "road_segment",
+				label: "Avoided road 1",
+				centerline: [
+					[11.5755, 48.1374],
+					[11.58, 48.14],
+				],
+				bufferMeters: 35,
+				polygon: [
+					[11.57, 48.13],
+					[11.59, 48.13],
+					[11.59, 48.15],
+					[11.57, 48.15],
+				],
+			},
+		]);
+
+		expect(geoJson.features).toHaveLength(2);
+		expect(geoJson.features.map((feature) => feature.geometry.type)).toEqual([
+			"Polygon",
+			"LineString",
+		]);
+		expect(geoJson.features[0]?.properties).toMatchObject({
+			kind: "route_avoidance",
+			avoidanceKind: "road_segment",
+			label: "Avoided road 1",
+			index: 0,
+		});
+		expect(
+			geoJson.features[0]?.geometry.type === "Polygon"
+				? geoJson.features[0].geometry.coordinates[0]?.at(-1)
+				: null,
+		).toEqual([11.57, 48.13]);
 	});
 });
 

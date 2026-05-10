@@ -158,6 +158,19 @@ export function normalizePlannedRoute(value: unknown): PlannedRoute | null {
 		}
 	}
 
+	if (normalizedRoute.avoidances) {
+		for (const avoidance of normalizedRoute.avoidances) {
+			if (
+				avoidance.kind !== "road_segment" ||
+				avoidance.centerline.length < 2 ||
+				avoidance.polygon.length < 4 ||
+				!isClosedPolygon(avoidance.polygon)
+			) {
+				return null;
+			}
+		}
+	}
+
 	const manualEditing = normalizeManualEditing(
 		value.manualEditing,
 		normalizedRoute,

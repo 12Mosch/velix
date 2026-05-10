@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from "$lib/components/ui/button/index.js";
 	import type { MapClickSelection, PlannerMode, SelectedMapStop } from "$lib/route-planner/types";
-	import { Lock, Unlock } from "@lucide/svelte";
+	import { Ban, Lock, Unlock } from "@lucide/svelte";
 
 	let {
 		selection,
@@ -15,10 +15,12 @@
 		removeActionLabel,
 		isWaypointInsertionLocked,
 		isSegmentLocked,
+		isSegmentAvoided,
 		onApplyAsStart,
 		onApplyAsWaypoint,
 		onApplyAsDestination,
 		onToggleSegmentLock,
+		onToggleRoadAvoidance,
 		onRemoveStop,
 		onClose,
 	}: {
@@ -33,10 +35,12 @@
 		removeActionLabel: (selectedStop: SelectedMapStop) => string;
 		isWaypointInsertionLocked: (selection: MapClickSelection) => boolean;
 		isSegmentLocked: (selection: MapClickSelection) => boolean;
+		isSegmentAvoided: (selection: MapClickSelection) => boolean;
 		onApplyAsStart: () => unknown;
 		onApplyAsWaypoint: () => unknown;
 		onApplyAsDestination: () => unknown;
 		onToggleSegmentLock: () => void;
+		onToggleRoadAvoidance: () => void;
 		onRemoveStop: (selectedStop: SelectedMapStop) => void;
 		onClose: () => void;
 	} = $props();
@@ -104,6 +108,7 @@
 				size="sm"
 				class="justify-start gap-2"
 				type="button"
+				disabled={isResolving}
 				onclick={onToggleSegmentLock}
 			>
 				{#if isSegmentLocked(selection)}
@@ -113,6 +118,17 @@
 					<Lock class="size-3.5" />
 					Lock segment
 				{/if}
+			</Button>
+			<Button
+				variant="ghost"
+				size="sm"
+				class="justify-start gap-2"
+				type="button"
+				disabled={isResolving}
+				onclick={onToggleRoadAvoidance}
+			>
+				<Ban class="size-3.5" />
+				{isSegmentAvoided(selection) ? "Remove avoided road" : "Avoid road"}
 			</Button>
 		{/if}
 		{#if selection.selectedStop}

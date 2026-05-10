@@ -1,5 +1,6 @@
 import type {
 	PlannedRoute,
+	ResolvedRouteAvoidance,
 	RouteApiError,
 	RouteMode,
 	RouteStopInput,
@@ -78,6 +79,7 @@ export type RouteEditSnapshot = {
 	routeAlternatives: PlannedRoute[];
 	selectedRouteIndex: number | null;
 	lockedSegmentIndexes: number[];
+	avoidedRoads: ResolvedRouteAvoidance[];
 	plannerMode: PlannerMode;
 	startStop: PlannerStop;
 	waypointStops: PlannerStop[];

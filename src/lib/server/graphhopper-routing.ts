@@ -2,6 +2,7 @@ import { Effect, Result } from "effect";
 
 import type {
 	PlannedRoute,
+	ResolvedRouteAvoidance,
 	ResolvedRouteSpatialConstraint,
 	RoundCourseTarget,
 	RouteCoordinate,
@@ -100,6 +101,7 @@ export type RouteRequestOptions = {
 	roundTripSeed?: number;
 	roundCourseTarget?: RoundCourseTarget;
 	spatialConstraint?: ResolvedRouteSpatialConstraint;
+	avoidances?: ResolvedRouteAvoidance[];
 	alternativeMaxPaths?: number;
 	alternativeMaxWeightFactor?: number;
 	alternativeMaxShareFactor?: number;
@@ -196,9 +198,15 @@ const routeRequestStrategies: RouteRequestStrategy[] = [
 
 function buildRoadBikeCustomModel(
 	spatialConstraint?: ResolvedRouteSpatialConstraint,
+	avoidances: ResolvedRouteAvoidance[] = [],
 ): GraphHopperCustomModel {
+	const avoidancePriorityRules = avoidances.map((_, index) => ({
+		if: `in_avoid_road_${index}`,
+		multiply_by: "0",
+	}));
 	const priority: GraphHopperPriorityRule[] = spatialConstraint
 		? [
+				...avoidancePriorityRules,
 				{
 					if: "in_route_constraint",
 					multiply_by: "1",
@@ -210,26 +218,41 @@ function buildRoadBikeCustomModel(
 				},
 				...roadBikePriorityRules,
 			]
-		: [...roadBikePriorityRules];
+		: [...avoidancePriorityRules, ...roadBikePriorityRules];
+	const areaFeatures: NonNullable<GraphHopperCustomModel["areas"]>["features"] =
+		[
+			...(spatialConstraint
+				? [
+						{
+							type: "Feature" as const,
+							id: "route_constraint",
+							properties: {},
+							geometry: {
+								type: "Polygon" as const,
+								coordinates: [spatialConstraint.polygon],
+							},
+						},
+					]
+				: []),
+			...avoidances.map((avoidance, index) => ({
+				type: "Feature" as const,
+				id: `avoid_road_${index}`,
+				properties: {},
+				geometry: {
+					type: "Polygon" as const,
+					coordinates: [avoidance.polygon],
+				},
+			})),
+		];
 
 	return {
 		priority,
 		distance_influence: 55,
-		...(spatialConstraint
+		...(areaFeatures.length > 0
 			? {
 					areas: {
 						type: "FeatureCollection" as const,
-						features: [
-							{
-								type: "Feature" as const,
-								id: "route_constraint",
-								properties: {},
-								geometry: {
-									type: "Polygon" as const,
-									coordinates: [spatialConstraint.polygon],
-								},
-							},
-						],
+						features: areaFeatures,
 					},
 				}
 			: {}),
@@ -290,6 +313,7 @@ function normalizeGraphHopperPath(
 			roundCourseTarget:
 				options.mode === "round_course" ? options.roundCourseTarget : undefined,
 			spatialConstraint: options.spatialConstraint,
+			avoidances: options.avoidances,
 			routingProfile: selectedStrategy.profile,
 			routingStrategy: selectedStrategy.routingStrategy,
 			routingWarnings: [...selectedStrategy.routingWarnings],
@@ -386,6 +410,7 @@ export function requestRoutesEffect(
 				requestBody["ch.disable"] = true;
 				requestBody.custom_model = buildRoadBikeCustomModel(
 					options.spatialConstraint,
+					options.avoidances,
 				);
 			}
 
@@ -413,7 +438,9 @@ export function requestRoutesEffect(
 
 		let payload: GraphHopperRouteResponse | null = null;
 		let selectedStrategy: RouteRequestStrategy | null = null;
-		const strategies = options.spatialConstraint
+		const requiresCustomModel =
+			!!options.spatialConstraint || (options.avoidances?.length ?? 0) > 0;
+		const strategies = requiresCustomModel
 			? routeRequestStrategies.filter((strategy) => strategy.useCustomModel)
 			: routeRequestStrategies;
 

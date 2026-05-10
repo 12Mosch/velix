@@ -21,6 +21,7 @@ import type {
 	RouteApiSuccess,
 	RouteFieldErrors,
 	RouteMode,
+	RouteAvoidanceInput,
 	RouteSpatialConstraintInput,
 	RouteStopInput,
 	SpatialConstraintEnforcement,
@@ -32,6 +33,7 @@ import {
 } from "$lib/server/graphhopper-errors";
 import { ServerLive } from "$lib/server/layers";
 import {
+	resolveRouteAvoidances,
 	resolveRouteStopsEffect,
 	resolveSpatialConstraintEffect,
 	RoundCourseCandidateSearchError,
@@ -57,6 +59,12 @@ const minAreaRadiusMeters = 1_000;
 const maxAreaRadiusMeters = 250_000;
 const minCorridorWidthMeters = 2_000;
 const maxCorridorWidthMeters = 80_000;
+const maxRouteAvoidances = 5;
+const minRouteAvoidanceCenterlinePoints = 2;
+const maxRouteAvoidanceCenterlinePoints = 32;
+const defaultRouteAvoidanceBufferMeters = 35;
+const minRouteAvoidanceBufferMeters = 10;
+const maxRouteAvoidanceBufferMeters = 150;
 
 type RouteRequestEvent = Parameters<RequestHandler>[0];
 
@@ -65,6 +73,7 @@ type RouteModeContext = {
 	payloadRecord: Record<string, unknown>;
 	startInput: RouteStopInput;
 	spatialConstraintInput?: RouteSpatialConstraintInput;
+	avoidanceInputs?: RouteAvoidanceInput[];
 	manualEditing?: ManualRouteEditingState;
 	fieldErrors: RouteFieldErrors;
 	structuredPointToPointPayload: RouteRequestPayloadInput | null;
@@ -292,6 +301,92 @@ function normalizeSpatialConstraintInput(
 	};
 }
 
+function isFiniteLngLat(value: unknown): value is [number, number] {
+	return (
+		Array.isArray(value) &&
+		value.length >= 2 &&
+		typeof value[0] === "number" &&
+		Number.isFinite(value[0]) &&
+		value[0] >= -180 &&
+		value[0] <= 180 &&
+		typeof value[1] === "number" &&
+		Number.isFinite(value[1]) &&
+		value[1] >= -90 &&
+		value[1] <= 90
+	);
+}
+
+function normalizeRouteAvoidanceInputs(value: unknown): {
+	avoidances?: RouteAvoidanceInput[];
+	error?: string;
+} {
+	if (value === undefined || value === null) {
+		return {};
+	}
+
+	if (!Array.isArray(value)) {
+		return {
+			error: "Choose a road segment to avoid.",
+		};
+	}
+
+	if (value.length > maxRouteAvoidances) {
+		return {
+			error: `You can avoid up to ${maxRouteAvoidances} road segments.`,
+		};
+	}
+
+	const avoidances: RouteAvoidanceInput[] = [];
+
+	for (const [index, item] of value.entries()) {
+		if (!isRecord(item) || item.kind !== "road_segment") {
+			return {
+				error: "Choose a road segment to avoid.",
+			};
+		}
+
+		const rawCenterline = item.centerline;
+		if (
+			!Array.isArray(rawCenterline) ||
+			rawCenterline.length < minRouteAvoidanceCenterlinePoints ||
+			rawCenterline.length > maxRouteAvoidanceCenterlinePoints ||
+			!rawCenterline.every(isFiniteLngLat)
+		) {
+			return {
+				error: "Choose a valid road segment to avoid.",
+			};
+		}
+
+		const bufferMeters = normalizeFiniteNumber(
+			item.bufferMeters ?? defaultRouteAvoidanceBufferMeters,
+		);
+
+		if (
+			bufferMeters === null ||
+			bufferMeters < minRouteAvoidanceBufferMeters ||
+			bufferMeters > maxRouteAvoidanceBufferMeters
+		) {
+			return {
+				error: `Use an avoidance buffer distance from ${minRouteAvoidanceBufferMeters} to ${maxRouteAvoidanceBufferMeters} m per side.`,
+			};
+		}
+
+		const label =
+			typeof item.label === "string" && item.label.trim()
+				? item.label.trim()
+				: `Avoided road ${index + 1}`;
+
+		avoidances.push({
+			kind: "road_segment",
+			centerline: rawCenterline.map((point) => [point[0], point[1]]),
+			bufferMeters,
+			label,
+		});
+	}
+
+	return avoidances.length > 0 ? { avoidances } : {};
+}
+
 function normalizeManualEditingInput(
 	value: unknown,
 ): ManualRouteEditingState | undefined {
@@ -480,6 +575,7 @@ function handlePointToPointEffect(context: RouteModeContext) {
 			event,
 			startInput,
 			spatialConstraintInput,
+			avoidanceInputs,
 			manualEditing,
 			fieldErrors,
 			structuredPointToPointPayload,
@@ -538,9 +634,11 @@ function handlePointToPointEffect(context: RouteModeContext) {
 			spatialConstraintInput,
 			routePoints,
 		);
+		const avoidances = resolveRouteAvoidances(avoidanceInputs);
 		const routes = yield* searchPointToPointRoutesEffect({
 			stops: resolvedStops,
 			spatialConstraint: constraint,
+			avoidances,
 			manualEditing,
 		});
 
@@ -554,6 +652,7 @@ function handleOutAndBackEffect(context: RouteModeContext) {
 			event,
 			startInput,
 			spatialConstraintInput,
+			avoidanceInputs,
 			manualEditing,
 			fieldErrors,
 			structuredOutAndBackPayload,
@@ -615,9 +714,11 @@ function handleOutAndBackEffect(context: RouteModeContext) {
 			spatialConstraintInput,
 			routePoints,
 		);
+		const avoidances = resolveRouteAvoidances(avoidanceInputs);
 		const routes = yield* searchOutAndBackRoutesEffect({
 			stops: resolvedStops,
 			spatialConstraint: constraint,
+			avoidances,
 			manualEditing,
 		});
 
@@ -632,6 +733,7 @@ function handleRoundCourseEffect(context: RouteModeContext) {
 			payloadRecord,
 			startInput,
 			spatialConstraintInput,
+			avoidanceInputs,
 			manualEditing,
 			fieldErrors,
 		} = context;
@@ -703,11 +805,13 @@ function handleRoundCourseEffect(context: RouteModeContext) {
 			spatialConstraintInput,
 			routePoints,
 		);
+		const avoidances = resolveRouteAvoidances(avoidanceInputs);
 		const routeSearchResult = yield* searchRoundCourseRoutesEffect({
 			start,
 			waypoints,
 			target: roundCourseTarget as RoundCourseTarget,
 			spatialConstraint: constraint,
+			avoidances,
 			manualEditing,
 		});
 
@@ -748,6 +852,7 @@ export const POST: RequestHandler = async (event) => {
 			"turnaround" in payloadRecord ||
 			"target" in payloadRecord ||
 			"spatialConstraint" in payloadRecord ||
+			"avoidances" in payloadRecord ||
 			"requestedDistanceMeters" in payloadRecord ||
 			"mode" in payloadRecord;
 		const structuredPayload = hasStructuredPayload ? payload : null;
@@ -771,6 +876,10 @@ export const POST: RequestHandler = async (event) => {
 			requestedMode,
 		);
 		const spatialConstraintInput = spatialConstraintResult.constraint;
+		const avoidanceResult = normalizeRouteAvoidanceInputs(
+			payloadRecord.avoidances,
+		);
+		const avoidanceInputs = avoidanceResult.avoidances;
 		const manualEditing = normalizeManualEditingInput(
 			payloadRecord.manualEditing,
 		);
@@ -779,11 +888,16 @@ export const POST: RequestHandler = async (event) => {
 			fieldErrors.spatialConstraint = spatialConstraintResult.error;
 		}
 
+		if (avoidanceResult.error) {
+			fieldErrors.avoidances = avoidanceResult.error;
+		}
+
 		const context: RouteModeContext = {
 			event,
 			payloadRecord,
 			startInput,
 			spatialConstraintInput,
+			avoidanceInputs,
 			manualEditing,
 			fieldErrors,
 			structuredPointToPointPayload,

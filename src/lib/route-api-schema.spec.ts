@@ -8,8 +8,10 @@ import {
 	PlannedRouteSchema,
 	RemoteSavedRoutePayloadSchema,
 	SavedRouteSchema,
+	RouteAvoidanceInputSchema,
 	RouteSpatialConstraintInputSchema,
 } from "$lib/route-api-schema";
+import { normalizePlannedRoute } from "$lib/saved-routes-core";
 
 function expectDecodedPayload(value: unknown) {
 	const result = decodeRouteRequestPayload(value);
@@ -152,10 +154,98 @@ describe("route API schema helpers", () => {
 		});
 	});
 
+	it("accepts structured payloads with road avoidances", () => {
+		expectDecodedPayload({
+			mode: "point_to_point",
+			start: "Munich",
+			destination: "Berlin",
+			avoidances: [
+				{
+					kind: "road_segment",
+					centerline: [
+						[11.5755, 48.1374, 520],
+						[11.58, 48.14],
+					],
+					bufferMeters: 35,
+					label: "Avoid Arnulfstrasse",
+				},
+			],
+		});
+
+		expect(
+			Schema.decodeUnknownSync(RouteAvoidanceInputSchema)({
+				kind: "road_segment",
+				centerline: [
+					[11.5755, 48.1374, 520],
+					[11.58, 48.14],
+				],
+				bufferMeters: 35,
+			}),
+		).toEqual({
+			kind: "road_segment",
+			centerline: [
+				[11.5755, 48.1374],
+				[11.58, 48.14],
+			],
+			bufferMeters: 35,
+		});
+	});
+
 	it("accepts valid planned route shapes", () => {
 		expect(() =>
 			Schema.decodeUnknownSync(PlannedRouteSchema)(buildValidRoute()),
 		).not.toThrow();
+	});
+
+	it("accepts planned routes with resolved avoidances", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(PlannedRouteSchema)({
+				...buildValidRoute(),
+				avoidances: [
+					{
+						kind: "road_segment",
+						label: "Avoided road 1",
+						centerline: [
+							[11.5755, 48.1374],
+							[11.58, 48.14],
+						],
+						bufferMeters: 35,
+						polygon: [
+							[11.57, 48.13],
+							[11.59, 48.13],
+							[11.59, 48.15],
+							[11.57, 48.15],
+							[11.57, 48.13],
+						],
+					},
+				],
+			}),
+		).not.toThrow();
+	});
+
+	it("rejects malformed saved route avoidance polygons during normalization", () => {
+		expect(
+			normalizePlannedRoute({
+				...buildValidRoute(),
+				avoidances: [
+					{
+						kind: "road_segment",
+						label: "Avoided road 1",
+						centerline: [
+							[11.5755, 48.1374],
+							[11.58, 48.14],
+						],
+						bufferMeters: 35,
+						polygon: [
+							[11.57, 48.13],
+							[11.59, 48.13],
+							[11.59, 48.15],
+							[11.57, 48.15],
+						],
+					},
+				],
+			}),
+		).toBeNull();
 	});
 
 	it("accepts planned routes with optional wind analysis", () => {

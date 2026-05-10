@@ -7,6 +7,10 @@ const routeSourcePrefix = "planned-route";
 const constraintSourceId = "route-constraint";
 const constraintFillLayerId = "route-constraint-fill";
 const constraintLineLayerId = "route-constraint-line";
+const avoidanceSourceId = "route-avoidances";
+const avoidanceFillLayerId = "route-avoidances-fill";
+const avoidanceOutlineLayerId = "route-avoidances-outline";
+const avoidanceCenterlineLayerId = "route-avoidances-centerline";
 const lockedSegmentSourceId = "route-locked-segments";
 const lockedSegmentCasingLayerId = "route-locked-segments-casing";
 const lockedSegmentLineLayerId = "route-locked-segments-line";
@@ -515,6 +519,98 @@ export function syncConstraintOverlay(
 					3,
 				],
 				"line-dasharray": [2, 1.5],
+			},
+		});
+	}
+}
+
+export function removeRouteAvoidanceOverlay(map: MapLibreMap) {
+	for (const layerId of [
+		avoidanceCenterlineLayerId,
+		avoidanceOutlineLayerId,
+		avoidanceFillLayerId,
+	]) {
+		if (map.getLayer(layerId)) map.removeLayer(layerId);
+	}
+	if (map.getSource(avoidanceSourceId)) map.removeSource(avoidanceSourceId);
+}
+
+export function syncRouteAvoidanceOverlay(
+	map: MapLibreMap,
+	avoidanceOverlay: FeatureCollection | null,
+) {
+	if (!avoidanceOverlay || avoidanceOverlay.features.length === 0) {
+		removeRouteAvoidanceOverlay(map);
+		return;
+	}
+
+	const existingSource = map.getSource(avoidanceSourceId) as
+		| GeoJSONSource
+		| undefined;
+	if (existingSource) existingSource.setData(avoidanceOverlay);
+	else
+		map.addSource(avoidanceSourceId, {
+			type: "geojson",
+			data: avoidanceOverlay,
+		});
+
+	if (!map.getLayer(avoidanceFillLayerId)) {
+		map.addLayer({
+			id: avoidanceFillLayerId,
+			type: "fill",
+			source: avoidanceSourceId,
+			filter: ["==", ["geometry-type"], "Polygon"],
+			paint: {
+				"fill-color": "rgba(220, 38, 38, 0.16)",
+				"fill-outline-color": "rgba(220, 38, 38, 0.34)",
+			},
+		});
+	}
+	if (!map.getLayer(avoidanceOutlineLayerId)) {
+		map.addLayer({
+			id: avoidanceOutlineLayerId,
+			type: "line",
+			source: avoidanceSourceId,
+			filter: ["==", ["geometry-type"], "Polygon"],
+			layout: { "line-cap": "round", "line-join": "round" },
+			paint: {
+				"line-color": "rgba(220, 38, 38, 0.8)",
+				"line-width": [
+					"interpolate",
+					["linear"],
+					["zoom"],
+					6,
+					1,
+					12,
+					1.8,
+					16,
+					2.8,
+				],
+				"line-dasharray": [2, 1.4],
+			},
+		});
+	}
+	if (!map.getLayer(avoidanceCenterlineLayerId)) {
+		map.addLayer({
+			id: avoidanceCenterlineLayerId,
+			type: "line",
+			source: avoidanceSourceId,
+			filter: ["==", ["geometry-type"], "LineString"],
+			layout: { "line-cap": "round", "line-join": "round" },
+			paint: {
+				"line-color": "rgb(185, 28, 28)",
+				"line-width": [
+					"interpolate",
+					["linear"],
+					["zoom"],
+					6,
+					2,
+					12,
+					3.5,
+					16,
+					5,
+				],
+				"line-dasharray": [1.2, 0.9],
 			},
 		});
 	}
