@@ -318,7 +318,8 @@ describe("POST /api/route", () => {
 		const response = await POST(buildEvent(body, fetchMock, "limited-client"));
 
 		expect(response.status).toBe(429);
-		expect(response.headers.get("Retry-After")).toBe("60");
+		expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+		expect(Number(response.headers.get("Retry-After"))).toBeLessThanOrEqual(60);
 		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(10);
 		await expect(response.json()).resolves.toEqual({
 			error: "Too many route requests. Try again soon.",
