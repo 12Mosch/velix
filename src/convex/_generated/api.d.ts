@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as effect from "../effect.js";
 import type * as savedRoutes from "../savedRoutes.js";
 import type * as sharedRoutes from "../sharedRoutes.js";
 import type * as userPreferences from "../userPreferences.js";
@@ -19,6 +20,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  effect: typeof effect;
   savedRoutes: typeof savedRoutes;
   sharedRoutes: typeof sharedRoutes;
   userPreferences: typeof userPreferences;
