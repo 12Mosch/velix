@@ -1842,7 +1842,9 @@ describe("+page.svelte", () => {
 	it("handles route edit keyboard shortcuts outside text inputs only", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
-			.mockResolvedValue(new Response(JSON.stringify(successfulRoutePayload)));
+			.mockImplementation(() =>
+				Promise.resolve(new Response(JSON.stringify(successfulRoutePayload))),
+			);
 		vi.stubGlobal("fetch", fetchMock);
 
 		render(PageTestShell);
