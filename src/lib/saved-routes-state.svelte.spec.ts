@@ -33,6 +33,7 @@ const route: PlannedRoute = {
 		[11.62, 48.1, 545],
 		[11.8598, 47.7362, 785],
 	],
+	instructions: [],
 	surfaceDetails: [],
 	smoothnessDetails: [],
 };

@@ -11,6 +11,35 @@ export type RouteBounds = [number, number, number, number];
 
 export type RouteCoordinate = [number, number] | [number, number, number];
 
+export type RouteInstructionType =
+	| "continue"
+	| "slight_left"
+	| "left"
+	| "sharp_left"
+	| "slight_right"
+	| "right"
+	| "sharp_right"
+	| "u_turn"
+	| "roundabout"
+	| "leave_roundabout"
+	| "keep_left"
+	| "keep_right"
+	| "via"
+	| "finish"
+	| "unknown";
+
+export type RouteInstruction = {
+	distanceFromStartMeters: number;
+	text: string;
+	sign: number;
+	type: RouteInstructionType;
+	segmentDistanceMeters: number;
+	segmentTimeMs: number;
+	coordinateIndex: number;
+	coordinate: RouteCoordinate;
+	interval: [number, number];
+};
+
 export type RouteSuggestion = {
 	label: string;
 	point: [number, number];
@@ -267,6 +296,7 @@ export type PlannedRoute = {
 	ascendMeters: number;
 	descendMeters: number;
 	coordinates: RouteCoordinate[];
+	instructions?: RouteInstruction[];
 	surfaceDetails: RouteDetailInterval[];
 	smoothnessDetails: RouteDetailInterval[];
 	windAnalysis?: RouteWindAnalysis;
@@ -728,6 +758,58 @@ export function buildRouteClimbGeoJson(
 		type: "FeatureCollection",
 		features,
 	};
+}
+
+export function mapGraphHopperSignToInstructionType(
+	sign: number,
+): RouteInstructionType {
+	switch (sign) {
+		case -3:
+			return "sharp_left";
+		case -2:
+			return "left";
+		case -1:
+			return "slight_left";
+		case 0:
+			return "continue";
+		case 1:
+			return "slight_right";
+		case 2:
+			return "right";
+		case 3:
+			return "sharp_right";
+		case 4:
+			return "finish";
+		case 5:
+			return "via";
+		case 6:
+			return "roundabout";
+		case -6:
+			return "leave_roundabout";
+		case -7:
+			return "keep_left";
+		case 7:
+			return "keep_right";
+		case -98:
+		case 98:
+			return "u_turn";
+		default:
+			return "unknown";
+	}
+}
+
+export function getRouteTurnCount(route: PlannedRoute): number {
+	return (route.instructions ?? []).filter((instruction) => {
+		if (
+			instruction.type === "continue" ||
+			instruction.type === "via" ||
+			instruction.type === "finish"
+		) {
+			return false;
+		}
+
+		return instruction.type !== "unknown" || instruction.sign !== 0;
+	}).length;
 }
 
 function classifyGradientBucket(

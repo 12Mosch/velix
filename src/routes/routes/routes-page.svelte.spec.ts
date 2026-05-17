@@ -61,6 +61,7 @@ const savedRoutes = [
 				[11.81, 47.88, 720],
 				[11.8598, 47.7362, 785],
 			],
+			instructions: [],
 			surfaceDetails: [
 				{ from: 0, to: 4, value: "asphalt" },
 				{ from: 4, to: 5, value: "fine gravel" },

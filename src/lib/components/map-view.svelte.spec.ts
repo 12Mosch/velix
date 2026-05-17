@@ -1250,6 +1250,41 @@ describe("MapView", () => {
 		});
 	});
 
+	it("focuses the map when the focused route coordinate key changes", async () => {
+		const view = render(MapView, {
+			focusedRouteCoordinate: hoveredRouteCoordinate,
+			focusedRouteCoordinateKey: 1,
+		});
+
+		await expect.poll(() => mapInstance.easeTo.mock.calls.length).toBe(1);
+		expect(mapInstance.easeTo).toHaveBeenCalledWith({
+			center: [hoveredRouteCoordinate[0], hoveredRouteCoordinate[1]],
+			zoom: 13,
+			duration: 600,
+		});
+
+		await view.rerender({
+			focusedRouteCoordinate: [11.58, 47.24, 740],
+			focusedRouteCoordinateKey: 1,
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(mapInstance.easeTo).toHaveBeenCalledTimes(1);
+
+		mapInstance.getZoom.mockReturnValueOnce(14.5);
+		await view.rerender({
+			focusedRouteCoordinate: [11.58, 47.24, 740],
+			focusedRouteCoordinateKey: 2,
+		});
+
+		await expect.poll(() => mapInstance.easeTo.mock.calls.length).toBe(2);
+		expect(mapInstance.easeTo.mock.calls.at(-1)?.[0]).toMatchObject({
+			center: [11.58, 47.24],
+			zoom: 14.5,
+			duration: 600,
+		});
+	});
+
 	it("renders all alternatives but does not refit when only the selected route changes", async () => {
 		const view = render(MapView, {
 			routeOverlays: alternativeRouteOverlays,

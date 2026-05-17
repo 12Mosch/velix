@@ -2,6 +2,8 @@ import {
 	getRouteStopInputs,
 	type PlannedRoute,
 	type RouteCoordinate,
+	type RouteInstruction,
+	type RouteInstructionType,
 } from "$lib/route-planning";
 import { Encoder, Profile } from "@garmin/fitsdk";
 
@@ -150,6 +152,43 @@ function buildWaypointXml(
 		.join("\n");
 }
 
+function buildCueRoutePointXml(instruction: RouteInstruction): string {
+	const normalizedCoordinate = normalizeCoordinate(
+		instruction.coordinate,
+		`Cue "${instruction.text}"`,
+	);
+	const elevationXml = Number.isFinite(normalizedCoordinate.elevation)
+		? `\n    <ele>${normalizedCoordinate.elevation}</ele>`
+		: "";
+
+	return [
+		`  <rtept lat="${normalizedCoordinate.latitude}" lon="${normalizedCoordinate.longitude}">`,
+		elevationXml,
+		`    <name>${escapeXml(instruction.text)}</name>`,
+		"    <extensions>",
+		`      <velix:cue distanceFromStartMeters="${escapeXml(String(instruction.distanceFromStartMeters))}" segmentDistanceMeters="${escapeXml(String(instruction.segmentDistanceMeters))}" segmentTimeMs="${escapeXml(String(instruction.segmentTimeMs))}" sign="${escapeXml(String(instruction.sign))}" type="${escapeXml(instruction.type)}" coordinateIndex="${escapeXml(String(instruction.coordinateIndex))}" />`,
+		"    </extensions>",
+		"  </rtept>",
+	]
+		.filter(Boolean)
+		.join("\n");
+}
+
+function buildCueRouteXml(route: PlannedRoute, title: string): string {
+	const instructions = route.instructions ?? [];
+
+	if (instructions.length === 0) {
+		return "";
+	}
+
+	return [
+		"  <rte>",
+		`    <name>${escapeXml(title)}</name>`,
+		instructions.map(buildCueRoutePointXml).join("\n"),
+		"  </rte>",
+	].join("\n");
+}
+
 export function buildRouteGpx(
 	route: PlannedRoute,
 	options: RouteExportOptions | null = {},
@@ -171,19 +210,26 @@ export function buildRouteGpx(
 		.map((coordinate, index) => buildTrackPointXml(coordinate, index))
 		.join("\n");
 	const waypointBlock = waypointXml ? `${waypointXml}\n` : "";
+	const cueRouteXml = buildCueRouteXml(route, title);
+	const cueRouteBlock = cueRouteXml ? `${cueRouteXml}\n` : "";
 	const boundsXml = bounds
 		? `    <bounds minlon="${bounds[0]}" minlat="${bounds[1]}" maxlon="${bounds[2]}" maxlat="${bounds[3]}" />`
 		: "";
+	const cueNamespace =
+		(route.instructions?.length ?? 0) > 0
+			? ' xmlns:velix="https://velix.app/gpx/1"'
+			: "";
 
 	return [
 		'<?xml version="1.0" encoding="UTF-8"?>',
-		`<gpx version="1.1" creator="${escapeXml(creator)}" xmlns="http://www.topografix.com/GPX/1/1">`,
+		`<gpx version="1.1" creator="${escapeXml(creator)}" xmlns="http://www.topografix.com/GPX/1/1"${cueNamespace}>`,
 		"  <metadata>",
 		`    <name>${escapeXml(title)}</name>`,
 		`    <time>${exportedAt.toISOString()}</time>`,
 		boundsXml,
 		"  </metadata>",
 		waypointBlock.trimEnd(),
+		cueRouteBlock.trimEnd(),
 		"  <trk>",
 		`    <name>${escapeXml(title)}</name>`,
 		"    <trkseg>",
@@ -286,6 +332,43 @@ function deriveTimestamp(
 	return new Date(exportedAt.getTime() + Math.round(offsetMs));
 }
 
+function mapInstructionTypeToFitCoursePoint(
+	type: RouteInstructionType,
+): string {
+	switch (type) {
+		case "left":
+			return "left";
+		case "right":
+			return "right";
+		case "slight_left":
+			return "slightLeft";
+		case "slight_right":
+			return "slightRight";
+		case "sharp_left":
+			return "sharpLeft";
+		case "sharp_right":
+			return "sharpRight";
+		case "u_turn":
+			return "uTurn";
+		case "continue":
+			return "straight";
+		case "keep_left":
+			return "leftFork";
+		case "keep_right":
+			return "rightFork";
+		default:
+			return "generic";
+	}
+}
+
+function truncateFitCoursePointName(name: string): string {
+	const maxLength = 16;
+
+	return name.length > maxLength
+		? name.slice(0, maxLength - 1).trimEnd()
+		: name;
+}
+
 function isFiniteNonNegativeInteger(value: number): boolean {
 	return Number.isFinite(value) && value >= 0 && value <= 0xffff;
 }
@@ -317,6 +400,31 @@ export function buildRouteFit(
 		name: title,
 		sport: "cycling",
 	});
+
+	for (const [index, instruction] of (route.instructions ?? []).entries()) {
+		const coordinate = normalizeCoordinate(
+			instruction.coordinate,
+			`Cue "${instruction.text}"`,
+		);
+		const safeDistance = Number.isFinite(route.distanceMeters)
+			? route.distanceMeters
+			: totalDistance;
+		encoder.onMesg(Profile.MesgNum.COURSE_POINT, {
+			messageIndex: index,
+			timestamp: deriveTimestamp(
+				exportedAt,
+				instruction.coordinateIndex,
+				instruction.distanceFromStartMeters,
+				Math.max(safeDistance, totalDistance),
+				route.durationMs,
+			),
+			positionLat: toSemicircles(coordinate.latitude),
+			positionLong: toSemicircles(coordinate.longitude),
+			distance: instruction.distanceFromStartMeters,
+			type: mapInstructionTypeToFitCoursePoint(instruction.type),
+			name: truncateFitCoursePointName(instruction.text),
+		});
+	}
 
 	for (const [index, coordinate] of coordinates.entries()) {
 		const record: {
