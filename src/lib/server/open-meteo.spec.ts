@@ -91,4 +91,24 @@ describe("fetchOpenMeteoWindEffect", () => {
 			OpenMeteoWindError,
 		);
 	});
+
+	it("rejects empty forecast times", async () => {
+		const fetchMock = vi.fn().mockReturnValue(
+			Effect.succeed(
+				new Response(
+					JSON.stringify({
+						current: {
+							time: "",
+							wind_speed_10m: 17.5,
+							wind_direction_10m: 270,
+						},
+					}),
+				),
+			),
+		);
+
+		await expect(runWithFetch(fetchMock)).rejects.toBeInstanceOf(
+			OpenMeteoWindError,
+		);
+	});
 });

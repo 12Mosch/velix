@@ -1,7 +1,9 @@
 import { v } from "convex/values";
+import { Effect } from "effect";
 
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
+import { runConvexEffect, tryConvexPromise } from "./effect";
 import {
 	deserializeRemoteSavedRoute,
 	serializeSavedRouteForRemote,
@@ -15,14 +17,31 @@ type ValidatedSharedRoute = RemoteSavedRoutePayload & {
 	createdAtMs: number;
 };
 
-async function getAuthenticatedUserId(ctx: QueryCtx | MutationCtx) {
-	const identity = await ctx.auth.getUserIdentity();
+class SharedRouteAuthenticationError extends Error {
+	readonly _tag = "SharedRouteAuthenticationError";
 
-	if (!identity) {
-		throw new Error("Authentication is required to share routes.");
+	constructor() {
+		super("Authentication is required to share routes.");
 	}
+}
 
-	return identity.subject;
+class SharedRouteValidationError extends Error {
+	readonly _tag = "SharedRouteValidationError";
+}
+
+function getAuthenticatedUserIdEffect(
+	ctx: QueryCtx | MutationCtx,
+): Effect.Effect<string, Error | SharedRouteAuthenticationError> {
+	return tryConvexPromise(
+		() => ctx.auth.getUserIdentity(),
+		"Could not read authenticated user.",
+	).pipe(
+		Effect.flatMap((identity) =>
+			identity
+				? Effect.succeed(identity.subject)
+				: Effect.fail(new SharedRouteAuthenticationError()),
+		),
+	);
 }
 
 function isValidShareToken(shareToken: string): boolean {
@@ -71,73 +90,111 @@ export async function createHandler(
 		savedRoute: RemoteSavedRoutePayload;
 	},
 ) {
-	const ownerUserId = await getAuthenticatedUserId(ctx);
+	return runConvexEffect(
+		Effect.gen(function* () {
+			const ownerUserId = yield* getAuthenticatedUserIdEffect(ctx);
 
-	if (!isValidShareToken(args.shareToken)) {
-		throw new Error("Share token is invalid.");
-	}
+			if (!isValidShareToken(args.shareToken)) {
+				return yield* Effect.fail(
+					new SharedRouteValidationError("Share token is invalid."),
+				);
+			}
 
-	const savedRoute = validateRemoteSavedRoutePayload(args.savedRoute);
-	if (!savedRoute) {
-		throw new Error("Shared route payload is invalid.");
-	}
+			const savedRoute = validateRemoteSavedRoutePayload(args.savedRoute);
+			if (!savedRoute) {
+				return yield* Effect.fail(
+					new SharedRouteValidationError("Shared route payload is invalid."),
+				);
+			}
 
-	let sourceRouteId: string | undefined;
-	if (args.sourceRouteId) {
-		const requestedSourceRouteId = args.sourceRouteId;
-		const sourceRoute = await ctx.db
-			.query("savedRoutes")
-			.withIndex("by_user_routeId", (q) =>
-				q.eq("userId", ownerUserId).eq("routeId", requestedSourceRouteId),
-			)
-			.unique();
+			let sourceRouteId: string | undefined;
+			if (args.sourceRouteId) {
+				const requestedSourceRouteId = args.sourceRouteId;
+				const sourceRoute = yield* tryConvexPromise(
+					() =>
+						ctx.db
+							.query("savedRoutes")
+							.withIndex("by_user_routeId", (q) =>
+								q
+									.eq("userId", ownerUserId)
+									.eq("routeId", requestedSourceRouteId),
+							)
+							.unique(),
+					"Could not verify shared route source.",
+				);
 
-		if (!sourceRoute) {
-			throw new Error(
-				"Shared route source does not belong to the current user.",
+				if (!sourceRoute) {
+					return yield* Effect.fail(
+						new SharedRouteValidationError(
+							"Shared route source does not belong to the current user.",
+						),
+					);
+				}
+
+				sourceRouteId = requestedSourceRouteId;
+			}
+
+			const existingShare = yield* tryConvexPromise(
+				() =>
+					ctx.db
+						.query("sharedRoutes")
+						.withIndex("by_shareToken", (q) =>
+							q.eq("shareToken", args.shareToken),
+						)
+						.unique(),
+				"Could not check shared route token.",
 			);
-		}
 
-		sourceRouteId = requestedSourceRouteId;
-	}
+			if (existingShare) {
+				return yield* Effect.fail(
+					new SharedRouteValidationError("Share token already exists."),
+				);
+			}
 
-	const existingShare = await ctx.db
-		.query("sharedRoutes")
-		.withIndex("by_shareToken", (q) => q.eq("shareToken", args.shareToken))
-		.unique();
+			yield* tryConvexPromise(
+				() =>
+					ctx.db.insert("sharedRoutes", {
+						shareToken: args.shareToken,
+						ownerUserId,
+						...(sourceRouteId ? { sourceRouteId } : {}),
+						createdAtMs: Date.now(),
+						routeJson: savedRoute.routeJson,
+					}),
+				"Could not create shared route.",
+			);
 
-	if (existingShare) {
-		throw new Error("Share token already exists.");
-	}
-
-	await ctx.db.insert("sharedRoutes", {
-		shareToken: args.shareToken,
-		ownerUserId,
-		...(sourceRouteId ? { sourceRouteId } : {}),
-		createdAtMs: Date.now(),
-		routeJson: savedRoute.routeJson,
-	});
-
-	return {
-		shareToken: args.shareToken,
-		urlPath: `/share/${args.shareToken}`,
-	};
+			return {
+				shareToken: args.shareToken,
+				urlPath: `/share/${args.shareToken}`,
+			};
+		}),
+	);
 }
 
 export async function getByTokenHandler(
 	ctx: QueryCtx,
 	args: { shareToken: string },
 ) {
-	if (!isValidShareToken(args.shareToken)) {
-		return null;
-	}
+	return runConvexEffect(
+		Effect.gen(function* () {
+			if (!isValidShareToken(args.shareToken)) {
+				return null;
+			}
 
-	const sharedRoute = await ctx.db
-		.query("sharedRoutes")
-		.withIndex("by_shareToken", (q) => q.eq("shareToken", args.shareToken))
-		.unique();
+			const sharedRoute = yield* tryConvexPromise(
+				() =>
+					ctx.db
+						.query("sharedRoutes")
+						.withIndex("by_shareToken", (q) =>
+							q.eq("shareToken", args.shareToken),
+						)
+						.unique(),
+				"Could not read shared route.",
+			);
 
-	return sharedRoute ? remotePayloadFromRow(sharedRoute) : null;
+			return sharedRoute ? remotePayloadFromRow(sharedRoute) : null;
+		}),
+	);
 }
 
 export const create = mutation({

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Result, Schema } from "effect";
 
 import { TimeoutFetch } from "$lib/server/resilience";
 
@@ -22,13 +22,20 @@ export class OpenMeteoWindError extends Error {
 const openMeteoForecastUrl = "https://api.open-meteo.com/v1/forecast";
 const openMeteoTimeoutMs = 4500;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return value !== null && !Array.isArray(value) && typeof value === "object";
-}
+const OpenMeteoWindPayloadSchema = Schema.Struct({
+	current: Schema.Struct({
+		time: Schema.NonEmptyString,
+		wind_speed_10m: Schema.Finite,
+		wind_direction_10m: Schema.Finite,
+	}),
+});
+const OpenMeteoBatchWindPayloadSchema = Schema.Union([
+	OpenMeteoWindPayloadSchema,
+	Schema.mutable(Schema.Array(OpenMeteoWindPayloadSchema)),
+]);
 
-function getFiniteNumber(value: unknown): number | null {
-	return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
+type OpenMeteoWindPayload = typeof OpenMeteoWindPayloadSchema.Type;
+type OpenMeteoBatchWindPayload = typeof OpenMeteoBatchWindPayloadSchema.Type;
 
 function buildOpenMeteoWindUrl(coordinates: [number, number][]): string {
 	const url = new URL(openMeteoForecastUrl);
@@ -46,43 +53,50 @@ function buildOpenMeteoWindUrl(coordinates: [number, number][]): string {
 	return url.toString();
 }
 
-function parseOpenMeteoWindPayload(
-	payload: unknown,
-): OpenMeteoWindForecast | null {
-	if (!isRecord(payload) || !isRecord(payload.current)) {
-		return null;
-	}
-
-	const speedKmh = getFiniteNumber(payload.current.wind_speed_10m);
-	const directionDegrees = getFiniteNumber(payload.current.wind_direction_10m);
-	const forecastTime =
-		typeof payload.current.time === "string" ? payload.current.time : null;
-
-	if (speedKmh === null || directionDegrees === null || !forecastTime) {
-		return null;
-	}
-
+function toOpenMeteoWindForecast(
+	payload: OpenMeteoWindPayload,
+): OpenMeteoWindForecast {
 	return {
-		speedKmh,
-		directionDegrees,
-		forecastTime,
+		speedKmh: payload.current.wind_speed_10m,
+		directionDegrees: payload.current.wind_direction_10m,
+		forecastTime: payload.current.time,
 	};
 }
 
-function parseOpenMeteoBatchWindPayload(
-	payload: unknown,
-): OpenMeteoWindForecast[] | null {
-	if (Array.isArray(payload)) {
-		const forecasts = payload.map(parseOpenMeteoWindPayload);
-		return forecasts.every(
-			(forecast): forecast is OpenMeteoWindForecast => forecast !== null,
-		)
-			? forecasts
-			: null;
-	}
+function toOpenMeteoWindForecasts(
+	payload: OpenMeteoBatchWindPayload,
+): OpenMeteoWindForecast[] {
+	const payloads = Array.isArray(payload) ? payload : [payload];
+	return payloads.map(toOpenMeteoWindForecast);
+}
 
-	const forecast = parseOpenMeteoWindPayload(payload);
-	return forecast ? [forecast] : null;
+function parseOpenMeteoWindPayload(
+	payload: unknown,
+): OpenMeteoWindForecast | null {
+	const result = Schema.decodeUnknownResult(OpenMeteoWindPayloadSchema)(
+		payload,
+	);
+
+	return Result.isSuccess(result)
+		? toOpenMeteoWindForecast(result.success)
+		: null;
+}
+
+function decodeOpenMeteoBatchWindPayload(
+	payload: unknown,
+): Effect.Effect<OpenMeteoWindForecast[], OpenMeteoWindError> {
+	return Schema.decodeUnknownEffect(OpenMeteoBatchWindPayloadSchema)(
+		payload,
+	).pipe(
+		Effect.map(toOpenMeteoWindForecasts),
+		Effect.mapError(
+			(cause) =>
+				new OpenMeteoWindError(
+					"Open-Meteo wind response was malformed.",
+					cause,
+				),
+		),
+	);
 }
 
 export function fetchOpenMeteoBatchWindEffect(
@@ -120,9 +134,9 @@ export function fetchOpenMeteoBatchWindEffect(
 			catch: (cause) =>
 				new OpenMeteoWindError("Open-Meteo wind response was not JSON.", cause),
 		});
-		const parsed = parseOpenMeteoBatchWindPayload(payload);
+		const parsed = yield* decodeOpenMeteoBatchWindPayload(payload);
 
-		if (!parsed || parsed.length !== coordinates.length) {
+		if (parsed.length !== coordinates.length) {
 			return yield* Effect.fail(
 				new OpenMeteoWindError("Open-Meteo wind response was malformed."),
 			);
