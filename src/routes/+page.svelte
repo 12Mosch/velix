@@ -266,6 +266,7 @@
 	let gpxImportInput = $state<HTMLInputElement | null>(null);
 	let undoStack = $state<RouteEditSnapshot[]>([]);
 	let redoStack = $state<RouteEditSnapshot[]>([]);
+	let advancedOpen = $state(false);
 
 	let completionAbortController: AbortController | null = null;
 	let completionBlurTimer: ReturnType<typeof setTimeout> | null = null;
@@ -465,10 +466,25 @@
 	);
 	const canUndoRouteEdit = $derived(undoStack.length > 0 && !isRouting);
 	const canRedoRouteEdit = $derived(redoStack.length > 0 && !isRouting);
+	const hasAdvancedErrors = $derived(
+		Boolean(
+			fieldErrors.spatialConstraint ||
+				fieldErrors.waypointQueries?.some(Boolean) ||
+				(isRoundCourseMode &&
+					roundCourseTargetKind !== "distance" &&
+					fieldErrors.roundCourseTarget),
+		),
+	);
 
 	$effect(() => {
 		if (!activeRoute && routeAnalysisOpen) {
 			routeAnalysisOpen = false;
+		}
+	});
+
+	$effect(() => {
+		if (hasAdvancedErrors) {
+			advancedOpen = true;
 		}
 	});
 
@@ -3380,29 +3396,14 @@
 	>
 		<div class="flex min-h-0 min-w-0 flex-1 gap-5 md:gap-6">
 			<div
-				class="pointer-events-auto flex w-full max-w-[340px] flex-col gap-3 max-md:ml-11 max-md:mt-10 md:ml-0 md:mt-4"
+				class="pointer-events-auto absolute inset-x-3 bottom-3 flex max-h-[min(52dvh,28rem)] max-w-none flex-col gap-3 overflow-y-auto md:static md:ml-0 md:mt-4 md:w-full md:max-w-[340px] md:overflow-visible"
 			>
 				<form
 					class="flex flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-lg"
 					onsubmit={handleGenerateRoute}
 				>
 					<div class="flex items-center justify-between gap-3">
-						<div class="space-y-1">
-							<h2 class="text-base font-semibold tracking-tight md:text-lg">Route Builder</h2>
-							<p class="text-xs text-muted-foreground">
-								{isRoundCourseMode
-									? "Plan a loop ride from one start point and let GraphHopper bring it back home."
-									: isOutAndBackMode
-										? "Pick a turnaround point and return on the same road."
-									: "Build an asphalt-first road-bike route with optional intermediate stops."}
-							</p>
-						</div>
-						<Badge
-							variant="secondary"
-							class="h-5 shrink-0 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold text-primary"
-						>
-							Asphalt first
-						</Badge>
+						<h2 class="text-base font-semibold tracking-tight md:text-lg">Route Builder</h2>
 					</div>
 
 					<div class="grid grid-cols-3 gap-1 rounded-lg border border-border/60 bg-secondary/15 p-1">
@@ -3519,35 +3520,8 @@
 						</div>
 
 						{#if isRoundCourseMode}
-							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
-								<div class="space-y-1">
-									<div class="block text-xs font-semibold uppercase tracking-wide text-foreground/80">
-										Round-course target
-									</div>
-									<div class="grid grid-cols-3 gap-2">
-										{#each [
-											{ kind: "distance", label: "Distance" },
-											{ kind: "duration", label: "Time" },
-											{ kind: "ascend", label: "Climb" },
-										] as option}
-											<Button
-												type="button"
-												variant="outline"
-												class={`h-auto min-w-0 justify-center rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-													roundCourseTargetKind === option.kind
-														? "border-primary/20 bg-background shadow-sm"
-														: "text-muted-foreground"
-												}`}
-												aria-pressed={roundCourseTargetKind === option.kind}
-												onclick={() =>
-													updateRoundCourseTargetKind(option.kind as RoundCourseTargetKind)}
-											>
-												{option.label}
-											</Button>
-										{/each}
-									</div>
-								</div>
-								{#if roundCourseTargetKind === "distance"}
+							{#if roundCourseTargetKind === "distance"}
+								<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 									<div class="space-y-2">
 										<label
 											for="round-course-distance"
@@ -3578,77 +3552,15 @@
 											</span>
 										</div>
 									</div>
-								{:else if roundCourseTargetKind === "duration"}
-									<div class="space-y-2">
-										<label
-											for="round-course-time"
-											class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-										>
-											Target time
-										</label>
-										<div class="relative">
-											<Input
-												id="round-course-time"
-												value={roundCourseDurationInput}
-												placeholder="e.g. 3:30"
-												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
-												oninput={(event) =>
-													updateRoundCourseDuration(
-														(event.currentTarget as HTMLInputElement).value,
-													)}
-											/>
-											<span
-												class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-											>
-												h
-											</span>
-										</div>
-									</div>
-								{:else}
-									<div class="space-y-2">
-										<label
-											for="round-course-climb"
-											class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-										>
-											Target climb
-										</label>
-										<div class="relative">
-											<Input
-												id="round-course-climb"
-												type="number"
-												min="50"
-												step="50"
-												inputmode="decimal"
-												value={roundCourseAscendMeters}
-												placeholder="e.g. 800"
-												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
-												oninput={(event) =>
-													updateRoundCourseAscend(
-														(event.currentTarget as HTMLInputElement).value,
-													)}
-											/>
-											<span
-												class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-											>
-												m
-											</span>
-										</div>
-									</div>
-								{/if}
-								<p class="text-xs text-muted-foreground">
-									Distance targets search around the requested loop distance; time
-									and climb targets search nearby loop distances for the closest match.
-								</p>
-								{#if fieldErrors.roundCourseTarget}
-									<p class="text-xs font-medium text-destructive">
-										{fieldErrors.roundCourseTarget}
-									</p>
-								{/if}
-							</div>
+									{#if fieldErrors.roundCourseTarget}
+										<p class="text-xs font-medium text-destructive">
+											{fieldErrors.roundCourseTarget}
+										</p>
+									{/if}
+								</div>
+							{/if}
 						{:else}
-							{#if !isRoundCourseMode}
+							{#if advancedOpen && !isRoundCourseMode}
 							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 								<div class="flex items-center justify-between gap-3">
 									<div>
@@ -3914,7 +3826,127 @@
 						{/if}
 					</div>
 
-					<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+					<Button
+						type="button"
+						variant="ghost"
+						class="justify-between rounded-lg border border-border/60 px-3 font-semibold"
+						aria-expanded={advancedOpen}
+						aria-controls="route-builder-advanced"
+						onclick={() => (advancedOpen = !advancedOpen)}
+					>
+						Advanced
+						{#if advancedOpen}
+							<ChevronUp class="size-4 opacity-70" />
+						{:else}
+							<ChevronDown class="size-4 opacity-70" />
+						{/if}
+					</Button>
+
+					{#if advancedOpen}
+					<div id="route-builder-advanced" class="space-y-3">
+						{#if isRoundCourseMode}
+							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+								<div class="space-y-1">
+									<div class="block text-xs font-semibold uppercase tracking-wide text-foreground/80">
+										Round-course target
+									</div>
+									<div class="grid grid-cols-3 gap-2">
+										{#each [
+											{ kind: "distance", label: "Distance" },
+											{ kind: "duration", label: "Time" },
+											{ kind: "ascend", label: "Climb" },
+										] as option}
+											<Button
+												type="button"
+												variant="outline"
+												class={`h-auto min-w-0 justify-center rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
+													roundCourseTargetKind === option.kind
+														? "border-primary/20 bg-background shadow-sm"
+														: "text-muted-foreground"
+												}`}
+												aria-pressed={roundCourseTargetKind === option.kind}
+												onclick={() =>
+													updateRoundCourseTargetKind(option.kind as RoundCourseTargetKind)}
+											>
+												{option.label}
+											</Button>
+										{/each}
+									</div>
+								</div>
+
+								{#if roundCourseTargetKind === "duration"}
+									<div class="space-y-2">
+										<label
+											for="round-course-time"
+											class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+										>
+											Target time
+										</label>
+										<div class="relative">
+											<Input
+												id="round-course-time"
+												value={roundCourseDurationInput}
+												placeholder="e.g. 3:30"
+												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
+												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
+												oninput={(event) =>
+													updateRoundCourseDuration(
+														(event.currentTarget as HTMLInputElement).value,
+													)}
+											/>
+											<span
+												class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+											>
+												h
+											</span>
+										</div>
+									</div>
+								{:else if roundCourseTargetKind === "ascend"}
+									<div class="space-y-2">
+										<label
+											for="round-course-climb"
+											class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+										>
+											Target climb
+										</label>
+										<div class="relative">
+											<Input
+												id="round-course-climb"
+												type="number"
+												min="50"
+												step="50"
+												inputmode="decimal"
+												value={roundCourseAscendMeters}
+												placeholder="e.g. 800"
+												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
+												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
+												oninput={(event) =>
+													updateRoundCourseAscend(
+														(event.currentTarget as HTMLInputElement).value,
+													)}
+											/>
+											<span
+												class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+											>
+												m
+											</span>
+										</div>
+									</div>
+								{/if}
+
+								<p class="text-xs text-muted-foreground">
+									Distance targets search around the requested loop distance; time
+									and climb targets search nearby loop distances for the closest match.
+								</p>
+								{#if roundCourseTargetKind !== "distance" && fieldErrors.roundCourseTarget}
+									<p class="text-xs font-medium text-destructive">
+										{fieldErrors.roundCourseTarget}
+									</p>
+								{/if}
+							</div>
+						{/if}
+
+						<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 						<div class="space-y-1">
 							<div class="text-xs font-semibold uppercase tracking-wide text-foreground/80">
 								Route bounds
@@ -4159,6 +4191,8 @@
 							</Badge>
 						</div>
 					</div>
+					</div>
+					{/if}
 
 					{#if routeRequestError}
 						<div
@@ -4305,30 +4339,6 @@
 
 					<div class="flex shrink-0 flex-col items-end gap-1.5">
 						<div class="flex flex-wrap items-center justify-end gap-2">
-							<div class="flex items-center gap-1">
-								<Button
-									variant="outline"
-									size="icon"
-									class="size-8"
-									type="button"
-									disabled={!canUndoRouteEdit}
-									aria-label="Undo route edit"
-									onclick={undoRouteEdit}
-								>
-									<Undo2 class="size-3.5" />
-								</Button>
-								<Button
-									variant="outline"
-									size="icon"
-									class="size-8"
-									type="button"
-									disabled={!canRedoRouteEdit}
-									aria-label="Redo route edit"
-									onclick={redoRouteEdit}
-								>
-									<Redo2 class="size-3.5" />
-								</Button>
-							</div>
 							<Button
 								variant="outline"
 								size="sm"
@@ -4341,68 +4351,86 @@
 								{/if}
 								{isImportingGpx ? "Importing GPX..." : "Import GPX"}
 							</Button>
-							<Button
-								variant={isActiveRouteSaved ? "secondary" : "outline"}
-								size="sm"
-								class="gap-1 font-semibold"
-								disabled={!activeRoute}
-								onclick={handleSaveDraft}
-							>
-								{#if isActiveRouteSaved}
-									<Check class="size-3.5" />
-									Saved
-								{:else}
-									Save Draft
-								{/if}
-							</Button>
-							<Button
-								size="sm"
-								class="font-semibold"
-								disabled={!activeRoute}
-								onclick={handleExportGpx}
-							>
-								Export GPX
-							</Button>
-							<Button
-								size="sm"
-								variant="outline"
-								class="font-semibold"
-								disabled={!activeRoute}
-								onclick={handleExportFit}
-							>
-								Export FIT
-							</Button>
-							<Button
-								size="sm"
-								variant="outline"
-								class="gap-1 font-semibold"
-								disabled={!activeRoute || isSharingRoute}
-								onclick={handleShareActiveRoute}
-							>
-								<Share2 class="size-3.5" />
-								{isSharingRoute ? "Sharing..." : isActiveRouteShareCopied ? "Copied" : "Share"}
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								class="gap-1 font-semibold"
-								disabled={!activeRoute}
-								onclick={() => (routeAnalysisOpen = !routeAnalysisOpen)}
-								aria-expanded={activeRoute ? routeAnalysisOpen : false}
-								aria-controls="route-analysis-panel"
-							>
-								{routeAnalysisOpen ? "Less" : "Analysis"}
-								{#if routeAnalysisOpen}
-									<ChevronUp class="size-3.5 opacity-70" />
-								{:else}
-									<ChevronDown class="size-3.5 opacity-70" />
-								{/if}
-							</Button>
+							{#if activeRoute}
+								<div class="flex items-center gap-1">
+									<Button
+										variant="outline"
+										size="icon"
+										class="size-8"
+										type="button"
+										disabled={!canUndoRouteEdit}
+										aria-label="Undo route edit"
+										onclick={undoRouteEdit}
+									>
+										<Undo2 class="size-3.5" />
+									</Button>
+									<Button
+										variant="outline"
+										size="icon"
+										class="size-8"
+										type="button"
+										disabled={!canRedoRouteEdit}
+										aria-label="Redo route edit"
+										onclick={redoRouteEdit}
+									>
+										<Redo2 class="size-3.5" />
+									</Button>
+								</div>
+								<Button
+									variant={isActiveRouteSaved ? "secondary" : "outline"}
+									size="sm"
+									class="gap-1 font-semibold"
+									onclick={handleSaveDraft}
+								>
+									{#if isActiveRouteSaved}
+										<Check class="size-3.5" />
+										Saved
+									{:else}
+										Save Draft
+									{/if}
+								</Button>
+								<Button size="sm" class="font-semibold" onclick={handleExportGpx}>
+									Export GPX
+								</Button>
+								<Button
+									size="sm"
+									variant="outline"
+									class="font-semibold"
+									onclick={handleExportFit}
+								>
+									Export FIT
+								</Button>
+								<Button
+									size="sm"
+									variant="outline"
+									class="gap-1 font-semibold"
+									disabled={isSharingRoute}
+									onclick={handleShareActiveRoute}
+								>
+									<Share2 class="size-3.5" />
+									{isSharingRoute ? "Sharing..." : isActiveRouteShareCopied ? "Copied" : "Share"}
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									class="gap-1 font-semibold"
+									onclick={() => (routeAnalysisOpen = !routeAnalysisOpen)}
+									aria-expanded={routeAnalysisOpen}
+									aria-controls="route-analysis-panel"
+								>
+									{routeAnalysisOpen ? "Less" : "Analysis"}
+									{#if routeAnalysisOpen}
+										<ChevronUp class="size-3.5 opacity-70" />
+									{:else}
+										<ChevronDown class="size-3.5 opacity-70" />
+									{/if}
+								</Button>
+							{/if}
 						</div>
 					</div>
 				</div>
 
-				{#if routeExportError}
+				{#if activeRoute && routeExportError}
 					<div
 						class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
 						role="alert"
@@ -4411,7 +4439,7 @@
 					</div>
 				{/if}
 
-				{#if activeRouteShareError}
+				{#if activeRoute && activeRouteShareError}
 					<div
 						class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
 						role="alert"
@@ -4438,7 +4466,7 @@
 					</div>
 				{/if}
 
-				{#if activeImportedRouteSource}
+				{#if activeRoute && activeImportedRouteSource}
 					<div
 						class="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/8 px-3 py-2 text-sm text-sky-900 dark:text-sky-100"
 						role="status"
@@ -4450,7 +4478,7 @@
 					</div>
 				{/if}
 
-				{#if avoidedRoads.length > 0}
+				{#if activeRoute && avoidedRoads.length > 0}
 					<div class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
 						<div class="mb-2 flex items-center justify-between gap-3">
 							<div class="text-xs font-semibold uppercase tracking-wide text-destructive">
@@ -4478,7 +4506,7 @@
 					</div>
 				{/if}
 
-				{#if routeAlternatives.length > 1}
+				{#if activeRoute && routeAlternatives.length > 1}
 					<div class="mt-3 rounded-lg border border-border/50 bg-secondary/10 p-3">
 						<div class="mb-2 flex items-center justify-between gap-3">
 							<div class="text-xs font-semibold uppercase tracking-wide text-foreground/75">
@@ -4565,7 +4593,7 @@
 					</div>
 				{/if}
 
-				{#if alternativeInfoMessage}
+				{#if activeRoute && alternativeInfoMessage}
 					<div
 						class="mt-3 rounded-lg border border-border/50 bg-secondary/10 px-3 py-2 text-sm text-muted-foreground"
 						role="status"
@@ -4574,6 +4602,7 @@
 					</div>
 				{/if}
 
+				{#if activeRoute}
 				<div class="mt-2.5 min-w-0 rounded-md border border-border/40 bg-secondary/10">
 					{#if activeRoute}
 						<div class="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 px-3 py-2">
@@ -4806,6 +4835,7 @@
 						</div>
 					{/if}
 				</div>
+				{/if}
 
 				{#if routeAnalysisOpen && activeRoute}
 					<div

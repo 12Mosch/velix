@@ -704,6 +704,138 @@ describe("+page.svelte", () => {
 			.toBeDisabled();
 	});
 
+	it("shows the simplified route builder before a route exists", async () => {
+		render(PageTestShell);
+
+		await expect.element(page.getByText("Route Builder")).toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: /Point to point/i }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: /Out and back/i }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: /Round course/i }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("textbox", { name: "Destination" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Generate Route" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Advanced" }))
+			.toHaveAttribute("aria-expanded", "false");
+		await expect
+			.element(page.getByRole("button", { name: "Add waypoint" }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Route bounds"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Optimization strategy"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Save Draft" }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Export GPX" }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Export FIT" }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Share" }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Analysis" }))
+			.not.toBeInTheDocument();
+	});
+
+	it("reveals advanced route builder controls", async () => {
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: "Advanced" }).click();
+
+		await expect
+			.element(page.getByRole("button", { name: "Add waypoint" }))
+			.toBeInTheDocument();
+		await expect.element(page.getByText("Route bounds")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Optimization strategy"))
+			.toBeInTheDocument();
+	});
+
+	it("shows route actions after generating a route", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url = String(input);
+
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: successfulRoutePayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.element(page.getByRole("button", { name: "Saved" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Export GPX" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Export FIT" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Share" }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Analysis" }))
+			.toBeInTheDocument();
+	});
+
+	it("opens Advanced when an advanced validation error is present", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await page.getByRole("button", { name: "Area" }).click();
+		await page.getByRole("spinbutton", { name: "Radius" }).fill("999999");
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.element(page.getByRole("button", { name: "Advanced" }))
+			.toHaveAttribute("aria-expanded", "true");
+		await expect
+			.element(page.getByText(/Enter an area radius from/i))
+			.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(0);
+	});
+
 	it("disables the gradient overlay toggle until a route with elevation exists", async () => {
 		render(PageTestShell);
 
@@ -812,6 +944,7 @@ describe("+page.svelte", () => {
 		await page
 			.getByRole("textbox", { name: "Start" })
 			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Add waypoint" }).click();
 		await page.getByRole("textbox", { name: "Waypoint 1" }).fill("Tegernsee");
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
@@ -1149,6 +1282,7 @@ describe("+page.svelte", () => {
 			.getByRole("textbox", { name: "Start" })
 			.fill("Marienplatz Munich");
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Area" }).click();
 		await page.getByRole("textbox", { name: "Area center" }).fill("Mari");
 		await expect
@@ -1218,6 +1352,7 @@ describe("+page.svelte", () => {
 			.getByRole("textbox", { name: "Start" })
 			.fill("Marienplatz Munich");
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Corridor" }).click();
 		await page.getByRole("button", { name: "Prefer inside" }).click();
 		await page.getByRole("spinbutton", { name: "Width" }).fill("12");
@@ -1255,6 +1390,7 @@ describe("+page.svelte", () => {
 
 		render(PageTestShell);
 
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Corridor" }).click();
 		await expect
 			.element(page.getByRole("spinbutton", { name: "Width" }))
@@ -1293,6 +1429,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("textbox", { name: "Start" }))
 			.toHaveValue("Marienplatz, Munich, Germany");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await expect
 			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
 			.toHaveValue("Tegernsee, Germany");
@@ -1663,6 +1800,7 @@ describe("+page.svelte", () => {
 		render(PageTestShell);
 
 		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Add waypoint" }).click();
 		await page.getByRole("textbox", { name: "Waypoint 1" }).fill("Tegernsee");
 		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
@@ -1974,6 +2112,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("textbox", { name: "Start" }))
 			.toHaveValue("Marienplatz, Munich, Germany");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await expect
 			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
 			.toHaveValue("Tegernsee, Germany");
@@ -2095,6 +2234,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("textbox", { name: "Start" }))
 			.toHaveValue("Marienplatz, Munich, Germany");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await expect
 			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
 			.toHaveValue("Tegernsee, Germany");
@@ -2443,6 +2583,7 @@ describe("+page.svelte", () => {
 
 		await page.getByRole("button", { name: /Round course/i }).click();
 		await page.getByRole("spinbutton", { name: "Target distance" }).fill("50");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Area" }).click();
 
 		await expect
@@ -2507,6 +2648,10 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("textbox", { name: "Turnaround" }))
 			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Add waypoint" }))
+			.not.toBeInTheDocument();
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await expect
 			.element(page.getByRole("button", { name: "Add waypoint" }))
 			.toBeInTheDocument();
@@ -2583,6 +2728,7 @@ describe("+page.svelte", () => {
 		render(PageTestShell);
 
 		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Time" }).click();
 		await page.getByRole("textbox", { name: "Target time" }).fill("3:30");
 		await page
@@ -2641,6 +2787,7 @@ describe("+page.svelte", () => {
 		render(PageTestShell);
 
 		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Climb" }).click();
 		await page.getByRole("spinbutton", { name: "Target climb" }).fill("800");
 		await page
@@ -2723,6 +2870,7 @@ describe("+page.svelte", () => {
 		render(PageTestShell);
 
 		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await expect
 			.element(page.getByRole("button", { name: "Area" }))
 			.toHaveAttribute("aria-pressed", "true");
@@ -2896,6 +3044,7 @@ describe("+page.svelte", () => {
 		render(PageTestShell);
 
 		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Add waypoint" }).click();
 		await page.getByRole("button", { name: "Add waypoint" }).click();
 		await page.getByRole("textbox", { name: "Waypoint 1" }).fill("Bad Tolz");
@@ -3404,6 +3553,7 @@ describe("+page.svelte", () => {
 		});
 		await page.getByRole("button", { name: "Add waypoint here" }).click();
 
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await expect
 			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
 			.toHaveValue("Tegernsee, Germany");
@@ -3458,6 +3608,7 @@ describe("+page.svelte", () => {
 			.toBeInTheDocument();
 		await page.getByRole("button", { name: "Remove waypoint 1" }).click();
 
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await expect
 			.element(
 				page.getByText(
@@ -3595,6 +3746,7 @@ describe("+page.svelte", () => {
 
 		render(PageTestShell);
 
+		await page.getByRole("button", { name: "Advanced" }).click();
 		await page.getByRole("button", { name: "Add waypoint" }).click();
 		const waypointInput = page.getByRole("textbox", { name: "Waypoint 1" });
 		await waypointInput.fill("Teg");
