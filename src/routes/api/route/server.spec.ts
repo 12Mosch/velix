@@ -477,6 +477,81 @@ describe("POST /api/route", () => {
 		expect(payload.routes[0]?.destinationLabel).toBe("47.73620, 11.85980");
 	});
 
+	it("accepts coordinate-only point-to-point start and destination", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						point: [11.5755, 48.1374],
+					},
+					destination: {
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
+		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.8598, 47.7362],
+		]);
+	});
+
+	it("accepts coordinate-only point-to-point waypoints", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.7582, 47.7124, 734],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [
+						{
+							point: [11.7581, 47.7123],
+						},
+					],
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
+		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.points).toEqual([
+			[11.5755, 48.1374],
+			[11.7581, 47.7123],
+			[11.8598, 47.7362],
+		]);
+	});
+
 	it("sends point-to-point area constraints through the GraphHopper custom model", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			buildRouteResponse([
@@ -1261,6 +1336,34 @@ describe("POST /api/route", () => {
 		});
 	});
 
+	it("accepts coordinate-only out-and-back start and turnaround", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "out_and_back",
+					start: {
+						point: [11.5755, 48.1374],
+					},
+					turnaround: {
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
+		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
+	});
+
 	it("returns a field error when an out-and-back turnaround cannot be resolved", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
@@ -1557,6 +1660,39 @@ describe("POST /api/route", () => {
 		});
 	});
 
+	it("keeps empty structured stops invalid while accepting coordinate-only waypoints", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {},
+					waypoints: [
+						{},
+						{
+							point: [11.7581, 47.7123],
+						},
+					],
+					destination: {
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Start and destination are required.",
+			fieldErrors: {
+				startQuery: "Enter a start point.",
+				waypointQueries: ["Enter a waypoint or remove this stop.", ""],
+			},
+		});
+	});
+
 	it("rejects non-object JSON payloads as invalid route requests", async () => {
 		const fetchMock = vi.fn<typeof fetch>();
 
@@ -1667,6 +1803,40 @@ describe("POST /api/route", () => {
 		});
 		expect(route?.routingProfile).toBe("racingbike");
 		expect(payload.roundCourseCandidateErrors).toBeUndefined();
+	});
+
+	it("accepts coordinate-only round-course starts", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockImplementation(() =>
+				Promise.resolve(buildRoundCourseResponse([11.5756, 48.1375, 522])),
+			);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						point: [11.5755, 48.1374],
+					},
+					target: {
+						kind: "distance",
+						distanceMeters: 50000,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(6);
+		expect(
+			fetchMock.mock.calls.every(
+				(call) => !String(call[0]).includes("geocode"),
+			),
+		).toBe(true);
+		const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(requestBody.points).toEqual([[11.5755, 48.1374]]);
 	});
 
 	it("validates the minimum target distance for round-course requests", async () => {
