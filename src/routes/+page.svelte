@@ -44,7 +44,6 @@
 		upsertSavedRoute,
 	} from "$lib/saved-routes.svelte";
 	import {
-		cloneRoute,
 		serializeSavedRouteForRemote,
 	} from "$lib/saved-routes-core";
 	import {
@@ -66,7 +65,6 @@
 		getRouteElevationAnalysisPoints,
 		getRouteLegIndexForCoordinateSegment,
 		getRouteSegmentCount,
-		getRouteStopInputs,
 		getRouteTurnCount,
 		getProviderWarnings,
 		getReadinessWarnings,
@@ -88,10 +86,7 @@
 		type RouteMapOverlay,
 		type RouteClimb,
 		type RouteRequestPayload,
-		type RouteAvoidanceInput,
 		type RouteWarning,
-		type RouteSpatialConstraintInput,
-		type RouteStopInput,
 		type RouteSuggestion,
 		type RouteSuggestionsApiSuccess,
 		type RouteWindSegment,
@@ -130,7 +125,6 @@
 		formatWindBucket,
 		formatWindComponent,
 		formatWindSpeed,
-		formatRoundCourseDurationInput,
 		formatRoundCourseTarget,
 		formatSpatialConstraintEnforcement,
 		formatSpatialConstraintSummary,
@@ -156,8 +150,27 @@
 		RoundCourseTargetKind,
 		SelectedMapStop,
 		SpatialConstraintKind,
-		StopSource,
 	} from "$lib/route-planner/types";
+	import {
+		buildCurrentRouteRequest as buildPlannerCurrentRouteRequest,
+		captureRouteEditSnapshot as capturePlannerRouteEditSnapshot,
+		createPlannerStop,
+		getActiveRouteForSaving as getSaveableActiveRoute,
+		getAvoidanceRequest as getPlannerAvoidanceRequest,
+		getDefaultSpatialConstraintState,
+		getManualEditingRequest as getPlannerManualEditingRequest,
+		getRoundCourseTarget,
+		getRouteShareSignature,
+		hydratePlannerStateFromRoute,
+		pruneRouteShareState,
+		restoreRouteEditSnapshot as restorePlannerSnapshot,
+		validatePlannerForm as runPlannerValidation,
+		withAvoidancesState,
+		withManualEditingState,
+		withPlannerRouteState,
+		type PlannerFormState,
+		type PlannerRouteState,
+	} from "$lib/route-planner/page/planner-state";
 	import {
 		AlertTriangle,
 		ArrowDown,
@@ -226,18 +239,6 @@
 		}
 
 		return "border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100";
-	}
-
-	function createPlannerStop(
-		label = "",
-		point?: [number, number],
-		source: StopSource = "typed",
-	): PlannerStop {
-		return {
-			label,
-			point,
-			source,
-		};
 	}
 
 	let routeAnalysisOpen = $state(false);
@@ -313,6 +314,66 @@
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let detachRouteEditKeyboardListener = () => {};
 	let completionRequestId = 0;
+
+	function getPlannerFormState(): PlannerFormState {
+		return {
+			plannerMode,
+			startStop,
+			waypointStops,
+			destinationStop,
+			roundCourseTargetKind,
+			roundCourseDistanceInput,
+			roundCourseDistanceMetersInput,
+			roundCourseDurationInput,
+			roundCourseAscendMeters,
+			spatialConstraintKind,
+			spatialConstraintEnforcement,
+			constraintCenterStop,
+			areaRadiusInput,
+			corridorWidthInput,
+			areaRadiusMetersInput,
+			corridorWidthMetersInput,
+			fieldErrors,
+		};
+	}
+
+	function getPlannerRouteState(): PlannerRouteState {
+		return {
+			routeAlternatives,
+			selectedRouteIndex,
+			lockedSegmentIndexes,
+			avoidedRoads,
+			lastGeneratedRouteCount,
+		};
+	}
+
+	function applyPlannerFormState(form: PlannerFormState) {
+		plannerMode = form.plannerMode;
+		startStop = form.startStop;
+		waypointStops = form.waypointStops;
+		destinationStop = form.destinationStop;
+		roundCourseTargetKind = form.roundCourseTargetKind;
+		roundCourseDistanceInput = form.roundCourseDistanceInput;
+		roundCourseDistanceMetersInput = form.roundCourseDistanceMetersInput;
+		roundCourseDurationInput = form.roundCourseDurationInput;
+		roundCourseAscendMeters = form.roundCourseAscendMeters;
+		spatialConstraintKind = form.spatialConstraintKind;
+		spatialConstraintEnforcement = form.spatialConstraintEnforcement;
+		constraintCenterStop = form.constraintCenterStop;
+		areaRadiusInput = form.areaRadiusInput;
+		corridorWidthInput = form.corridorWidthInput;
+		areaRadiusMetersInput = form.areaRadiusMetersInput;
+		corridorWidthMetersInput = form.corridorWidthMetersInput;
+		fieldErrors = form.fieldErrors;
+	}
+
+	function applyPlannerRouteState(state: PlannerRouteState) {
+		routeAlternatives = state.routeAlternatives;
+		selectedRouteIndex = state.selectedRouteIndex;
+		lockedSegmentIndexes = state.lockedSegmentIndexes;
+		avoidedRoads = state.avoidedRoads;
+		lastGeneratedRouteCount = state.lastGeneratedRouteCount;
+	}
 
 	const selectedBasemap = $derived(
 		mapStylePreference.selectedBasemapId
@@ -803,37 +864,6 @@
 		selectedCueFocusKey += 1;
 	}
 
-	function getRouteStopInput(stop: PlannerStop): RouteStopInput {
-		return {
-			label: stop.label.trim(),
-			point: stop.point,
-		};
-	}
-
-	function getRoundCourseTarget(
-		route: PlannedRoute | null | undefined,
-	): RoundCourseTarget | null {
-		if (!route || route.mode !== "round_course") {
-			return null;
-		}
-
-		if (route.roundCourseTarget) {
-			return route.roundCourseTarget;
-		}
-
-		if (
-			typeof route.requestedDistanceMeters === "number" &&
-			Number.isFinite(route.requestedDistanceMeters)
-		) {
-			return {
-				kind: "distance",
-				distanceMeters: route.requestedDistanceMeters,
-			};
-		}
-
-		return null;
-	}
-
 	function getWindSegmentDistanceRange(
 		route: PlannedRoute,
 		segment: RouteWindSegment,
@@ -895,221 +925,24 @@
 		return "Generate Route";
 	}
 
-	function parseRoundCourseDurationInput(value: string): number | null {
-		const trimmedValue = value.trim();
-
-		if (!trimmedValue) {
-			return null;
-		}
-
-		if (trimmedValue.includes(":")) {
-			const [hoursPart, minutesPart, ...rest] = trimmedValue.split(":");
-			const hours = Number(hoursPart);
-			const minutes = Number(minutesPart);
-
-			if (
-				rest.length > 0 ||
-				!Number.isInteger(hours) ||
-				!Number.isInteger(minutes) ||
-				minutes < 0 ||
-				minutes >= 60
-			) {
-				return null;
-			}
-
-			return (hours * 60 + minutes) * 60 * 1000;
-		}
-
-		const decimalHours = Number(trimmedValue.replace(",", "."));
-
-		if (!Number.isFinite(decimalHours) || decimalHours < 0) {
-			return null;
-		}
-
-		return Math.round(decimalHours * 60 * 60 * 1000);
-	}
-
-	function buildRoundCourseTargetRequest(): RoundCourseTarget {
-		if (roundCourseTargetKind === "duration") {
-			return {
-				kind: "duration",
-				durationMs: parseRoundCourseDurationInput(roundCourseDurationInput) ?? Number.NaN,
-			};
-		}
-
-		if (roundCourseTargetKind === "ascend") {
-			return {
-				kind: "ascend",
-				ascendMeters: Number(roundCourseAscendMeters.replace(",", ".")),
-			};
-		}
-
-		return {
-			kind: "distance",
-			distanceMeters: roundCourseDistanceMetersInput ?? Number.NaN,
-		};
-	}
-
-	function buildSpatialConstraintRequest():
-		| RouteSpatialConstraintInput
-		| undefined {
-		if (spatialConstraintKind === "area") {
-			return {
-				kind: "area",
-				center: getRouteStopInput(constraintCenterStop),
-				radiusMeters: areaRadiusMetersInput ?? Number.NaN,
-				enforcement: spatialConstraintEnforcement,
-			};
-		}
-
-		if (spatialConstraintKind === "corridor" && !isRoundCourseMode) {
-			return {
-				kind: "corridor",
-				widthMeters: corridorWidthMetersInput ?? Number.NaN,
-				enforcement: spatialConstraintEnforcement,
-			};
-		}
-
-		return undefined;
-	}
-
 	function resetSpatialConstraintDefaults() {
-		spatialConstraintKind = "none";
-		spatialConstraintEnforcement = defaultSpatialConstraintEnforcement;
-		constraintCenterStop = createPlannerStop();
-		areaRadiusMetersInput = defaultAreaRadiusMeters;
-		corridorWidthMetersInput = defaultCorridorWidthMeters;
-		areaRadiusInput = formatDistanceInput(defaultAreaRadiusMeters);
-		corridorWidthInput = formatDistanceInput(defaultCorridorWidthMeters);
+		const defaults = getDefaultSpatialConstraintState();
+		spatialConstraintKind = defaults.spatialConstraintKind;
+		spatialConstraintEnforcement = defaults.spatialConstraintEnforcement;
+		constraintCenterStop = defaults.constraintCenterStop;
+		areaRadiusMetersInput = defaults.areaRadiusMetersInput;
+		corridorWidthMetersInput = defaults.corridorWidthMetersInput;
+		areaRadiusInput = defaults.areaRadiusInput;
+		corridorWidthInput = defaults.corridorWidthInput;
 	}
 
 	function syncStopsFromRoute(route: PlannedRoute) {
-		plannerMode = route.mode;
-		if (route.avoidances) {
-			avoidedRoads = route.avoidances;
-		}
-		const roundCourseTarget = getRoundCourseTarget(route);
-		roundCourseTargetKind = roundCourseTarget?.kind ?? "distance";
-		roundCourseDistanceMetersInput =
-			roundCourseTarget?.kind === "distance"
-				? roundCourseTarget.distanceMeters
-				: null;
-		roundCourseDistanceInput =
-			roundCourseTarget?.kind === "distance"
-				? formatDistanceInput(roundCourseTarget.distanceMeters)
-				: "";
-		roundCourseDurationInput =
-			roundCourseTarget?.kind === "duration"
-				? formatRoundCourseDurationInput(roundCourseTarget.durationMs)
-				: "";
-		roundCourseAscendMeters =
-			roundCourseTarget?.kind === "ascend"
-				? Math.round(roundCourseTarget.ascendMeters).toString()
-				: "";
-		const routeStops = getRouteStopInputs(route);
-		const [start] = routeStops;
-		const routeWaypointStops =
-			route.mode === "point_to_point"
-				? routeStops.slice(1, -1)
-				: route.mode === "out_and_back"
-					? routeStops.slice(1, -1)
-					: routeStops.slice(1);
-		const destination =
-			route.mode === "round_course"
-				? null
-				: (routeStops[routeStops.length - 1] ?? null);
-
-		startStop = createPlannerStop(
-			start?.label ?? "",
-			start?.point,
-			start?.point ? "suggestion" : "typed",
-		);
-		waypointStops =
-			routeWaypointStops.map((waypoint) =>
-				createPlannerStop(
-					waypoint.label,
-					waypoint.point,
-					waypoint.point ? "suggestion" : "typed",
-				),
-			);
-		destinationStop = createPlannerStop(
-			destination?.label ?? "",
-			destination?.point,
-			destination?.point ? "suggestion" : "typed",
-		);
-
-		if (!route.spatialConstraint) {
-			resetSpatialConstraintDefaults();
-			return;
-		}
-
-		spatialConstraintKind = route.spatialConstraint.kind;
-		spatialConstraintEnforcement = route.spatialConstraint.enforcement;
-
-		if (route.spatialConstraint.kind === "area") {
-			constraintCenterStop = createPlannerStop(
-				route.spatialConstraint.label,
-				route.spatialConstraint.center,
-				"suggestion",
-			);
-			areaRadiusMetersInput = route.spatialConstraint.radiusMeters;
-			corridorWidthMetersInput = defaultCorridorWidthMeters;
-			areaRadiusInput = formatDistanceInput(route.spatialConstraint.radiusMeters);
-			corridorWidthInput = formatDistanceInput(defaultCorridorWidthMeters);
-		} else {
-			constraintCenterStop = createPlannerStop();
-			areaRadiusMetersInput = defaultAreaRadiusMeters;
-			corridorWidthMetersInput = route.spatialConstraint.widthMeters;
-			areaRadiusInput = formatDistanceInput(defaultAreaRadiusMeters);
-			corridorWidthInput = formatDistanceInput(route.spatialConstraint.widthMeters);
-		}
-	}
-
-	function withManualEditingState(
-		route: PlannedRoute,
-		indexes: number[],
-	): PlannedRoute {
-		const lockedSegmentIndexesForRoute = sanitizeLockedSegmentIndexes(
-			indexes,
-			getRouteSegmentCount(route),
-		);
-		const { manualEditing: _manualEditing, ...routeWithoutManualEditing } =
-			route;
-
-		return lockedSegmentIndexesForRoute.length > 0
-			? {
-					...routeWithoutManualEditing,
-					manualEditing: {
-						lockedSegmentIndexes: lockedSegmentIndexesForRoute,
-					},
-				}
-			: routeWithoutManualEditing;
-	}
-
-	function withAvoidancesState(
-		route: PlannedRoute,
-		avoidances: ResolvedRouteAvoidance[],
-	): PlannedRoute {
-		const { avoidances: _avoidances, ...routeWithoutAvoidances } = route;
-
-		return avoidances.length > 0
-			? {
-					...routeWithoutAvoidances,
-					avoidances: avoidances.map((avoidance) => ({
-						...avoidance,
-						centerline: avoidance.centerline.map((point) => [point[0], point[1]]),
-						polygon: avoidance.polygon.map((point) => [point[0], point[1]]),
-					})),
-				}
-			: routeWithoutAvoidances;
-	}
-
-	function withPlannerRouteState(
-		route: PlannedRoute,
-		indexes: number[],
-		avoidances: ResolvedRouteAvoidance[],
-	): PlannedRoute {
-		return withAvoidancesState(withManualEditingState(route, indexes), avoidances);
+		const hydratedState = hydratePlannerStateFromRoute(route);
+		applyPlannerFormState({
+			...hydratedState.form,
+			fieldErrors,
+		});
+		avoidedRoads = hydratedState.avoidedRoads;
 	}
 
 	function syncActiveRouteManualEditing(indexes: number[]) {
@@ -1224,38 +1057,11 @@
 	}
 
 	function getActiveRouteForSaving(): PlannedRoute | null {
-		if (!activeRoute) {
-			return null;
-		}
-
-		const manualEditing = getManualEditingRequest();
-		return {
-			...withAvoidancesState(activeRoute, avoidedRoads),
-			...(manualEditing ? { manualEditing } : {}),
-		};
-	}
-
-	function getRouteShareSignature(route: PlannedRoute): string {
-		return [
-			"unsaved",
-			route.mode,
-			route.startLabel,
-			route.destinationLabel,
-			route.distanceMeters,
-			route.durationMs,
-			route.coordinates.length,
-		].join(":");
-	}
-
-	function pruneRouteShareState<T>(
-		state: Record<string, T>,
-		keepKeys: Set<string>,
-	): Record<string, T> {
-		const entries = Object.entries(state).filter(([key]) => keepKeys.has(key));
-
-		return entries.length === Object.keys(state).length
-			? state
-			: Object.fromEntries(entries);
+		return getSaveableActiveRoute({
+			activeRoute,
+			lockedSegmentIndexes,
+			avoidedRoads,
+		});
 	}
 
 	function setRouteShareError(routeKey: string, error: string | null) {
@@ -1304,93 +1110,22 @@
 		}, autosaveDebounceMs);
 	}
 
-	function clonePlannerStop(stop: PlannerStop): PlannerStop {
-		return createPlannerStop(
-			stop.label,
-			stop.point ? [stop.point[0], stop.point[1]] : undefined,
-			stop.source,
-		);
-	}
-
-	function cloneFieldErrors(
-		errors: NonNullable<RouteApiError["fieldErrors"]>,
-	): NonNullable<RouteApiError["fieldErrors"]> {
-		return {
-			...errors,
-			waypointQueries: errors.waypointQueries
-				? [...errors.waypointQueries]
-				: undefined,
-		};
-	}
-
-	function cloneAvoidances(
-		avoidances: ResolvedRouteAvoidance[],
-	): ResolvedRouteAvoidance[] {
-		return avoidances.map((avoidance) => ({
-			...avoidance,
-			centerline: avoidance.centerline.map((point) => [point[0], point[1]]),
-			polygon: avoidance.polygon.map((point) => [point[0], point[1]]),
-		}));
-	}
-
 	function captureRouteEditSnapshot(
 		options: RouteEditSnapshotOptions = {},
 	): RouteEditSnapshot {
-		return {
-			routeAlternatives: options.includeRoutesGeometry
-				? routeAlternatives.map((route) => cloneRoute(route))
-				: [...routeAlternatives],
-			selectedRouteIndex,
-			lockedSegmentIndexes: [...lockedSegmentIndexes],
-			avoidedRoads: cloneAvoidances(avoidedRoads),
-			plannerMode,
-			startStop: clonePlannerStop(startStop),
-			waypointStops: waypointStops.map((waypoint) => clonePlannerStop(waypoint)),
-			destinationStop: clonePlannerStop(destinationStop),
-			roundCourseTargetKind,
-			roundCourseDistanceInput,
-			roundCourseDistanceMetersInput,
-			roundCourseDurationInput,
-			roundCourseAscendMeters,
-			spatialConstraintKind,
-			spatialConstraintEnforcement,
-			constraintCenterStop: clonePlannerStop(constraintCenterStop),
-			areaRadiusInput,
-			corridorWidthInput,
-			areaRadiusMetersInput,
-			corridorWidthMetersInput,
-			lastGeneratedRouteCount,
-			fieldErrors: cloneFieldErrors(fieldErrors),
-		};
+		return capturePlannerRouteEditSnapshot(
+			getPlannerFormState(),
+			getPlannerRouteState(),
+			options,
+		);
 	}
 
 	function restoreRouteEditSnapshot(snapshot: RouteEditSnapshot) {
 		closeCompletionMenu();
 		closeMapClickMenu();
-		routeAlternatives = snapshot.routeAlternatives.map((route) => cloneRoute(route));
-		selectedRouteIndex = snapshot.selectedRouteIndex;
-		lockedSegmentIndexes = [...snapshot.lockedSegmentIndexes];
-		avoidedRoads = cloneAvoidances(snapshot.avoidedRoads);
-		plannerMode = snapshot.plannerMode;
-		startStop = clonePlannerStop(snapshot.startStop);
-		waypointStops = snapshot.waypointStops.map((waypoint) =>
-			clonePlannerStop(waypoint),
-		);
-		destinationStop = clonePlannerStop(snapshot.destinationStop);
-		roundCourseTargetKind = snapshot.roundCourseTargetKind;
-		roundCourseDistanceInput = snapshot.roundCourseDistanceInput;
-		roundCourseDistanceMetersInput = snapshot.roundCourseDistanceMetersInput;
-		roundCourseDurationInput = snapshot.roundCourseDurationInput;
-		roundCourseAscendMeters = snapshot.roundCourseAscendMeters;
-		spatialConstraintKind = snapshot.spatialConstraintKind;
-		spatialConstraintEnforcement = snapshot.spatialConstraintEnforcement;
-		constraintCenterStop = clonePlannerStop(snapshot.constraintCenterStop);
-		areaRadiusInput = snapshot.areaRadiusInput;
-		corridorWidthInput = snapshot.corridorWidthInput;
-		areaRadiusMetersInput = snapshot.areaRadiusMetersInput;
-		corridorWidthMetersInput = snapshot.corridorWidthMetersInput;
-		lastGeneratedRouteCount = snapshot.lastGeneratedRouteCount;
-		fieldErrors = cloneFieldErrors(snapshot.fieldErrors);
+		const restoredState = restorePlannerSnapshot(snapshot);
+		applyPlannerRouteState(restoredState.routeState);
+		applyPlannerFormState(restoredState.form);
 		routeRequestError = null;
 		routeImportError = null;
 		routeExportError = null;
@@ -2527,11 +2262,18 @@
 		closeCompletionMenu();
 		closeMapClickMenu();
 		await performAsyncRouteEdit(async () => {
-			const existingAvoidance = getAvoidanceForSelection(selection);
 			const previousAvoidedRoads = avoidedRoads;
+			const nextAvoidedRoads = avoidedRoads.filter(
+				(avoidance) =>
+					!isPointNearLine(
+						selection.point,
+						avoidance.centerline,
+						avoidance.bufferMeters + 20,
+					),
+			);
 
-			if (existingAvoidance) {
-				avoidedRoads = avoidedRoads.filter((avoidance) => avoidance !== existingAvoidance);
+			if (nextAvoidedRoads.length !== avoidedRoads.length) {
+				avoidedRoads = nextAvoidedRoads;
 				const routed = await rerouteAfterManualEdit();
 				if (!routed) avoidedRoads = previousAvoidedRoads;
 				return routed;
@@ -2721,134 +2463,28 @@
 		return true;
 	}
 
-	function getManualEditingRequest(): ManualRouteEditingState | undefined {
-		return sanitizedLockedSegmentIndexes.length > 0
-			? {
-					lockedSegmentIndexes: sanitizedLockedSegmentIndexes,
-				}
-			: undefined;
-	}
-
-	function getAvoidanceRequest(): RouteAvoidanceInput[] | undefined {
-		return avoidedRoads.length > 0
-			? avoidedRoads.map((avoidance) => ({
-					kind: "road_segment",
-					centerline: avoidance.centerline,
-					bufferMeters: avoidance.bufferMeters,
-					label: avoidance.label,
-				}))
-			: undefined;
-	}
-
-	function buildCurrentRouteRequest(
-		manualEditing = getManualEditingRequest(),
-	): RouteRequestPayload & { manualEditing?: ManualRouteEditingState } {
-		const spatialConstraint = buildSpatialConstraintRequest();
-		const avoidances = getAvoidanceRequest();
-		const baseRequest: RouteRequestPayload =
-			plannerMode === "round_course"
-				? {
-						mode: "round_course",
-						start: getRouteStopInput(startStop),
-						waypoints: waypointStops.map((waypoint) =>
-							getRouteStopInput(waypoint),
-						),
-						target: buildRoundCourseTargetRequest(),
-						...(spatialConstraint ? { spatialConstraint } : {}),
-					}
-				: plannerMode === "out_and_back"
-					? {
-							mode: "out_and_back",
-							start: getRouteStopInput(startStop),
-							waypoints: waypointStops.map((waypoint) =>
-								getRouteStopInput(waypoint),
-							),
-							turnaround: getRouteStopInput(destinationStop),
-							...(spatialConstraint ? { spatialConstraint } : {}),
-						}
-					: {
-							mode: "point_to_point",
-							start: getRouteStopInput(startStop),
-							waypoints: waypointStops.map((waypoint) =>
-								getRouteStopInput(waypoint),
-							),
-							destination: getRouteStopInput(destinationStop),
-							...(spatialConstraint ? { spatialConstraint } : {}),
-						};
-
-		return {
-			...baseRequest,
-			...(manualEditing ? { manualEditing } : {}),
-			...(avoidances ? { avoidances } : {}),
-		};
-	}
-
 	function validateDistanceInputs(): boolean {
-		const nextFieldErrors: NonNullable<RouteApiError["fieldErrors"]> = {};
+		const validation = runPlannerValidation(getPlannerFormState(), {
+			minRoundCourseDurationMs,
+			minRoundCourseAscendMeters,
+		});
 
-		if (isRoundCourseMode) {
-			if (roundCourseTargetKind === "distance") {
-				if (
-					roundCourseDistanceMetersInput === null ||
-					roundCourseDistanceMetersInput <= 0
-				) {
-					nextFieldErrors.roundCourseTarget = "Enter a target distance.";
-				}
-			} else if (roundCourseTargetKind === "duration") {
-				const durationMs = parseRoundCourseDurationInput(roundCourseDurationInput);
-
-				if (
-					durationMs === null ||
-					Number.isNaN(durationMs) ||
-					!Number.isFinite(durationMs) ||
-					durationMs < minRoundCourseDurationMs
-				) {
-					nextFieldErrors.roundCourseTarget = "Enter a target time.";
-				}
-			} else if (roundCourseTargetKind === "ascend") {
-				const ascendMeters = Number(roundCourseAscendMeters.replace(",", "."));
-
-				if (
-					Number.isNaN(ascendMeters) ||
-					!Number.isFinite(ascendMeters) ||
-					ascendMeters < minRoundCourseAscendMeters
-				) {
-					nextFieldErrors.roundCourseTarget = "Enter a target climb.";
-				}
-			}
-		}
-
-		if (spatialConstraintKind === "area") {
-			if (
-				areaRadiusMetersInput === null ||
-				areaRadiusMetersInput < minAreaRadiusMeters ||
-				areaRadiusMetersInput > maxAreaRadiusMeters
-			) {
-				nextFieldErrors.spatialConstraint = `Enter an area radius from ${formatDistance(minAreaRadiusMeters)} to ${formatDistance(maxAreaRadiusMeters)}.`;
-			}
-		} else if (spatialConstraintKind === "corridor" && !isRoundCourseMode) {
-			if (
-				corridorWidthMetersInput === null ||
-				corridorWidthMetersInput < minCorridorWidthMeters ||
-				corridorWidthMetersInput > maxCorridorWidthMeters
-			) {
-				nextFieldErrors.spatialConstraint = `Enter a corridor width from ${formatDistance(minCorridorWidthMeters)} to ${formatDistance(maxCorridorWidthMeters)}.`;
-			}
-		}
-
-		if (Object.keys(nextFieldErrors).length === 0) {
+		if (validation.valid) {
 			return true;
 		}
 
 		fieldErrors = {
 			...fieldErrors,
-			...nextFieldErrors,
+			...validation.fieldErrors,
 		};
 		return false;
 	}
 
 	function applyManualEditingToRoutes(routes: PlannedRoute[]) {
-		const manualEditing = getManualEditingRequest();
+		const manualEditing = getPlannerManualEditingRequest(
+			activeRoute,
+			lockedSegmentIndexes,
+		);
 
 		return routes.map((route) => ({
 			...withAvoidancesState(route, route.avoidances ?? avoidedRoads),
@@ -2940,7 +2576,13 @@
 		routeExportError = null;
 
 		try {
-			const payload = await requestRouteCalculation(buildCurrentRouteRequest());
+			const payload = await requestRouteCalculation(
+				buildPlannerCurrentRouteRequest(
+					getPlannerFormState(),
+					getPlannerManualEditingRequest(activeRoute, lockedSegmentIndexes),
+					getPlannerAvoidanceRequest(avoidedRoads),
+				),
+			);
 
 			if (!payload) {
 				return false;
@@ -3078,7 +2720,13 @@
 		isRouting = true;
 
 		try {
-			const payload = await requestRouteCalculation(buildCurrentRouteRequest());
+			const payload = await requestRouteCalculation(
+				buildPlannerCurrentRouteRequest(
+					getPlannerFormState(),
+					getPlannerManualEditingRequest(activeRoute, lockedSegmentIndexes),
+					getPlannerAvoidanceRequest(avoidedRoads),
+				),
+			);
 
 			if (!payload) {
 				return;
