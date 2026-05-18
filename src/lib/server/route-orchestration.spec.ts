@@ -57,7 +57,7 @@ function buildBatchWindResponse(input: RequestInfo | URL) {
 }
 
 describe("attachWindAnalysisEffect", () => {
-	it("attaches wind analysis when weather fetches succeed", async () => {
+	it("attaches wind analysis and readiness warnings when weather fetches succeed", async () => {
 		const fetchMock = vi.fn((input: RequestInfo | URL) =>
 			Effect.succeed(buildBatchWindResponse(input)),
 		) as TimeoutFetchFn;
@@ -75,9 +75,17 @@ describe("attachWindAnalysisEffect", () => {
 		expect(route?.windAnalysis?.source).toBe("open_meteo");
 		expect(route?.windAnalysis?.segments).toHaveLength(1);
 		expect(route?.routingWarnings).toBeUndefined();
+		expect(route?.warnings).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					category: "readiness",
+					code: "strong_headwind_exposure",
+				}),
+			]),
+		);
 	});
 
-	it("keeps the route and appends a warning when weather fetches fail", async () => {
+	it("keeps the route and appends a structured provider warning when weather fetches fail", async () => {
 		const fetchMock = vi.fn(() =>
 			Effect.succeed(new Response("unavailable", { status: 503 })),
 		) as TimeoutFetchFn;
@@ -93,9 +101,17 @@ describe("attachWindAnalysisEffect", () => {
 		);
 
 		expect(route?.windAnalysis).toBeUndefined();
-		expect(route?.routingWarnings).toEqual([
-			"Wind data is temporarily unavailable, so wind analysis was skipped.",
-		]);
+		expect(route?.routingWarnings).toBeUndefined();
+		expect(route?.warnings).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					category: "routing_provider",
+					code: "wind_analysis_unavailable",
+					message:
+						"Wind data is temporarily unavailable, so wind analysis was skipped.",
+				}),
+			]),
+		);
 	});
 
 	it("keeps the route without a provider warning when geometry cannot be analyzed", async () => {
@@ -107,6 +123,17 @@ describe("attachWindAnalysisEffect", () => {
 
 		expect(route?.windAnalysis).toBeUndefined();
 		expect(route?.routingWarnings).toBeUndefined();
+		expect(
+			route?.warnings?.some(
+				(warning) => warning.category === "routing_provider",
+			),
+		).toBe(false);
+		expect(route?.warnings?.map((warning) => warning.code)).toEqual(
+			expect.arrayContaining([
+				"surface_analysis_unavailable",
+				"wind_analysis_unavailable",
+			]),
+		);
 	});
 
 	it("calculates out-and-back wind segments over mirrored geometry", async () => {

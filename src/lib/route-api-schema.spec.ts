@@ -363,6 +363,41 @@ describe("route API schema helpers", () => {
 		).not.toThrow();
 	});
 
+	it("accepts planned routes with structured warnings", () => {
+		const route = Schema.decodeUnknownSync(PlannedRouteSchema)({
+			...buildValidRoute(),
+			warnings: [
+				{
+					category: "readiness",
+					code: "coarse_surface_exposure",
+					severity: "caution",
+					title: "Coarse surface exposure",
+					message: "This route includes notable rough or unpaved surface.",
+					metricLabel: "Coarse",
+					metricValue: "1.2 km (4%)",
+				},
+				{
+					category: "routing_provider",
+					code: "routing_profile_fallback",
+					severity: "info",
+					title: "Routing fallback",
+					message: "Advanced paved-road tuning was unavailable.",
+				},
+			],
+		});
+
+		expect(route.warnings).toHaveLength(2);
+	});
+
+	it("still accepts legacy routingWarnings", () => {
+		const route = Schema.decodeUnknownSync(PlannedRouteSchema)({
+			...buildValidRoute(),
+			routingWarnings: ["Legacy fallback."],
+		});
+
+		expect(route.routingWarnings).toEqual(["Legacy fallback."]);
+	});
+
 	it("rejects invalid wind buckets", () => {
 		expect(() =>
 			Schema.decodeUnknownSync(PlannedRouteSchema)({

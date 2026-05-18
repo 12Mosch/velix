@@ -12,6 +12,8 @@ Wind implementation evidence reviewed on 2026-05-10: `src/lib/server/open-meteo.
 
 Avoid-road implementation evidence reviewed on 2026-05-10: `src/lib/route-api-schema.ts`, `src/lib/server/graphhopper-routing.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/map/map-view-renderer.ts`, `src/lib/components/route-planner/map-click-menu.svelte`, `src/routes/+page.svelte`, `src/lib/route-planning.spec.ts`, `src/lib/route-api-schema.spec.ts`, `src/routes/api/route/server.spec.ts`, `src/lib/components/map-view.svelte.spec.ts`, `src/routes/page-route.svelte.spec.ts`, and `src/lib/saved-routes-core.spec.ts`.
 
+Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-api-schema.ts`, `src/lib/route-api-schema.spec.ts`, `src/lib/server/graphhopper-routing.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/server/route-orchestration.spec.ts`, `src/routes/+page.svelte`, and `src/routes/page-route.svelte.spec.ts`.
+
 ## 1. Routing & Route Builder
 
 ### 1.1 Route planning entry
@@ -423,16 +425,16 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Critical points | Missing | No critical point analysis. |
 | Major climbs | Full | Climb detection implemented: analysis panel, profile bands, map overlay, and key-climb highlights present. |
 | Dangerous road transitions | Missing | No transition/hazard analysis. |
-| Gravel / poor-surface warnings | Half | Rough surfaces are penalized and surface mix is shown; no explicit route warning by section. |
-| Long exposed headwind sections | Half | Wind-critical sections are calculated and listed, but there is no dedicated long-exposure warning threshold or readiness warning yet. |
+| Gravel / poor-surface warnings | Full | Generated routes carry structured readiness warnings for coarse and mixed surface exposure, and the planner displays them separately from routing fallbacks. |
+| Long exposed headwind sections | Full | Wind analysis now produces structured readiness warnings for strong headwind and crosswind exposure using route-distance thresholds. |
 | Supply points along the route | Missing | No supply POIs. |
 
 ### 7.3 Ride-readiness checks
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Are there implausible segments? | Missing | No implausible-segment validator. |
-| Does the route contain closed or unsuitable paths? | Half | Custom model avoids/penalizes unsuitable classes during routing; no post-route readiness check. |
+| Are there implausible segments? | Half | Point-to-point routes now warn when route distance is implausibly inefficient versus straight-line distance; no per-segment geometry anomaly detector. |
+| Does the route contain closed or unsuitable paths? | Half | Route readiness warns on poor surfaces, steep gradients, inefficient routing, and wind exposure, and routing still uses road-bike penalties; true closure detection is not implemented. |
 | Are there poor OSM data areas? | Missing | No OSM data-quality check. |
 | Is the route appropriate for the planned session? | Missing | No session suitability model. |
 

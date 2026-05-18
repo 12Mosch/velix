@@ -165,6 +165,40 @@ const routeWindAnalysisValidator = v.object({
 	crosswindDistanceMeters: v.number(),
 });
 
+const routeWarningSeverityValidator = v.union(
+	v.literal("info"),
+	v.literal("caution"),
+	v.literal("warning"),
+);
+
+const routeWarningCategoryValidator = v.union(
+	v.literal("readiness"),
+	v.literal("routing_provider"),
+);
+
+const routeWarningCodeValidator = v.union(
+	v.literal("coarse_surface_exposure"),
+	v.literal("mixed_surface_exposure"),
+	v.literal("strong_headwind_exposure"),
+	v.literal("strong_crosswind_exposure"),
+	v.literal("steep_gradient"),
+	v.literal("major_climb"),
+	v.literal("low_route_efficiency"),
+	v.literal("surface_analysis_unavailable"),
+	v.literal("wind_analysis_unavailable"),
+	v.literal("routing_profile_fallback"),
+);
+
+const routeWarningValidator = v.object({
+	category: routeWarningCategoryValidator,
+	code: routeWarningCodeValidator,
+	severity: routeWarningSeverityValidator,
+	title: v.string(),
+	message: v.string(),
+	metricLabel: v.optional(v.string()),
+	metricValue: v.optional(v.string()),
+});
+
 export const plannedRouteValidator = v.object({
 	mode: v.optional(routeModeValidator),
 	source: v.optional(routeSourceValidator),
@@ -176,6 +210,7 @@ export const plannedRouteValidator = v.object({
 	avoidances: v.optional(v.array(routeAvoidanceValidator)),
 	routingProfile: v.optional(v.string()),
 	routingStrategy: v.optional(v.string()),
+	warnings: v.optional(v.array(routeWarningValidator)),
 	routingWarnings: v.optional(v.array(v.string())),
 	manualEditing: v.optional(manualRouteEditingValidator),
 	waypoints: v.optional(v.array(routeWaypointValidator)),

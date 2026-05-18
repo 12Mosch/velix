@@ -177,6 +177,36 @@ export const RouteWindAnalysisSchema = Schema.Struct({
 	tailwindDistanceMeters: Schema.Finite,
 	crosswindDistanceMeters: Schema.Finite,
 });
+export const RouteWarningSeveritySchema = Schema.Literals([
+	"info",
+	"caution",
+	"warning",
+]);
+export const RouteWarningCategorySchema = Schema.Literals([
+	"readiness",
+	"routing_provider",
+]);
+export const RouteWarningCodeSchema = Schema.Literals([
+	"coarse_surface_exposure",
+	"mixed_surface_exposure",
+	"strong_headwind_exposure",
+	"strong_crosswind_exposure",
+	"steep_gradient",
+	"major_climb",
+	"low_route_efficiency",
+	"surface_analysis_unavailable",
+	"wind_analysis_unavailable",
+	"routing_profile_fallback",
+]);
+export const RouteWarningSchema = Schema.Struct({
+	category: RouteWarningCategorySchema,
+	code: RouteWarningCodeSchema,
+	severity: RouteWarningSeveritySchema,
+	title: Schema.String,
+	message: Schema.String,
+	metricLabel: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+	metricValue: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+});
 export const RouteDetailIntervalSchema = Schema.Struct({
 	from: Schema.Finite,
 	to: Schema.Finite,
@@ -268,6 +298,9 @@ export const PlannedRouteSchema = Schema.Struct({
 	),
 	routingProfile: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
 	routingStrategy: Schema.optionalKey(Schema.UndefinedOr(Schema.String)),
+	warnings: Schema.optionalKey(
+		Schema.UndefinedOr(Schema.mutable(Schema.Array(RouteWarningSchema))),
+	),
 	routingWarnings: Schema.optionalKey(
 		Schema.UndefinedOr(Schema.mutable(Schema.Array(Schema.String))),
 	),
