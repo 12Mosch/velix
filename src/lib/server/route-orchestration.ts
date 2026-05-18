@@ -810,6 +810,10 @@ function resolveStopEffect(stop: RouteStopResolutionInput) {
 	});
 }
 
+function hasResolvedStop(stop: { label: string; point?: [number, number] }) {
+	return Boolean(stop.label || stop.point);
+}
+
 function getUnresolvedLocationMessage(stop: RouteStopResolutionInput): string {
 	if (stop.unresolvedMessage) {
 		return stop.unresolvedMessage;
@@ -843,7 +847,7 @@ export function resolveRouteStopsEffect(
 			.map(() => "");
 
 		for (const stop of resolvedStops) {
-			if (stop.label && stop.point) {
+			if (hasResolvedStop(stop)) {
 				continue;
 			}
 

@@ -506,9 +506,15 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 	};
 }
 
+function hasRouteStopInput(stop: RouteStopInput) {
+	return Boolean(stop.label || stop.point);
+}
+
 function buildWaypointFieldErrors(waypointInputs: RouteStopInput[]) {
 	return waypointInputs.map((waypoint) =>
-		waypoint.label ? null : "Enter a waypoint or remove this stop.",
+		hasRouteStopInput(waypoint)
+			? null
+			: "Enter a waypoint or remove this stop.",
 	);
 }
 
@@ -602,13 +608,13 @@ function handlePointToPointEffect(context: RouteModeContext) {
 			return yield* validationFailure(400, waypointError, fieldErrors);
 		}
 
-		if (!startInput.label) {
+		if (!hasRouteStopInput(startInput)) {
 			fieldErrors.startQuery = "Enter a start point.";
 		}
 
 		addWaypointValidationErrors(fieldErrors, waypointInputs);
 
-		if (!destinationInput.label) {
+		if (!hasRouteStopInput(destinationInput)) {
 			fieldErrors.destinationQuery = "Enter a destination.";
 		}
 
@@ -669,7 +675,7 @@ function handleOutAndBackEffect(context: RouteModeContext) {
 			normalizeStopInput(input),
 		);
 
-		if (!startInput.label) {
+		if (!hasRouteStopInput(startInput)) {
 			fieldErrors.startQuery = "Enter a start point.";
 		}
 
@@ -683,7 +689,7 @@ function handleOutAndBackEffect(context: RouteModeContext) {
 
 		addWaypointValidationErrors(fieldErrors, waypointInputs);
 
-		if (!turnaroundInput.label) {
+		if (!hasRouteStopInput(turnaroundInput)) {
 			fieldErrors.destinationQuery = "Enter a turnaround point.";
 		}
 
@@ -745,7 +751,7 @@ function handleRoundCourseEffect(context: RouteModeContext) {
 			normalizeStopInput(input),
 		);
 
-		if (!startInput.label) {
+		if (!hasRouteStopInput(startInput)) {
 			fieldErrors.startQuery = "Enter a start point.";
 		}
 
