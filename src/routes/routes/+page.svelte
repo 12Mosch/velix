@@ -75,6 +75,7 @@
 	let shareError = $state<string | null>(null);
 	let pendingShareUrl = $state<string | null>(null);
 	let copiedShareRouteId = $state<string | null>(null);
+	const savedRouteSearchTextCache = new Map<string, string>();
 	const isLoadingSyncedRoutes = $derived(
 		savedRoutesState.authStatus === "signedIn" &&
 			!savedRoutesState.remoteReady &&
@@ -106,9 +107,7 @@
 		savedRoutesState.savedRoutes.filter((savedRoute) => {
 			const matchesSearch =
 				!normalizedSearchQuery ||
-				normalizeSearchText(buildSavedRouteSearchText(savedRoute)).includes(
-					normalizedSearchQuery,
-				);
+				getSavedRouteSearchText(savedRoute).includes(normalizedSearchQuery);
 
 			return (
 				matchesSearch &&
@@ -270,6 +269,51 @@
 		]
 			.filter((value): value is string => Boolean(value))
 			.join(" ");
+	}
+
+	function getSavedRouteSearchCacheKey(savedRoute: SavedRoute): string {
+		const route = savedRoute.route;
+		const waypointLabels = route.waypoints.map((waypoint) => waypoint.label).join("|");
+		const roundCourseTarget = route.roundCourseTarget
+			? JSON.stringify(route.roundCourseTarget)
+			: "";
+		const importedDurationFlag = isImportedRoute(route)
+			? String(route.source.hasDuration)
+			: "";
+
+		return [
+			savedRoute.id,
+			unitPreference.selectedDistanceUnit,
+			savedRoute.createdAt,
+			route.mode,
+			route.startLabel,
+			route.destinationLabel,
+			String(route.distanceMeters),
+			String(route.ascendMeters),
+			String(route.durationMs),
+			route.requestedDistanceMeters == null
+				? ""
+				: String(route.requestedDistanceMeters),
+			roundCourseTarget,
+			route.source.kind,
+			importedDurationFlag,
+			waypointLabels,
+		].join(":");
+	}
+
+	function getSavedRouteSearchText(savedRoute: SavedRoute): string {
+		const cacheKey = getSavedRouteSearchCacheKey(savedRoute);
+		const cachedSearchText = savedRouteSearchTextCache.get(cacheKey);
+
+		if (cachedSearchText) {
+			return cachedSearchText;
+		}
+
+		const normalizedSearchText = normalizeSearchText(
+			buildSavedRouteSearchText(savedRoute),
+		);
+		savedRouteSearchTextCache.set(cacheKey, normalizedSearchText);
+		return normalizedSearchText;
 	}
 
 	function clearSearch() {

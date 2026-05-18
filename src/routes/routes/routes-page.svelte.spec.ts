@@ -22,12 +22,14 @@ import {
 	resetSavedRoutesForTests,
 	SAVED_ROUTES_STORAGE_KEY,
 	savedRoutesState,
+	upsertSavedRoute,
 } from "$lib/saved-routes.svelte";
 import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
 import { api } from "../../convex/_generated/api";
 import {
 	DISTANCE_UNIT_STORAGE_KEY,
 	resetUnitPreferenceForTests,
+	setDistanceUnitPreference,
 } from "$lib/unit-settings.svelte";
 import RoutesPage from "./+page.svelte";
 
@@ -708,6 +710,80 @@ describe("routes/+page.svelte", () => {
 			.not.toBeInTheDocument();
 	});
 
+	it("refreshes saved-route search results after replacing a route with the same id", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([savedRoutes[0]]),
+		);
+
+		render(RoutesPage);
+
+		const searchInput = page.getByRole("textbox", {
+			name: "Search saved routes",
+		});
+
+		await searchInput.fill("schliersee");
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+
+		const updatedRoute = {
+			...savedRoutes[0].route,
+			destinationLabel: "Lake Starnberg, Germany",
+			waypoints: [
+				{
+					label: "Bad Tolz, Germany",
+					coordinate: [11.5582, 47.7604, 685] as [number, number, number],
+				},
+			],
+			distanceMeters: 45500,
+			durationMs: 7200000,
+			ascendMeters: 410,
+		};
+
+		upsertSavedRoute(updatedRoute, savedRoutes[0].id);
+
+		await searchInput.fill("schliersee");
+		await expect
+			.element(page.getByText("No routes match your filters"))
+			.toBeInTheDocument();
+
+		await searchInput.fill("starnberg");
+		await expect
+			.element(page.getByText("Lake Starnberg, Germany"))
+			.toBeInTheDocument();
+
+		await searchInput.fill("45.5 km");
+		await expect
+			.element(page.getByText("Lake Starnberg, Germany"))
+			.toBeInTheDocument();
+	});
+
+	it("updates saved-route search matches when the distance unit changes", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([searchableSavedRoutes[1]]),
+		);
+
+		render(RoutesPage);
+
+		const searchInput = page.getByRole("textbox", {
+			name: "Search saved routes",
+		});
+
+		await searchInput.fill("50.1 km");
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+
+		setDistanceUnitPreference("mi");
+
+		await searchInput.fill("31.1 mi");
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+	});
+
 	it("shows a search-empty state when saved routes do not match", async () => {
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,
@@ -821,6 +897,59 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByText("48.13740, 11.57550"))
 			.not.toBeInTheDocument();
+	});
+
+	it("keeps saved-route search results correct across repeated filter input changes", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(searchableSavedRoutes),
+		);
+
+		render(RoutesPage);
+
+		const searchInput = page.getByRole("textbox", {
+			name: "Search saved routes",
+		});
+		const minDistanceInput = page.getByRole("textbox", {
+			name: "Min distance (km)",
+		});
+		const maxDistanceInput = page.getByRole("textbox", {
+			name: "Max distance (km)",
+		});
+		const minElevationInput = page.getByRole("textbox", {
+			name: "Min elevation (m)",
+		});
+
+		await searchInput.fill("germany");
+		await expect.element(page.getByText("3 of 3 routes")).toBeInTheDocument();
+
+		await minDistanceInput.fill("60");
+		await expect.element(page.getByText("2 of 3 routes")).toBeInTheDocument();
+
+		await maxDistanceInput.fill("65");
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+
+		await minDistanceInput.fill("");
+		await expect.element(page.getByText("2 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+
+		await maxDistanceInput.fill("");
+		await minElevationInput.fill("900");
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.toBeInTheDocument();
+
+		await searchInput.fill("imported gpx");
+		await expect.element(page.getByText("1 of 3 routes")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("48.13740, 11.57550"))
+			.toBeInTheDocument();
 	});
 
 	it("combines saved-route search with elevation filters", async () => {
