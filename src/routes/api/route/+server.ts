@@ -475,15 +475,9 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 	const point = Array.isArray(candidate.point) ? candidate.point : undefined;
 	const label =
 		typeof candidate.label === "string" ? candidate.label.trim() : "";
-	const normalizedPoint: [number, number] | undefined =
-		point &&
-		point.length >= 2 &&
-		typeof point[0] === "number" &&
-		Number.isFinite(point[0]) &&
-		typeof point[1] === "number" &&
-		Number.isFinite(point[1])
-			? [point[0], point[1]]
-			: undefined;
+	const normalizedPoint = isFiniteLngLat(point)
+		? [point[0], point[1]]
+		: undefined;
 
 	if (normalizedPoint) {
 		return {
@@ -504,6 +498,24 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 	return {
 		label,
 	};
+}
+
+function hasFiniteOutOfBoundsStopPoint(value: unknown): boolean {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+
+	const point = (value as { point?: unknown }).point;
+
+	return (
+		Array.isArray(point) &&
+		point.length >= 2 &&
+		typeof point[0] === "number" &&
+		Number.isFinite(point[0]) &&
+		typeof point[1] === "number" &&
+		Number.isFinite(point[1]) &&
+		!isFiniteLngLat(point)
+	);
 }
 
 function hasRouteStopInput(stop: RouteStopInput) {
@@ -591,6 +603,12 @@ function handlePointToPointEffect(context: RouteModeContext) {
 			(structuredPointToPointPayload
 				? structuredPointToPointPayload.waypoints
 				: legacyPayload?.waypointQueries) ?? [];
+		if (
+			Array.isArray(rawWaypointInputs) &&
+			rawWaypointInputs.some(hasFiniteOutOfBoundsStopPoint)
+		) {
+			return yield* validationFailure(400, "Invalid route request payload.");
+		}
 		const waypointInputs = Array.isArray(rawWaypointInputs)
 			? rawWaypointInputs.map((input: RouteStopInput | string | undefined) =>
 					normalizeStopInput(input),
@@ -671,6 +689,9 @@ function handleOutAndBackEffect(context: RouteModeContext) {
 		)
 			? structuredOutAndBackPayload.waypoints
 			: [];
+		if (rawWaypointInputs.some(hasFiniteOutOfBoundsStopPoint)) {
+			return yield* validationFailure(400, "Invalid route request payload.");
+		}
 		const waypointInputs = rawWaypointInputs.map((input) =>
 			normalizeStopInput(input),
 		);
@@ -747,6 +768,9 @@ function handleRoundCourseEffect(context: RouteModeContext) {
 		const rawWaypointInputs = Array.isArray(payloadRecord.waypoints)
 			? payloadRecord.waypoints
 			: [];
+		if (rawWaypointInputs.some(hasFiniteOutOfBoundsStopPoint)) {
+			return yield* validationFailure(400, "Invalid route request payload.");
+		}
 		const waypointInputs = rawWaypointInputs.map((input) =>
 			normalizeStopInput(input),
 		);

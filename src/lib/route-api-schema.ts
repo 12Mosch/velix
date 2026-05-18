@@ -19,12 +19,23 @@ const finiteCoordinateInput = Schema.TupleWithRest(
 	[Schema.Finite],
 );
 
-const coordinate2Schema = Schema.declare<[number, number]>(
-	(value): value is [number, number] =>
+function isBoundedCoordinate2(value: unknown): value is [number, number] {
+	return (
 		Array.isArray(value) &&
 		value.length === 2 &&
-		value.every((item) => typeof item === "number" && Number.isFinite(item)),
-);
+		typeof value[0] === "number" &&
+		Number.isFinite(value[0]) &&
+		value[0] >= -180 &&
+		value[0] <= 180 &&
+		typeof value[1] === "number" &&
+		Number.isFinite(value[1]) &&
+		value[1] >= -90 &&
+		value[1] <= 90
+	);
+}
+
+const coordinate2Schema =
+	Schema.declare<[number, number]>(isBoundedCoordinate2);
 
 export const RouteCoordinateInputSchema = finiteCoordinateInput.pipe(
 	Schema.decodeTo(coordinate2Schema, {
