@@ -510,6 +510,31 @@ describe("POST /api/route", () => {
 		]);
 	});
 
+	it("rejects impossible structured start coordinates before routing", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						point: [181, 48.1374],
+					},
+					destination: {
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Invalid route request payload.",
+		});
+	});
+
 	it("accepts coordinate-only point-to-point waypoints", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			buildRouteResponse([
@@ -550,6 +575,36 @@ describe("POST /api/route", () => {
 			[11.7581, 47.7123],
 			[11.8598, 47.7362],
 		]);
+	});
+
+	it("rejects impossible structured waypoint coordinates before routing", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [
+						{
+							point: [11.7581, -91],
+						},
+					],
+					destination: {
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Invalid route request payload.",
+		});
 	});
 
 	it("sends point-to-point area constraints through the GraphHopper custom model", async () => {

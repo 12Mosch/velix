@@ -10,6 +10,7 @@ import {
 	SavedRouteSchema,
 	RouteAvoidanceInputSchema,
 	RouteSpatialConstraintInputSchema,
+	RouteStopInputSchema,
 } from "$lib/route-api-schema";
 import { normalizePlannedRoute } from "$lib/saved-routes-core";
 
@@ -84,6 +85,23 @@ describe("route API schema helpers", () => {
 		});
 	});
 
+	it("rejects structured payloads with out-of-bounds stop coordinates", () => {
+		expect(
+			decodeRouteRequestPayload({
+				mode: "point_to_point",
+				start: {
+					point: [181, 48.1374],
+				},
+				destination: {
+					point: [11.8598, 95],
+				},
+			}),
+		).toEqual({
+			ok: false,
+			error: "Invalid route request payload.",
+		});
+	});
+
 	it("accepts structured round-course payloads with target or legacy distance", () => {
 		expectDecodedPayload({
 			mode: "round_course",
@@ -110,6 +128,15 @@ describe("route API schema helpers", () => {
 				point: [11.8598, 47.7362],
 			},
 		});
+	});
+
+	it("rejects stop schema decodes with out-of-bounds point values", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(RouteStopInputSchema)({
+				label: "Impossible stop",
+				point: [181, 48.1374],
+			}),
+		).toThrow();
 	});
 
 	it("preserves permissive waypoint behavior for endpoint normalization", () => {
