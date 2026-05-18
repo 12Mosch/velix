@@ -308,6 +308,8 @@
 	let completionBlurTimer: ReturnType<typeof setTimeout> | null = null;
 	let completionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 	const autosaveDebounceMs = 750;
+	const minRoundCourseDurationMs = 15 * 60 * 1000;
+	const minRoundCourseAscendMeters = 50;
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let detachRouteEditKeyboardListener = () => {};
 	let completionRequestId = 0;
@@ -2784,13 +2786,36 @@
 	function validateDistanceInputs(): boolean {
 		const nextFieldErrors: NonNullable<RouteApiError["fieldErrors"]> = {};
 
-		if (
-			isRoundCourseMode &&
-			roundCourseTargetKind === "distance" &&
-			(roundCourseDistanceMetersInput === null ||
-				roundCourseDistanceMetersInput <= 0)
-		) {
-			nextFieldErrors.roundCourseTarget = "Enter a target distance.";
+		if (isRoundCourseMode) {
+			if (roundCourseTargetKind === "distance") {
+				if (
+					roundCourseDistanceMetersInput === null ||
+					roundCourseDistanceMetersInput <= 0
+				) {
+					nextFieldErrors.roundCourseTarget = "Enter a target distance.";
+				}
+			} else if (roundCourseTargetKind === "duration") {
+				const durationMs = parseRoundCourseDurationInput(roundCourseDurationInput);
+
+				if (
+					durationMs === null ||
+					Number.isNaN(durationMs) ||
+					!Number.isFinite(durationMs) ||
+					durationMs < minRoundCourseDurationMs
+				) {
+					nextFieldErrors.roundCourseTarget = "Enter a target time.";
+				}
+			} else if (roundCourseTargetKind === "ascend") {
+				const ascendMeters = Number(roundCourseAscendMeters.replace(",", "."));
+
+				if (
+					Number.isNaN(ascendMeters) ||
+					!Number.isFinite(ascendMeters) ||
+					ascendMeters < minRoundCourseAscendMeters
+				) {
+					nextFieldErrors.roundCourseTarget = "Enter a target climb.";
+				}
+			}
 		}
 
 		if (spatialConstraintKind === "area") {
@@ -3481,6 +3506,7 @@
 			>
 				<form
 					class="flex flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-lg"
+					novalidate
 					onsubmit={handleGenerateRoute}
 				>
 					<div class="flex items-center justify-between gap-3">
