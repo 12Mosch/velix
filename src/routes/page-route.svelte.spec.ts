@@ -2835,6 +2835,112 @@ describe("+page.svelte", () => {
 		).toHaveLength(0);
 	});
 
+	it("validates empty duration targets before sending a round-course request", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await page.getByRole("button", { name: "Time" }).click();
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.element(page.getByText("Enter a target time."))
+			.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(0);
+	});
+
+	it("validates below-minimum duration targets before sending a round-course request", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await page.getByRole("button", { name: "Time" }).click();
+		await page.getByRole("textbox", { name: "Target time" }).fill("0:14");
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.element(page.getByText("Enter a target time."))
+			.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(0);
+	});
+
+	it("validates empty ascent targets before sending a round-course request", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await page.getByRole("button", { name: "Climb" }).click();
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.element(page.getByText("Enter a target climb."))
+			.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(0);
+	});
+
+	it("validates below-minimum ascent targets before sending a round-course request", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await page.getByRole("button", { name: "Climb" }).click();
+		await page.getByRole("spinbutton", { name: "Target climb" }).fill("25");
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.element(page.getByText("Enter a target climb."))
+			.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(0);
+	});
+
 	it("switches into out-and-back mode, submits the turnaround payload, and saves it", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			if (String(input).startsWith("/api/route/suggest")) {
