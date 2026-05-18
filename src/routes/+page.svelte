@@ -68,6 +68,9 @@
 		getRouteSegmentCount,
 		getRouteStopInputs,
 		getRouteTurnCount,
+		getProviderWarnings,
+		getReadinessWarnings,
+		getRouteWarnings,
 		getSurfaceMix,
 		getWindSummary,
 		getWaypointInsertionIndex,
@@ -86,6 +89,7 @@
 		type RouteClimb,
 		type RouteRequestPayload,
 		type RouteAvoidanceInput,
+		type RouteWarning,
 		type RouteSpatialConstraintInput,
 		type RouteStopInput,
 		type RouteSuggestion,
@@ -155,6 +159,7 @@
 		StopSource,
 	} from "$lib/route-planner/types";
 	import {
+		AlertTriangle,
 		ArrowDown,
 		ArrowLeft,
 		ArrowRight,
@@ -204,6 +209,24 @@
 	}
 
 	const convexClient = getOptionalConvexClient();
+
+	function getWarningContainerClass(warning: RouteWarning): string {
+		if (warning.severity === "info") {
+			return "border-border/40 bg-secondary/45 text-foreground";
+		}
+
+		return warning.severity === "warning"
+			? "border-amber-600/30 bg-amber-500/12 text-amber-950 dark:text-amber-100"
+			: "border-amber-500/20 bg-amber-500/8 text-amber-900 dark:text-amber-100";
+	}
+
+	function getWarningBadgeClass(warning: RouteWarning): string {
+		if (warning.severity === "info") {
+			return "border-border/40 bg-background/70 text-muted-foreground";
+		}
+
+		return "border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-100";
+	}
 
 	function createPlannerStop(
 		label = "",
@@ -419,7 +442,16 @@
 	);
 	const combinedRouteBounds = $derived(mergeRouteBounds(routeAlternatives));
 	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
-	const activeRoutingWarnings = $derived(activeRoute?.routingWarnings ?? []);
+	const activeWarnings = $derived(activeRoute ? getRouteWarnings(activeRoute) : []);
+	const activeReadinessWarnings = $derived(
+		activeRoute ? getReadinessWarnings(activeRoute) : [],
+	);
+	const activeProviderWarnings = $derived(
+		activeRoute ? getProviderWarnings(activeRoute) : [],
+	);
+	const primaryActiveWarning = $derived(
+		activeReadinessWarnings[0] ?? activeProviderWarnings[0] ?? null,
+	);
 	const activeImportedRouteSource = $derived(
 		isImportedRoute(activeRoute) ? activeRoute.source : null,
 	);
@@ -4270,12 +4302,26 @@
 						</div>
 					{/if}
 
-					{#if activeRoutingWarnings.length > 0}
+					{#if activeWarnings.length > 0 && primaryActiveWarning}
 						<div
-							class="rounded-lg border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
+							class={`rounded-lg border px-3 py-2 text-sm ${getWarningContainerClass(primaryActiveWarning)}`}
 							role="status"
 						>
-							{activeRoutingWarnings[0]}
+							<div class="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide opacity-75">
+								<AlertTriangle class="size-3.5" />
+								Route readiness
+							</div>
+							<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+								<span class="font-semibold">{primaryActiveWarning.title}</span>
+								{#if primaryActiveWarning.metricLabel && primaryActiveWarning.metricValue}
+									<span
+										class={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${getWarningBadgeClass(primaryActiveWarning)}`}
+									>
+										{primaryActiveWarning.metricLabel}: {primaryActiveWarning.metricValue}
+									</span>
+								{/if}
+							</div>
+							<p class="mt-0.5 text-xs opacity-85">{primaryActiveWarning.message}</p>
 						</div>
 					{/if}
 
@@ -5014,6 +5060,39 @@
 								<div class="space-y-2">
 									<div class="flex items-center justify-between text-xs text-muted-foreground">
 										<span class="flex items-center gap-1">
+											<AlertTriangle class="size-3" /> Readiness
+										</span>
+									</div>
+									{#if activeReadinessWarnings.length > 0}
+										<div class="grid gap-1.5">
+											{#each activeReadinessWarnings as warning}
+												<div
+													class={`rounded-md border px-2.5 py-2 text-xs ${getWarningContainerClass(warning)}`}
+												>
+													<div class="mb-1 flex items-center justify-between gap-2">
+														<span class="font-semibold">{warning.title}</span>
+														{#if warning.metricLabel && warning.metricValue}
+															<span
+																class={`shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${getWarningBadgeClass(warning)}`}
+															>
+																{warning.metricLabel}: {warning.metricValue}
+															</span>
+														{/if}
+													</div>
+													<div class="opacity-85">{warning.message}</div>
+												</div>
+											{/each}
+										</div>
+									{:else}
+										<p class="text-xs text-muted-foreground">
+											No readiness warnings from available route data.
+										</p>
+									{/if}
+								</div>
+
+								<div class="space-y-2">
+									<div class="flex items-center justify-between text-xs text-muted-foreground">
+										<span class="flex items-center gap-1">
 											<Route class="size-3" /> Surface mix
 										</span>
 									</div>
@@ -5234,13 +5313,15 @@
 										{getRoutingProfileLabel(activeRoute)}
 									</div>
 								</div>
-								{#if activeRoutingWarnings.length > 0}
+								{#if activeProviderWarnings.length > 0}
 									<div class="rounded-md border border-amber-500/20 bg-amber-500/8 px-2.5 py-2 text-amber-900 dark:text-amber-100">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-amber-900/70 dark:text-amber-100/70">
 											Routing fallback
 										</div>
-										<div class="font-medium">
-											{activeRoutingWarnings[0]}
+										<div class="space-y-1 font-medium">
+											{#each activeProviderWarnings as warning}
+												<div>{warning.message}</div>
+											{/each}
 										</div>
 									</div>
 								{/if}

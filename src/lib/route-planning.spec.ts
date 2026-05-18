@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	analyzeRouteClimbs,
 	buildRouteWindGeoJson,
+	buildRouteReadinessWarnings,
 	buildRouteGeoJson,
 	buildRouteGradientGeoJson,
 	buildRouteSurfaceGeoJson,
@@ -15,17 +16,21 @@ import {
 	classifyClimbCategory,
 	classifyWindBucket,
 	getEditableRouteStops,
+	getProviderWarnings,
 	getRouteLegIndexForCoordinateSegment,
 	getRouteSegmentCount,
 	getRouteStopInputs,
+	getRouteWarnings,
 	getRouteTurnCount,
 	getSurfaceMix,
+	mergeRouteWarnings,
 	getWaypointInsertionIndex,
 	isRouteStopLocked,
 	mapGraphHopperSignToInstructionType,
 	sampleElevationProfile,
 	sanitizeLockedSegmentIndexes,
 	type PlannedRoute,
+	type RouteCoordinate,
 	type RouteStopInput,
 } from "./route-planning";
 
@@ -271,6 +276,224 @@ describe("wind route analysis helpers", () => {
 			windBucket: "headwind",
 			speedKmh: 18,
 		});
+	});
+});
+
+describe("route readiness warnings", () => {
+	function buildReadinessRoute(
+		overrides: Partial<PlannedRoute> = {},
+	): PlannedRoute {
+		return {
+			...buildRoute([], []),
+			waypoints: [],
+			distanceMeters: 20000,
+			ascendMeters: 0,
+			descendMeters: 0,
+			coordinates: [
+				[0, 0, 0],
+				[0, 0.09, 0],
+				[0, 0.18, 0],
+			],
+			surfaceDetails: [],
+			smoothnessDetails: [],
+			...overrides,
+		};
+	}
+
+	it("builds a coarse-surface warning from surfaceDetails", () => {
+		const warnings = buildRouteReadinessWarnings(
+			buildReadinessRoute({
+				surfaceDetails: [
+					{ from: 0, to: 1, value: "asphalt" },
+					{ from: 1, to: 2, value: "gravel" },
+				],
+			}),
+		);
+
+		expect(warnings).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "coarse_surface_exposure",
+					severity: "warning",
+				}),
+			]),
+		);
+	});
+
+	it("falls back to smoothnessDetails when surface details are missing", () => {
+		const warnings = buildRouteReadinessWarnings(
+			buildReadinessRoute({
+				smoothnessDetails: [
+					{ from: 0, to: 1, value: "good" },
+					{ from: 1, to: 2, value: "bad" },
+				],
+			}),
+		);
+
+		expect(warnings.map((warning) => warning.code)).toContain(
+			"coarse_surface_exposure",
+		);
+	});
+
+	it("emits no surface warning for mostly smooth surfaces", () => {
+		const warnings = buildRouteReadinessWarnings(
+			buildReadinessRoute({
+				surfaceDetails: [{ from: 0, to: 2, value: "asphalt" }],
+			}),
+		);
+
+		expect(warnings.some((warning) => warning.code.includes("surface"))).toBe(
+			false,
+		);
+	});
+
+	it("emits missing-surface-analysis info for generated routes without surface details", () => {
+		const warnings = buildRouteReadinessWarnings(buildReadinessRoute());
+
+		expect(warnings).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: "surface_analysis_unavailable",
+					severity: "info",
+				}),
+			]),
+		);
+	});
+
+	it("builds headwind and crosswind warnings from windAnalysis", () => {
+		const warnings = buildRouteReadinessWarnings(
+			buildReadinessRoute({
+				windAnalysis: {
+					source: "open_meteo",
+					fetchedAt: "2026-05-18T10:00:00.000Z",
+					forecastTime: "2026-05-18T10:00",
+					samples: [],
+					segments: [],
+					averageHeadwindKmh: 18,
+					maxHeadwindKmh: 29,
+					averageTailwindKmh: 0,
+					maxCrosswindKmh: 26,
+					headwindDistanceMeters: 8000,
+					tailwindDistanceMeters: 0,
+					crosswindDistanceMeters: 4000,
+				},
+			}),
+		);
+
+		expect(warnings.map((warning) => warning.code)).toEqual(
+			expect.arrayContaining([
+				"strong_headwind_exposure",
+				"strong_crosswind_exposure",
+			]),
+		);
+	});
+
+	it("builds steep-gradient and major-climb warnings from elevation coordinates", () => {
+		const coordinates = Array.from(
+			{ length: 31 },
+			(_, index): RouteCoordinate => [0, index * 0.0015, index * 32],
+		);
+		const warnings = buildRouteReadinessWarnings(
+			buildReadinessRoute({
+				distanceMeters: 50000,
+				ascendMeters: 960,
+				coordinates,
+				surfaceDetails: [{ from: 0, to: 30, value: "asphalt" }],
+				windAnalysis: {
+					source: "open_meteo",
+					fetchedAt: "2026-05-18T10:00:00.000Z",
+					forecastTime: "2026-05-18T10:00",
+					samples: [],
+					segments: [],
+					averageHeadwindKmh: 0,
+					maxHeadwindKmh: 0,
+					averageTailwindKmh: 0,
+					maxCrosswindKmh: 0,
+					headwindDistanceMeters: 0,
+					tailwindDistanceMeters: 0,
+					crosswindDistanceMeters: 0,
+				},
+			}),
+		);
+
+		expect(warnings.map((warning) => warning.code)).toEqual(
+			expect.arrayContaining(["steep_gradient", "major_climb"]),
+		);
+	});
+
+	it("builds low-efficiency warning for a very indirect point-to-point route", () => {
+		const warnings = buildRouteReadinessWarnings(
+			buildReadinessRoute({
+				distanceMeters: 20000,
+				coordinates: [
+					[0, 0],
+					[0.1, 0.1],
+					[0.05, 0],
+				],
+				surfaceDetails: [{ from: 0, to: 2, value: "asphalt" }],
+				windAnalysis: {
+					source: "open_meteo",
+					fetchedAt: "2026-05-18T10:00:00.000Z",
+					forecastTime: "2026-05-18T10:00",
+					samples: [],
+					segments: [],
+					averageHeadwindKmh: 0,
+					maxHeadwindKmh: 0,
+					averageTailwindKmh: 0,
+					maxCrosswindKmh: 0,
+					headwindDistanceMeters: 0,
+					tailwindDistanceMeters: 0,
+					crosswindDistanceMeters: 0,
+				},
+			}),
+		);
+
+		expect(warnings.map((warning) => warning.code)).toContain(
+			"low_route_efficiency",
+		);
+	});
+
+	it("converts legacy routingWarnings into provider warnings", () => {
+		const route = buildReadinessRoute({
+			routingWarnings: ["Legacy fallback."],
+		});
+
+		expect(getRouteWarnings(route)).toEqual([
+			expect.objectContaining({
+				category: "routing_provider",
+				code: "routing_profile_fallback",
+				message: "Legacy fallback.",
+			}),
+		]);
+		expect(getProviderWarnings(route)).toHaveLength(1);
+	});
+
+	it("deduplicates warnings by category, code, and title", () => {
+		const route = mergeRouteWarnings(
+			buildReadinessRoute({
+				warnings: [
+					{
+						category: "readiness",
+						code: "steep_gradient",
+						severity: "caution",
+						title: "Steep gradient",
+						message: "First",
+					},
+				],
+			}),
+			[
+				{
+					category: "readiness",
+					code: "steep_gradient",
+					severity: "warning",
+					title: "Steep gradient",
+					message: "Second",
+				},
+			],
+		);
+
+		expect(route.warnings).toHaveLength(1);
+		expect(route.warnings?.[0]?.message).toBe("First");
 	});
 });
 

@@ -17,10 +17,13 @@ import type {
 	RouteSpatialConstraintInput,
 	RouteStopInput,
 	RouteWaypoint,
+	RouteWarning,
 } from "$lib/route-planning";
 import {
+	buildRouteReadinessWarnings,
 	calculateBearingDegrees,
 	calculateWindComponents,
+	mergeRouteWarnings,
 } from "$lib/route-planning";
 import { geocodeLocationEffect } from "$lib/server/graphhopper";
 import type { GraphHopperSuggestionCache } from "$lib/server/graphhopper-cache";
@@ -423,10 +426,41 @@ function buildWindAnalysis(
 }
 
 function withWindWarning(route: PlannedRoute): PlannedRoute {
-	return {
-		...route,
-		routingWarnings: [...(route.routingWarnings ?? []), windUnavailableWarning],
+	return mergeRouteWarnings(route, [
+		{
+			category: "routing_provider",
+			code: "wind_analysis_unavailable",
+			severity: "info",
+			title: "Wind analysis unavailable",
+			message: windUnavailableWarning,
+		},
+	]);
+}
+
+function withProviderWarning(
+	route: PlannedRoute,
+	message: string,
+	title = "Routing fallback",
+): PlannedRoute {
+	const warning: RouteWarning = {
+		category: "routing_provider",
+		code: "routing_profile_fallback",
+		severity: "info",
+		title,
+		message,
 	};
+
+	return mergeRouteWarnings(route, [warning]);
+}
+
+function finalizeGeneratedRouteWarnings(route: PlannedRoute): PlannedRoute {
+	return mergeRouteWarnings(route, buildRouteReadinessWarnings(route));
+}
+
+function finalizeGeneratedRoutesWarnings(
+	routes: PlannedRoute[],
+): PlannedRoute[] {
+	return routes.map(finalizeGeneratedRouteWarnings);
 }
 
 function attachWindAnalysisToRouteEffect(
@@ -452,12 +486,14 @@ function attachWindAnalysisToRouteEffect(
 		);
 
 		if (Result.isFailure(result)) {
-			return withWindWarning(route);
+			return finalizeGeneratedRouteWarnings(withWindWarning(route));
 		}
 
 		const windAnalysis = buildWindAnalysis(route, result.success, fetchedAt);
 
-		return windAnalysis ? { ...route, windAnalysis } : route;
+		return finalizeGeneratedRouteWarnings(
+			windAnalysis ? { ...route, windAnalysis } : route,
+		);
 	});
 }
 
@@ -1317,7 +1353,9 @@ export function searchPointToPointRoutesEffect(
 			);
 		}
 
-		return yield* attachWindAnalysisEffect(normalizedRoutes);
+		const routesWithWind = yield* attachWindAnalysisEffect(normalizedRoutes);
+
+		return finalizeGeneratedRoutesWarnings(routesWithWind);
 	});
 }
 
@@ -1382,7 +1420,9 @@ export function searchOutAndBackRoutesEffect(
 			);
 		}
 
-		return yield* attachWindAnalysisEffect(normalizedRoutes);
+		const routesWithWind = yield* attachWindAnalysisEffect(normalizedRoutes);
+
+		return finalizeGeneratedRoutesWarnings(routesWithWind);
 	});
 }
 
@@ -1569,13 +1609,11 @@ function searchRoundCourseCandidateRoutesEffect(
 					return candidate.route;
 				}
 
-				return {
-					...candidate.route,
-					routingWarnings: [
-						...(candidate.route.routingWarnings ?? []),
-						missWarning,
-					],
-				};
+				return withProviderWarning(
+					candidate.route,
+					missWarning,
+					"Round-course target best effort",
+				);
 			}),
 			candidateErrors: candidateFailures.map(
 				serializeRoundCourseCandidateFailure,
@@ -1646,7 +1684,7 @@ export function searchRoundCourseRoutesEffect(
 				routes.map((route, routeIndex) => {
 					const snappedWaypoints = snappedWaypointSets[routeIndex] ?? [];
 
-					return {
+					const shapedRoute = {
 						...route,
 						mode: "round_course" as const,
 						startLabel: input.start.label,
@@ -1659,11 +1697,13 @@ export function searchRoundCourseRoutesEffect(
 									snappedWaypoints[waypointIndex + 1] ?? waypoint.point,
 							}),
 						),
-						routingWarnings: [
-							...(route.routingWarnings ?? []),
-							"Manual shaping points make the round-course target best-effort.",
-						],
 					};
+
+					return withProviderWarning(
+						shapedRoute,
+						"Manual shaping points make the round-course target best-effort.",
+						"Round-course target best effort",
+					);
 				}),
 			).map((route) => applyManualEditing(route, input.manualEditing));
 		}
@@ -1678,9 +1718,10 @@ export function searchRoundCourseRoutesEffect(
 		}
 
 		const routesWithWind = yield* attachWindAnalysisEffect(normalizedRoutes);
+		const routesWithWarnings = finalizeGeneratedRoutesWarnings(routesWithWind);
 
 		return candidateErrors
-			? { routes: routesWithWind, candidateErrors }
-			: { routes: routesWithWind };
+			? { routes: routesWithWarnings, candidateErrors }
+			: { routes: routesWithWarnings };
 	});
 }

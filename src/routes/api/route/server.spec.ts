@@ -8,13 +8,28 @@ vi.mock("$env/dynamic/private", () => ({
 
 import { env } from "$env/dynamic/private";
 import { POST } from "./+server";
-import type { RouteApiError, RouteApiSuccess } from "$lib/route-planning";
+import type {
+	RouteApiError,
+	RouteApiSuccess,
+	RouteWarning,
+} from "$lib/route-planning";
 import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
 import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
 
 let eventId = 0;
 const windUnavailableWarning =
 	"Wind data is temporarily unavailable, so wind analysis was skipped.";
+
+function expectWarnings(
+	warnings: RouteWarning[] | undefined,
+	expected: Array<Record<string, unknown>>,
+) {
+	expect(warnings).toEqual(
+		expect.arrayContaining(
+			expected.map((warning) => expect.objectContaining(warning)),
+		),
+	);
+}
 
 function buildEvent(
 	body: unknown,
@@ -1407,7 +1422,14 @@ describe("POST /api/route", () => {
 		});
 		expect(route?.routingProfile).toBe("racingbike");
 		expect(route?.routingStrategy).toContain("racingbike");
-		expect(route?.routingWarnings).toEqual([windUnavailableWarning]);
+		expect(route?.routingWarnings).toBeUndefined();
+		expectWarnings(route?.warnings, [
+			{
+				category: "routing_provider",
+				code: "wind_analysis_unavailable",
+				message: windUnavailableWarning,
+			},
+		]);
 		expect(route?.surfaceDetails).toEqual([
 			{ from: 0, to: 2, value: "ASPHALT" },
 			{ from: 2, to: 3, value: "COMPACTED" },
@@ -1818,8 +1840,13 @@ describe("POST /api/route", () => {
 			kind: "duration",
 			durationMs: 12600000,
 		});
-		expect(payload.routes[0]?.routingWarnings).toEqual([
-			windUnavailableWarning,
+		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
+		expectWarnings(payload.routes[0]?.warnings, [
+			{
+				category: "routing_provider",
+				code: "wind_analysis_unavailable",
+				message: windUnavailableWarning,
+			},
 		]);
 	});
 
@@ -1875,8 +1902,13 @@ describe("POST /api/route", () => {
 		]);
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.durationMs).toBe(12600000);
-		expect(payload.routes[0]?.routingWarnings).toEqual([
-			windUnavailableWarning,
+		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
+		expectWarnings(payload.routes[0]?.warnings, [
+			{
+				category: "routing_provider",
+				code: "wind_analysis_unavailable",
+				message: windUnavailableWarning,
+			},
 		]);
 	});
 
@@ -1929,8 +1961,13 @@ describe("POST /api/route", () => {
 		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(7);
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.durationMs).toBe(12300000);
-		expect(payload.routes[0]?.routingWarnings).toEqual([
-			windUnavailableWarning,
+		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
+		expectWarnings(payload.routes[0]?.warnings, [
+			{
+				category: "routing_provider",
+				code: "wind_analysis_unavailable",
+				message: windUnavailableWarning,
+			},
 		]);
 	});
 
@@ -2335,9 +2372,19 @@ describe("POST /api/route", () => {
 
 		expect(response.status).toBe(200);
 		const payload = (await response.json()) as RouteApiSuccess;
-		expect(payload.routes[0]?.routingWarnings).toEqual([
-			"Requested 3:30 h, but the closest round course came out to 2:55 h.",
-			windUnavailableWarning,
+		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
+		expectWarnings(payload.routes[0]?.warnings, [
+			{
+				category: "routing_provider",
+				code: "routing_profile_fallback",
+				message:
+					"Requested 3:30 h, but the closest round course came out to 2:55 h.",
+			},
+			{
+				category: "routing_provider",
+				code: "wind_analysis_unavailable",
+				message: windUnavailableWarning,
+			},
 		]);
 	});
 
@@ -2807,19 +2854,29 @@ describe("POST /api/route", () => {
 		expect(bikeTunedRouteRequest["ch.disable"]).toBe(true);
 		expect(bikeTunedRouteRequest.algorithm).toBe("alternative_route");
 
-		await expect(response.json()).resolves.toMatchObject({
+		const fallbackPayload = (await response.json()) as RouteApiSuccess;
+		expect(fallbackPayload).toMatchObject({
 			routes: [
 				{
 					routingProfile: "bike",
 					routingStrategy: expect.stringContaining("bike"),
-					routingWarnings: [
-						expect.stringContaining("racingbike profile"),
-						windUnavailableWarning,
-					],
 				},
 			],
 			selectedRouteIndex: 0,
 		});
+		expect(fallbackPayload.routes[0]?.routingWarnings).toBeUndefined();
+		expectWarnings(fallbackPayload.routes[0]?.warnings, [
+			{
+				category: "routing_provider",
+				code: "routing_profile_fallback",
+				message: expect.stringContaining("racingbike profile"),
+			},
+			{
+				category: "routing_provider",
+				code: "wind_analysis_unavailable",
+				message: windUnavailableWarning,
+			},
+		]);
 	});
 
 	it("routes out-and-back shaping waypoints before mirroring the outbound path", async () => {
@@ -2924,11 +2981,21 @@ describe("POST /api/route", () => {
 					coordinate: [11.7581, 47.7123, 734],
 				},
 			],
-			routingWarnings: [
-				"Manual shaping points make the round-course target best-effort.",
-				windUnavailableWarning,
-			],
 		});
+		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
+		expectWarnings(payload.routes[0]?.warnings, [
+			{
+				category: "routing_provider",
+				code: "routing_profile_fallback",
+				message:
+					"Manual shaping points make the round-course target best-effort.",
+			},
+			{
+				category: "routing_provider",
+				code: "wind_analysis_unavailable",
+				message: windUnavailableWarning,
+			},
+		]);
 		expect(payload.roundCourseCandidateErrors).toBeUndefined();
 	});
 

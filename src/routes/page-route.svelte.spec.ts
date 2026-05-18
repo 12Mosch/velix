@@ -261,6 +261,58 @@ const alternativeRoutePayload = {
 	],
 	selectedRouteIndex: 0,
 };
+const structuredWarningRoutePayload = {
+	routes: [
+		{
+			...successfulRoute,
+			warnings: [
+				{
+					category: "routing_provider",
+					code: "routing_profile_fallback",
+					severity: "info",
+					title: "Routing fallback",
+					message: "Advanced paved-road tuning was unavailable.",
+				},
+				{
+					category: "readiness",
+					code: "coarse_surface_exposure",
+					severity: "warning",
+					title: "Coarse surface exposure",
+					message:
+						"This route includes enough rough or unpaved surface to affect road-bike readiness.",
+					metricLabel: "Coarse",
+					metricValue: "4.8 km (9%)",
+				},
+				{
+					category: "readiness",
+					code: "strong_headwind_exposure",
+					severity: "caution",
+					title: "Strong headwind exposure",
+					message:
+						"Headwind exposure may make this route feel harder than its distance suggests.",
+					metricLabel: "Max headwind",
+					metricValue: "23 km/h",
+				},
+			],
+		},
+		{
+			...successfulRoute,
+			distanceMeters: 68450,
+			warnings: [
+				{
+					category: "readiness",
+					code: "steep_gradient",
+					severity: "caution",
+					title: "Steep gradient",
+					message: "The route includes a steep section.",
+					metricLabel: "Max grade",
+					metricValue: "13.5%",
+				},
+			],
+		},
+	],
+	selectedRouteIndex: 0,
+};
 const successfulRoundCourseRoute = {
 	mode: "round_course",
 	source: {
@@ -1718,6 +1770,65 @@ describe("+page.svelte", () => {
 			.poll(() => readSavedRoutesFromStorage()[0]?.route.distanceMeters)
 			.toBe(68450);
 		expect(readSavedRoutesFromStorage()).toHaveLength(1);
+	});
+
+	it("shows readiness warnings separately from provider fallbacks", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(structuredWarningRoutePayload)),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.element(page.getByText("Coarse surface exposure"))
+			.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText(
+					"This route includes enough rough or unpaved surface to affect road-bike readiness.",
+				),
+			)
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Advanced paved-road tuning was unavailable."))
+			.not.toBeInTheDocument();
+
+		await page.getByRole("button", { name: "Analysis" }).click();
+
+		await expect
+			.element(page.getByText("Readiness", { exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Strong headwind exposure"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Routing fallback"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Advanced paved-road tuning was unavailable."))
+			.toBeInTheDocument();
+
+		await page.getByRole("button", { name: /Route 2/i }).click();
+
+		await expect
+			.poll(() => document.body.textContent)
+			.toContain("Steep gradient");
+		await expect
+			.poll(() => document.body.textContent)
+			.not.toContain("Coarse surface exposure");
 	});
 
 	it("manual route lock and unlock update manualEditing in the same autosaved route", async () => {

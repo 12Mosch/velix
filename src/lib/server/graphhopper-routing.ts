@@ -9,6 +9,7 @@ import type {
 	RouteDetailInterval,
 	RouteInstruction,
 	RouteMode,
+	RouteWarning,
 } from "$lib/route-planning";
 import { mapGraphHopperSignToInstructionType } from "$lib/route-planning";
 import {
@@ -205,6 +206,18 @@ const routeRequestStrategies: RouteRequestStrategy[] = [
 	},
 ];
 
+function routingWarningsAsProviderWarnings(
+	routingWarnings: string[],
+): RouteWarning[] {
+	return routingWarnings.map((message) => ({
+		category: "routing_provider",
+		code: "routing_profile_fallback",
+		severity: "info",
+		title: "Routing fallback",
+		message,
+	}));
+}
+
 function buildRoadBikeCustomModel(
 	spatialConstraint?: ResolvedRouteSpatialConstraint,
 	avoidances: ResolvedRouteAvoidance[] = [],
@@ -394,7 +407,9 @@ function normalizeGraphHopperPath(
 			avoidances: options.avoidances,
 			routingProfile: selectedStrategy.profile,
 			routingStrategy: selectedStrategy.routingStrategy,
-			routingWarnings: [...selectedStrategy.routingWarnings],
+			warnings: routingWarningsAsProviderWarnings(
+				selectedStrategy.routingWarnings,
+			),
 			waypoints: [],
 			bounds: [bbox[0], bbox[1], bbox[2], bbox[3]],
 			distanceMeters: path.distance,
