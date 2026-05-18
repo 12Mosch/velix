@@ -7,8 +7,10 @@ import type {
 	RoundCourseTarget,
 	RouteCoordinate,
 	RouteDetailInterval,
+	RouteInstruction,
 	RouteMode,
 } from "$lib/route-planning";
+import { mapGraphHopperSignToInstructionType } from "$lib/route-planning";
 import {
 	runServerEffect,
 	readResponseTextEffect,
@@ -34,6 +36,13 @@ type GraphHopperPath = {
 	points?: {
 		coordinates?: RouteCoordinate[];
 	};
+	instructions?: Array<{
+		distance?: number;
+		time?: number;
+		text?: string;
+		sign?: number;
+		interval?: [number, number] | number[];
+	}>;
 	snapped_waypoints?: {
 		coordinates?: RouteCoordinate[];
 	};
@@ -72,7 +81,7 @@ type GraphHopperRouteRequestBody = {
 	points: [number, number][];
 	points_encoded: false;
 	elevation: true;
-	instructions: false;
+	instructions: true;
 	calc_points: true;
 	details: typeof routeDetailKeys;
 	snap_preventions?: string[];
@@ -275,6 +284,75 @@ function normalizeDetailIntervals(
 		}));
 }
 
+function normalizeGraphHopperInstructions(
+	instructions: GraphHopperPath["instructions"],
+	coordinates: RouteCoordinate[],
+): RouteInstruction[] {
+	if (!instructions || coordinates.length === 0) {
+		return [];
+	}
+
+	let distanceFromStartMeters = 0;
+	const maxCoordinateIndex = coordinates.length - 1;
+	const normalizedInstructions: RouteInstruction[] = [];
+
+	for (const instruction of instructions) {
+		const text = instruction.text?.trim();
+		const { sign, distance, time, interval } = instruction;
+
+		if (
+			!text ||
+			!Number.isFinite(sign) ||
+			!Number.isFinite(distance) ||
+			(distance as number) < 0 ||
+			!Number.isFinite(time) ||
+			(time as number) < 0 ||
+			!Array.isArray(interval) ||
+			interval.length < 2 ||
+			!Number.isFinite(interval[0]) ||
+			!Number.isFinite(interval[1])
+		) {
+			continue;
+		}
+
+		const truncatedStart = Math.trunc(interval[0]);
+		const truncatedEnd = Math.trunc(interval[1]);
+
+		if (truncatedStart > truncatedEnd) {
+			continue;
+		}
+
+		const coordinateIndex = Math.min(
+			maxCoordinateIndex,
+			Math.max(0, truncatedStart),
+		);
+		const coordinate = coordinates[coordinateIndex];
+
+		if (!coordinate) {
+			continue;
+		}
+
+		const normalizedSign = sign as number;
+		const segmentDistanceMeters = Math.max(0, distance as number);
+		const segmentTimeMs = time as number;
+
+		normalizedInstructions.push({
+			distanceFromStartMeters,
+			text,
+			sign: normalizedSign,
+			type: mapGraphHopperSignToInstructionType(normalizedSign),
+			segmentDistanceMeters,
+			segmentTimeMs,
+			coordinateIndex,
+			coordinate,
+			interval: [truncatedStart, truncatedEnd],
+		});
+		distanceFromStartMeters += segmentDistanceMeters;
+	}
+
+	return normalizedInstructions;
+}
+
 function normalizeGraphHopperPath(
 	path: GraphHopperPath,
 	points: [number, number][],
@@ -324,6 +402,10 @@ function normalizeGraphHopperPath(
 			ascendMeters: path.ascend,
 			descendMeters: path.descend,
 			coordinates,
+			instructions: normalizeGraphHopperInstructions(
+				path.instructions,
+				coordinates,
+			),
 			surfaceDetails: normalizeDetailIntervals(path.details?.surface),
 			smoothnessDetails: normalizeDetailIntervals(path.details?.smoothness),
 		},
@@ -400,7 +482,7 @@ export function requestRoutesEffect(
 				points,
 				points_encoded: false,
 				elevation: true,
-				instructions: false,
+				instructions: true,
 				calc_points: true,
 				details: routeDetailKeys,
 			};

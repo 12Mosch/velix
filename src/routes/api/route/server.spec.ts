@@ -51,6 +51,50 @@ function buildRouteResponse(points: number[][]) {
 							[11.8598, 47.7362, 785],
 						],
 					},
+					instructions: [
+						{
+							distance: 250,
+							time: 60000,
+							text: "Continue onto Start Road",
+							sign: 0,
+							interval: [0, 1],
+						},
+						{
+							distance: 980,
+							time: 180000,
+							text: "Turn right onto Main Street",
+							sign: 2,
+							interval: [1, 2],
+						},
+						{
+							distance: Number.NaN,
+							time: 1000,
+							text: "Broken cue",
+							sign: 2,
+							interval: [2, 2],
+						},
+						{
+							distance: -5,
+							time: 1000,
+							text: "Negative distance cue",
+							sign: 2,
+							interval: [1, 2],
+						},
+						{
+							distance: 5,
+							time: -1000,
+							text: "Negative time cue",
+							sign: 2,
+							interval: [1, 2],
+						},
+						{
+							distance: 5,
+							time: 1000,
+							text: "Reversed interval cue",
+							sign: 2,
+							interval: [2, 1],
+						},
+					],
 					snapped_waypoints: {
 						coordinates: points,
 					},
@@ -224,10 +268,64 @@ describe("POST /api/route", () => {
 			[11.7581, 47.7123],
 			[11.8598, 47.7362],
 		]);
+		expect(requestBody.instructions).toBe(true);
 		expect(requestBody.algorithm).toBe("alternative_route");
 		expect(requestBody["alternative_route.max_paths"]).toBe(3);
 		expect(requestBody["alternative_route.max_weight_factor"]).toBe(1.4);
 		expect(requestBody["alternative_route.max_share_factor"]).toBe(0.6);
+	});
+
+	it("normalizes GraphHopper instructions and drops malformed rows", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+		const payload = (await response.json()) as RouteApiSuccess;
+		const instructions = payload.routes[0]?.instructions ?? [];
+
+		expect(response.status).toBe(200);
+		expect(instructions).toHaveLength(2);
+		expect(instructions[0]).toMatchObject({
+			text: "Continue onto Start Road",
+			sign: 0,
+			type: "continue",
+			segmentDistanceMeters: 250,
+			segmentTimeMs: 60000,
+			distanceFromStartMeters: 0,
+			interval: [0, 1],
+			coordinateIndex: 0,
+			coordinate: [11.5755, 48.1374, 520],
+		});
+		expect(instructions[1]).toMatchObject({
+			text: "Turn right onto Main Street",
+			sign: 2,
+			type: "right",
+			segmentDistanceMeters: 980,
+			segmentTimeMs: 180000,
+			distanceFromStartMeters: 250,
+			interval: [1, 2],
+			coordinateIndex: 1,
+			coordinate: [11.7, 48.02, 575],
+		});
 	});
 
 	it("passes an abort signal to GraphHopper route requests", async () => {
@@ -1105,6 +1203,13 @@ describe("POST /api/route", () => {
 			[11.7, 48.02, 575],
 			[11.5755, 48.1374, 520],
 		]);
+		expect(route?.instructions).toHaveLength(2);
+		expect(route?.instructions?.[1]).toMatchObject({
+			text: "Turn right onto Main Street",
+			type: "right",
+			coordinateIndex: 1,
+			coordinate: [11.7, 48.02, 575],
+		});
 		expect(route?.surfaceDetails).toEqual([
 			{ from: 0, to: 2, value: "ASPHALT" },
 			{ from: 2, to: 3, value: "COMPACTED" },

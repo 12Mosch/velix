@@ -84,6 +84,7 @@ function normalizeLegacyPlannedRouteInput(
 		mode: decodeOrNull(RouteModeSchema, value.mode) ?? "point_to_point",
 		source: value.source ?? { kind: "graphhopper" },
 		waypoints: value.waypoints ?? [],
+		instructions: value.instructions ?? [],
 	};
 	delete candidate.manualEditing;
 

@@ -182,6 +182,34 @@ export const RouteDetailIntervalSchema = Schema.Struct({
 	to: Schema.Finite,
 	value: Schema.String,
 });
+export const RouteInstructionTypeSchema = Schema.Literals([
+	"continue",
+	"slight_left",
+	"left",
+	"sharp_left",
+	"slight_right",
+	"right",
+	"sharp_right",
+	"u_turn",
+	"roundabout",
+	"leave_roundabout",
+	"keep_left",
+	"keep_right",
+	"via",
+	"finish",
+	"unknown",
+]);
+export const RouteInstructionSchema = Schema.Struct({
+	distanceFromStartMeters: Schema.Finite,
+	text: Schema.String,
+	sign: Schema.Finite,
+	type: RouteInstructionTypeSchema,
+	segmentDistanceMeters: Schema.Finite,
+	segmentTimeMs: Schema.Finite,
+	coordinateIndex: Schema.Finite,
+	coordinate: RouteCoordinateSchema,
+	interval: Schema.mutable(Schema.Tuple([Schema.Finite, Schema.Finite])),
+});
 export const ManualRouteEditingStateSchema = Schema.Struct({
 	lockedSegmentIndexes: Schema.mutable(Schema.Array(Schema.Finite)),
 });
@@ -262,6 +290,9 @@ export const PlannedRouteSchema = Schema.Struct({
 	ascendMeters: Schema.Finite,
 	descendMeters: Schema.Finite,
 	coordinates: Schema.mutable(Schema.Array(RouteCoordinateSchema)),
+	instructions: Schema.optionalKey(
+		Schema.UndefinedOr(Schema.mutable(Schema.Array(RouteInstructionSchema))),
+	),
 	surfaceDetails: Schema.mutable(Schema.Array(RouteDetailIntervalSchema)),
 	smoothnessDetails: Schema.mutable(Schema.Array(RouteDetailIntervalSchema)),
 	windAnalysis: Schema.optionalKey(Schema.UndefinedOr(RouteWindAnalysisSchema)),

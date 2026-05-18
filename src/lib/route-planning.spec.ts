@@ -18,9 +18,11 @@ import {
 	getRouteLegIndexForCoordinateSegment,
 	getRouteSegmentCount,
 	getRouteStopInputs,
+	getRouteTurnCount,
 	getSurfaceMix,
 	getWaypointInsertionIndex,
 	isRouteStopLocked,
+	mapGraphHopperSignToInstructionType,
 	sampleElevationProfile,
 	sanitizeLockedSegmentIndexes,
 	type PlannedRoute,
@@ -53,10 +55,59 @@ function buildRoute(
 			[0, 0, 10],
 			[1, 1, 20],
 		],
+		instructions: [],
 		surfaceDetails,
 		smoothnessDetails,
 	};
 }
+
+describe("route instruction helpers", () => {
+	it("maps GraphHopper signs to normalized instruction types", () => {
+		expect(mapGraphHopperSignToInstructionType(-3)).toBe("sharp_left");
+		expect(mapGraphHopperSignToInstructionType(-2)).toBe("left");
+		expect(mapGraphHopperSignToInstructionType(-1)).toBe("slight_left");
+		expect(mapGraphHopperSignToInstructionType(0)).toBe("continue");
+		expect(mapGraphHopperSignToInstructionType(1)).toBe("slight_right");
+		expect(mapGraphHopperSignToInstructionType(2)).toBe("right");
+		expect(mapGraphHopperSignToInstructionType(3)).toBe("sharp_right");
+		expect(mapGraphHopperSignToInstructionType(4)).toBe("finish");
+		expect(mapGraphHopperSignToInstructionType(5)).toBe("via");
+		expect(mapGraphHopperSignToInstructionType(6)).toBe("roundabout");
+		expect(mapGraphHopperSignToInstructionType(-6)).toBe("leave_roundabout");
+		expect(mapGraphHopperSignToInstructionType(-7)).toBe("keep_left");
+		expect(mapGraphHopperSignToInstructionType(7)).toBe("keep_right");
+		expect(mapGraphHopperSignToInstructionType(-98)).toBe("u_turn");
+		expect(mapGraphHopperSignToInstructionType(999)).toBe("unknown");
+	});
+
+	it("counts actionable turns and excludes continue, via, and finish", () => {
+		const route = buildRoute([], []);
+		route.instructions = [
+			"continue",
+			"left",
+			"right",
+			"keep_left",
+			"roundabout",
+			"leave_roundabout",
+			"u_turn",
+			"unknown",
+			"via",
+			"finish",
+		].map((type, index) => ({
+			distanceFromStartMeters: index * 100,
+			text: type,
+			sign: type === "unknown" ? 42 : index,
+			type: type as NonNullable<PlannedRoute["instructions"]>[number]["type"],
+			segmentDistanceMeters: 100,
+			segmentTimeMs: 10000,
+			coordinateIndex: 0,
+			coordinate: route.coordinates[0],
+			interval: [0, 1],
+		}));
+
+		expect(getRouteTurnCount(route)).toBe(7);
+	});
+});
 
 describe("buildRouteGeoJson", () => {
 	it("includes waypoint point features between the start and destination markers", () => {

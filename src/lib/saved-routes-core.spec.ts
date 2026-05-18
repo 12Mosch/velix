@@ -28,6 +28,7 @@ const baseRoute: SavedRoute["route"] = {
 		[11.62, 48.1, 545],
 		[11.8598, 47.7362, 785],
 	],
+	instructions: [],
 	surfaceDetails: [{ from: 0, to: 2, value: "asphalt" }],
 	smoothnessDetails: [{ from: 0, to: 2, value: "GOOD" }],
 };
@@ -105,6 +106,7 @@ describe("saved-routes-core", () => {
 	it("loads legacy routes without waypoints", () => {
 		const legacyRoute = { ...baseRoute };
 		delete (legacyRoute as { waypoints?: unknown }).waypoints;
+		delete (legacyRoute as { instructions?: unknown }).instructions;
 		const savedRoute: SavedRoute = {
 			id: "legacy-route",
 			createdAt: "2026-04-19T09:30:00.000Z",
@@ -117,6 +119,7 @@ describe("saved-routes-core", () => {
 				route: {
 					...savedRoute.route,
 					waypoints: [],
+					instructions: [],
 				},
 			},
 		]);
@@ -127,13 +130,41 @@ describe("saved-routes-core", () => {
 		delete (legacyRoute as { mode?: unknown }).mode;
 		delete (legacyRoute as { source?: unknown }).source;
 		delete (legacyRoute as { waypoints?: unknown }).waypoints;
+		delete (legacyRoute as { instructions?: unknown }).instructions;
 
 		expect(normalizePlannedRoute(legacyRoute)).toEqual({
 			...legacyRoute,
 			mode: "point_to_point",
 			source: { kind: "graphhopper" },
 			waypoints: [],
+			instructions: [],
 		});
+	});
+
+	it("preserves valid instructions and defaults missing instructions", () => {
+		const instructions = [
+			{
+				distanceFromStartMeters: 1200,
+				text: "Turn right onto Main Street",
+				sign: 2,
+				type: "right" as const,
+				segmentDistanceMeters: 320,
+				segmentTimeMs: 82000,
+				coordinateIndex: 1,
+				coordinate: [11.62, 48.1, 545] as [number, number, number],
+				interval: [1, 2] as [number, number],
+			},
+		];
+		const legacyRoute = { ...baseRoute };
+		delete (legacyRoute as { instructions?: unknown }).instructions;
+
+		expect(
+			normalizePlannedRoute({
+				...baseRoute,
+				instructions,
+			})?.instructions,
+		).toEqual(instructions);
+		expect(normalizePlannedRoute(legacyRoute)?.instructions).toEqual([]);
 	});
 
 	it("rejects invalid route source shapes through schema normalization", () => {

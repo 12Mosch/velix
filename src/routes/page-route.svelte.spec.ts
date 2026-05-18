@@ -62,6 +62,30 @@ const successfulRoute = {
 		[11.81, 47.88, 720],
 		[11.8598, 47.7362, 785],
 	],
+	instructions: [
+		{
+			distanceFromStartMeters: 0,
+			text: "Continue on Start Road",
+			sign: 0,
+			type: "continue",
+			segmentDistanceMeters: 450,
+			segmentTimeMs: 90000,
+			coordinateIndex: 0,
+			coordinate: [11.5755, 48.1374, 520],
+			interval: [0, 1],
+		},
+		{
+			distanceFromStartMeters: 450,
+			text: "Turn right onto Main Street",
+			sign: 2,
+			type: "right",
+			segmentDistanceMeters: 1250,
+			segmentTimeMs: 180000,
+			coordinateIndex: 1,
+			coordinate: [11.62, 48.1, 545],
+			interval: [1, 2],
+		},
+	],
 	surfaceDetails: [
 		{ from: 0, to: 4, value: "asphalt" },
 		{ from: 4, to: 5, value: "fine gravel" },
@@ -809,6 +833,79 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("button", { name: "Analysis" }))
 			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: /Directions/ }))
+			.toBeInTheDocument();
+		await expect.element(page.getByText("1 turn")).toBeInTheDocument();
+	});
+
+	it("shows directions and focuses the map when a cue is selected", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url = String(input);
+
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: successfulRoutePayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => document.body.textContent).toContain("1 turn");
+		await page.getByRole("button", { name: /Directions/ }).click();
+
+		await expect
+			.element(page.getByText("Turn right onto Main Street"))
+			.toBeInTheDocument();
+		await expect.element(page.getByText("0.5 km")).toBeInTheDocument();
+		await expect.element(page.getByText("1.3 km")).toBeInTheDocument();
+		await expect.element(page.getByText("3 min")).toBeInTheDocument();
+
+		await page
+			.getByRole("button", { name: /Turn right onto Main Street/ })
+			.click();
+
+		await expect.poll(() => mapInstance.easeTo.mock.calls.length).toBe(1);
+		expect(mapInstance.easeTo).toHaveBeenCalledWith({
+			center: [11.62, 48.1],
+			zoom: 13,
+			duration: 600,
+		});
+		await expect
+			.poll(() =>
+				mapInstance.addSource.mock.calls.some(
+					(call) => call[0] === "planned-route-hover",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.addSource).toHaveBeenCalledWith(
+			"planned-route-hover",
+			expect.objectContaining({
+				type: "geojson",
+				data: expect.objectContaining({
+					features: [
+						expect.objectContaining({
+							geometry: expect.objectContaining({
+								type: "Point",
+								coordinates: [11.62, 48.1, 545],
+							}),
+						}),
+					],
+				}),
+			}),
+		);
 	});
 
 	it("opens Advanced when an advanced validation error is present", async () => {

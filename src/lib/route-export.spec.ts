@@ -35,8 +35,37 @@ const pointToPointRoute: PlannedRoute = {
 		[11.81, 47.88, 720],
 		[11.8598, 47.7362, 785],
 	],
+	instructions: [],
 	surfaceDetails: [],
 	smoothnessDetails: [],
+};
+
+const routeWithInstructions: PlannedRoute = {
+	...pointToPointRoute,
+	instructions: [
+		{
+			distanceFromStartMeters: 0,
+			text: "Continue on Start & Main",
+			sign: 0,
+			type: "continue",
+			segmentDistanceMeters: 420,
+			segmentTimeMs: 80000,
+			coordinateIndex: 0,
+			coordinate: [11.5755, 48.1374, 520],
+			interval: [0, 1],
+		},
+		{
+			distanceFromStartMeters: 420,
+			text: "Turn right onto Main <Street>",
+			sign: 2,
+			type: "right",
+			segmentDistanceMeters: 1200,
+			segmentTimeMs: 180000,
+			coordinateIndex: 1,
+			coordinate: [11.62, 48.1, 545],
+			interval: [1, 2],
+		},
+	],
 };
 
 function semicirclesToDegrees(value: number): number {
@@ -59,6 +88,7 @@ function decodeFit(bytes: Uint8Array) {
 		courseMesgs?: Array<Record<string, unknown>>;
 		recordMesgs?: Array<Record<string, unknown>>;
 		lapMesgs?: Array<Record<string, unknown>>;
+		coursePointMesgs?: Array<Record<string, unknown>>;
 	};
 }
 
@@ -230,6 +260,31 @@ describe("buildRouteGpx", () => {
 		expect(gpx).toContain('<gpx version="1.1" creator="Velix"');
 		expect(gpx).toContain("<metadata>");
 	});
+
+	it("includes route point cue entries and Velix extensions when instructions exist", () => {
+		const gpx = buildRouteGpx(routeWithInstructions);
+
+		expect(gpx).toContain('xmlns:velix="https://velix.app/gpx/1"');
+		expect(gpx).toContain("<rte>");
+		expect(gpx.match(/<rtept /g)).toHaveLength(2);
+		expect(gpx).toContain('<rtept lat="48.1" lon="11.62">');
+		expect(gpx).toContain("<ele>545</ele>");
+		expect(gpx).toContain("<name>Turn right onto Main &lt;Street&gt;</name>");
+		expect(gpx).toContain(
+			'<velix:cue distanceFromStartMeters="420" segmentDistanceMeters="1200" segmentTimeMs="180000" sign="2" type="right" coordinateIndex="1" />',
+		);
+		expect(gpx.match(/<wpt /g)).toHaveLength(3);
+		expect(gpx.match(/<trkpt /g)).toHaveLength(
+			pointToPointRoute.coordinates.length,
+		);
+	});
+
+	it("omits the cue route block when no instructions exist", () => {
+		const gpx = buildRouteGpx(pointToPointRoute);
+
+		expect(gpx).not.toContain("<rte>");
+		expect(gpx).not.toContain("xmlns:velix");
+	});
 });
 
 describe("buildRouteGpxFilename", () => {
@@ -357,6 +412,53 @@ describe("buildRouteFit", () => {
 				],
 			}),
 		).toThrow("Route track point 2 is missing longitude/latitude values.");
+	});
+
+	it("includes FIT course points for route instructions", () => {
+		const messages = decodeFit(
+			buildRouteFit(routeWithInstructions, {
+				exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+			}),
+		);
+		const coursePoints = messages.coursePointMesgs ?? [];
+
+		expect(coursePoints).toHaveLength(2);
+		expect(coursePoints[0]).toMatchObject({
+			type: "straight",
+			name: "Continue on Sta",
+			distance: 0,
+		});
+		expect(coursePoints[1]).toMatchObject({
+			type: "right",
+			name: "Turn right onto",
+			distance: 420,
+		});
+		expect(
+			semicirclesToDegrees(coursePoints[1].positionLong as number),
+		).toBeCloseTo(11.62, 5);
+		expect(
+			semicirclesToDegrees(coursePoints[1].positionLat as number),
+		).toBeCloseTo(48.1, 5);
+	});
+
+	it("keeps FIT course point timestamps valid when route distance is non-finite", () => {
+		const messages = decodeFit(
+			buildRouteFit(
+				{
+					...routeWithInstructions,
+					distanceMeters: Number.NaN,
+				},
+				{
+					exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+				},
+			),
+		);
+		const coursePoints = messages.coursePointMesgs ?? [];
+
+		expect(coursePoints[1]?.timestamp).toBeInstanceOf(Date);
+		expect(Number.isNaN((coursePoints[1]?.timestamp as Date).getTime())).toBe(
+			false,
+		);
 	});
 });
 

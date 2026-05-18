@@ -48,6 +48,7 @@ function buildValidRoute() {
 			[11.5755, 48.1374],
 			[13.405, 52.52, 40],
 		],
+		instructions: [],
 		surfaceDetails: [{ from: 0, to: 1, value: "ASPHALT" }],
 		smoothnessDetails: [{ from: 0, to: 1, value: "GOOD" }],
 	};
@@ -195,6 +196,78 @@ describe("route API schema helpers", () => {
 		expect(() =>
 			Schema.decodeUnknownSync(PlannedRouteSchema)(buildValidRoute()),
 		).not.toThrow();
+	});
+
+	it("accepts valid planned route instructions", () => {
+		const route = Schema.decodeUnknownSync(PlannedRouteSchema)({
+			...buildValidRoute(),
+			instructions: [
+				{
+					distanceFromStartMeters: 0,
+					text: "Turn right onto Main Street",
+					sign: 2,
+					type: "right",
+					segmentDistanceMeters: 250,
+					segmentTimeMs: 60000,
+					coordinateIndex: 0,
+					coordinate: [11.5755, 48.1374],
+					interval: [0, 1],
+				},
+			],
+		});
+
+		expect(route.instructions).toHaveLength(1);
+		expect(route.instructions?.[0]).toMatchObject({
+			text: "Turn right onto Main Street",
+			type: "right",
+			coordinateIndex: 0,
+		});
+	});
+
+	it("rejects malformed planned route instruction intervals", () => {
+		expect(() =>
+			Schema.decodeUnknownSync(PlannedRouteSchema)({
+				...buildValidRoute(),
+				instructions: [
+					{
+						distanceFromStartMeters: 0,
+						text: "Turn right",
+						sign: 2,
+						type: "right",
+						segmentDistanceMeters: 250,
+						segmentTimeMs: 60000,
+						coordinateIndex: 0,
+						coordinate: [11.5755, 48.1374],
+						interval: [0, 1, 2],
+					},
+				],
+			}),
+		).toThrow();
+		expect(() =>
+			Schema.decodeUnknownSync(PlannedRouteSchema)({
+				...buildValidRoute(),
+				instructions: [
+					{
+						distanceFromStartMeters: 0,
+						text: "Turn right",
+						sign: 2,
+						type: "right",
+						segmentDistanceMeters: 250,
+						segmentTimeMs: 60000,
+						coordinateIndex: 0,
+						coordinate: [11.5755, 48.1374],
+						interval: [0, "1"],
+					},
+				],
+			}),
+		).toThrow();
+	});
+
+	it("normalizes legacy planned routes without instructions to an empty array", () => {
+		const legacyRoute = buildValidRoute();
+		delete (legacyRoute as { instructions?: unknown }).instructions;
+
+		expect(normalizePlannedRoute(legacyRoute)?.instructions).toEqual([]);
 	});
 
 	it("accepts planned routes with resolved avoidances", () => {

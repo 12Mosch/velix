@@ -73,6 +73,8 @@
 		manualRecenterBounds?: RouteBounds | null;
 		manualRecenterRequestKey?: number;
 		hoveredRouteCoordinate?: RouteCoordinate | null;
+		focusedRouteCoordinate?: RouteCoordinate | null;
+		focusedRouteCoordinateKey?: number;
 		currentLocation?: {
 			point: [number, number];
 			accuracyMeters?: number;
@@ -131,6 +133,8 @@
 		manualRecenterBounds = null,
 		manualRecenterRequestKey = 0,
 		hoveredRouteCoordinate = null,
+		focusedRouteCoordinate = null,
+		focusedRouteCoordinateKey = 0,
 		currentLocation = null,
 		currentLocationFocusKey = 0,
 		layoutState = null,
@@ -158,6 +162,7 @@
 	let resizeLoopUntil = 0;
 	let renderedRouteOverlayIds: string[] = [];
 	let lastFocusedCurrentLocationKey: number | null = null;
+	let lastFocusedRouteCoordinateKey: number | null = null;
 
 	function canCreateMapWebGLContext() {
 		if (typeof document === "undefined") {
@@ -678,6 +683,23 @@
 		map.easeTo?.({
 			center: currentLocation.point,
 			zoom: 14,
+			duration: 600,
+		});
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady || !focusedRouteCoordinate) {
+			return;
+		}
+
+		if (lastFocusedRouteCoordinateKey === focusedRouteCoordinateKey) {
+			return;
+		}
+
+		lastFocusedRouteCoordinateKey = focusedRouteCoordinateKey;
+		map.easeTo?.({
+			center: [focusedRouteCoordinate[0], focusedRouteCoordinate[1]],
+			zoom: Math.max(map.getZoom?.() ?? 0, 13),
 			duration: 600,
 		});
 	});

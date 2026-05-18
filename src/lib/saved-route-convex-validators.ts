@@ -83,6 +83,36 @@ const routeDetailIntervalValidator = v.object({
 	value: v.string(),
 });
 
+const routeInstructionTypeValidator = v.union(
+	v.literal("continue"),
+	v.literal("slight_left"),
+	v.literal("left"),
+	v.literal("sharp_left"),
+	v.literal("slight_right"),
+	v.literal("right"),
+	v.literal("sharp_right"),
+	v.literal("u_turn"),
+	v.literal("roundabout"),
+	v.literal("leave_roundabout"),
+	v.literal("keep_left"),
+	v.literal("keep_right"),
+	v.literal("via"),
+	v.literal("finish"),
+	v.literal("unknown"),
+);
+
+const routeInstructionValidator = v.object({
+	distanceFromStartMeters: v.number(),
+	text: v.string(),
+	sign: v.number(),
+	type: routeInstructionTypeValidator,
+	segmentDistanceMeters: v.number(),
+	segmentTimeMs: v.number(),
+	coordinateIndex: v.number(),
+	coordinate: routeCoordinateValidator,
+	interval: v.array(v.number()),
+});
+
 const routeWaypointValidator = v.object({
 	label: v.string(),
 	coordinate: routeCoordinateValidator,
@@ -157,6 +187,7 @@ export const plannedRouteValidator = v.object({
 	ascendMeters: v.number(),
 	descendMeters: v.number(),
 	coordinates: v.array(routeCoordinateValidator),
+	instructions: v.optional(v.array(routeInstructionValidator)),
 	surfaceDetails: v.array(routeDetailIntervalValidator),
 	smoothnessDetails: v.array(routeDetailIntervalValidator),
 	windAnalysis: v.optional(routeWindAnalysisValidator),

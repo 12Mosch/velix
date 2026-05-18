@@ -567,6 +567,7 @@ export function parseRouteGpx(
 		ascendMeters: metrics.ascendMeters,
 		descendMeters: metrics.descendMeters,
 		coordinates,
+		instructions: [],
 		surfaceDetails: [],
 		smoothnessDetails: [],
 	};

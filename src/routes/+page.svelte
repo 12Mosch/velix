@@ -67,6 +67,7 @@
 		getRouteLegIndexForCoordinateSegment,
 		getRouteSegmentCount,
 		getRouteStopInputs,
+		getRouteTurnCount,
 		getSurfaceMix,
 		getWindSummary,
 		getWaypointInsertionIndex,
@@ -155,10 +156,16 @@
 	} from "$lib/route-planner/types";
 	import {
 		ArrowDown,
+		ArrowLeft,
+		ArrowRight,
 		ArrowUp,
 		Check,
 		ChevronDown,
 		ChevronUp,
+		CircleDot,
+		CornerDownLeft,
+		CornerDownRight,
+		Flag,
 		Layers,
 		LocateFixed,
 		MapPin,
@@ -169,6 +176,7 @@
 		Route,
 		ShieldCheck,
 		Share2,
+		Shuffle,
 		TrendingDown,
 		TrendingUp,
 		Undo2,
@@ -177,6 +185,11 @@
 	} from "@lucide/svelte";
 
 	const sidebar = useSidebar();
+
+	let directionsOpen = $state(false);
+	let selectedCueIndex = $state<number | null>(null);
+	let selectedCueFocusKey = $state(0);
+	let lastCueRouteKey = $state<string | null>(null);
 
 	function getOptionalConvexClient() {
 		if (!env.PUBLIC_CONVEX_URL) {
@@ -288,6 +301,11 @@
 	const isOutAndBackMode = $derived(plannerMode === "out_and_back");
 	const activeRoute = $derived(
 		selectedRouteIndex === null ? null : routeAlternatives[selectedRouteIndex] ?? null,
+	);
+	const activeDirections = $derived(activeRoute?.instructions ?? []);
+	const activeTurnCount = $derived(activeRoute ? getRouteTurnCount(activeRoute) : 0);
+	const selectedCue = $derived(
+		selectedCueIndex === null ? null : activeDirections[selectedCueIndex] ?? null,
 	);
 	const activeRouteShareKey = $derived(
 		activeRoute ? (plannerDraftRouteId ?? activeSavedRouteId ?? getRouteShareSignature(activeRoute)) : null,
@@ -444,6 +462,9 @@
 	const activeProfilePoint = $derived(
 		activeProfileIndex === null ? null : chartProfilePoints[activeProfileIndex] ?? null,
 	);
+	const highlightedRouteCoordinate = $derived(
+		selectedCue?.coordinate ?? activeProfilePoint?.coordinate ?? null,
+	);
 	const linePoints = $derived(
 		chartProfilePoints
 			.map((point) => `${point.x},${point.y}`)
@@ -479,6 +500,19 @@
 	$effect(() => {
 		if (!activeRoute && routeAnalysisOpen) {
 			routeAnalysisOpen = false;
+		}
+	});
+
+	$effect(() => {
+		const nextRouteKey = activeRoute ? getRouteShareSignature(activeRoute) : null;
+
+		if (!nextRouteKey && directionsOpen) {
+			directionsOpen = false;
+		}
+
+		if (nextRouteKey !== lastCueRouteKey) {
+			selectedCueIndex = null;
+			lastCueRouteKey = nextRouteKey;
 		}
 	});
 
@@ -730,6 +764,11 @@
 		recenterRouteRequestKey += 1;
 	}
 
+	function selectCue(index: number) {
+		selectedCueIndex = index;
+		selectedCueFocusKey += 1;
+	}
+
 	function getRouteStopInput(stop: PlannerStop): RouteStopInput {
 		return {
 			label: stop.label.trim(),
@@ -770,6 +809,14 @@
 		const toDistance = (route.distanceMeters * segment.to) / segmentCount;
 
 		return `${formatExactDistance(fromDistance)}-${formatExactDistance(toDistance)}`;
+	}
+
+	function formatCueSegmentTime(ms: number): string {
+		if (!Number.isFinite(ms) || ms <= 0) {
+			return "0 min";
+		}
+
+		return formatDuration(ms);
 	}
 
 	function getDestinationFieldLabel() {
@@ -3266,7 +3313,9 @@
 		fitInitialBoundsWithRestoredCamera={fitInitialSavedRouteBounds}
 		manualRecenterBounds={activeRoute?.bounds ?? null}
 		manualRecenterRequestKey={recenterRouteRequestKey}
-		hoveredRouteCoordinate={activeProfilePoint?.coordinate ?? null}
+		hoveredRouteCoordinate={highlightedRouteCoordinate}
+		focusedRouteCoordinate={selectedCue?.coordinate ?? null}
+		focusedRouteCoordinateKey={selectedCueFocusKey}
 		currentLocation={currentLocation}
 		currentLocationFocusKey={currentLocationFocusKey}
 	/>
@@ -4317,6 +4366,12 @@
 							{/if}
 							<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 							<span class="font-semibold text-foreground">{getRouteDurationText(activeRoute)}</span>
+							{#if activeDirections.length > 0}
+								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+								<span class="font-semibold text-foreground">
+									{activeTurnCount} turn{activeTurnCount === 1 ? "" : "s"}
+								</span>
+							{/if}
 						</div>
 					{:else}
 						<div class="flex min-w-0 flex-col gap-1">
@@ -4409,6 +4464,27 @@
 								>
 									<Share2 class="size-3.5" />
 									{isSharingRoute ? "Sharing..." : isActiveRouteShareCopied ? "Copied" : "Share"}
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									class="gap-1 font-semibold"
+									onclick={() => (directionsOpen = !directionsOpen)}
+									aria-expanded={directionsOpen}
+									aria-controls="route-directions-panel"
+								>
+									Directions
+									<Badge
+										variant="secondary"
+										class="h-5 px-1.5 text-[10px] font-semibold"
+									>
+										{activeTurnCount}
+									</Badge>
+									{#if directionsOpen}
+										<ChevronUp class="size-3.5 opacity-70" />
+									{:else}
+										<ChevronDown class="size-3.5 opacity-70" />
+									{/if}
 								</Button>
 								<Button
 									variant="outline"
@@ -4835,6 +4911,78 @@
 						</div>
 					{/if}
 				</div>
+				{/if}
+
+				{#if directionsOpen && activeRoute}
+					<div
+						id="route-directions-panel"
+						class="mt-3 max-h-[min(38vh,22rem)] overflow-y-auto rounded-lg border border-border/40 bg-secondary/5 p-2"
+					>
+						<div class="flex items-center justify-between gap-2 px-1 pb-2">
+							<div class="flex min-w-0 items-center gap-2">
+								<Navigation class="size-3.5 shrink-0 text-primary" />
+								<span class="text-xs font-semibold uppercase tracking-wide text-foreground/75">
+									Directions
+								</span>
+							</div>
+							<span class="text-xs text-muted-foreground">
+								{activeDirections.length} cue{activeDirections.length === 1 ? "" : "s"}
+							</span>
+						</div>
+
+						{#if activeDirections.length > 0}
+							<div class="space-y-1">
+								{#each activeDirections as cue, index (`cue-${index}-${cue.coordinateIndex}-${cue.sign}`)}
+									<button
+										type="button"
+										class={`grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors ${
+											selectedCueIndex === index
+												? "border-primary/35 bg-primary/10 text-foreground"
+												: "border-transparent bg-background/60 text-foreground hover:border-border/70 hover:bg-background"
+										}`}
+										aria-pressed={selectedCueIndex === index}
+										onclick={() => selectCue(index)}
+									>
+										<span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+											{#if cue.type === "left" || cue.type === "slight_left" || cue.type === "sharp_left" || cue.type === "keep_left"}
+												<CornerDownLeft class="size-4" />
+											{:else if cue.type === "right" || cue.type === "slight_right" || cue.type === "sharp_right" || cue.type === "keep_right"}
+												<CornerDownRight class="size-4" />
+											{:else if cue.type === "u_turn"}
+												<Shuffle class="size-4" />
+											{:else if cue.type === "roundabout" || cue.type === "leave_roundabout"}
+												<CircleDot class="size-4" />
+											{:else if cue.type === "finish"}
+												<Flag class="size-4" />
+											{:else if cue.sign < 0}
+												<ArrowLeft class="size-4" />
+											{:else if cue.sign > 0}
+												<ArrowRight class="size-4" />
+											{:else}
+												<ArrowUp class="size-4" />
+											{/if}
+										</span>
+										<span class="min-w-0">
+											<span class="block text-xs font-semibold text-muted-foreground">
+												{formatExactDistance(cue.distanceFromStartMeters)}
+											</span>
+											<span class="block truncate text-sm font-semibold">
+												{cue.text}
+											</span>
+										</span>
+										<span class="text-right text-xs tabular-nums text-muted-foreground">
+											<span class="block">{formatDistance(cue.segmentDistanceMeters)}</span>
+											<span class="block">{formatCueSegmentTime(cue.segmentTimeMs)}</span>
+										</span>
+									</button>
+								{/each}
+							</div>
+						{:else}
+							<div class="flex min-h-20 items-center justify-center rounded-md border border-dashed border-border/60 bg-background/50 px-3 text-center text-sm text-muted-foreground">
+								No directions available for this route
+							</div>
+						{/if}
+					</div>
 				{/if}
 
 				{#if routeAnalysisOpen && activeRoute}
