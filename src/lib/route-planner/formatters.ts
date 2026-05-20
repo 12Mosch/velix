@@ -1,9 +1,13 @@
 import { formatDistance, formatDistanceInput } from "$lib/unit-settings.svelte";
+export {
+	formatDuration,
+	formatRoundCourseTarget,
+	getRouteDurationText,
+} from "$lib/route-display";
 import {
 	isImportedRoute,
 	type PlannedRoute,
 	type RouteClimb,
-	type RoundCourseTarget,
 	type SpatialConstraintEnforcement,
 	type WindDirectionBucket,
 } from "$lib/route-planning";
@@ -24,24 +28,6 @@ export function formatRoundCourseDurationInput(
 	const minutes = totalMinutes % 60;
 
 	return `${hours}:${minutes.toString().padStart(2, "0")}`;
-}
-
-export function formatRoundCourseTarget(
-	target: RoundCourseTarget | null | undefined,
-): string {
-	if (!target) {
-		return "";
-	}
-
-	if (target.kind === "distance") {
-		return formatDistance(target.distanceMeters);
-	}
-
-	if (target.kind === "duration") {
-		return `${formatRoundCourseDurationInput(target.durationMs)} h`;
-	}
-
-	return `${Math.round(target.ascendMeters).toLocaleString()} m up`;
 }
 
 export function formatSpatialConstraintSummary(
@@ -103,18 +89,6 @@ export function formatWindComponent(kmh: number): string {
 		: `${rounded.toLocaleString()} km/h head`;
 }
 
-export function formatDuration(durationMs: number): string {
-	const totalMinutes = Math.round(durationMs / 60000);
-	const hours = Math.floor(totalMinutes / 60);
-	const minutes = totalMinutes % 60;
-
-	if (hours === 0) {
-		return `${minutes} min`;
-	}
-
-	return `${hours}:${minutes.toString().padStart(2, "0")} h`;
-}
-
 export function getClimbLabel(climb: RouteClimb, index: number): string {
 	return climb.category === "Uncategorized"
 		? `Climb ${index + 1}`
@@ -163,18 +137,6 @@ export function getRoutingBadgeLabel(route: PlannedRoute | null): string {
 	return route.routingProfile === "racingbike"
 		? "Racingbike profile"
 		: "Bike fallback";
-}
-
-export function getRouteDurationText(route: PlannedRoute | null): string {
-	if (!route) {
-		return "";
-	}
-
-	if (isImportedRoute(route) && !route.source.hasDuration) {
-		return "Time unavailable";
-	}
-
-	return formatDuration(route.durationMs);
 }
 
 export function getImportedRouteStopSummary(
