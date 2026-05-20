@@ -3,6 +3,7 @@
 	import { env } from "$env/dynamic/public";
 	import { useConvexClient } from "convex-svelte";
 	import { api } from "../convex/_generated/api";
+	import type { FeatureCollection } from "geojson";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
@@ -309,12 +310,27 @@
 
 	type AsyncRouteEditResult = "committed" | "noop" | "rollback";
 
+	type CachedRouteOverlayGeoJson = {
+		signature: string;
+		baseGeoJson: FeatureCollection;
+		surfaceGeoJson?: FeatureCollection;
+		climbGeoJsonBySignature: Map<string, FeatureCollection>;
+		gradientGeoJson?: FeatureCollection;
+		windSignature?: string;
+		windGeoJson?: FeatureCollection;
+	};
+
 	type SavedRouteEditMetadata = {
 		activeSavedRouteId: string | null;
 		plannerDraftRouteId: string | null;
 		pendingSavedRouteId: string | null;
 		isActiveRouteSaved: boolean;
 	};
+
+	const routeOverlayGeoJsonCache = new WeakMap<
+		PlannedRoute,
+		CachedRouteOverlayGeoJson
+	>();
 
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let detachRouteEditKeyboardListener = () => {};
@@ -419,6 +435,206 @@
 		lastGeneratedRouteCount = state.lastGeneratedRouteCount;
 	}
 
+	function formatSignatureNumber(value: number | undefined, precision: number) {
+		return Number.isFinite(value) ? Number(value).toFixed(precision) : "";
+	}
+
+	function getCoordinateSignature(
+		coordinate: PlannedRoute["coordinates"][number] | undefined,
+	) {
+		if (!coordinate) {
+			return "";
+		}
+
+		return [
+			formatSignatureNumber(coordinate[0], 6),
+			formatSignatureNumber(coordinate[1], 6),
+			formatSignatureNumber(coordinate[2], 1),
+		].join(",");
+	}
+
+	function getCoordinateFingerprint(route: PlannedRoute) {
+		let hash = 2166136261;
+
+		for (const coordinate of route.coordinates) {
+			for (const value of [
+				Math.round((coordinate[0] ?? 0) * 1_000_000),
+				Math.round((coordinate[1] ?? 0) * 1_000_000),
+				Math.round((coordinate[2] ?? 0) * 10),
+			]) {
+				hash ^= value;
+				hash = Math.imul(hash, 16777619) >>> 0;
+			}
+		}
+
+		const middleIndex = Math.floor(route.coordinates.length / 2);
+
+		return [
+			route.coordinates.length,
+			getCoordinateSignature(route.coordinates[0]),
+			getCoordinateSignature(route.coordinates[middleIndex]),
+			getCoordinateSignature(route.coordinates[route.coordinates.length - 1]),
+			hash.toString(36),
+		].join("|");
+	}
+
+	function getRouteSourceSignature(route: PlannedRoute) {
+		if (route.source.kind === "gpx_import") {
+			return [
+				route.source.kind,
+				route.source.filename,
+				route.source.stopDerivation,
+				route.source.hasDuration ? "1" : "0",
+			].join(":");
+		}
+
+		return route.source.kind;
+	}
+
+	function getRouteWaypointSignature(route: PlannedRoute) {
+		return route.waypoints
+			.map(
+				(waypoint) =>
+					`${waypoint.label}:${getCoordinateSignature(waypoint.coordinate)}`,
+			)
+			.join(";");
+	}
+
+	function getRouteOverlaySignature(route: PlannedRoute): string {
+		return [
+			route.mode,
+			getRouteSourceSignature(route),
+			route.startLabel,
+			route.destinationLabel,
+			getRouteWaypointSignature(route),
+			getCoordinateFingerprint(route),
+			formatSignatureNumber(route.distanceMeters, 1),
+			formatSignatureNumber(route.durationMs, 0),
+			formatSignatureNumber(route.ascendMeters, 1),
+			formatSignatureNumber(route.descendMeters, 1),
+			route.surfaceDetails.length,
+			route.smoothnessDetails.length,
+			route.windAnalysis?.segments.length ?? 0,
+		].join("||");
+	}
+
+	function getRouteClimbOverlaySignature(
+		route: PlannedRoute,
+		climbs: RouteClimb[],
+	): string {
+		return [
+			getRouteOverlaySignature(route),
+			climbs.length,
+			climbs
+				.map((climb) =>
+					[
+						formatSignatureNumber(climb.startDistanceMeters, 1),
+						formatSignatureNumber(climb.endDistanceMeters, 1),
+						climb.rawStartIndex,
+						climb.rawEndIndex,
+						climb.category,
+						climb.isKeyClimb ? "1" : "0",
+					].join(":"),
+				)
+				.join(";"),
+		].join("||");
+	}
+
+	function getRouteWindOverlaySignature(route: PlannedRoute): string {
+		return [
+			getRouteOverlaySignature(route),
+			route.windAnalysis?.segments.length ?? 0,
+			route.windAnalysis?.segments
+				.map((segment) =>
+					[
+						segment.from,
+						segment.to,
+						segment.bucket,
+						formatSignatureNumber(segment.speedKmh, 1),
+						formatSignatureNumber(segment.directionDegrees, 1),
+						formatSignatureNumber(segment.routeBearingDegrees, 1),
+						formatSignatureNumber(segment.relativeAngleDegrees, 1),
+						formatSignatureNumber(segment.headwindComponentKmh, 1),
+						formatSignatureNumber(segment.crosswindComponentKmh, 1),
+					].join(":"),
+				)
+				.join(";") ?? "",
+		].join("||");
+	}
+
+	function getCachedRouteOverlayGeoJson(
+		route: PlannedRoute,
+	): CachedRouteOverlayGeoJson {
+		const signature = getRouteOverlaySignature(route);
+		const cached = routeOverlayGeoJsonCache.get(route);
+
+		if (cached?.signature === signature) {
+			return cached;
+		}
+
+		const nextCached: CachedRouteOverlayGeoJson = {
+			signature,
+			baseGeoJson: buildRouteGeoJson(route),
+			climbGeoJsonBySignature: new Map(),
+		};
+		routeOverlayGeoJsonCache.set(route, nextCached);
+
+		return nextCached;
+	}
+
+	function getCachedBaseRouteGeoJson(route: PlannedRoute): FeatureCollection {
+		return getCachedRouteOverlayGeoJson(route).baseGeoJson;
+	}
+
+	function getCachedSurfaceRouteGeoJson(route: PlannedRoute): FeatureCollection {
+		const cached = getCachedRouteOverlayGeoJson(route);
+
+		cached.surfaceGeoJson ??= buildRouteSurfaceGeoJson(route);
+
+		return cached.surfaceGeoJson;
+	}
+
+	function getCachedClimbRouteGeoJson(
+		route: PlannedRoute,
+		climbs: RouteClimb[],
+	): FeatureCollection {
+		const cached = getCachedRouteOverlayGeoJson(route);
+		const climbSignature = getRouteClimbOverlaySignature(route, climbs);
+		const cachedClimbGeoJson =
+			cached.climbGeoJsonBySignature.get(climbSignature);
+
+		if (cachedClimbGeoJson) {
+			return cachedClimbGeoJson;
+		}
+
+		const climbGeoJson = buildRouteClimbGeoJson(route, climbs);
+		cached.climbGeoJsonBySignature.set(climbSignature, climbGeoJson);
+
+		return climbGeoJson;
+	}
+
+	function getCachedGradientRouteGeoJson(route: PlannedRoute): FeatureCollection {
+		const cached = getCachedRouteOverlayGeoJson(route);
+
+		cached.gradientGeoJson ??= buildRouteGradientGeoJson(route);
+
+		return cached.gradientGeoJson;
+	}
+
+	function getCachedWindRouteGeoJson(route: PlannedRoute): FeatureCollection {
+		const cached = getCachedRouteOverlayGeoJson(route);
+		const windSignature = getRouteWindOverlaySignature(route);
+
+		if (cached.windGeoJson && cached.windSignature === windSignature) {
+			return cached.windGeoJson;
+		}
+
+		cached.windGeoJson = buildRouteWindGeoJson(route);
+		cached.windSignature = windSignature;
+
+		return cached.windGeoJson;
+	}
+
 	const selectedBasemap = $derived(
 		mapStylePreference.selectedBasemapId
 			? getBasemapById(mapStylePreference.selectedBasemapId)
@@ -457,16 +673,23 @@
 		activeRoute ? calculateRouteGradientMetrics(activeRoute) : null,
 	);
 	const activeRouteGradientGeoJson = $derived(
-		activeRoute ? buildRouteGradientGeoJson(activeRoute) : null,
+		activeRoute && (gradientOverlayEnabled || activeRouteGradientMetrics)
+			? getCachedGradientRouteGeoJson(activeRoute)
+			: null,
 	);
 	const canShowGradientOverlay = $derived(
-		(activeRouteGradientGeoJson?.features.length ?? 0) > 0,
+		activeRoute ? getCachedGradientRouteGeoJson(activeRoute).features.length > 0 : false,
 	);
 	const activeRouteWindGeoJson = $derived(
-		activeRoute ? buildRouteWindGeoJson(activeRoute) : null,
+		activeRoute?.windAnalysis &&
+		(windOverlayEnabled || activeRoute.windAnalysis.segments.length > 0)
+			? getCachedWindRouteGeoJson(activeRoute)
+			: null,
 	);
 	const canShowWindOverlay = $derived(
-		(activeRouteWindGeoJson?.features.length ?? 0) > 0,
+		activeRoute?.windAnalysis
+			? getCachedWindRouteGeoJson(activeRoute).features.length > 0
+			: false,
 	);
 	const activeWindSummary = $derived(
 		activeRoute ? getWindSummary(activeRoute) : null,
@@ -502,27 +725,45 @@
 	);
 	const routeOverlays = $derived<RouteMapOverlay[]>(
 		routeAlternatives.map((route, index) => {
-			const baseGeoJson = buildRouteGeoJson(route);
 			const isSelected = index === selectedRouteIndex;
+			const baseGeoJson = getCachedBaseRouteGeoJson(route);
+
+			if (!isSelected) {
+				return {
+					id: `route-${index}`,
+					geoJson: baseGeoJson,
+					bounds: route.bounds,
+					isSelected,
+				};
+			}
+
+			const features = [...baseGeoJson.features];
+			const surfaceGeoJson = getCachedSurfaceRouteGeoJson(route);
+
+			if (surfaceGeoJson.features.length > 0) {
+				features.push(...surfaceGeoJson.features);
+			}
+
+			const climbGeoJson = getCachedClimbRouteGeoJson(route, activeRouteClimbs);
+
+			if (climbGeoJson.features.length > 0) {
+				features.push(...climbGeoJson.features);
+			}
+
+			if (gradientOverlayEnabled && activeRouteGradientGeoJson) {
+				features.push(...activeRouteGradientGeoJson.features);
+			}
+
+			if (windOverlayEnabled && activeRouteWindGeoJson) {
+				features.push(...activeRouteWindGeoJson.features);
+			}
 
 			return {
 				id: `route-${index}`,
-				geoJson: isSelected
-					? {
-							...baseGeoJson,
-							features: [
-								...baseGeoJson.features,
-								...buildRouteSurfaceGeoJson(route).features,
-								...buildRouteClimbGeoJson(route, activeRouteClimbs).features,
-								...(gradientOverlayEnabled && activeRouteGradientGeoJson
-									? activeRouteGradientGeoJson.features
-									: []),
-								...(windOverlayEnabled && activeRouteWindGeoJson
-									? activeRouteWindGeoJson.features
-									: []),
-							],
-						}
-					: baseGeoJson,
+				geoJson: {
+					...baseGeoJson,
+					features,
+				},
 				bounds: route.bounds,
 				isSelected,
 			};
