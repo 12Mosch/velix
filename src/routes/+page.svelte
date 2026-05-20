@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
 	import { env } from "$env/dynamic/public";
-	import { useConvexClient } from "convex-svelte";
 	import { api } from "../convex/_generated/api";
 	import type { FeatureCollection } from "geojson";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
+	import { getOptionalConvexClient } from "$lib/convex-client.svelte";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
@@ -212,18 +212,6 @@
 	let selectedCueIndex = $state<number | null>(null);
 	let selectedCueFocusKey = $state(0);
 	let lastCueRouteKey = $state<string | null>(null);
-
-	function getOptionalConvexClient() {
-		if (!env.PUBLIC_CONVEX_URL) {
-			return null;
-		}
-
-		try {
-			return useConvexClient();
-		} catch {
-			return null;
-		}
-	}
 
 	const convexClient = getOptionalConvexClient();
 

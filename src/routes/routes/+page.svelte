@@ -13,19 +13,24 @@
 		X,
 	} from "@lucide/svelte";
 	import { env } from "$env/dynamic/public";
-	import { useConvexClient } from "convex-svelte";
 	import { onMount } from "svelte";
 	import { api } from "../../convex/_generated/api";
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
+	import { getOptionalConvexClient } from "$lib/convex-client.svelte";
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 	import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
+	import { isImportedRoute, type PlannedRoute } from "$lib/route-planning";
 	import {
-		isImportedRoute,
-		type PlannedRoute,
-		type RoundCourseTarget,
-	} from "$lib/route-planning";
+		formatRoundCourseTarget,
+		formatWaypointSummary,
+		getRoundCourseTarget,
+		getRouteDurationText,
+		getRouteLegText,
+		isOutAndBackRoute,
+		isRoundCourseRoute,
+	} from "$lib/route-display";
 	import {
 		addSavedRoute,
 		deleteSavedRoute,
@@ -45,18 +50,6 @@
 		parseDistanceInputToMeters,
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
-
-	function getOptionalConvexClient() {
-		if (!env.PUBLIC_CONVEX_URL) {
-			return null;
-		}
-
-		try {
-			return useConvexClient();
-		} catch {
-			return null;
-		}
-	}
 
 	const convexClient = getOptionalConvexClient();
 
@@ -117,99 +110,11 @@
 		}),
 	);
 
-	function formatDuration(durationMs: number): string {
-		const totalMinutes = Math.round(durationMs / 60000);
-		const hours = Math.floor(totalMinutes / 60);
-		const minutes = totalMinutes % 60;
-
-		if (hours === 0) {
-			return `${minutes} min`;
-		}
-
-		return `${hours}:${minutes.toString().padStart(2, "0")} h`;
-	}
-
 	function formatSavedAt(createdAt: string): string {
 		return new Date(createdAt).toLocaleString(undefined, {
 			dateStyle: "medium",
 			timeStyle: "short",
 		});
-	}
-
-	function formatWaypointSummary(
-		waypoints: Array<{ label: string }>,
-	): string | null {
-		if (waypoints.length === 0) {
-			return null;
-		}
-
-		return `Via: ${waypoints.map((waypoint) => waypoint.label).join(" -> ")}`;
-	}
-
-	function isRoundCourseRoute(route: { mode: string }) {
-		return route.mode === "round_course";
-	}
-
-	function isOutAndBackRoute(route: { mode: string }) {
-		return route.mode === "out_and_back";
-	}
-
-	function getRoundCourseTarget(route: PlannedRoute): RoundCourseTarget | null {
-		if (route.mode !== "round_course") {
-			return null;
-		}
-
-		if (route.roundCourseTarget) {
-			return route.roundCourseTarget;
-		}
-
-		if (
-			typeof route.requestedDistanceMeters === "number" &&
-			Number.isFinite(route.requestedDistanceMeters)
-		) {
-			return {
-				kind: "distance",
-				distanceMeters: route.requestedDistanceMeters,
-			};
-		}
-
-		return null;
-	}
-
-	function formatRoundCourseTarget(target: RoundCourseTarget | null): string {
-		if (!target) {
-			return "";
-		}
-
-		if (target.kind === "distance") {
-			return formatDistance(target.distanceMeters);
-		}
-
-		if (target.kind === "duration") {
-			return formatDuration(target.durationMs);
-		}
-
-		return `${Math.round(target.ascendMeters).toLocaleString()} m up`;
-	}
-
-	function getRouteDurationText(route: PlannedRoute): string {
-		if (isImportedRoute(route) && !route.source.hasDuration) {
-			return "Time unavailable";
-		}
-
-		return formatDuration(route.durationMs);
-	}
-
-	function getRouteLegText(route: PlannedRoute): string {
-		if (isRoundCourseRoute(route)) {
-			return "Returns to start";
-		}
-
-		if (isOutAndBackRoute(route)) {
-			return `to ${route.destinationLabel} and back`;
-		}
-
-		return `to ${route.destinationLabel}`;
 	}
 
 	function normalizeSearchText(value: string): string {

@@ -1,25 +1,30 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
-	import { env } from "$env/dynamic/public";
-	import { useConvexClient } from "convex-svelte";
 	import { onMount } from "svelte";
 	import { api } from "../../../convex/_generated/api";
 	import MapView from "$lib/components/map-view.svelte";
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
+	import { getOptionalConvexClient } from "$lib/convex-client.svelte";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 	import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
+	import {
+		formatRoundCourseTarget,
+		formatWaypointSummary,
+		getRoundCourseTarget,
+		getRouteDurationText,
+		getRouteLegText,
+		getRouteTitle,
+	} from "$lib/route-display";
 	import {
 		analyzeRouteClimbs,
 		buildRouteClimbGeoJson,
 		buildRouteGeoJson,
 		buildRouteSurfaceGeoJson,
 		getRouteElevationAnalysisPoints,
-		isImportedRoute,
 		type PlannedRoute,
 		type RouteMapOverlay,
-		type RoundCourseTarget,
 	} from "$lib/route-planning";
 	import { addSavedRoute } from "$lib/saved-routes.svelte";
 	import {
@@ -34,18 +39,6 @@
 	type SharedRoutePayload = RemoteSavedRoutePayload & {
 		createdAt: string;
 	};
-
-	function getOptionalConvexClient() {
-		if (!env.PUBLIC_CONVEX_URL) {
-			return null;
-		}
-
-		try {
-			return useConvexClient();
-		} catch {
-			return null;
-		}
-	}
 
 	const convexClient = getOptionalConvexClient();
 
@@ -101,76 +94,6 @@
 				isSelected: true,
 			},
 		];
-	}
-
-	function formatDuration(durationMs: number): string {
-		const totalMinutes = Math.round(durationMs / 60000);
-		const hours = Math.floor(totalMinutes / 60);
-		const minutes = totalMinutes % 60;
-
-		return hours === 0
-			? `${minutes} min`
-			: `${hours}:${minutes.toString().padStart(2, "0")} h`;
-	}
-
-	function formatWaypointSummary(
-		waypoints: Array<{ label: string }>,
-	): string | null {
-		if (waypoints.length === 0) {
-			return null;
-		}
-
-		return `Via: ${waypoints.map((waypoint) => waypoint.label).join(" -> ")}`;
-	}
-
-	function getRoundCourseTarget(route: PlannedRoute): RoundCourseTarget | null {
-		if (route.mode !== "round_course") {
-			return null;
-		}
-
-		return route.roundCourseTarget ?? null;
-	}
-
-	function formatRoundCourseTarget(target: RoundCourseTarget | null): string {
-		if (!target) {
-			return "";
-		}
-
-		if (target.kind === "distance") {
-			return formatDistance(target.distanceMeters);
-		}
-
-		if (target.kind === "duration") {
-			return formatDuration(target.durationMs);
-		}
-
-		return `${Math.round(target.ascendMeters).toLocaleString()} m up`;
-	}
-
-	function getRouteTitle(route: PlannedRoute): string {
-		return route.mode === "round_course"
-			? `${route.startLabel} loop`
-			: `${route.startLabel} to ${route.destinationLabel}`;
-	}
-
-	function getRouteLegText(route: PlannedRoute): string {
-		if (route.mode === "round_course") {
-			return "Returns to start";
-		}
-
-		if (route.mode === "out_and_back") {
-			return `to ${route.destinationLabel} and back`;
-		}
-
-		return `to ${route.destinationLabel}`;
-	}
-
-	function getRouteDurationText(route: PlannedRoute): string {
-		if (isImportedRoute(route) && !route.source.hasDuration) {
-			return "Time unavailable";
-		}
-
-		return formatDuration(route.durationMs);
 	}
 
 	async function loadSharedRoute(shareToken: string) {
