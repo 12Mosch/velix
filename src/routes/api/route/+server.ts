@@ -52,6 +52,7 @@ import { checkRouteRateLimitEffect } from "$lib/server/route-rate-limits";
 
 const maxRoutePoints = 5;
 const maxWaypoints = maxRoutePoints - 2;
+const maxRouteRequestBodyBytes = 128 * 1024;
 const minRoundCourseDurationMs = 15 * 60 * 1000;
 const minRoundCourseAscendMeters = 50;
 const minRoundCourseDistanceMeters = 10_000;
@@ -83,6 +84,39 @@ type RouteModeContext = {
 
 function getTooManyWaypointsMessage() {
 	return `You can add up to ${maxWaypoints} waypoints per route.`;
+}
+
+function getRouteRequestTooLargeMessage() {
+	return "Route request payload is too large.";
+}
+
+function getContentLengthBytes(request: Request): number | null {
+	const contentLength = request.headers.get("content-length");
+
+	if (!contentLength) {
+		return null;
+	}
+
+	const parsedContentLength = Number(contentLength);
+
+	return Number.isFinite(parsedContentLength) && parsedContentLength >= 0
+		? parsedContentLength
+		: null;
+}
+
+function buildTooManyWaypointsFieldErrors(
+	rawWaypointInputs: readonly unknown[],
+	fieldErrors: RouteFieldErrors = {},
+) {
+	const waypointError = getTooManyWaypointsMessage();
+
+	return {
+		error: waypointError,
+		fieldErrors: {
+			...fieldErrors,
+			waypointQueries: rawWaypointInputs.map(() => waypointError),
+		},
+	};
 }
 
 function errorResponse(
@@ -605,6 +639,20 @@ function handlePointToPointEffect(context: RouteModeContext) {
 				: legacyPayload?.waypointQueries) ?? [];
 		if (
 			Array.isArray(rawWaypointInputs) &&
+			rawWaypointInputs.length > maxWaypoints
+		) {
+			const waypointFailure = buildTooManyWaypointsFieldErrors(
+				rawWaypointInputs,
+				fieldErrors,
+			);
+			return yield* validationFailure(
+				400,
+				waypointFailure.error,
+				waypointFailure.fieldErrors,
+			);
+		}
+		if (
+			Array.isArray(rawWaypointInputs) &&
 			rawWaypointInputs.some(hasFiniteOutOfBoundsStopPoint)
 		) {
 			return yield* validationFailure(400, "Invalid route request payload.");
@@ -619,13 +667,6 @@ function handlePointToPointEffect(context: RouteModeContext) {
 				? structuredPointToPointPayload.destination
 				: legacyPayload?.destinationQuery,
 		);
-
-		if (waypointInputs.length > maxWaypoints) {
-			const waypointError = getTooManyWaypointsMessage();
-			fieldErrors.waypointQueries = waypointInputs.map(() => waypointError);
-			return yield* validationFailure(400, waypointError, fieldErrors);
-		}
-
 		if (!hasRouteStopInput(startInput)) {
 			fieldErrors.startQuery = "Enter a start point.";
 		}
@@ -689,24 +730,27 @@ function handleOutAndBackEffect(context: RouteModeContext) {
 		)
 			? structuredOutAndBackPayload.waypoints
 			: [];
+		if (!hasRouteStopInput(startInput)) {
+			fieldErrors.startQuery = "Enter a start point.";
+		}
+
+		if (rawWaypointInputs.length > maxWaypoints) {
+			const waypointFailure = buildTooManyWaypointsFieldErrors(
+				rawWaypointInputs,
+				fieldErrors,
+			);
+			return yield* validationFailure(
+				400,
+				waypointFailure.error,
+				waypointFailure.fieldErrors,
+			);
+		}
 		if (rawWaypointInputs.some(hasFiniteOutOfBoundsStopPoint)) {
 			return yield* validationFailure(400, "Invalid route request payload.");
 		}
 		const waypointInputs = rawWaypointInputs.map((input) =>
 			normalizeStopInput(input),
 		);
-
-		if (!hasRouteStopInput(startInput)) {
-			fieldErrors.startQuery = "Enter a start point.";
-		}
-
-		if (waypointInputs.length > maxWaypoints) {
-			const waypointError = getTooManyWaypointsMessage();
-			return yield* validationFailure(400, waypointError, {
-				...fieldErrors,
-				waypointQueries: waypointInputs.map(() => waypointError),
-			});
-		}
 
 		addWaypointValidationErrors(fieldErrors, waypointInputs);
 
@@ -768,24 +812,27 @@ function handleRoundCourseEffect(context: RouteModeContext) {
 		const rawWaypointInputs = Array.isArray(payloadRecord.waypoints)
 			? payloadRecord.waypoints
 			: [];
+		if (!hasRouteStopInput(startInput)) {
+			fieldErrors.startQuery = "Enter a start point.";
+		}
+
+		if (rawWaypointInputs.length > maxWaypoints) {
+			const waypointFailure = buildTooManyWaypointsFieldErrors(
+				rawWaypointInputs,
+				fieldErrors,
+			);
+			return yield* validationFailure(
+				400,
+				waypointFailure.error,
+				waypointFailure.fieldErrors,
+			);
+		}
 		if (rawWaypointInputs.some(hasFiniteOutOfBoundsStopPoint)) {
 			return yield* validationFailure(400, "Invalid route request payload.");
 		}
 		const waypointInputs = rawWaypointInputs.map((input) =>
 			normalizeStopInput(input),
 		);
-
-		if (!hasRouteStopInput(startInput)) {
-			fieldErrors.startQuery = "Enter a start point.";
-		}
-
-		if (waypointInputs.length > maxWaypoints) {
-			const waypointError = getTooManyWaypointsMessage();
-			return yield* validationFailure(400, waypointError, {
-				...fieldErrors,
-				waypointQueries: waypointInputs.map(() => waypointError),
-			});
-		}
 
 		addWaypointValidationErrors(fieldErrors, waypointInputs);
 
@@ -856,6 +903,12 @@ export const POST: RequestHandler = async (event) => {
 	const { fetch, request } = event;
 
 	const program = Effect.gen(function* () {
+		const contentLength = getContentLengthBytes(request);
+
+		if (contentLength !== null && contentLength > maxRouteRequestBodyBytes) {
+			return yield* validationFailure(413, getRouteRequestTooLargeMessage());
+		}
+
 		const rawPayload = yield* Effect.tryPromise({
 			try: () => request.json(),
 			catch: () =>
