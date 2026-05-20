@@ -1,8 +1,5 @@
 import { cloneRoute } from "$lib/saved-routes-core";
-import {
-	formatDistance,
-	formatDistanceInput,
-} from "$lib/unit-settings.svelte";
+import { formatDistance, formatDistanceInput } from "$lib/unit-settings.svelte";
 import {
 	getRouteSegmentCount,
 	type ManualRouteEditingState,
@@ -26,9 +23,7 @@ import {
 	minAreaRadiusMeters,
 	minCorridorWidthMeters,
 } from "../constants";
-import {
-	formatRoundCourseDurationInput,
-} from "../formatters";
+import { formatRoundCourseDurationInput } from "../formatters";
 import type {
 	PlannerMode,
 	PlannerStop,
@@ -164,16 +159,21 @@ export function parseRoundCourseDurationInput(value: string): number | null {
 
 	if (trimmedValue.includes(":")) {
 		const [hoursPart, minutesPart, ...rest] = trimmedValue.split(":");
-		const hours = Number(hoursPart);
-		const minutes = Number(minutesPart);
 
 		if (
 			rest.length > 0 ||
-			!Number.isInteger(hours) ||
-			!Number.isInteger(minutes) ||
-			minutes < 0 ||
-			minutes >= 60
+			!hoursPart ||
+			!minutesPart ||
+			!/^\d+$/.test(hoursPart) ||
+			!/^\d+$/.test(minutesPart)
 		) {
+			return null;
+		}
+
+		const hours = Number(hoursPart);
+		const minutes = Number(minutesPart);
+
+		if (hours < 0 || minutes < 0 || minutes >= 60) {
 			return null;
 		}
 
@@ -202,7 +202,8 @@ export function buildRoundCourseTargetRequest(
 		return {
 			kind: "duration",
 			durationMs:
-				parseRoundCourseDurationInput(form.roundCourseDurationInput) ?? Number.NaN,
+				parseRoundCourseDurationInput(form.roundCourseDurationInput) ??
+				Number.NaN,
 		};
 	}
 
@@ -281,7 +282,9 @@ export function hydratePlannerStateFromRoute(
 	const routeStops = getRouteStopInputs(route);
 	const [start] = routeStops;
 	const waypointStops =
-		route.mode === "round_course" ? routeStops.slice(1) : routeStops.slice(1, -1);
+		route.mode === "round_course"
+			? routeStops.slice(1)
+			: routeStops.slice(1, -1);
 	const destination =
 		route.mode === "round_course"
 			? null
@@ -377,7 +380,9 @@ export function hydratePlannerStateFromRoute(
 					route.spatialConstraint.center,
 					"suggestion",
 				),
-				areaRadiusInput: formatDistanceInput(route.spatialConstraint.radiusMeters),
+				areaRadiusInput: formatDistanceInput(
+					route.spatialConstraint.radiusMeters,
+				),
 				corridorWidthInput: formatDistanceInput(defaultCorridorWidthMeters),
 				areaRadiusMetersInput: route.spatialConstraint.radiusMeters,
 				corridorWidthMetersInput: defaultCorridorWidthMeters,
@@ -427,7 +432,9 @@ export function hydratePlannerStateFromRoute(
 			spatialConstraintEnforcement: route.spatialConstraint.enforcement,
 			constraintCenterStop: createPlannerStop(),
 			areaRadiusInput: formatDistanceInput(defaultAreaRadiusMeters),
-			corridorWidthInput: formatDistanceInput(route.spatialConstraint.widthMeters),
+			corridorWidthInput: formatDistanceInput(
+				route.spatialConstraint.widthMeters,
+			),
 			areaRadiusMetersInput: defaultAreaRadiusMeters,
 			corridorWidthMetersInput: route.spatialConstraint.widthMeters,
 		},
@@ -474,7 +481,10 @@ export function withPlannerRouteState(
 	indexes: number[],
 	avoidances: ResolvedRouteAvoidance[],
 ): PlannedRoute {
-	return withAvoidancesState(withManualEditingState(route, indexes), avoidances);
+	return withAvoidancesState(
+		withManualEditingState(route, indexes),
+		avoidances,
+	);
 }
 
 export function getManualEditingRequest(
@@ -582,7 +592,9 @@ export function validatePlannerForm(
 				fieldErrors.roundCourseTarget = "Enter a target distance.";
 			}
 		} else if (form.roundCourseTargetKind === "duration") {
-			const durationMs = parseRoundCourseDurationInput(form.roundCourseDurationInput);
+			const durationMs = parseRoundCourseDurationInput(
+				form.roundCourseDurationInput,
+			);
 
 			if (
 				durationMs === null ||
@@ -593,7 +605,9 @@ export function validatePlannerForm(
 				fieldErrors.roundCourseTarget = "Enter a target time.";
 			}
 		} else if (form.roundCourseTargetKind === "ascend") {
-			const ascendMeters = Number(form.roundCourseAscendMeters.replace(",", "."));
+			const ascendMeters = Number(
+				form.roundCourseAscendMeters.replace(",", "."),
+			);
 
 			if (
 				Number.isNaN(ascendMeters) ||
@@ -645,7 +659,7 @@ export function getActiveRouteForSaving(
 	);
 	return {
 		...withAvoidancesState(args.activeRoute, args.avoidedRoads),
-		...(manualEditing ? { manualEditing } : {}),
+		manualEditing,
 	};
 }
 
@@ -686,7 +700,9 @@ export function captureRouteEditSnapshot(
 		avoidedRoads: cloneAvoidances(routeState.avoidedRoads),
 		plannerMode: form.plannerMode,
 		startStop: clonePlannerStop(form.startStop),
-		waypointStops: form.waypointStops.map((waypoint) => clonePlannerStop(waypoint)),
+		waypointStops: form.waypointStops.map((waypoint) =>
+			clonePlannerStop(waypoint),
+		),
 		destinationStop: clonePlannerStop(form.destinationStop),
 		roundCourseTargetKind: form.roundCourseTargetKind,
 		roundCourseDistanceInput: form.roundCourseDistanceInput,
@@ -732,7 +748,9 @@ export function restoreRouteEditSnapshot(snapshot: RouteEditSnapshot): {
 			fieldErrors: cloneFieldErrors(snapshot.fieldErrors),
 		},
 		routeState: {
-			routeAlternatives: snapshot.routeAlternatives.map((route) => cloneRoute(route)),
+			routeAlternatives: snapshot.routeAlternatives.map((route) =>
+				cloneRoute(route),
+			),
 			selectedRouteIndex: snapshot.selectedRouteIndex,
 			lockedSegmentIndexes: [...snapshot.lockedSegmentIndexes],
 			avoidedRoads: cloneAvoidances(snapshot.avoidedRoads),
@@ -749,12 +767,16 @@ function getRouteStopInputs(route: PlannedRoute): RouteStopInput[] {
 		},
 		...route.waypoints.map((waypoint) => ({
 			label: waypoint.label,
-			point: [waypoint.coordinate[0], waypoint.coordinate[1]] as [number, number],
+			point: [waypoint.coordinate[0], waypoint.coordinate[1]] as [
+				number,
+				number,
+			],
 		})),
 	];
 
 	if (route.mode !== "round_course") {
-		const destinationCoordinate = route.coordinates[route.coordinates.length - 1];
+		const destinationCoordinate =
+			route.coordinates[route.coordinates.length - 1];
 		stops.push({
 			label: route.destinationLabel,
 			point: destinationCoordinate
@@ -773,7 +795,9 @@ function sanitizeLockedSegmentIndexes(
 	return [...new Set(indexes)]
 		.filter(
 			(index) =>
-				Number.isInteger(index) && index >= 0 && index < Math.max(segmentCount, 0),
+				Number.isInteger(index) &&
+				index >= 0 &&
+				index < Math.max(segmentCount, 0),
 		)
 		.sort((left, right) => left - right);
 }

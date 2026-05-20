@@ -10,19 +10,16 @@ function createController(options: {
 	onSelect?: (label: string) => void;
 }) {
 	const fetchImpl = options.fetchImpl ?? vi.fn<typeof fetch>();
-	const onSelect = vi.fn((target, suggestion) => {
+	const onSelect = vi.fn((_target, suggestion) => {
 		options.onSelect?.(suggestion.label);
 	});
 
-	const controller = createPlannerCompletionController(
-		() => fetchImpl,
-		{
-			debounceMs: 250,
-			minQueryLength: 3,
-			getValue: () => options.getValue?.() ?? "",
-			onSelect,
-		},
-	);
+	const controller = createPlannerCompletionController(() => fetchImpl, {
+		debounceMs: 250,
+		minQueryLength: 3,
+		getValue: () => options.getValue?.() ?? "",
+		onSelect,
+	});
 
 	return { controller, fetchImpl, onSelect };
 }
