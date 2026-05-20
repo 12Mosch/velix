@@ -35,12 +35,14 @@ function buildEvent(
 	body: unknown,
 	fetchMock: typeof fetch,
 	clientAddress = `route-test-${eventId++}`,
+	headers: Record<string, string> = {},
 ) {
 	return {
 		request: new Request("http://localhost/api/route", {
 			method: "POST",
 			headers: {
 				"content-type": "application/json",
+				...headers,
 			},
 			body: JSON.stringify(body),
 		}),
@@ -605,6 +607,79 @@ describe("POST /api/route", () => {
 		await expect(response.json()).resolves.toEqual({
 			error: "Invalid route request payload.",
 		});
+	});
+
+	it("rejects excessive waypoint arrays before scanning coordinates", async () => {
+		const invalidWaypoint = {
+			point: [11.7581, -91],
+		};
+		const waypoints = [
+			invalidWaypoint,
+			{ point: [11.76, 47.72] },
+			{ point: [11.77, 47.73] },
+			{ point: [11.78, 47.74] },
+		];
+		const cases = [
+			{
+				mode: "point_to_point",
+				payload: {
+					mode: "point_to_point",
+					start: {
+						point: [11.5755, 48.1374],
+					},
+					waypoints,
+					destination: {
+						point: [11.8598, 47.7362],
+					},
+				},
+			},
+			{
+				mode: "out_and_back",
+				payload: {
+					mode: "out_and_back",
+					start: {
+						point: [11.5755, 48.1374],
+					},
+					waypoints,
+					turnaround: {
+						point: [11.8598, 47.7362],
+					},
+				},
+			},
+			{
+				mode: "round_course",
+				payload: {
+					mode: "round_course",
+					start: {
+						point: [11.5755, 48.1374],
+					},
+					waypoints,
+					target: {
+						kind: "distance",
+						distanceMeters: 50000,
+					},
+				},
+			},
+		];
+
+		for (const testCase of cases) {
+			const fetchMock = vi.fn<typeof fetch>();
+			const response = await POST(buildEvent(testCase.payload, fetchMock));
+
+			expect(response.status, testCase.mode).toBe(400);
+			expect(fetchMock, testCase.mode).not.toHaveBeenCalled();
+			await expect(response.json()).resolves.toEqual({
+				error: "You can add up to 3 waypoints per route.",
+				fieldErrors: {
+					waypointQueries: [
+						"You can add up to 3 waypoints per route.",
+						"You can add up to 3 waypoints per route.",
+						"You can add up to 3 waypoints per route.",
+						"You can add up to 3 waypoints per route.",
+					],
+				},
+			});
+		}
 	});
 
 	it("sends point-to-point area constraints through the GraphHopper custom model", async () => {
@@ -1757,6 +1832,22 @@ describe("POST /api/route", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
 			error: "Invalid route request payload.",
+		});
+	});
+
+	it("rejects oversized route request bodies before parsing JSON", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent({}, fetchMock, undefined, {
+				"content-length": String(128 * 1024 + 1),
+			}),
+		);
+
+		expect(response.status).toBe(413);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Route request payload is too large.",
 		});
 	});
 
