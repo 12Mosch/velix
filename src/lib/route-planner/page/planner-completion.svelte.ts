@@ -159,7 +159,8 @@ export function createPlannerCompletionController(
 					throw new Error(`Suggestions failed with status ${response.status}`);
 				}
 
-				const payload = (await response.json()) as Partial<RouteSuggestionsApiSuccess>;
+				const payload =
+					(await response.json()) as Partial<RouteSuggestionsApiSuccess>;
 				const suggestions = Array.isArray(payload.suggestions)
 					? payload.suggestions
 					: [];
@@ -290,7 +291,9 @@ export function createPlannerCompletionController(
 	function isMenuVisible(target: CompletionTarget): boolean {
 		return (
 			isSameCompletionTarget(viewState.activeTarget, target) &&
-			(viewState.isLoading || viewState.isEmpty || viewState.suggestions.length > 0)
+			(viewState.isLoading ||
+				viewState.isEmpty ||
+				viewState.suggestions.length > 0)
 		);
 	}
 

@@ -6,7 +6,9 @@ import {
 	captureRouteEditSnapshot,
 	createPlannerStop,
 	getDefaultSpatialConstraintState,
+	getActiveRouteForSaving,
 	hydratePlannerStateFromRoute,
+	parseRoundCourseDurationInput,
 	restoreRouteEditSnapshot,
 	validatePlannerForm,
 	type PlannerFormState,
@@ -17,8 +19,14 @@ function createBaseFormState(): PlannerFormState {
 	return {
 		plannerMode: "point_to_point",
 		startStop: createPlannerStop("Start", [11.57, 48.13], "suggestion"),
-		waypointStops: [createPlannerStop("Waypoint", [11.65, 48.08], "suggestion")],
-		destinationStop: createPlannerStop("Destination", [11.86, 47.73], "suggestion"),
+		waypointStops: [
+			createPlannerStop("Waypoint", [11.65, 48.08], "suggestion"),
+		],
+		destinationStop: createPlannerStop(
+			"Destination",
+			[11.86, 47.73],
+			"suggestion",
+		),
 		roundCourseTargetKind: "distance",
 		roundCourseDistanceInput: "",
 		roundCourseDistanceMetersInput: null,
@@ -181,8 +189,34 @@ describe("planner-state", () => {
 		);
 
 		expect(validation.valid).toBe(false);
-		expect(validation.fieldErrors.roundCourseTarget).toBe("Enter a target time.");
+		expect(validation.fieldErrors.roundCourseTarget).toBe(
+			"Enter a target time.",
+		);
 		expect(validation.fieldErrors.spatialConstraint).toBeUndefined();
+	});
+
+	it("rejects malformed H:MM round-course duration inputs", () => {
+		expect(parseRoundCourseDurationInput("-1:30")).toBeNull();
+		expect(parseRoundCourseDurationInput("1:")).toBeNull();
+		expect(parseRoundCourseDurationInput(":30")).toBeNull();
+		expect(parseRoundCourseDurationInput("1:30")).toBe(5_400_000);
+	});
+
+	it("clears stale manual editing when saving a route without locks", () => {
+		const activeRoute: PlannedRoute = {
+			...baseRoute,
+			manualEditing: {
+				lockedSegmentIndexes: [0],
+			},
+		};
+
+		const routeForSaving = getActiveRouteForSaving({
+			activeRoute,
+			lockedSegmentIndexes: [],
+			avoidedRoads: [],
+		});
+
+		expect(routeForSaving?.manualEditing).toBeUndefined();
 	});
 
 	it("captures and restores route edit snapshots without sharing references", () => {

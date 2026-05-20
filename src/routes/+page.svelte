@@ -2007,17 +2007,12 @@
 		closeMapClickMenu();
 		await performAsyncRouteEdit(async () => {
 			const previousAvoidedRoads = avoidedRoads;
-			const nextAvoidedRoads = avoidedRoads.filter(
-				(avoidance) =>
-					!isPointNearLine(
-						selection.point,
-						avoidance.centerline,
-						avoidance.bufferMeters + 20,
-					),
-			);
+			const targetAvoidance = getAvoidanceForSelection(selection);
 
-			if (nextAvoidedRoads.length !== avoidedRoads.length) {
-				avoidedRoads = nextAvoidedRoads;
+			if (targetAvoidance) {
+				avoidedRoads = avoidedRoads.filter(
+					(avoidance) => avoidance !== targetAvoidance,
+				);
 				const routed = await rerouteAfterManualEdit();
 				if (!routed) avoidedRoads = previousAvoidedRoads;
 				return routed;
