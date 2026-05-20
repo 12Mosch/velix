@@ -172,7 +172,7 @@
 	import {
 		createPlannerCompletionController,
 		getWaypointCompletionTarget,
-	} from "$lib/route-planner/page/planner-completion.svelte.ts";
+	} from "$lib/route-planner/page/planner-completion.svelte";
 	import {
 		AlertTriangle,
 		ArrowDown,

@@ -4,8 +4,8 @@
 
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
+	import type { PlannerCompletionController } from "$lib/route-planner/page/planner-completion.svelte";
 	import type { CompletionTarget } from "$lib/route-planner/types";
-	import type { PlannerCompletionController } from "$lib/route-planner/page/planner-completion.svelte.ts";
 
 	type Props = {
 		id: string;
