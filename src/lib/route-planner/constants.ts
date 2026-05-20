@@ -13,6 +13,7 @@ export const gpxFileAccept =
 	".gpx,application/gpx+xml,application/xml,text/xml";
 export const defaultAreaRadiusMeters = 30_000;
 export const defaultCorridorWidthMeters = 10_000;
+export const minRoundCourseDistanceMeters = 10_000;
 export const minAreaRadiusMeters = 1_000;
 export const maxAreaRadiusMeters = 250_000;
 export const areaRadiusStepMeters = 1_000;

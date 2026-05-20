@@ -183,6 +183,7 @@ describe("planner-state", () => {
 				corridorWidthMetersInput: 1000,
 			},
 			{
+				minRoundCourseDistanceMeters: 10_000,
 				minRoundCourseDurationMs: 15 * 60 * 1000,
 				minRoundCourseAscendMeters: 50,
 			},
@@ -193,6 +194,46 @@ describe("planner-state", () => {
 			"Enter a target time.",
 		);
 		expect(validation.fieldErrors.spatialConstraint).toBeUndefined();
+	});
+
+	it("returns validation errors for below-minimum round-course distance targets", () => {
+		const validation = validatePlannerForm(
+			{
+				...createBaseFormState(),
+				plannerMode: "round_course",
+				roundCourseTargetKind: "distance",
+				roundCourseDistanceMetersInput: 9_999,
+			},
+			{
+				minRoundCourseDistanceMeters: 10_000,
+				minRoundCourseDurationMs: 15 * 60 * 1000,
+				minRoundCourseAscendMeters: 50,
+			},
+		);
+
+		expect(validation.valid).toBe(false);
+		expect(validation.fieldErrors.roundCourseTarget).toBe(
+			"Enter a target distance of at least 10000 meters.",
+		);
+	});
+
+	it("accepts round-course distance targets at the exact minimum", () => {
+		const validation = validatePlannerForm(
+			{
+				...createBaseFormState(),
+				plannerMode: "round_course",
+				roundCourseTargetKind: "distance",
+				roundCourseDistanceMetersInput: 10_000,
+			},
+			{
+				minRoundCourseDistanceMeters: 10_000,
+				minRoundCourseDurationMs: 15 * 60 * 1000,
+				minRoundCourseAscendMeters: 50,
+			},
+		);
+
+		expect(validation.valid).toBe(true);
+		expect(validation.fieldErrors.roundCourseTarget).toBeUndefined();
 	});
 
 	it("rejects malformed H:MM round-course duration inputs", () => {

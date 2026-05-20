@@ -2918,6 +2918,33 @@ describe("+page.svelte", () => {
 		).toHaveLength(0);
 	});
 
+	it("validates below-minimum distance targets before sending a round-course request", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("spinbutton", { name: "Target distance" }).fill("9");
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.element(
+				page.getByText("Enter a target distance of at least 10000 meters."),
+			)
+			.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(0);
+	});
+
 	it("validates empty duration targets before sending a round-course request", async () => {
 		const fetchMock = vi
 			.fn<typeof fetch>()
