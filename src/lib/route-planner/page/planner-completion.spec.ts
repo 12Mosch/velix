@@ -4,6 +4,10 @@ import { createPlannerCompletionController } from "./planner-completion.svelte.t
 
 const startTarget = { kind: "startQuery" } as const;
 
+function keydownEvent(key: string, preventDefault: () => void): KeyboardEvent {
+	return { key, preventDefault } as unknown as KeyboardEvent;
+}
+
 function createController(options: {
 	fetchImpl?: typeof fetch;
 	getValue?: () => string;
@@ -149,13 +153,13 @@ describe("planner completion controller", () => {
 
 		const preventDefault = vi.fn();
 		controller.handleKeydown(
-			{ key: "ArrowDown", preventDefault } as KeyboardEvent,
+			keydownEvent("ArrowDown", preventDefault),
 			startTarget,
 		);
 		expect(controller.viewState.highlightedIndex).toBe(1);
 
 		controller.handleKeydown(
-			{ key: "Enter", preventDefault } as KeyboardEvent,
+			keydownEvent("Enter", preventDefault),
 			startTarget,
 		);
 		expect(selectedLabels).toEqual(["Munster"]);

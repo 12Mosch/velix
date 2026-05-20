@@ -22,9 +22,11 @@ import {
 	resetSavedRoutesForTests,
 	SAVED_ROUTES_STORAGE_KEY,
 	savedRoutesState,
+	type SavedRoute,
 	upsertSavedRoute,
 } from "$lib/saved-routes.svelte";
 import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
+import type { PlannedRoute } from "$lib/route-planning";
 import { api } from "../../convex/_generated/api";
 import {
 	DISTANCE_UNIT_STORAGE_KEY,
@@ -36,7 +38,7 @@ import RoutesPage from "./+page.svelte";
 const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
 
-const savedRoutes = [
+const savedRoutes: SavedRoute[] = [
 	{
 		id: "saved-route-1",
 		createdAt: "2026-04-19T09:30:00.000Z",
@@ -727,7 +729,7 @@ describe("routes/+page.svelte", () => {
 			.element(page.getByText("Marienplatz, Munich, Germany"))
 			.toBeInTheDocument();
 
-		const updatedRoute = {
+		const updatedRoute: PlannedRoute = {
 			...savedRoutes[0].route,
 			destinationLabel: "Lake Starnberg, Germany",
 			waypoints: [

@@ -476,7 +476,7 @@ function normalizeStopInput(value: unknown): RouteStopInput {
 	const label =
 		typeof candidate.label === "string" ? candidate.label.trim() : "";
 	const normalizedPoint = isFiniteLngLat(point)
-		? [point[0], point[1]]
+		? ([point[0], point[1]] satisfies [number, number])
 		: undefined;
 
 	if (normalizedPoint) {
