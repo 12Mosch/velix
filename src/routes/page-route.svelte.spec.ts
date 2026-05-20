@@ -261,6 +261,17 @@ const alternativeRoutePayload = {
 	],
 	selectedRouteIndex: 0,
 };
+const overlayAlternativeRoutePayload = {
+	routes: [
+		successfulRoute,
+		{
+			...categorizedClimbsRoutePayload.routes[0],
+			destinationLabel: "Climb Route",
+			bounds: [11.48, 47.96, 11.52, 48.06],
+		},
+	],
+	selectedRouteIndex: 0,
+};
 const structuredWarningRoutePayload = {
 	routes: [
 		{
@@ -699,6 +710,20 @@ vi.mock("maplibre-gl", () => {
 		},
 	};
 });
+
+function getRouteSourceFeatureKinds(sourceId: string) {
+	const sourceData = mockState.sources.get(sourceId)?.data as
+		| {
+				features?: Array<{
+					properties?: {
+						kind?: string;
+					};
+				}>;
+		  }
+		| undefined;
+
+	return sourceData?.features?.map((feature) => feature.properties?.kind) ?? [];
+}
 
 describe("+page.svelte", () => {
 	beforeEach(() => {
@@ -1770,6 +1795,55 @@ describe("+page.svelte", () => {
 			.poll(() => readSavedRoutesFromStorage()[0]?.route.distanceMeters)
 			.toBe(68450);
 		expect(readSavedRoutesFromStorage()).toHaveLength(1);
+	});
+
+	it("keeps selected-only route overlay features off non-selected alternatives", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(JSON.stringify(overlayAlternativeRoutePayload)),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect
+			.poll(() => mockState.sources.has("planned-route-route-1"))
+			.toBe(true);
+		expect(getRouteSourceFeatureKinds("planned-route-route-0")).toContain(
+			"surface",
+		);
+		expect(getRouteSourceFeatureKinds("planned-route-route-1")).not.toContain(
+			"surface",
+		);
+		expect(getRouteSourceFeatureKinds("planned-route-route-1")).not.toContain(
+			"climb",
+		);
+
+		await page.getByRole("button", { name: /Route 2/i }).click();
+
+		await expect
+			.poll(() => getRouteSourceFeatureKinds("planned-route-route-1"))
+			.toContain("surface");
+		expect(getRouteSourceFeatureKinds("planned-route-route-1")).toContain(
+			"climb",
+		);
+		expect(getRouteSourceFeatureKinds("planned-route-route-0")).not.toContain(
+			"surface",
+		);
+		expect(getRouteSourceFeatureKinds("planned-route-route-0")).not.toContain(
+			"climb",
+		);
 	});
 
 	it("shows readiness warnings separately from provider fallbacks", async () => {
