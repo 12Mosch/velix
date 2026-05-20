@@ -110,6 +110,7 @@
 		minAreaRadiusMeters,
 		minCompletionQueryLength,
 		minCorridorWidthMeters,
+		minRoundCourseDistanceMeters,
 		padY,
 		plannerModeOptions,
 		startCompletionTarget,
@@ -2246,6 +2247,7 @@
 
 	function validateDistanceInputs(): boolean {
 		const validation = runPlannerValidation(getPlannerFormState(), {
+			minRoundCourseDistanceMeters,
 			minRoundCourseDurationMs,
 			minRoundCourseAscendMeters,
 		});
@@ -2999,7 +3001,7 @@
 											<Input
 												id="round-course-distance"
 												type="number"
-												min="1"
+												min={formatDistanceInputAttribute(minRoundCourseDistanceMeters)}
 												step="0.5"
 												inputmode="decimal"
 												value={roundCourseDistanceInput}

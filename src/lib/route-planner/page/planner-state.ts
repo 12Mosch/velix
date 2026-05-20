@@ -577,6 +577,7 @@ export function validatePlannerForm(
 		| "corridorWidthMetersInput"
 	>,
 	options: {
+		minRoundCourseDistanceMeters: number;
 		minRoundCourseDurationMs: number;
 		minRoundCourseAscendMeters: number;
 	},
@@ -585,11 +586,13 @@ export function validatePlannerForm(
 
 	if (form.plannerMode === "round_course") {
 		if (form.roundCourseTargetKind === "distance") {
-			if (
-				form.roundCourseDistanceMetersInput === null ||
-				form.roundCourseDistanceMetersInput <= 0
-			) {
+			if (form.roundCourseDistanceMetersInput === null) {
 				fieldErrors.roundCourseTarget = "Enter a target distance.";
+			} else if (
+				form.roundCourseDistanceMetersInput <
+				options.minRoundCourseDistanceMeters
+			) {
+				fieldErrors.roundCourseTarget = `Enter a target distance of at least ${options.minRoundCourseDistanceMeters} meters.`;
 			}
 		} else if (form.roundCourseTargetKind === "duration") {
 			const durationMs = parseRoundCourseDurationInput(
