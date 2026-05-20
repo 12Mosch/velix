@@ -14,6 +14,7 @@
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 	import MapView from "$lib/components/map-view.svelte";
 	import MapClickMenu from "$lib/components/route-planner/map-click-menu.svelte";
+	import PlannerStopInput from "$lib/components/route-planner/planner-stop-input.svelte";
 	import { getBasemapById } from "$lib/map/basemaps";
 	import {
 		parseRouteGpx,
@@ -87,8 +88,6 @@
 		type RouteClimb,
 		type RouteRequestPayload,
 		type RouteWarning,
-		type RouteSuggestion,
-		type RouteSuggestionsApiSuccess,
 		type RouteWindSegment,
 		type SpatialConstraintEnforcement,
 	} from "$lib/route-planning";
@@ -136,7 +135,6 @@
 		getRoutingProfileLabel,
 	} from "$lib/route-planner/formatters";
 	import type {
-		CompletionTarget,
 		CurrentLocation,
 		MapClickSelection,
 		PlannerMode,
@@ -171,6 +169,10 @@
 		type PlannerFormState,
 		type PlannerRouteState,
 	} from "$lib/route-planner/page/planner-state";
+	import {
+		createPlannerCompletionController,
+		getWaypointCompletionTarget,
+	} from "$lib/route-planner/page/planner-completion.svelte.ts";
 	import {
 		AlertTriangle,
 		ArrowDown,
@@ -287,11 +289,6 @@
 	let clientFetch = $state<typeof window.fetch | null>(null);
 	let activeProfileIndex = $state<number | null>(null);
 	let chartScrubPointerId = $state<number | null>(null);
-	let activeCompletionTarget = $state<CompletionTarget | null>(null);
-	let completionSuggestions = $state<RouteSuggestion[]>([]);
-	let isCompletionLoading = $state(false);
-	let isCompletionEmpty = $state(false);
-	let completionHighlightedIndex = $state(-1);
 	let mapClickSelection = $state<MapClickSelection | null>(null);
 	let isResolvingMapSelection = $state(false);
 	let currentLocation = $state<CurrentLocation | null>(null);
@@ -305,15 +302,51 @@
 	let redoStack = $state<RouteEditSnapshot[]>([]);
 	let advancedOpen = $state(false);
 
-	let completionAbortController: AbortController | null = null;
-	let completionBlurTimer: ReturnType<typeof setTimeout> | null = null;
-	let completionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 	const autosaveDebounceMs = 750;
 	const minRoundCourseDurationMs = 15 * 60 * 1000;
 	const minRoundCourseAscendMeters = 50;
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let detachRouteEditKeyboardListener = () => {};
-	let completionRequestId = 0;
+	const completionController = createPlannerCompletionController(
+		() => clientFetch,
+		{
+			debounceMs: completionDebounceMs,
+			minQueryLength: minCompletionQueryLength,
+			getValue: (target) => {
+				if (target.kind === "startQuery") {
+					return startStop.label;
+				}
+
+				if (target.kind === "destinationQuery") {
+					return destinationStop.label;
+				}
+
+				if (target.kind === "constraintCenter") {
+					return constraintCenterStop.label;
+				}
+
+				return waypointStops[target.index]?.label ?? "";
+			},
+			onSelect: (target, suggestion) => {
+				const selectedStop = createPlannerStop(
+					suggestion.label,
+					suggestion.point,
+					"suggestion",
+				);
+
+				if (target.kind === "waypoint") {
+					setWaypointStop(target.index, selectedStop);
+				} else if (target.kind === "constraintCenter") {
+					setConstraintCenterStop(selectedStop);
+				} else {
+					setFieldStop(target.kind, selectedStop);
+				}
+			},
+			onError: (error) => {
+				console.error("Failed to load route suggestions", error);
+			},
+		},
+	);
 
 	function getPlannerFormState(): PlannerFormState {
 		return {
@@ -755,9 +788,7 @@
 	});
 
 	onDestroy(() => {
-		cancelCompletionBlur();
-		cancelCompletionDebounce();
-		cancelCompletionRequest();
+		completionController.destroy();
 		cancelAutosaveTimer();
 		detachRouteEditKeyboardListener();
 	});
@@ -1266,8 +1297,8 @@
 
 		if (
 			nextMode !== "point_to_point" &&
-			activeCompletionTarget &&
-			activeCompletionTarget.kind !== "startQuery"
+			completionController.viewState.activeTarget &&
+			completionController.viewState.activeTarget.kind !== "startQuery"
 		) {
 			closeCompletionMenu();
 		}
@@ -1401,7 +1432,7 @@
 
 	function updateConstraintCenterInput(value: string) {
 		setConstraintCenterStop(createPlannerStop(value));
-		scheduleCompletionLookup(constraintCenterCompletionTarget, value);
+		completionController.scheduleLookup(constraintCenterCompletionTarget, value);
 	}
 
 	function updateAreaRadiusInput(value: string) {
@@ -1519,111 +1550,8 @@
 		clearActiveProfilePoint();
 	}
 
-	function getWaypointCompletionTarget(index: number): CompletionTarget {
-		return {
-			kind: "waypoint",
-			index,
-		};
-	}
-
-	function isSameCompletionTarget(
-		left: CompletionTarget | null,
-		right: CompletionTarget | null,
-	): boolean {
-		if (!left || !right || left.kind !== right.kind) {
-			return false;
-		}
-
-		if (left.kind !== "waypoint" || right.kind !== "waypoint") {
-			return true;
-		}
-
-		return left.index === right.index;
-	}
-
-	function getCompletionTargetKey(target: CompletionTarget): string {
-		return target.kind === "waypoint" ? `waypoint-${target.index}` : target.kind;
-	}
-
-	function getCompletionListId(target: CompletionTarget): string {
-		return `route-completions-${getCompletionTargetKey(target)}`;
-	}
-
-	function getCompletionOptionId(target: CompletionTarget, index: number): string {
-		return `${getCompletionListId(target)}-option-${index}`;
-	}
-
-	function getValueForCompletionTarget(target: CompletionTarget): string {
-		if (target.kind === "startQuery") {
-			return startStop.label;
-		}
-
-		if (target.kind === "destinationQuery") {
-			return destinationStop.label;
-		}
-
-		if (target.kind === "constraintCenter") {
-			return constraintCenterStop.label;
-		}
-
-		return waypointStops[target.index]?.label ?? "";
-	}
-
-	function isCompletionMenuVisible(target: CompletionTarget): boolean {
-		return (
-			isSameCompletionTarget(activeCompletionTarget, target) &&
-			(isCompletionLoading || isCompletionEmpty || completionSuggestions.length > 0)
-		);
-	}
-
-	function getCompletionActiveDescendant(target: CompletionTarget): string | undefined {
-		if (
-			!isSameCompletionTarget(activeCompletionTarget, target) ||
-			completionHighlightedIndex < 0 ||
-			completionHighlightedIndex >= completionSuggestions.length
-		) {
-			return undefined;
-		}
-
-		return getCompletionOptionId(target, completionHighlightedIndex);
-	}
-
-	function clearCompletionResults() {
-		completionSuggestions = [];
-		completionHighlightedIndex = -1;
-		isCompletionLoading = false;
-		isCompletionEmpty = false;
-	}
-
-	function cancelCompletionDebounce() {
-		if (completionDebounceTimer === null) {
-			return;
-		}
-
-		clearTimeout(completionDebounceTimer);
-		completionDebounceTimer = null;
-	}
-
-	function cancelCompletionBlur() {
-		if (completionBlurTimer === null) {
-			return;
-		}
-
-		clearTimeout(completionBlurTimer);
-		completionBlurTimer = null;
-	}
-
-	function cancelCompletionRequest() {
-		completionAbortController?.abort();
-		completionAbortController = null;
-	}
-
 	function closeCompletionMenu() {
-		cancelCompletionBlur();
-		cancelCompletionDebounce();
-		cancelCompletionRequest();
-		clearCompletionResults();
-		activeCompletionTarget = null;
+		completionController.close();
 	}
 
 	function setFieldStop(
@@ -1657,179 +1585,9 @@
 		markPlannerEdited();
 	}
 
-	function selectCompletion(target: CompletionTarget, suggestion: RouteSuggestion) {
-		const selectedStop = createPlannerStop(
-			suggestion.label,
-			suggestion.point,
-			"suggestion",
-		);
-
-		if (target.kind === "waypoint") {
-			setWaypointStop(target.index, selectedStop);
-		} else if (target.kind === "constraintCenter") {
-			setConstraintCenterStop(selectedStop);
-		} else {
-			setFieldStop(target.kind, selectedStop);
-		}
-
-		closeCompletionMenu();
-	}
-
-	function handleCompletionSelection(
-		event: PointerEvent,
-		target: CompletionTarget,
-		suggestion: RouteSuggestion,
-	) {
-		event.preventDefault();
-		cancelCompletionBlur();
-		selectCompletion(target, suggestion);
-	}
-
-	function scheduleCompletionLookup(target: CompletionTarget, value: string) {
-		activeCompletionTarget = target;
-		cancelCompletionDebounce();
-		cancelCompletionRequest();
-		completionSuggestions = [];
-		completionHighlightedIndex = -1;
-		isCompletionEmpty = false;
-
-		const trimmedValue = value.trim();
-		const fetchFn = clientFetch;
-
-		if (!fetchFn || trimmedValue.length < minCompletionQueryLength) {
-			isCompletionLoading = false;
-			return;
-		}
-
-		isCompletionLoading = true;
-		const requestId = ++completionRequestId;
-
-		completionDebounceTimer = setTimeout(async () => {
-			completionDebounceTimer = null;
-			const abortController = new AbortController();
-			completionAbortController = abortController;
-
-			try {
-				const response = await fetchFn(
-					`/api/route/suggest?q=${encodeURIComponent(trimmedValue)}`,
-					{
-						signal: abortController.signal,
-					},
-				);
-
-				if (!response.ok) {
-					throw new Error(`Suggestions failed with status ${response.status}`);
-				}
-
-				const payload = (await response.json()) as Partial<RouteSuggestionsApiSuccess>;
-				const suggestions = Array.isArray(payload.suggestions) ? payload.suggestions : [];
-
-				if (!isSameCompletionTarget(activeCompletionTarget, target) || requestId !== completionRequestId) {
-					return;
-				}
-
-				completionSuggestions = suggestions;
-				completionHighlightedIndex = suggestions.length > 0 ? 0 : -1;
-				isCompletionEmpty = suggestions.length === 0;
-			} catch (error) {
-				if (abortController.signal.aborted) {
-					return;
-				}
-
-				console.error("Failed to load route suggestions", error);
-
-				if (!isSameCompletionTarget(activeCompletionTarget, target) || requestId !== completionRequestId) {
-					return;
-				}
-
-				completionSuggestions = [];
-				completionHighlightedIndex = -1;
-				isCompletionEmpty = false;
-			} finally {
-				if (
-					isSameCompletionTarget(activeCompletionTarget, target) &&
-					requestId === completionRequestId
-				) {
-					isCompletionLoading = false;
-
-					if (completionAbortController === abortController) {
-						completionAbortController = null;
-					}
-				}
-			}
-		}, completionDebounceMs);
-	}
-
-	function handleCompletionFocus(target: CompletionTarget) {
-		cancelCompletionBlur();
-		activeCompletionTarget = target;
-		const value = getValueForCompletionTarget(target);
-
-		if (value.trim().length >= minCompletionQueryLength) {
-			scheduleCompletionLookup(target, value);
-			return;
-		}
-
-		cancelCompletionDebounce();
-		cancelCompletionRequest();
-		clearCompletionResults();
-	}
-
-	function handleCompletionBlur(target: CompletionTarget) {
-		if (!isSameCompletionTarget(activeCompletionTarget, target)) {
-			return;
-		}
-
-		cancelCompletionBlur();
-		completionBlurTimer = setTimeout(() => {
-			if (isSameCompletionTarget(activeCompletionTarget, target)) {
-				closeCompletionMenu();
-			}
-		}, 120);
-	}
-
-	function handleCompletionKeydown(event: KeyboardEvent, target: CompletionTarget) {
-		if (!isSameCompletionTarget(activeCompletionTarget, target)) {
-			return;
-		}
-
-		if (event.key === "Escape" && isCompletionMenuVisible(target)) {
-			event.preventDefault();
-			closeCompletionMenu();
-			return;
-		}
-
-		if (completionSuggestions.length === 0) {
-			return;
-		}
-
-		if (event.key === "ArrowDown") {
-			event.preventDefault();
-			completionHighlightedIndex = (completionHighlightedIndex + 1) % completionSuggestions.length;
-			return;
-		}
-
-		if (event.key === "ArrowUp") {
-			event.preventDefault();
-			completionHighlightedIndex =
-				(completionHighlightedIndex - 1 + completionSuggestions.length) %
-				completionSuggestions.length;
-			return;
-		}
-
-		if (event.key === "Enter" && completionHighlightedIndex >= 0) {
-			event.preventDefault();
-			const suggestion = completionSuggestions[completionHighlightedIndex];
-
-			if (suggestion) {
-				selectCompletion(target, suggestion);
-			}
-		}
-	}
-
 	function handleFieldInput(field: RouteField, value: string) {
 		updateField(field, value);
-		scheduleCompletionLookup(
+		completionController.scheduleLookup(
 			field === "startQuery" ? startCompletionTarget : destinationCompletionTarget,
 			value,
 		);
@@ -1862,7 +1620,7 @@
 
 	function handleWaypointInput(index: number, value: string) {
 		updateWaypoint(index, value);
-		scheduleCompletionLookup(getWaypointCompletionTarget(index), value);
+		completionController.scheduleLookup(getWaypointCompletionTarget(index), value);
 	}
 
 	function addWaypoint(
@@ -1896,9 +1654,7 @@
 			waypointQueries: nextWaypointErrors,
 		};
 
-		if (activeCompletionTarget?.kind === "waypoint" && activeCompletionTarget.index >= nextIndex) {
-			activeCompletionTarget = getWaypointCompletionTarget(activeCompletionTarget.index + 1);
-		}
+		completionController.handleWaypointInserted(nextIndex);
 
 		markPlannerEdited();
 		return true;
@@ -1918,13 +1674,7 @@
 			return false;
 		}
 
-		if (activeCompletionTarget?.kind === "waypoint") {
-			if (activeCompletionTarget.index === index) {
-				closeCompletionMenu();
-			} else if (activeCompletionTarget.index > index) {
-				activeCompletionTarget = getWaypointCompletionTarget(activeCompletionTarget.index - 1);
-			}
-		}
+		completionController.handleWaypointRemoved(index);
 
 		waypointStops = waypointStops.filter((_, waypointIndex) => waypointIndex !== index);
 		fieldErrors = {
@@ -1986,13 +1736,7 @@
 			waypointQueries: nextWaypointErrors,
 		};
 
-		if (activeCompletionTarget?.kind === "waypoint") {
-			if (activeCompletionTarget.index === index) {
-				activeCompletionTarget = getWaypointCompletionTarget(nextIndex);
-			} else if (activeCompletionTarget.index === nextIndex) {
-				activeCompletionTarget = getWaypointCompletionTarget(index);
-			}
-		}
+		completionController.handleWaypointSwap(index, nextIndex);
 
 		markPlannerEdited();
 		return true;
@@ -2956,18 +2700,6 @@
 	}
 </script>
 
-{#snippet completionSuggestionsSkeleton()}
-	<div class="px-1 py-1">
-		<span class="sr-only">Searching places...</span>
-		{#each [0, 1, 2] as row}
-			<div class="flex items-center justify-between gap-3 px-2 py-2">
-				<Skeleton class={`h-3.5 ${row === 0 ? "w-44" : row === 1 ? "w-36" : "w-52"}`} />
-				<Skeleton class="size-3.5 shrink-0 rounded-full" />
-			</div>
-		{/each}
-	</div>
-{/snippet}
-
 {#snippet routeSummarySkeleton()}
 	<div
 		class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3"
@@ -3186,93 +2918,35 @@
 					</div>
 
 					<div class="flex min-w-0 flex-1 flex-col gap-3">
-						<div class="space-y-2">
-							<label
-								for="start-point"
-								class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-							>
-								Start
-							</label>
-							<div class="relative">
-								<MapPin
-									class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-								/>
-								<Input
-									id="start-point"
-									value={startStop.label}
-									placeholder="Enter starting point..."
-									class="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
-									autocomplete="off"
-									aria-autocomplete="list"
-									aria-controls={getCompletionListId(startCompletionTarget)}
-									aria-expanded={isCompletionMenuVisible(startCompletionTarget)}
-									aria-activedescendant={getCompletionActiveDescendant(startCompletionTarget)}
-									aria-invalid={fieldErrors.startQuery ? "true" : undefined}
-									onfocus={() => handleCompletionFocus(startCompletionTarget)}
-									onblur={() => handleCompletionBlur(startCompletionTarget)}
-									onkeydown={(event) => handleCompletionKeydown(event, startCompletionTarget)}
-									oninput={(event) =>
-										handleFieldInput(
-											"startQuery",
-											(event.currentTarget as HTMLInputElement).value,
-										)}
-								/>
+						<PlannerStopInput
+							id="start-point"
+							label="Start"
+							value={startStop.label}
+							placeholder="Enter starting point..."
+							target={startCompletionTarget}
+							controller={completionController}
+							completionLabel="Start suggestions"
+							error={fieldErrors.startQuery}
+							inputClass="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
+							onInput={(value) => handleFieldInput("startQuery", value)}
+						>
+							{#snippet leading()}
+								<MapPin class="size-4 text-muted-foreground" />
+							{/snippet}
+							{#snippet trailing()}
 								<Button
 									variant="ghost"
 									size="icon-xs"
 									type="button"
-									class="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+									class="size-7 text-muted-foreground hover:text-foreground"
 									disabled={isLocating}
 									aria-label="Use current location as start"
 									onclick={() => useCurrentLocationAsStop("startQuery")}
 								>
 									<LocateFixed class="size-3.5" />
 								</Button>
-								{#if isCompletionMenuVisible(startCompletionTarget)}
-									<div
-										class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
-									>
-										<div
-											id={getCompletionListId(startCompletionTarget)}
-											role="listbox"
-											aria-label="Start suggestions"
-											aria-busy={isCompletionLoading}
-											class="max-h-64 overflow-y-auto py-1"
-										>
-											{#if isCompletionLoading}
-												{@render completionSuggestionsSkeleton()}
-											{:else if completionSuggestions.length > 0}
-												{#each completionSuggestions as suggestion, index (`start-${suggestion.label}-${index}`)}
-													<button
-														id={getCompletionOptionId(startCompletionTarget, index)}
-														type="button"
-														role="option"
-														class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
-															completionHighlightedIndex === index
-																? "bg-primary/10 text-foreground"
-																: "text-foreground/90 hover:bg-secondary/65"
-														}`}
-														aria-selected={completionHighlightedIndex === index}
-														onpointerdown={(event) =>
-															handleCompletionSelection(event, startCompletionTarget, suggestion)}
-													>
-														<span class="min-w-0 truncate">{suggestion.label}</span>
-														<MapPin class="size-3.5 shrink-0 text-muted-foreground" />
-													</button>
-												{/each}
-											{:else if isCompletionEmpty}
-												<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-													No matches found.
-												</div>
-											{/if}
-										</div>
-									</div>
-								{/if}
-							</div>
-							{#if fieldErrors.startQuery}
-								<p class="text-xs font-medium text-destructive">{fieldErrors.startQuery}</p>
-							{/if}
-						</div>
+							{/snippet}
+						</PlannerStopInput>
 
 						{#if isRoundCourseMode}
 							{#if roundCourseTargetKind === "distance"}
@@ -3355,87 +3029,22 @@
 														>
 															Waypoint {index + 1}
 														</label>
-														<div class="relative">
-															<MapPin
-																class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-amber-600 dark:text-amber-300"
-															/>
-															<Input
-																id={`waypoint-${index}`}
-																value={waypointStop.label}
-																placeholder="Add a stop..."
-																class="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
-																autocomplete="off"
-																aria-autocomplete="list"
-																aria-controls={getCompletionListId(getWaypointCompletionTarget(index))}
-																aria-expanded={isCompletionMenuVisible(getWaypointCompletionTarget(index))}
-																aria-activedescendant={getCompletionActiveDescendant(
-																	getWaypointCompletionTarget(index),
-																)}
-																aria-invalid={getWaypointError(index) ? "true" : undefined}
-																onfocus={() =>
-																	handleCompletionFocus(getWaypointCompletionTarget(index))}
-																onblur={() => handleCompletionBlur(getWaypointCompletionTarget(index))}
-																onkeydown={(event) =>
-																	handleCompletionKeydown(event, getWaypointCompletionTarget(index))}
-																oninput={(event) =>
-																	handleWaypointInput(
-																		index,
-																		(event.currentTarget as HTMLInputElement).value,
-																	)}
-															/>
-															{#if isCompletionMenuVisible(getWaypointCompletionTarget(index))}
-																<div
-																	class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
-																>
-																	<div
-																		id={getCompletionListId(getWaypointCompletionTarget(index))}
-																		role="listbox"
-																		aria-label={`Waypoint ${index + 1} suggestions`}
-																		aria-busy={isCompletionLoading}
-																		class="max-h-64 overflow-y-auto py-1"
-																	>
-																		{#if isCompletionLoading}
-																			{@render completionSuggestionsSkeleton()}
-																		{:else if completionSuggestions.length > 0}
-																			{#each completionSuggestions as suggestion, suggestionIndex (`waypoint-${index}-${suggestion.label}-${suggestionIndex}`)}
-																				<button
-																					id={getCompletionOptionId(
-																						getWaypointCompletionTarget(index),
-																						suggestionIndex,
-																					)}
-																					type="button"
-																					role="option"
-																					class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
-																						completionHighlightedIndex === suggestionIndex
-																							? "bg-primary/10 text-foreground"
-																							: "text-foreground/90 hover:bg-secondary/65"
-																					}`}
-																					aria-selected={completionHighlightedIndex === suggestionIndex}
-																					onpointerdown={(event) =>
-																						handleCompletionSelection(
-																							event,
-																							getWaypointCompletionTarget(index),
-																							suggestion,
-																						)}
-																				>
-																					<span class="min-w-0 truncate">{suggestion.label}</span>
-																					<MapPin class="size-3.5 shrink-0 text-muted-foreground" />
-																				</button>
-																			{/each}
-																		{:else if isCompletionEmpty}
-																			<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-																				No matches found.
-																			</div>
-																		{/if}
-																	</div>
-																</div>
-															{/if}
-														</div>
-														{#if getWaypointError(index)}
-															<p class="text-xs font-medium text-destructive">
-																{getWaypointError(index)}
-															</p>
-														{/if}
+														<PlannerStopInput
+															id={`waypoint-${index}`}
+															label={`Waypoint ${index + 1}`}
+															value={waypointStop.label}
+															placeholder="Add a stop..."
+															target={getWaypointCompletionTarget(index)}
+															controller={completionController}
+															completionLabel={`Waypoint ${index + 1} suggestions`}
+															error={getWaypointError(index)}
+															inputClass="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+															onInput={(value) => handleWaypointInput(index, value)}
+														>
+															{#snippet leading()}
+																<MapPin class="size-4 text-amber-600 dark:text-amber-300" />
+															{/snippet}
+														</PlannerStopInput>
 													</div>
 												</div>
 												<div class="mt-2 flex flex-wrap justify-end gap-1.5">
@@ -3484,100 +3093,35 @@
 							</div>
 							{/if}
 
-							<div class="space-y-2">
-								<label
-									for="destination"
-									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
-								>
-									{getDestinationFieldLabel()}
-								</label>
-								<div class="relative">
-									<Navigation
-										class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary"
-									/>
-									<Input
-										id="destination"
-										value={destinationStop.label}
-										placeholder={getDestinationPlaceholder()}
-										class="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
-										autocomplete="off"
-										aria-autocomplete="list"
-										aria-controls={getCompletionListId(destinationCompletionTarget)}
-										aria-expanded={isCompletionMenuVisible(destinationCompletionTarget)}
-										aria-activedescendant={getCompletionActiveDescendant(destinationCompletionTarget)}
-										aria-invalid={fieldErrors.destinationQuery ? "true" : undefined}
-										onfocus={() => handleCompletionFocus(destinationCompletionTarget)}
-										onblur={() => handleCompletionBlur(destinationCompletionTarget)}
-										onkeydown={(event) =>
-											handleCompletionKeydown(event, destinationCompletionTarget)}
-										oninput={(event) =>
-											handleFieldInput(
-												"destinationQuery",
-												(event.currentTarget as HTMLInputElement).value,
-											)}
-									/>
+							<PlannerStopInput
+								id="destination"
+								label={getDestinationFieldLabel()}
+								value={destinationStop.label}
+								placeholder={getDestinationPlaceholder()}
+								target={destinationCompletionTarget}
+								controller={completionController}
+								completionLabel={getDestinationSuggestionsLabel()}
+								error={fieldErrors.destinationQuery}
+								inputClass="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
+								onInput={(value) => handleFieldInput("destinationQuery", value)}
+							>
+								{#snippet leading()}
+									<Navigation class="size-4 text-primary" />
+								{/snippet}
+								{#snippet trailing()}
 									<Button
 										variant="ghost"
 										size="icon-xs"
 										type="button"
-										class="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+										class="size-7 text-muted-foreground hover:text-foreground"
 										disabled={isLocating}
 										aria-label={getCurrentLocationDestinationLabel()}
 										onclick={() => useCurrentLocationAsStop("destinationQuery")}
 									>
 										<LocateFixed class="size-3.5" />
 									</Button>
-									{#if isCompletionMenuVisible(destinationCompletionTarget)}
-										<div
-											class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
-										>
-											<div
-												id={getCompletionListId(destinationCompletionTarget)}
-												role="listbox"
-													aria-label={getDestinationSuggestionsLabel()}
-												aria-busy={isCompletionLoading}
-												class="max-h-64 overflow-y-auto py-1"
-											>
-												{#if isCompletionLoading}
-													{@render completionSuggestionsSkeleton()}
-												{:else if completionSuggestions.length > 0}
-													{#each completionSuggestions as suggestion, index (`destination-${suggestion.label}-${index}`)}
-														<button
-															id={getCompletionOptionId(destinationCompletionTarget, index)}
-															type="button"
-															role="option"
-															class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
-																completionHighlightedIndex === index
-																	? "bg-primary/10 text-foreground"
-																	: "text-foreground/90 hover:bg-secondary/65"
-															}`}
-															aria-selected={completionHighlightedIndex === index}
-															onpointerdown={(event) =>
-																handleCompletionSelection(
-																	event,
-																	destinationCompletionTarget,
-																	suggestion,
-																)}
-														>
-															<span class="min-w-0 truncate">{suggestion.label}</span>
-															<Navigation class="size-3.5 shrink-0 text-muted-foreground" />
-														</button>
-													{/each}
-												{:else if isCompletionEmpty}
-													<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-														No matches found.
-													</div>
-												{/if}
-											</div>
-										</div>
-									{/if}
-								</div>
-								{#if fieldErrors.destinationQuery}
-									<p class="text-xs font-medium text-destructive">
-										{fieldErrors.destinationQuery}
-									</p>
-								{/if}
-							</div>
+								{/snippet}
+							</PlannerStopInput>
 						{/if}
 					</div>
 
@@ -3759,88 +3303,22 @@
 
 						{#if spatialConstraintKind === "area"}
 							<div class="space-y-2">
-								<label
-									for="constraint-center"
-									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+								<PlannerStopInput
+									id="constraint-center"
+									label="Area center"
+									value={constraintCenterStop.label}
+									placeholder="Enter area center..."
+									target={constraintCenterCompletionTarget}
+									controller={completionController}
+									completionLabel="Area center suggestions"
+									error=""
+									inputClass="border-none bg-background pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
+									onInput={updateConstraintCenterInput}
 								>
-									Area center
-								</label>
-								<div class="relative">
-									<MapPin
-										class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-sky-600 dark:text-sky-300"
-									/>
-									<Input
-										id="constraint-center"
-										value={constraintCenterStop.label}
-										placeholder="Enter area center..."
-										class="border-none bg-background pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
-										autocomplete="off"
-										aria-autocomplete="list"
-										aria-controls={getCompletionListId(constraintCenterCompletionTarget)}
-										aria-expanded={isCompletionMenuVisible(
-											constraintCenterCompletionTarget,
-										)}
-										aria-activedescendant={getCompletionActiveDescendant(
-											constraintCenterCompletionTarget,
-										)}
-										aria-invalid={fieldErrors.spatialConstraint ? "true" : undefined}
-										onfocus={() => handleCompletionFocus(constraintCenterCompletionTarget)}
-										onblur={() => handleCompletionBlur(constraintCenterCompletionTarget)}
-										onkeydown={(event) =>
-											handleCompletionKeydown(event, constraintCenterCompletionTarget)}
-										oninput={(event) =>
-											updateConstraintCenterInput(
-												(event.currentTarget as HTMLInputElement).value,
-											)}
-									/>
-									{#if isCompletionMenuVisible(constraintCenterCompletionTarget)}
-										<div
-											class="absolute left-0 right-0 top-[calc(100%+0.45rem)] z-30 overflow-hidden rounded-lg border border-border/70 bg-background/96 shadow-xl backdrop-blur-sm"
-										>
-											<div
-												id={getCompletionListId(constraintCenterCompletionTarget)}
-												role="listbox"
-												aria-label="Area center suggestions"
-												aria-busy={isCompletionLoading}
-												class="max-h-64 overflow-y-auto py-1"
-											>
-												{#if isCompletionLoading}
-													{@render completionSuggestionsSkeleton()}
-												{:else if completionSuggestions.length > 0}
-													{#each completionSuggestions as suggestion, index (`constraint-${suggestion.label}-${index}`)}
-														<button
-															id={getCompletionOptionId(
-																constraintCenterCompletionTarget,
-																index,
-															)}
-															type="button"
-															role="option"
-															class={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${
-																completionHighlightedIndex === index
-																	? "bg-primary/10 text-foreground"
-																	: "text-foreground/90 hover:bg-secondary/65"
-															}`}
-															aria-selected={completionHighlightedIndex === index}
-															onpointerdown={(event) =>
-																handleCompletionSelection(
-																	event,
-																	constraintCenterCompletionTarget,
-																	suggestion,
-																)}
-														>
-															<span class="min-w-0 truncate">{suggestion.label}</span>
-															<MapPin class="size-3.5 shrink-0 text-muted-foreground" />
-														</button>
-													{/each}
-												{:else if isCompletionEmpty}
-													<div class="px-3 py-2 text-xs font-medium text-muted-foreground">
-														No matches found.
-													</div>
-												{/if}
-											</div>
-										</div>
-									{/if}
-								</div>
+									{#snippet leading()}
+										<MapPin class="size-4 text-sky-600 dark:text-sky-300" />
+									{/snippet}
+								</PlannerStopInput>
 								<label
 									for="area-radius"
 									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
