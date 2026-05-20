@@ -53,6 +53,11 @@
 
 	const convexClient = getOptionalConvexClient();
 
+	type SavedRouteSearchTextCacheEntry = {
+		cacheKey: string;
+		searchText: string;
+	};
+
 	onMount(() => {
 		initUnitPreference();
 		initSavedRoutes();
@@ -68,7 +73,10 @@
 	let shareError = $state<string | null>(null);
 	let pendingShareUrl = $state<string | null>(null);
 	let copiedShareRouteId = $state<string | null>(null);
-	const savedRouteSearchTextCache = new Map<string, string>();
+	const savedRouteSearchTextCache = new Map<
+		string,
+		SavedRouteSearchTextCacheEntry
+	>();
 	const isLoadingSyncedRoutes = $derived(
 		savedRoutesState.authStatus === "signedIn" &&
 			!savedRoutesState.remoteReady &&
@@ -109,6 +117,18 @@
 			);
 		}),
 	);
+
+	$effect(() => {
+		const currentSavedRouteIds = new Set(
+			savedRoutesState.savedRoutes.map((savedRoute) => savedRoute.id),
+		);
+
+		for (const cachedSavedRouteId of savedRouteSearchTextCache.keys()) {
+			if (!currentSavedRouteIds.has(cachedSavedRouteId)) {
+				savedRouteSearchTextCache.delete(cachedSavedRouteId);
+			}
+		}
+	});
 
 	function formatSavedAt(createdAt: string): string {
 		return new Date(createdAt).toLocaleString(undefined, {
@@ -208,16 +228,19 @@
 
 	function getSavedRouteSearchText(savedRoute: SavedRoute): string {
 		const cacheKey = getSavedRouteSearchCacheKey(savedRoute);
-		const cachedSearchText = savedRouteSearchTextCache.get(cacheKey);
+		const cachedSearchText = savedRouteSearchTextCache.get(savedRoute.id);
 
-		if (cachedSearchText) {
-			return cachedSearchText;
+		if (cachedSearchText?.cacheKey === cacheKey) {
+			return cachedSearchText.searchText;
 		}
 
 		const normalizedSearchText = normalizeSearchText(
 			buildSavedRouteSearchText(savedRoute),
 		);
-		savedRouteSearchTextCache.set(cacheKey, normalizedSearchText);
+		savedRouteSearchTextCache.set(savedRoute.id, {
+			cacheKey,
+			searchText: normalizedSearchText,
+		});
 		return normalizedSearchText;
 	}
 

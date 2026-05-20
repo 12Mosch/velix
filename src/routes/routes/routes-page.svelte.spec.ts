@@ -786,6 +786,39 @@ describe("routes/+page.svelte", () => {
 			.toBeInTheDocument();
 	});
 
+	it("drops saved-route search matches for ids removed by remote replacement", async () => {
+		savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.applyRemoteRoutes("user_1", [
+			searchableSavedRoutes[0],
+			searchableSavedRoutes[1],
+		]);
+
+		render(RoutesPage);
+
+		const searchInput = page.getByRole("textbox", {
+			name: "Search saved routes",
+		});
+
+		await searchInput.fill("schliersee");
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+
+		savedRoutesState.applyRemoteRoutes("user_1", [searchableSavedRoutes[1]]);
+
+		await expect
+			.element(page.getByText("No routes match your filters"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.not.toBeInTheDocument();
+
+		await searchInput.fill("garmisch");
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+	});
+
 	it("shows a search-empty state when saved routes do not match", async () => {
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,
