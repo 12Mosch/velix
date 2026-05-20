@@ -305,6 +305,16 @@
 	const autosaveDebounceMs = 750;
 	const minRoundCourseDurationMs = 15 * 60 * 1000;
 	const minRoundCourseAscendMeters = 50;
+
+	type AsyncRouteEditResult = "committed" | "noop" | "rollback";
+
+	type SavedRouteEditMetadata = {
+		activeSavedRouteId: string | null;
+		plannerDraftRouteId: string | null;
+		pendingSavedRouteId: string | null;
+		isActiveRouteSaved: boolean;
+	};
+
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let detachRouteEditKeyboardListener = () => {};
 	const completionController = createPlannerCompletionController(
@@ -1151,18 +1161,47 @@
 		);
 	}
 
-	function restoreRouteEditSnapshot(snapshot: RouteEditSnapshot) {
+	function captureSavedRouteEditMetadata(): SavedRouteEditMetadata {
+		return {
+			activeSavedRouteId,
+			plannerDraftRouteId,
+			pendingSavedRouteId,
+			isActiveRouteSaved,
+		};
+	}
+
+	function applyRestoredRouteEditSnapshot(snapshot: RouteEditSnapshot) {
 		closeCompletionMenu();
 		closeMapClickMenu();
 		const restoredState = restorePlannerSnapshot(snapshot);
 		applyPlannerRouteState(restoredState.routeState);
 		applyPlannerFormState(restoredState.form);
+		activeProfileIndex = null;
+		chartScrubPointerId = null;
+	}
+
+	function restoreRouteEditSnapshot(snapshot: RouteEditSnapshot) {
+		applyRestoredRouteEditSnapshot(snapshot);
 		routeRequestError = null;
 		routeImportError = null;
 		routeExportError = null;
-		activeProfileIndex = null;
-		chartScrubPointerId = null;
 		markPlannerEdited();
+		scheduleActiveRouteAutosave();
+	}
+
+	function rollbackRouteEditSnapshot(
+		snapshot: RouteEditSnapshot,
+		savedRouteMetadata: SavedRouteEditMetadata,
+		preservedRouteRequestError: string | null,
+	) {
+		applyRestoredRouteEditSnapshot(snapshot);
+		activeSavedRouteId = savedRouteMetadata.activeSavedRouteId;
+		plannerDraftRouteId = savedRouteMetadata.plannerDraftRouteId;
+		pendingSavedRouteId = savedRouteMetadata.pendingSavedRouteId;
+		isActiveRouteSaved = savedRouteMetadata.isActiveRouteSaved;
+		routeRequestError = preservedRouteRequestError;
+		routeImportError = null;
+		routeExportError = null;
 		scheduleActiveRouteAutosave();
 	}
 
@@ -1193,7 +1232,7 @@
 	}
 
 	async function performAsyncRouteEdit(
-		editFn: () => Promise<boolean | undefined>,
+		editFn: () => Promise<AsyncRouteEditResult>,
 		options: RouteEditSnapshotOptions = {},
 	) {
 		if (!activeRoute) {
@@ -1202,9 +1241,20 @@
 		}
 
 		const previousSnapshot = captureRouteEditSnapshot(options);
-		const changed = await editFn();
+		const savedRouteMetadata = captureSavedRouteEditMetadata();
+		const result = await editFn();
 
-		if (changed === false) {
+		if (result === "noop") {
+			return;
+		}
+
+		if (result === "rollback") {
+			const preservedRouteRequestError = routeRequestError;
+			rollbackRouteEditSnapshot(
+				previousSnapshot,
+				savedRouteMetadata,
+				preservedRouteRequestError,
+			);
 			return;
 		}
 
@@ -2006,21 +2056,18 @@
 		closeCompletionMenu();
 		closeMapClickMenu();
 		await performAsyncRouteEdit(async () => {
-			const previousAvoidedRoads = avoidedRoads;
 			const targetAvoidance = getAvoidanceForSelection(selection);
 
 			if (targetAvoidance) {
 				avoidedRoads = avoidedRoads.filter(
 					(avoidance) => avoidance !== targetAvoidance,
 				);
-				const routed = await rerouteAfterManualEdit();
-				if (!routed) avoidedRoads = previousAvoidedRoads;
-				return routed;
+				return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
 			}
 
 			const centerline = getSelectedAvoidanceCenterline(selection);
 			if (!centerline) {
-				return false;
+				return "noop";
 			}
 
 			const bufferMeters = 35;
@@ -2034,9 +2081,7 @@
 					polygon: buildAvoidancePlaceholderPolygon(centerline, bufferMeters),
 				},
 			];
-			const routed = await rerouteAfterManualEdit();
-			if (!routed) avoidedRoads = previousAvoidedRoads;
-			return routed;
+			return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
 		}, { includeRoutesGeometry: true });
 		return true;
 	}
@@ -2047,11 +2092,8 @@
 		}
 
 		void performAsyncRouteEdit(async () => {
-			const previousAvoidedRoads = avoidedRoads;
 			avoidedRoads = avoidedRoads.filter((_, itemIndex) => itemIndex !== index);
-			const routed = await rerouteAfterManualEdit();
-			if (!routed) avoidedRoads = previousAvoidedRoads;
-			return routed;
+			return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
 		}, { includeRoutesGeometry: true });
 	}
 
@@ -2122,7 +2164,7 @@
 			let changed = false;
 			await performAsyncRouteEdit(async () => {
 				changed = await applyMapPointAsStop(target, false);
-				return changed;
+				return changed ? "committed" : "noop";
 			});
 			return changed;
 		}
@@ -2361,7 +2403,7 @@
 		await performAsyncRouteEdit(async () => {
 			const label = await resolveMapStopLabel(detail.point);
 			updateDraggedStop(detail.selectedStop, detail.point, label);
-			return rerouteAfterManualEdit();
+			return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
 		}, { includeRoutesGeometry: true });
 	}
 
@@ -2406,7 +2448,7 @@
 			} else {
 				if (waypointStops.length >= maxWaypoints) {
 					routeRequestError = `You can add up to ${maxWaypoints} waypoints per route.`;
-					return false;
+					return "noop";
 				}
 
 				addWaypoint(
@@ -2416,7 +2458,7 @@
 				);
 			}
 
-			return rerouteAfterManualEdit();
+			return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
 		}, { includeRoutesGeometry: true });
 	}
 

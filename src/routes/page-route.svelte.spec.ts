@@ -2178,11 +2178,94 @@ describe("+page.svelte", () => {
 		});
 
 		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("Marienplatz, Munich, Germany");
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
 			.element(page.getByRole("alert"))
 			.toHaveTextContent("Routing failed.");
 		await expect
 			.element(page.getByRole("button", { name: "Undo route edit" }))
 			.toBeDisabled();
+	});
+
+	it("rolls back failed manual segment drag reroutes and preserves saved status", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "saved-route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: successfulRoute,
+				},
+			]),
+		);
+		window.history.replaceState({}, "", "/?savedRoute=saved-route-1");
+
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({
+							label: "Dragged waypoint, Germany",
+							point: [11.65, 48.15],
+						}),
+					),
+				);
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify({ error: "Routing failed." }), {
+						status: 500,
+					}),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.poll(() => (mockState.eventHandlers.get("mousedown") ?? []).length)
+			.toBe(1);
+		await expect
+			.element(page.getByRole("button", { name: "Saved" }))
+			.toBeInTheDocument();
+
+		mockState.eventHandlers.get("mousedown")?.[0]?.({
+			lngLat: { lng: 11.6, lat: 48.12 },
+			point: { x: 1160, y: 4812 },
+			preventDefault: vi.fn(),
+		});
+		mockState.eventHandlers.get("mouseup")?.[0]?.({
+			lngLat: { lng: 11.65, lat: 48.15 },
+			point: { x: 1165, y: 4815 },
+		});
+
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.toHaveValue("Tegernsee, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 2" }))
+			.not.toBeInTheDocument();
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.element(page.getByRole("button", { name: "Undo route edit" }))
+			.toBeDisabled();
+		await expect
+			.element(page.getByRole("alert"))
+			.toHaveTextContent("Routing failed.");
+		await expect
+			.element(page.getByRole("button", { name: "Saved" }))
+			.toBeInTheDocument();
+		expect(readSavedRoutesFromStorage()[0]?.id).toBe("saved-route-1");
 	});
 
 	it("handles route edit keyboard shortcuts outside text inputs only", async () => {
