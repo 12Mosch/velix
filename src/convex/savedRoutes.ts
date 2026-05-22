@@ -12,11 +12,20 @@ import {
 	type RemoteSavedRoutePayload,
 	serializeSavedRouteForRemote,
 } from "../lib/saved-routes-core";
+import {
+	assertRemoteRouteJsonSize,
+	getSavedRouteRowConvexDocumentSize,
+	isRouteJsonWithinRemoteSizeLimit,
+	type SavedRouteStorageRow,
+} from "../lib/saved-route-size";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { runConvexEffect, tryConvexPromise } from "./effect";
 
 const maxMergeRouteCount = 200;
+const maxConvexDocumentBytes = 1024 * 1024;
+const savedRouteSizeLimitMessage =
+	"Saved route is too large to sync. Maximum route payload size is 512 KiB.";
 
 type ValidatedRemoteSavedRoute = RemoteSavedRoutePayload & {
 	createdAtMs: number;
@@ -32,6 +41,12 @@ class SavedRoutesAuthenticationError extends Error {
 
 class SavedRoutesValidationError extends Error {
 	readonly _tag = "SavedRoutesValidationError";
+}
+
+function isSavedRouteRowWithinConvexDocumentLimit(
+	row: SavedRouteStorageRow,
+): boolean {
+	return getSavedRouteRowConvexDocumentSize(row) <= maxConvexDocumentBytes;
 }
 
 function getAuthenticatedUserIdEffect(
@@ -140,6 +155,29 @@ export function upsertHandler(
 				);
 			}
 
+			try {
+				assertRemoteRouteJsonSize(savedRoute.routeJson, "saved");
+			} catch (error) {
+				return yield* Effect.fail(
+					new SavedRoutesValidationError((error as Error).message),
+				);
+			}
+
+			const now = Date.now();
+			const row = {
+				userId,
+				routeId: savedRoute.id,
+				createdAtMs: savedRoute.createdAtMs,
+				updatedAtMs: now,
+				routeJson: savedRoute.routeJson,
+			} satisfies SavedRouteStorageRow;
+
+			if (!isSavedRouteRowWithinConvexDocumentLimit(row)) {
+				return yield* Effect.fail(
+					new SavedRoutesValidationError(savedRouteSizeLimitMessage),
+				);
+			}
+
 			const existingRoute = yield* tryConvexPromise(
 				() =>
 					ctx.db
@@ -150,32 +188,17 @@ export function upsertHandler(
 						.unique(),
 				"Could not read saved route.",
 			);
-			const now = Date.now();
 
 			if (existingRoute) {
 				yield* tryConvexPromise(
-					() =>
-						ctx.db.replace(existingRoute._id, {
-							userId,
-							routeId: savedRoute.id,
-							createdAtMs: savedRoute.createdAtMs,
-							updatedAtMs: now,
-							routeJson: savedRoute.routeJson,
-						}),
+					() => ctx.db.replace(existingRoute._id, row),
 					"Could not update saved route.",
 				);
 				return { inserted: false };
 			}
 
 			yield* tryConvexPromise(
-				() =>
-					ctx.db.insert("savedRoutes", {
-						userId,
-						routeId: savedRoute.id,
-						createdAtMs: savedRoute.createdAtMs,
-						updatedAtMs: now,
-						routeJson: savedRoute.routeJson,
-					}),
+				() => ctx.db.insert("savedRoutes", row),
 				"Could not insert saved route.",
 			);
 
@@ -250,6 +273,11 @@ export function mergeLocalRoutesHandler(
 					continue;
 				}
 
+				if (!isRouteJsonWithinRemoteSizeLimit(savedRoute.routeJson)) {
+					invalid += 1;
+					continue;
+				}
+
 				if (seenRouteIds.has(savedRoute.id)) {
 					duplicate += 1;
 					continue;
@@ -273,15 +301,21 @@ export function mergeLocalRoutesHandler(
 					continue;
 				}
 
+				const row = {
+					userId,
+					routeId: savedRoute.id,
+					createdAtMs: savedRoute.createdAtMs,
+					updatedAtMs: now,
+					routeJson: savedRoute.routeJson,
+				} satisfies SavedRouteStorageRow;
+
+				if (!isSavedRouteRowWithinConvexDocumentLimit(row)) {
+					invalid += 1;
+					continue;
+				}
+
 				yield* tryConvexPromise(
-					() =>
-						ctx.db.insert("savedRoutes", {
-							userId,
-							routeId: savedRoute.id,
-							createdAtMs: savedRoute.createdAtMs,
-							updatedAtMs: now,
-							routeJson: savedRoute.routeJson,
-						}),
+					() => ctx.db.insert("savedRoutes", row),
 					"Could not insert saved route.",
 				);
 				inserted += 1;

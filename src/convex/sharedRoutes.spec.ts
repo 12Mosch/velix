@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createHandler, getByTokenHandler } from "./sharedRoutes";
 import { serializeSavedRouteForRemote } from "../lib/saved-routes-core";
 import type { PlannedRoute } from "../lib/route-planning";
+import { MAX_REMOTE_ROUTE_JSON_BYTES } from "../lib/saved-route-size";
 
 type SharedRouteRow = {
 	_id: string;
@@ -42,6 +43,18 @@ const savedRoute = {
 	route,
 };
 const remoteSavedRoute = serializeSavedRouteForRemote(savedRoute);
+
+function createOversizedRemoteSavedRoute() {
+	const plannedRoute = JSON.parse(remoteSavedRoute.routeJson) as PlannedRoute;
+
+	return {
+		...remoteSavedRoute,
+		routeJson: JSON.stringify({
+			...plannedRoute,
+			destinationLabel: "x".repeat(MAX_REMOTE_ROUTE_JSON_BYTES),
+		}),
+	};
+}
 
 function createCtx({
 	ownedSourceRouteIds = ["saved-route-1"],
@@ -217,5 +230,23 @@ describe("sharedRoutes Convex functions", () => {
 				},
 			}),
 		).rejects.toThrow("Shared route payload is invalid.");
+	});
+
+	it("rejects oversized route payload creates without inserting", async () => {
+		const { ctx, state } = createCtx();
+
+		await expect(
+			runCreate(ctx, {
+				shareToken: "abc123_DEF456-7890",
+				sourceRouteId: "saved-route-1",
+				savedRoute: createOversizedRemoteSavedRoute(),
+			}),
+		).rejects.toThrow(
+			"Shared route is too large to share. Maximum route payload size is 512 KiB.",
+		);
+
+		expect(state).toEqual([]);
+		expect(ctx.db.query).not.toHaveBeenCalled();
+		expect(ctx.db.insert).not.toHaveBeenCalled();
 	});
 });
