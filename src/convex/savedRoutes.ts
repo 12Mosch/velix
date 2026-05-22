@@ -7,10 +7,8 @@ import { v } from "convex/values";
 import { Effect } from "effect";
 import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
 import {
-	deserializeRemoteSavedRoute,
 	normalizePlannedRoute,
 	type RemoteSavedRoutePayload,
-	serializeSavedRouteForRemote,
 } from "../lib/saved-routes-core";
 import {
 	assertRemoteRouteJsonSize,
@@ -21,15 +19,15 @@ import {
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { runConvexEffect, tryConvexPromise } from "./effect";
+import {
+	getAuthenticatedUserIdEffect,
+	validateRemoteSavedRoutePayload,
+} from "./savedRouteHelpers";
 
 const maxMergeRouteCount = 200;
 const maxConvexDocumentBytes = 1024 * 1024;
 const savedRouteSizeLimitMessage =
 	"Saved route is too large to sync. Maximum route payload size is 512 KiB.";
-
-type ValidatedRemoteSavedRoute = RemoteSavedRoutePayload & {
-	createdAtMs: number;
-};
 
 class SavedRoutesAuthenticationError extends Error {
 	readonly _tag = "SavedRoutesAuthenticationError";
@@ -47,39 +45,6 @@ function isSavedRouteRowWithinConvexDocumentLimit(
 	row: SavedRouteStorageRow,
 ): boolean {
 	return getSavedRouteRowConvexDocumentSize(row) <= maxConvexDocumentBytes;
-}
-
-function getAuthenticatedUserIdEffect(
-	ctx: QueryCtx | MutationCtx,
-): Effect.Effect<string, Error | SavedRoutesAuthenticationError> {
-	return tryConvexPromise(
-		() => ctx.auth.getUserIdentity(),
-		"Could not read authenticated user.",
-	).pipe(
-		Effect.flatMap((identity) =>
-			identity
-				? Effect.succeed(identity.subject)
-				: Effect.fail(new SavedRoutesAuthenticationError()),
-		),
-	);
-}
-
-function validateRemoteSavedRoutePayload(
-	value: unknown,
-): ValidatedRemoteSavedRoute | null {
-	const savedRoute = deserializeRemoteSavedRoute(value);
-	if (!savedRoute) {
-		return null;
-	}
-	const remotePayload = serializeSavedRouteForRemote(savedRoute);
-	const createdAtMs = Date.parse(remotePayload.createdAt);
-
-	return Number.isFinite(createdAtMs)
-		? {
-				...remotePayload,
-				createdAtMs,
-			}
-		: null;
 }
 
 function remotePayloadFromRow(row: {
@@ -115,7 +80,10 @@ export function listForCurrentUserHandler(
 ) {
 	return runConvexEffect(
 		Effect.gen(function* () {
-			const userId = yield* getAuthenticatedUserIdEffect(ctx);
+			const userId = yield* getAuthenticatedUserIdEffect(
+				ctx,
+				() => new SavedRoutesAuthenticationError(),
+			);
 			const result = yield* tryConvexPromise(
 				() =>
 					ctx.db
@@ -146,7 +114,10 @@ export function upsertHandler(
 ) {
 	return runConvexEffect(
 		Effect.gen(function* () {
-			const userId = yield* getAuthenticatedUserIdEffect(ctx);
+			const userId = yield* getAuthenticatedUserIdEffect(
+				ctx,
+				() => new SavedRoutesAuthenticationError(),
+			);
 			const savedRoute = validateRemoteSavedRoutePayload(args.savedRoute);
 
 			if (!savedRoute) {
@@ -210,7 +181,10 @@ export function upsertHandler(
 export function removeHandler(ctx: MutationCtx, args: { routeId: string }) {
 	return runConvexEffect(
 		Effect.gen(function* () {
-			const userId = yield* getAuthenticatedUserIdEffect(ctx);
+			const userId = yield* getAuthenticatedUserIdEffect(
+				ctx,
+				() => new SavedRoutesAuthenticationError(),
+			);
 
 			if (args.routeId.trim().length === 0) {
 				return yield* Effect.fail(
@@ -248,7 +222,10 @@ export function mergeLocalRoutesHandler(
 ) {
 	return runConvexEffect(
 		Effect.gen(function* () {
-			const userId = yield* getAuthenticatedUserIdEffect(ctx);
+			const userId = yield* getAuthenticatedUserIdEffect(
+				ctx,
+				() => new SavedRoutesAuthenticationError(),
+			);
 
 			if (args.savedRoutes.length > maxMergeRouteCount) {
 				return yield* Effect.fail(
