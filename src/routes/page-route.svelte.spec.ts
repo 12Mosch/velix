@@ -1,5 +1,5 @@
-import { page } from "vitest/browser";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 
 vi.mock("$env/dynamic/public", () => ({
@@ -9,7 +9,6 @@ vi.mock("$env/dynamic/public", () => ({
 	},
 }));
 
-import PageTestShell from "./page-test-shell.svelte";
 import {
 	MAP_STYLE_STORAGE_KEY,
 	resetMapStylePreferenceForTests,
@@ -17,8 +16,8 @@ import {
 import { MAP_CAMERA_STORAGE_KEY } from "$lib/preferences/map-camera-preferences";
 import { parseRouteGpx } from "$lib/route-gpx-import";
 import {
-	sampleElevationProfile,
 	type RouteCoordinate,
+	sampleElevationProfile,
 } from "$lib/route-planning";
 import {
 	resetSavedRoutesForTests,
@@ -31,6 +30,7 @@ import {
 	resetUnitPreferenceForTests,
 	setDistanceUnitPreference,
 } from "$lib/unit-settings.svelte";
+import PageTestShell from "./page-test-shell.svelte";
 
 const successfulRoute = {
 	mode: "point_to_point",
@@ -2563,17 +2563,30 @@ describe("+page.svelte", () => {
 	});
 
 	it("shows an alert when GPX import fails", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
 		const fetchMock = vi.fn<typeof fetch>();
 		vi.stubGlobal("fetch", fetchMock);
 
-		render(PageTestShell);
+		try {
+			render(PageTestShell);
 
-		await importGpxFile("broken.gpx", invalidGpx);
+			await importGpxFile("broken.gpx", invalidGpx);
 
-		await expect
-			.element(page.getByRole("alert"))
-			.toHaveTextContent("The selected file is not valid GPX XML.");
-		expect(fetchMock).not.toHaveBeenCalled();
+			await expect
+				.element(page.getByRole("alert"))
+				.toHaveTextContent("The selected file is not valid GPX XML.");
+			expect(consoleError).toHaveBeenCalledWith(
+				"Failed to import GPX",
+				expect.objectContaining({
+					message: "The selected file is not valid GPX XML.",
+				}),
+			);
+			expect(fetchMock).not.toHaveBeenCalled();
+		} finally {
+			consoleError.mockRestore();
+		}
 	});
 
 	it("restores a saved imported GPX route with its metadata and stop values", async () => {
@@ -3209,14 +3222,17 @@ describe("+page.svelte", () => {
 			return Promise.resolve(
 				new Response(
 					JSON.stringify({
-						route: {
-							...successfulRoundCourseRoute,
-							roundCourseTarget: {
-								kind: "duration",
+						routes: [
+							{
+								...successfulRoundCourseRoute,
+								roundCourseTarget: {
+									kind: "duration",
+									durationMs: 3.5 * 60 * 60 * 1000,
+								},
 								durationMs: 3.5 * 60 * 60 * 1000,
 							},
-							durationMs: 3.5 * 60 * 60 * 1000,
-						},
+						],
+						selectedRouteIndex: 0,
 					}),
 				),
 			);
@@ -3268,14 +3284,17 @@ describe("+page.svelte", () => {
 			return Promise.resolve(
 				new Response(
 					JSON.stringify({
-						route: {
-							...successfulRoundCourseRoute,
-							roundCourseTarget: {
-								kind: "ascend",
+						routes: [
+							{
+								...successfulRoundCourseRoute,
+								roundCourseTarget: {
+									kind: "ascend",
+									ascendMeters: 800,
+								},
 								ascendMeters: 800,
 							},
-							ascendMeters: 800,
-						},
+						],
+						selectedRouteIndex: 0,
 					}),
 				),
 			);
