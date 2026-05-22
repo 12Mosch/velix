@@ -22,12 +22,37 @@
 	import { getDistanceUnitLabel } from "$lib/unit-settings.svelte";
 	import type { SpatialConstraintEnforcement } from "$lib/route-planning";
 	import type { RoundCourseTargetKind, SpatialConstraintKind } from "$lib/route-planner/types";
-	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerMapController, PlannerRoutesController, RoutePlannerPageController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
+	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerMapController, PlannerRoutesController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
 	import { getWaypointCompletionTarget } from "$lib/route-planner/page/planner-completion.svelte";
 	import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronUp, LocateFixed, MapPin, Navigation, Plus, X } from "@lucide/svelte";
 
-	let { form }: { form: PlannerFormController; routes: PlannerRoutesController; map: PlannerMapController; importExport: PlannerImportExportController; analysis: PlannerAnalysisController } = $props();
-	const controller = $derived(form as unknown as RoutePlannerPageController);
+	type RouteBuilderPanelController = PlannerFormController & PlannerRoutesController & PlannerMapController & PlannerImportExportController & PlannerAnalysisController;
+
+	let { form, routes, map, importExport, analysis }: { form: PlannerFormController; routes: PlannerRoutesController; map: PlannerMapController; importExport: PlannerImportExportController; analysis: PlannerAnalysisController } = $props();
+	const slices = $derived.by(() => [form, routes, map, importExport, analysis]);
+	const controller = $derived(
+		new Proxy(
+			{},
+			{
+				get: (_target, property) => {
+					for (const slice of slices) {
+						if (property in slice) {
+							return slice[property as keyof typeof slice];
+						}
+					}
+				},
+				set: (_target, property, value) => {
+					for (const slice of slices) {
+						if (property in slice) {
+							(slice as Record<PropertyKey, unknown>)[property] = value;
+							return true;
+						}
+					}
+					return false;
+				},
+			},
+		) as RouteBuilderPanelController,
+	);
 	const directionsOpen = $derived(controller.directionsOpen);
 	const routeAnalysisOpen = $derived(controller.routeAnalysisOpen);
 	const gradientOverlayEnabled = $derived(controller.gradientOverlayEnabled);
@@ -141,96 +166,96 @@
 	const canUndoRouteEdit = $derived(controller.canUndoRouteEdit);
 	const canRedoRouteEdit = $derived(controller.canRedoRouteEdit);
 	const hasAdvancedErrors = $derived(controller.hasAdvancedErrors);
-	const getWarningContainerClass: RoutePlannerPageController["getWarningContainerClass"] = (...args) => controller.getWarningContainerClass(...args);
-	const getWarningBadgeClass: RoutePlannerPageController["getWarningBadgeClass"] = (...args) => controller.getWarningBadgeClass(...args);
-	const showCurrentLocationOnMap: RoutePlannerPageController["showCurrentLocationOnMap"] = (...args) => controller.showCurrentLocationOnMap(...args);
-	const recenterActiveRoute: RoutePlannerPageController["recenterActiveRoute"] = (...args) => controller.recenterActiveRoute(...args);
-	const selectCue: RoutePlannerPageController["selectCue"] = (...args) => controller.selectCue(...args);
-	const getWindSegmentDistanceRange: RoutePlannerPageController["getWindSegmentDistanceRange"] = (...args) => controller.getWindSegmentDistanceRange(...args);
-	const formatCueSegmentTime: RoutePlannerPageController["formatCueSegmentTime"] = (...args) => controller.formatCueSegmentTime(...args);
-	const getDestinationFieldLabel: RoutePlannerPageController["getDestinationFieldLabel"] = (...args) => controller.getDestinationFieldLabel(...args);
-	const getDestinationSuggestionsLabel: RoutePlannerPageController["getDestinationSuggestionsLabel"] = (...args) => controller.getDestinationSuggestionsLabel(...args);
-	const getDestinationPlaceholder: RoutePlannerPageController["getDestinationPlaceholder"] = (...args) => controller.getDestinationPlaceholder(...args);
-	const getCurrentLocationDestinationLabel: RoutePlannerPageController["getCurrentLocationDestinationLabel"] = (...args) => controller.getCurrentLocationDestinationLabel(...args);
-	const getSubmitButtonText: RoutePlannerPageController["getSubmitButtonText"] = (...args) => controller.getSubmitButtonText(...args);
-	const resetSpatialConstraintDefaults: RoutePlannerPageController["resetSpatialConstraintDefaults"] = (...args) => controller.resetSpatialConstraintDefaults(...args);
-	const syncStopsFromRoute: RoutePlannerPageController["syncStopsFromRoute"] = (...args) => controller.syncStopsFromRoute(...args);
-	const syncActiveRouteManualEditing: RoutePlannerPageController["syncActiveRouteManualEditing"] = (...args) => controller.syncActiveRouteManualEditing(...args);
-	const setRouteAlternativesState: RoutePlannerPageController["setRouteAlternativesState"] = (...args) => controller.setRouteAlternativesState(...args);
-	const setSingleRouteState: RoutePlannerPageController["setSingleRouteState"] = (...args) => controller.setSingleRouteState(...args);
-	const selectRouteAlternative: RoutePlannerPageController["selectRouteAlternative"] = (...args) => controller.selectRouteAlternative(...args);
-	const markPlannerEdited: RoutePlannerPageController["markPlannerEdited"] = (...args) => controller.markPlannerEdited(...args);
-	const cancelAutosaveTimer: RoutePlannerPageController["cancelAutosaveTimer"] = (...args) => controller.cancelAutosaveTimer(...args);
-	const getActiveRouteForSaving: RoutePlannerPageController["getActiveRouteForSaving"] = (...args) => controller.getActiveRouteForSaving(...args);
-	const saveActiveRouteDraft: RoutePlannerPageController["saveActiveRouteDraft"] = (...args) => controller.saveActiveRouteDraft(...args);
-	const scheduleActiveRouteAutosave: RoutePlannerPageController["scheduleActiveRouteAutosave"] = (...args) => controller.scheduleActiveRouteAutosave(...args);
-	const captureRouteEditSnapshot: RoutePlannerPageController["captureRouteEditSnapshot"] = (...args) => controller.captureRouteEditSnapshot(...args);
-	const performRouteEdit: RoutePlannerPageController["performRouteEdit"] = (...args) => controller.performRouteEdit(...args);
-	const performAsyncRouteEdit: RoutePlannerPageController["performAsyncRouteEdit"] = (...args) => controller.performAsyncRouteEdit(...args);
-	const undoRouteEdit: RoutePlannerPageController["undoRouteEdit"] = (...args) => controller.undoRouteEdit(...args);
-	const redoRouteEdit: RoutePlannerPageController["redoRouteEdit"] = (...args) => controller.redoRouteEdit(...args);
-	const clearRouteEditHistory: RoutePlannerPageController["clearRouteEditHistory"] = (...args) => controller.clearRouteEditHistory(...args);
-	const setPlannerMode: RoutePlannerPageController["setPlannerMode"] = (...args) => controller.setPlannerMode(...args);
-	const restorePendingSavedRoute: RoutePlannerPageController["restorePendingSavedRoute"] = (...args) => controller.restorePendingSavedRoute(...args);
-	const restoreSavedRoute: RoutePlannerPageController["restoreSavedRoute"] = (...args) => controller.restoreSavedRoute(...args);
-	const updateRoundCourseTargetKind: RoutePlannerPageController["updateRoundCourseTargetKind"] = (...args) => controller.updateRoundCourseTargetKind(...args);
-	const updateRoundCourseDistanceInput: RoutePlannerPageController["updateRoundCourseDistanceInput"] = (...args) => controller.updateRoundCourseDistanceInput(...args);
-	const updateRoundCourseDuration: RoutePlannerPageController["updateRoundCourseDuration"] = (...args) => controller.updateRoundCourseDuration(...args);
-	const updateRoundCourseAscend: RoutePlannerPageController["updateRoundCourseAscend"] = (...args) => controller.updateRoundCourseAscend(...args);
-	const updateSpatialConstraintKind: RoutePlannerPageController["updateSpatialConstraintKind"] = (...args) => controller.updateSpatialConstraintKind(...args);
-	const updateSpatialConstraintEnforcement: RoutePlannerPageController["updateSpatialConstraintEnforcement"] = (...args) => controller.updateSpatialConstraintEnforcement(...args);
-	const setConstraintCenterStop: RoutePlannerPageController["setConstraintCenterStop"] = (...args) => controller.setConstraintCenterStop(...args);
-	const updateConstraintCenterInput: RoutePlannerPageController["updateConstraintCenterInput"] = (...args) => controller.updateConstraintCenterInput(...args);
-	const updateAreaRadiusInput: RoutePlannerPageController["updateAreaRadiusInput"] = (...args) => controller.updateAreaRadiusInput(...args);
-	const updateCorridorWidthInput: RoutePlannerPageController["updateCorridorWidthInput"] = (...args) => controller.updateCorridorWidthInput(...args);
-	const handleChartPointerDown: RoutePlannerPageController["handleChartPointerDown"] = (...args) => controller.handleChartPointerDown(...args);
-	const handleChartPointerMove: RoutePlannerPageController["handleChartPointerMove"] = (...args) => controller.handleChartPointerMove(...args);
-	const handleChartPointerLeave: RoutePlannerPageController["handleChartPointerLeave"] = (...args) => controller.handleChartPointerLeave(...args);
-	const releaseChartScrub: RoutePlannerPageController["releaseChartScrub"] = (...args) => controller.releaseChartScrub(...args);
-	const handleChartLostPointerCapture: RoutePlannerPageController["handleChartLostPointerCapture"] = (...args) => controller.handleChartLostPointerCapture(...args);
-	const closeCompletionMenu: RoutePlannerPageController["closeCompletionMenu"] = (...args) => controller.closeCompletionMenu(...args);
-	const setFieldStop: RoutePlannerPageController["setFieldStop"] = (...args) => controller.setFieldStop(...args);
-	const setWaypointStop: RoutePlannerPageController["setWaypointStop"] = (...args) => controller.setWaypointStop(...args);
-	const handleFieldInput: RoutePlannerPageController["handleFieldInput"] = (...args) => controller.handleFieldInput(...args);
-	const updateField: RoutePlannerPageController["updateField"] = (...args) => controller.updateField(...args);
-	const getWaypointError: RoutePlannerPageController["getWaypointError"] = (...args) => controller.getWaypointError(...args);
-	const clearWaypointError: RoutePlannerPageController["clearWaypointError"] = (...args) => controller.clearWaypointError(...args);
-	const updateWaypoint: RoutePlannerPageController["updateWaypoint"] = (...args) => controller.updateWaypoint(...args);
-	const handleWaypointInput: RoutePlannerPageController["handleWaypointInput"] = (...args) => controller.handleWaypointInput(...args);
-	const addWaypoint: RoutePlannerPageController["addWaypoint"] = (...args) => controller.addWaypoint(...args);
-	const removeWaypoint: RoutePlannerPageController["removeWaypoint"] = (...args) => controller.removeWaypoint(...args);
-	const canMoveWaypoint: RoutePlannerPageController["canMoveWaypoint"] = (...args) => controller.canMoveWaypoint(...args);
-	const moveWaypoint: RoutePlannerPageController["moveWaypoint"] = (...args) => controller.moveWaypoint(...args);
-	const closeMapClickMenu: RoutePlannerPageController["closeMapClickMenu"] = (...args) => controller.closeMapClickMenu(...args);
-	const handleMapClick: RoutePlannerPageController["handleMapClick"] = (...args) => controller.handleMapClick(...args);
-	const getMapClickMenuTitle: RoutePlannerPageController["getMapClickMenuTitle"] = (...args) => controller.getMapClickMenuTitle(...args);
-	const getMapClickMenuSubtitle: RoutePlannerPageController["getMapClickMenuSubtitle"] = (...args) => controller.getMapClickMenuSubtitle(...args);
-	const getRemoveActionLabel: RoutePlannerPageController["getRemoveActionLabel"] = (...args) => controller.getRemoveActionLabel(...args);
-	const removeSelectedMapStop: RoutePlannerPageController["removeSelectedMapStop"] = (...args) => controller.removeSelectedMapStop(...args);
-	const getSelectedSegmentIndex: RoutePlannerPageController["getSelectedSegmentIndex"] = (...args) => controller.getSelectedSegmentIndex(...args);
-	const isMapSelectionSegmentLocked: RoutePlannerPageController["isMapSelectionSegmentLocked"] = (...args) => controller.isMapSelectionSegmentLocked(...args);
-	const toggleMapSelectionSegmentLock: RoutePlannerPageController["toggleMapSelectionSegmentLock"] = (...args) => controller.toggleMapSelectionSegmentLock(...args);
-	const getAvoidanceForSelection: RoutePlannerPageController["getAvoidanceForSelection"] = (...args) => controller.getAvoidanceForSelection(...args);
-	const isMapSelectionRoadAvoided: RoutePlannerPageController["isMapSelectionRoadAvoided"] = (...args) => controller.isMapSelectionRoadAvoided(...args);
-	const toggleMapSelectionRoadAvoidance: RoutePlannerPageController["toggleMapSelectionRoadAvoidance"] = (...args) => controller.toggleMapSelectionRoadAvoidance(...args);
-	const removeAvoidedRoad: RoutePlannerPageController["removeAvoidedRoad"] = (...args) => controller.removeAvoidedRoad(...args);
-	const getMapWaypointInsertionSegmentIndex: RoutePlannerPageController["getMapWaypointInsertionSegmentIndex"] = (...args) => controller.getMapWaypointInsertionSegmentIndex(...args);
-	const isMapWaypointInsertionLocked: RoutePlannerPageController["isMapWaypointInsertionLocked"] = (...args) => controller.isMapWaypointInsertionLocked(...args);
-	const applyMapPointAsStop: RoutePlannerPageController["applyMapPointAsStop"] = (...args) => controller.applyMapPointAsStop(...args);
-	const requestRouteCalculation: RoutePlannerPageController["requestRouteCalculation"] = (...args) => controller.requestRouteCalculation(...args);
-	const rerouteAfterManualEdit: RoutePlannerPageController["rerouteAfterManualEdit"] = (...args) => controller.rerouteAfterManualEdit(...args);
-	const isLockedStopIndex: RoutePlannerPageController["isLockedStopIndex"] = (...args) => controller.isLockedStopIndex(...args);
-	const handleRouteStopDragEnd: RoutePlannerPageController["handleRouteStopDragEnd"] = (...args) => controller.handleRouteStopDragEnd(...args);
-	const handleRouteSegmentDragEnd: RoutePlannerPageController["handleRouteSegmentDragEnd"] = (...args) => controller.handleRouteSegmentDragEnd(...args);
-	const useCurrentLocationAsStop: RoutePlannerPageController["useCurrentLocationAsStop"] = (...args) => controller.useCurrentLocationAsStop(...args);
-	const handleGenerateRoute: RoutePlannerPageController["handleGenerateRoute"] = (...args) => controller.handleGenerateRoute(...args);
-	const handleSaveDraft: RoutePlannerPageController["handleSaveDraft"] = (...args) => controller.handleSaveDraft(...args);
-	const handleShareActiveRoute: RoutePlannerPageController["handleShareActiveRoute"] = (...args) => controller.handleShareActiveRoute(...args);
-	const handleExportGpx: RoutePlannerPageController["handleExportGpx"] = (...args) => controller.handleExportGpx(...args);
-	const handleExportFit: RoutePlannerPageController["handleExportFit"] = (...args) => controller.handleExportFit(...args);
-	const openGpxImportPicker: RoutePlannerPageController["openGpxImportPicker"] = (...args) => controller.openGpxImportPicker(...args);
-	const chooseBasemap: RoutePlannerPageController["chooseBasemap"] = (...args) => controller.chooseBasemap(...args);
-	const handleGpxImportSelection: RoutePlannerPageController["handleGpxImportSelection"] = (...args) => controller.handleGpxImportSelection(...args);
+	const getWarningContainerClass: RouteBuilderPanelController["getWarningContainerClass"] = (...args) => controller.getWarningContainerClass(...args);
+	const getWarningBadgeClass: RouteBuilderPanelController["getWarningBadgeClass"] = (...args) => controller.getWarningBadgeClass(...args);
+	const showCurrentLocationOnMap: RouteBuilderPanelController["showCurrentLocationOnMap"] = (...args) => controller.showCurrentLocationOnMap(...args);
+	const recenterActiveRoute: RouteBuilderPanelController["recenterActiveRoute"] = (...args) => controller.recenterActiveRoute(...args);
+	const selectCue: RouteBuilderPanelController["selectCue"] = (...args) => controller.selectCue(...args);
+	const getWindSegmentDistanceRange: RouteBuilderPanelController["getWindSegmentDistanceRange"] = (...args) => controller.getWindSegmentDistanceRange(...args);
+	const formatCueSegmentTime: RouteBuilderPanelController["formatCueSegmentTime"] = (...args) => controller.formatCueSegmentTime(...args);
+	const getDestinationFieldLabel: RouteBuilderPanelController["getDestinationFieldLabel"] = (...args) => controller.getDestinationFieldLabel(...args);
+	const getDestinationSuggestionsLabel: RouteBuilderPanelController["getDestinationSuggestionsLabel"] = (...args) => controller.getDestinationSuggestionsLabel(...args);
+	const getDestinationPlaceholder: RouteBuilderPanelController["getDestinationPlaceholder"] = (...args) => controller.getDestinationPlaceholder(...args);
+	const getCurrentLocationDestinationLabel: RouteBuilderPanelController["getCurrentLocationDestinationLabel"] = (...args) => controller.getCurrentLocationDestinationLabel(...args);
+	const getSubmitButtonText: RouteBuilderPanelController["getSubmitButtonText"] = (...args) => controller.getSubmitButtonText(...args);
+	const resetSpatialConstraintDefaults: RouteBuilderPanelController["resetSpatialConstraintDefaults"] = (...args) => controller.resetSpatialConstraintDefaults(...args);
+	const syncStopsFromRoute: RouteBuilderPanelController["syncStopsFromRoute"] = (...args) => controller.syncStopsFromRoute(...args);
+	const syncActiveRouteManualEditing: RouteBuilderPanelController["syncActiveRouteManualEditing"] = (...args) => controller.syncActiveRouteManualEditing(...args);
+	const setRouteAlternativesState: RouteBuilderPanelController["setRouteAlternativesState"] = (...args) => controller.setRouteAlternativesState(...args);
+	const setSingleRouteState: RouteBuilderPanelController["setSingleRouteState"] = (...args) => controller.setSingleRouteState(...args);
+	const selectRouteAlternative: RouteBuilderPanelController["selectRouteAlternative"] = (...args) => controller.selectRouteAlternative(...args);
+	const markPlannerEdited: RouteBuilderPanelController["markPlannerEdited"] = (...args) => controller.markPlannerEdited(...args);
+	const cancelAutosaveTimer: RouteBuilderPanelController["cancelAutosaveTimer"] = (...args) => controller.cancelAutosaveTimer(...args);
+	const getActiveRouteForSaving: RouteBuilderPanelController["getActiveRouteForSaving"] = (...args) => controller.getActiveRouteForSaving(...args);
+	const saveActiveRouteDraft: RouteBuilderPanelController["saveActiveRouteDraft"] = (...args) => controller.saveActiveRouteDraft(...args);
+	const scheduleActiveRouteAutosave: RouteBuilderPanelController["scheduleActiveRouteAutosave"] = (...args) => controller.scheduleActiveRouteAutosave(...args);
+	const captureRouteEditSnapshot: RouteBuilderPanelController["captureRouteEditSnapshot"] = (...args) => controller.captureRouteEditSnapshot(...args);
+	const performRouteEdit: RouteBuilderPanelController["performRouteEdit"] = (...args) => controller.performRouteEdit(...args);
+	const performAsyncRouteEdit: RouteBuilderPanelController["performAsyncRouteEdit"] = (...args) => controller.performAsyncRouteEdit(...args);
+	const undoRouteEdit: RouteBuilderPanelController["undoRouteEdit"] = (...args) => controller.undoRouteEdit(...args);
+	const redoRouteEdit: RouteBuilderPanelController["redoRouteEdit"] = (...args) => controller.redoRouteEdit(...args);
+	const clearRouteEditHistory: RouteBuilderPanelController["clearRouteEditHistory"] = (...args) => controller.clearRouteEditHistory(...args);
+	const setPlannerMode: RouteBuilderPanelController["setPlannerMode"] = (...args) => controller.setPlannerMode(...args);
+	const restorePendingSavedRoute: RouteBuilderPanelController["restorePendingSavedRoute"] = (...args) => controller.restorePendingSavedRoute(...args);
+	const restoreSavedRoute: RouteBuilderPanelController["restoreSavedRoute"] = (...args) => controller.restoreSavedRoute(...args);
+	const updateRoundCourseTargetKind: RouteBuilderPanelController["updateRoundCourseTargetKind"] = (...args) => controller.updateRoundCourseTargetKind(...args);
+	const updateRoundCourseDistanceInput: RouteBuilderPanelController["updateRoundCourseDistanceInput"] = (...args) => controller.updateRoundCourseDistanceInput(...args);
+	const updateRoundCourseDuration: RouteBuilderPanelController["updateRoundCourseDuration"] = (...args) => controller.updateRoundCourseDuration(...args);
+	const updateRoundCourseAscend: RouteBuilderPanelController["updateRoundCourseAscend"] = (...args) => controller.updateRoundCourseAscend(...args);
+	const updateSpatialConstraintKind: RouteBuilderPanelController["updateSpatialConstraintKind"] = (...args) => controller.updateSpatialConstraintKind(...args);
+	const updateSpatialConstraintEnforcement: RouteBuilderPanelController["updateSpatialConstraintEnforcement"] = (...args) => controller.updateSpatialConstraintEnforcement(...args);
+	const setConstraintCenterStop: RouteBuilderPanelController["setConstraintCenterStop"] = (...args) => controller.setConstraintCenterStop(...args);
+	const updateConstraintCenterInput: RouteBuilderPanelController["updateConstraintCenterInput"] = (...args) => controller.updateConstraintCenterInput(...args);
+	const updateAreaRadiusInput: RouteBuilderPanelController["updateAreaRadiusInput"] = (...args) => controller.updateAreaRadiusInput(...args);
+	const updateCorridorWidthInput: RouteBuilderPanelController["updateCorridorWidthInput"] = (...args) => controller.updateCorridorWidthInput(...args);
+	const handleChartPointerDown: RouteBuilderPanelController["handleChartPointerDown"] = (...args) => controller.handleChartPointerDown(...args);
+	const handleChartPointerMove: RouteBuilderPanelController["handleChartPointerMove"] = (...args) => controller.handleChartPointerMove(...args);
+	const handleChartPointerLeave: RouteBuilderPanelController["handleChartPointerLeave"] = (...args) => controller.handleChartPointerLeave(...args);
+	const releaseChartScrub: RouteBuilderPanelController["releaseChartScrub"] = (...args) => controller.releaseChartScrub(...args);
+	const handleChartLostPointerCapture: RouteBuilderPanelController["handleChartLostPointerCapture"] = (...args) => controller.handleChartLostPointerCapture(...args);
+	const closeCompletionMenu: RouteBuilderPanelController["closeCompletionMenu"] = (...args) => controller.closeCompletionMenu(...args);
+	const setFieldStop: RouteBuilderPanelController["setFieldStop"] = (...args) => controller.setFieldStop(...args);
+	const setWaypointStop: RouteBuilderPanelController["setWaypointStop"] = (...args) => controller.setWaypointStop(...args);
+	const handleFieldInput: RouteBuilderPanelController["handleFieldInput"] = (...args) => controller.handleFieldInput(...args);
+	const updateField: RouteBuilderPanelController["updateField"] = (...args) => controller.updateField(...args);
+	const getWaypointError: RouteBuilderPanelController["getWaypointError"] = (...args) => controller.getWaypointError(...args);
+	const clearWaypointError: RouteBuilderPanelController["clearWaypointError"] = (...args) => controller.clearWaypointError(...args);
+	const updateWaypoint: RouteBuilderPanelController["updateWaypoint"] = (...args) => controller.updateWaypoint(...args);
+	const handleWaypointInput: RouteBuilderPanelController["handleWaypointInput"] = (...args) => controller.handleWaypointInput(...args);
+	const addWaypoint: RouteBuilderPanelController["addWaypoint"] = (...args) => controller.addWaypoint(...args);
+	const removeWaypoint: RouteBuilderPanelController["removeWaypoint"] = (...args) => controller.removeWaypoint(...args);
+	const canMoveWaypoint: RouteBuilderPanelController["canMoveWaypoint"] = (...args) => controller.canMoveWaypoint(...args);
+	const moveWaypoint: RouteBuilderPanelController["moveWaypoint"] = (...args) => controller.moveWaypoint(...args);
+	const closeMapClickMenu: RouteBuilderPanelController["closeMapClickMenu"] = (...args) => controller.closeMapClickMenu(...args);
+	const handleMapClick: RouteBuilderPanelController["handleMapClick"] = (...args) => controller.handleMapClick(...args);
+	const getMapClickMenuTitle: RouteBuilderPanelController["getMapClickMenuTitle"] = (...args) => controller.getMapClickMenuTitle(...args);
+	const getMapClickMenuSubtitle: RouteBuilderPanelController["getMapClickMenuSubtitle"] = (...args) => controller.getMapClickMenuSubtitle(...args);
+	const getRemoveActionLabel: RouteBuilderPanelController["getRemoveActionLabel"] = (...args) => controller.getRemoveActionLabel(...args);
+	const removeSelectedMapStop: RouteBuilderPanelController["removeSelectedMapStop"] = (...args) => controller.removeSelectedMapStop(...args);
+	const getSelectedSegmentIndex: RouteBuilderPanelController["getSelectedSegmentIndex"] = (...args) => controller.getSelectedSegmentIndex(...args);
+	const isMapSelectionSegmentLocked: RouteBuilderPanelController["isMapSelectionSegmentLocked"] = (...args) => controller.isMapSelectionSegmentLocked(...args);
+	const toggleMapSelectionSegmentLock: RouteBuilderPanelController["toggleMapSelectionSegmentLock"] = (...args) => controller.toggleMapSelectionSegmentLock(...args);
+	const getAvoidanceForSelection: RouteBuilderPanelController["getAvoidanceForSelection"] = (...args) => controller.getAvoidanceForSelection(...args);
+	const isMapSelectionRoadAvoided: RouteBuilderPanelController["isMapSelectionRoadAvoided"] = (...args) => controller.isMapSelectionRoadAvoided(...args);
+	const toggleMapSelectionRoadAvoidance: RouteBuilderPanelController["toggleMapSelectionRoadAvoidance"] = (...args) => controller.toggleMapSelectionRoadAvoidance(...args);
+	const removeAvoidedRoad: RouteBuilderPanelController["removeAvoidedRoad"] = (...args) => controller.removeAvoidedRoad(...args);
+	const getMapWaypointInsertionSegmentIndex: RouteBuilderPanelController["getMapWaypointInsertionSegmentIndex"] = (...args) => controller.getMapWaypointInsertionSegmentIndex(...args);
+	const isMapWaypointInsertionLocked: RouteBuilderPanelController["isMapWaypointInsertionLocked"] = (...args) => controller.isMapWaypointInsertionLocked(...args);
+	const applyMapPointAsStop: RouteBuilderPanelController["applyMapPointAsStop"] = (...args) => controller.applyMapPointAsStop(...args);
+	const requestRouteCalculation: RouteBuilderPanelController["requestRouteCalculation"] = (...args) => controller.requestRouteCalculation(...args);
+	const rerouteAfterManualEdit: RouteBuilderPanelController["rerouteAfterManualEdit"] = (...args) => controller.rerouteAfterManualEdit(...args);
+	const isLockedStopIndex: RouteBuilderPanelController["isLockedStopIndex"] = (...args) => controller.isLockedStopIndex(...args);
+	const handleRouteStopDragEnd: RouteBuilderPanelController["handleRouteStopDragEnd"] = (...args) => controller.handleRouteStopDragEnd(...args);
+	const handleRouteSegmentDragEnd: RouteBuilderPanelController["handleRouteSegmentDragEnd"] = (...args) => controller.handleRouteSegmentDragEnd(...args);
+	const useCurrentLocationAsStop: RouteBuilderPanelController["useCurrentLocationAsStop"] = (...args) => controller.useCurrentLocationAsStop(...args);
+	const handleGenerateRoute: RouteBuilderPanelController["handleGenerateRoute"] = (...args) => controller.handleGenerateRoute(...args);
+	const handleSaveDraft: RouteBuilderPanelController["handleSaveDraft"] = (...args) => controller.handleSaveDraft(...args);
+	const handleShareActiveRoute: RouteBuilderPanelController["handleShareActiveRoute"] = (...args) => controller.handleShareActiveRoute(...args);
+	const handleExportGpx: RouteBuilderPanelController["handleExportGpx"] = (...args) => controller.handleExportGpx(...args);
+	const handleExportFit: RouteBuilderPanelController["handleExportFit"] = (...args) => controller.handleExportFit(...args);
+	const openGpxImportPicker: RouteBuilderPanelController["openGpxImportPicker"] = (...args) => controller.openGpxImportPicker(...args);
+	const chooseBasemap: RouteBuilderPanelController["chooseBasemap"] = (...args) => controller.chooseBasemap(...args);
+	const handleGpxImportSelection: RouteBuilderPanelController["handleGpxImportSelection"] = (...args) => controller.handleGpxImportSelection(...args);
 </script>
 
 			<div
