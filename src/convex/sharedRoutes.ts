@@ -10,6 +10,7 @@ import {
 	type RemoteSavedRoutePayload,
 } from "../lib/saved-routes-core";
 import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
+import { assertRemoteRouteJsonSize } from "../lib/saved-route-size";
 
 const shareTokenPattern = /^[A-Za-z0-9_-]{16,128}$/;
 
@@ -104,6 +105,14 @@ export async function createHandler(
 			if (!savedRoute) {
 				return yield* Effect.fail(
 					new SharedRouteValidationError("Shared route payload is invalid."),
+				);
+			}
+
+			try {
+				assertRemoteRouteJsonSize(savedRoute.routeJson, "shared");
+			} catch (error) {
+				return yield* Effect.fail(
+					new SharedRouteValidationError((error as Error).message),
 				);
 			}
 

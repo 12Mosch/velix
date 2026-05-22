@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlannedRoute } from "../lib/route-planning";
+import { MAX_REMOTE_ROUTE_JSON_BYTES } from "../lib/saved-route-size";
 import { serializeSavedRouteForRemote } from "../lib/saved-routes-core";
 import {
 	listForCurrentUserHandler,
@@ -54,6 +55,22 @@ const remoteSavedRoute = serializeSavedRouteForRemote({
 	createdAt: "2026-04-19T09:30:00.000Z",
 	route,
 });
+
+function createOversizedRemoteSavedRoute(
+	baseRoute = remoteSavedRoute,
+	id = baseRoute.id,
+) {
+	const plannedRoute = JSON.parse(baseRoute.routeJson) as PlannedRoute;
+
+	return {
+		...baseRoute,
+		id,
+		routeJson: JSON.stringify({
+			...plannedRoute,
+			destinationLabel: "x".repeat(MAX_REMOTE_ROUTE_JSON_BYTES),
+		}),
+	};
+}
 
 function createCtx({
 	rows = [],
@@ -312,6 +329,44 @@ describe("savedRoutes Convex functions", () => {
 		).rejects.toThrow("Saved route payload is invalid.");
 	});
 
+	it("rejects oversized route payload upserts without inserting", async () => {
+		const { ctx, state } = createCtx();
+		const oversizedRoute = createOversizedRemoteSavedRoute();
+
+		await expect(runUpsert(ctx, oversizedRoute)).rejects.toThrow(
+			"Saved route is too large to sync. Maximum route payload size is 512 KiB.",
+		);
+
+		expect(state).toEqual([]);
+		expect(ctx.db.query).not.toHaveBeenCalled();
+		expect(ctx.db.insert).not.toHaveBeenCalled();
+		expect(ctx.db.replace).not.toHaveBeenCalled();
+	});
+
+	it("rejects oversized route payload updates without replacing the row", async () => {
+		const existingRow = {
+			_id: "route_1",
+			userId: "user_1",
+			routeId: remoteSavedRoute.id,
+			createdAtMs: Date.parse(remoteSavedRoute.createdAt),
+			updatedAtMs: 1,
+			routeJson: remoteSavedRoute.routeJson,
+		};
+		const { ctx, state } = createCtx({
+			rows: [existingRow],
+		});
+		const oversizedRoute = createOversizedRemoteSavedRoute();
+
+		await expect(runUpsert(ctx, oversizedRoute)).rejects.toThrow(
+			"Saved route is too large to sync. Maximum route payload size is 512 KiB.",
+		);
+
+		expect(state).toEqual([existingRow]);
+		expect(ctx.db.query).not.toHaveBeenCalled();
+		expect(ctx.db.insert).not.toHaveBeenCalled();
+		expect(ctx.db.replace).not.toHaveBeenCalled();
+	});
+
 	it("merges local routes while counting skipped, invalid, and duplicate rows", async () => {
 		const { ctx, state, indexCalls, collectCalls } = createCtx({
 			rows: [
@@ -362,6 +417,34 @@ describe("savedRoutes Convex functions", () => {
 		expect(
 			collectCalls.some((call) => call.index === "by_user_createdAt"),
 		).toBe(false);
+	});
+
+	it("counts oversized local merge routes as invalid and continues", async () => {
+		const { ctx, state, indexCalls } = createCtx();
+		const oversizedRoute = createOversizedRemoteSavedRoute(
+			remoteSavedRoute,
+			"oversized-route",
+		);
+		const validRoute = {
+			...remoteSavedRoute,
+			id: "valid-route",
+		};
+
+		await expect(
+			runMergeLocalRoutes(ctx, [oversizedRoute, validRoute]),
+		).resolves.toEqual({
+			inserted: 1,
+			skipped: 0,
+			invalid: 1,
+			duplicate: 0,
+		});
+
+		expect(state.map((row) => row.routeId)).toEqual(["valid-route"]);
+		expect(
+			indexCalls
+				.filter((call) => call.index === "by_user_routeId")
+				.map((call) => call.filter.routeId),
+		).toEqual(["valid-route"]);
 	});
 
 	it("bounds merge existence reads to unique valid incoming route ids", async () => {
