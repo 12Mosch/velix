@@ -6,7 +6,6 @@
 	import type {
 		PlannerMapController,
 		PlannerOverlayController,
-		RoutePlannerPageController,
 	} from "$lib/route-planner/page/route-planner-page-controller.svelte";
 	import { Layers, LocateFixed, MountainSnow, Route, Wind } from "@lucide/svelte";
 
@@ -17,14 +16,13 @@
 		hasActiveRoute: boolean;
 	};
 
-	let { sidebar, overlay, hasActiveRoute }: Props = $props();
-	const controller = $derived(overlay as unknown as RoutePlannerPageController);
-	const availableBasemapOptions = $derived(controller.availableBasemapOptions);
-	const canShowGradientOverlay = $derived(controller.canShowGradientOverlay);
-	const canShowWindOverlay = $derived(controller.canShowWindOverlay);
-	const gradientOverlayEnabled = $derived(controller.gradientOverlayEnabled);
-	const windOverlayEnabled = $derived(controller.windOverlayEnabled);
-	const isLocating = $derived(controller.isLocating);
+	let { sidebar, overlay, map, hasActiveRoute }: Props = $props();
+	const availableBasemapOptions = $derived(map.availableBasemapOptions);
+	const canShowGradientOverlay = $derived(overlay.canShowGradientOverlay);
+	const canShowWindOverlay = $derived(overlay.canShowWindOverlay);
+	const gradientOverlayEnabled = $derived(overlay.gradientOverlayEnabled);
+	const windOverlayEnabled = $derived(overlay.windOverlayEnabled);
+	const isLocating = $derived(map.isLocating);
 </script>
 
 <div class="pointer-events-auto absolute right-4 top-4 flex flex-col gap-2 md:right-5 md:top-5">
@@ -48,7 +46,7 @@
 			<DropdownMenu.DropdownMenuSeparator />
 			<DropdownMenu.DropdownMenuRadioGroup
 				value={mapStylePreference.selectedBasemapId ?? undefined}
-				onValueChange={(id) => controller.chooseBasemap(id as BasemapId)}
+				onValueChange={(id) => map.chooseBasemap(id as BasemapId)}
 			>
 				{#each availableBasemapOptions as basemap}
 					<DropdownMenu.DropdownMenuRadioItem value={basemap.id}>
@@ -70,7 +68,7 @@
 		type="button"
 		disabled={isLocating}
 		aria-label="Show current location"
-		onclick={controller.showCurrentLocationOnMap}
+		onclick={map.showCurrentLocationOnMap}
 	>
 		<LocateFixed class="size-4" />
 	</Button>
@@ -81,7 +79,7 @@
 		type="button"
 		disabled={!hasActiveRoute}
 		aria-label="Recenter route"
-		onclick={controller.recenterActiveRoute}
+		onclick={map.recenterActiveRoute}
 	>
 		<Route class="size-4" />
 	</Button>
@@ -94,7 +92,7 @@
 		aria-label="Gradient overlay"
 		aria-pressed={gradientOverlayEnabled}
 		data-active={gradientOverlayEnabled}
-		onclick={() => (controller.gradientOverlayEnabled = !gradientOverlayEnabled)}
+		onclick={() => (overlay.gradientOverlayEnabled = !gradientOverlayEnabled)}
 	>
 		<MountainSnow class="size-4" />
 	</Button>
@@ -107,7 +105,7 @@
 		aria-label="Wind and conditions"
 		aria-pressed={windOverlayEnabled}
 		data-active={windOverlayEnabled}
-		onclick={() => (controller.windOverlayEnabled = !windOverlayEnabled)}
+		onclick={() => (overlay.windOverlayEnabled = !windOverlayEnabled)}
 	>
 		<Wind class="size-4" />
 	</Button>

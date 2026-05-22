@@ -1,1 +1,9 @@
-export type { PlannerAnalysisController } from "./route-planner-page-controller.svelte";
+import type { PlannerPageContext } from "./planner-page-context.svelte";
+
+export function createPlannerAnalysisController(context: PlannerPageContext) {
+	return context.analysis;
+}
+
+export type PlannerAnalysisController = ReturnType<
+	typeof createPlannerAnalysisController
+>;

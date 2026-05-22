@@ -1,1 +1,9 @@
-export type { PlannerOverlayController } from "./route-planner-page-controller.svelte";
+import type { PlannerPageContext } from "./planner-page-context.svelte";
+
+export function createPlannerOverlayController(context: PlannerPageContext) {
+	return context.overlays;
+}
+
+export type PlannerOverlayController = ReturnType<
+	typeof createPlannerOverlayController
+>;
