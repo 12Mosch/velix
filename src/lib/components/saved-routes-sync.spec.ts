@@ -32,7 +32,11 @@ function createState(overrides: Partial<TestState> = {}): TestState {
 function createClient(overrides: Partial<TestClient> = {}): TestClient {
 	return {
 		mutation: vi.fn().mockResolvedValue(undefined),
-		query: vi.fn().mockResolvedValue([]),
+		query: vi.fn().mockResolvedValue({
+			page: [],
+			isDone: true,
+			continueCursor: "done",
+		}),
 		...overrides,
 	} as TestClient;
 }
@@ -58,7 +62,11 @@ describe("saved routes one-shot sync", () => {
 		const client = createClient({
 			query: vi.fn(async () => {
 				events.push("query");
-				return remoteRoutes;
+				return {
+					page: remoteRoutes,
+					isDone: true,
+					continueCursor: "done",
+				};
 			}),
 		});
 
@@ -72,10 +80,102 @@ describe("saved routes one-shot sync", () => {
 
 		expect(events).toEqual(["merge", "query", "apply"]);
 		expect(client.query).toHaveBeenCalledTimes(1);
+		expect(client.query).toHaveBeenCalledWith(
+			api.savedRoutes.listForCurrentUser,
+			{
+				paginationOpts: {
+					numItems: 25,
+					cursor: null,
+					maximumRowsRead: 25,
+				},
+			},
+		);
 		expect(state.applyRemoteRoutes).toHaveBeenCalledWith(
 			"user_1",
 			remoteRoutes,
 		);
+	});
+
+	it("loads all remote routes across paginated query results", async () => {
+		const routeA = { ...savedRoute, id: "route_a" };
+		const routeB = { ...savedRoute, id: "route_b" };
+		const state = createState();
+		const client = createClient({
+			query: vi
+				.fn()
+				.mockResolvedValueOnce({
+					page: [routeA],
+					isDone: false,
+					continueCursor: "cursor_1",
+				})
+				.mockResolvedValueOnce({
+					page: [routeB],
+					isDone: true,
+					continueCursor: "cursor_2",
+				}),
+		});
+
+		await syncSavedRoutesOnce({
+			client,
+			getCurrentRequestId: () => 1,
+			requestId: 1,
+			state,
+			userId: "user_1",
+		});
+
+		expect(client.query).toHaveBeenCalledTimes(2);
+		expect(client.query).toHaveBeenNthCalledWith(
+			1,
+			api.savedRoutes.listForCurrentUser,
+			{
+				paginationOpts: {
+					numItems: 25,
+					cursor: null,
+					maximumRowsRead: 25,
+				},
+			},
+		);
+		expect(client.query).toHaveBeenNthCalledWith(
+			2,
+			api.savedRoutes.listForCurrentUser,
+			{
+				paginationOpts: {
+					numItems: 25,
+					cursor: "cursor_1",
+					maximumRowsRead: 25,
+				},
+			},
+		);
+		expect(state.applyRemoteRoutes).toHaveBeenCalledWith("user_1", [
+			routeA,
+			routeB,
+		]);
+	});
+
+	it("does not fetch or apply more pages after a stale request mid-pagination", async () => {
+		let currentRequestId = 1;
+		const state = createState();
+		const client = createClient({
+			query: vi.fn(async () => {
+				currentRequestId = 2;
+				return {
+					page: [{ ...savedRoute, id: "stale-route" }],
+					isDone: false,
+					continueCursor: "cursor_1",
+				};
+			}),
+		});
+
+		await syncSavedRoutesOnce({
+			client,
+			getCurrentRequestId: () => currentRequestId,
+			requestId: 1,
+			state,
+			userId: "user_1",
+		});
+
+		expect(client.query).toHaveBeenCalledTimes(1);
+		expect(state.applyRemoteRoutes).not.toHaveBeenCalled();
 	});
 
 	it("ignores stale results when auth changes before the one-shot query starts", async () => {
@@ -105,7 +205,11 @@ describe("saved routes one-shot sync", () => {
 		const client = createClient({
 			query: vi.fn(async () => {
 				currentRequestId = 2;
-				return [{ id: "stale-route" }];
+				return {
+					page: [{ id: "stale-route" }],
+					isDone: true,
+					continueCursor: "done",
+				};
 			}),
 		});
 

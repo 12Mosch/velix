@@ -3,14 +3,17 @@ import type {
 	FunctionReference,
 	FunctionReturnType,
 } from "convex/server";
-
-import { api } from "../../convex/_generated/api";
 import type { SavedRoutesRemoteAdapter } from "$lib/saved-routes.svelte";
 import type { RemoteSavedRoutePayload } from "$lib/saved-routes-core";
+import { api } from "../../convex/_generated/api";
 
-type SavedRoutesRemoteSnapshot = FunctionReturnType<
+type SavedRoutesRemotePage = FunctionReturnType<
 	typeof api.savedRoutes.listForCurrentUser
 >;
+type SavedRoutesRemoteSnapshot = SavedRoutesRemotePage["page"];
+
+const savedRoutesSyncPageSize = 25;
+const savedRoutesSyncMaximumRowsRead = 25;
 
 export type SavedRoutesSyncState = {
 	applyRemoteRoutes: (
@@ -70,10 +73,28 @@ export async function syncSavedRoutesOnce({
 			return;
 		}
 
-		const remoteRoutes = await client.query(
-			api.savedRoutes.listForCurrentUser,
-			{},
-		);
+		let cursor: string | null = null;
+		const remoteRoutes: RemoteSavedRoutePayload[] = [];
+
+		do {
+			const page: SavedRoutesRemotePage = await client.query(
+				api.savedRoutes.listForCurrentUser,
+				{
+					paginationOpts: {
+						numItems: savedRoutesSyncPageSize,
+						cursor,
+						maximumRowsRead: savedRoutesSyncMaximumRowsRead,
+					},
+				},
+			);
+
+			if (getCurrentRequestId() !== requestId) {
+				return;
+			}
+
+			remoteRoutes.push(...page.page);
+			cursor = page.isDone ? null : page.continueCursor;
+		} while (cursor && getCurrentRequestId() === requestId);
 
 		if (getCurrentRequestId() !== requestId) {
 			return;

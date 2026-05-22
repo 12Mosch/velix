@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import type { PlannedRoute } from "../lib/route-planning";
+import { serializeSavedRouteForRemote } from "../lib/saved-routes-core";
 import {
 	listForCurrentUserHandler,
 	mergeLocalRoutesHandler,
 	removeHandler,
 	upsertHandler,
 } from "./savedRoutes";
-import type { PlannedRoute } from "../lib/route-planning";
-import { serializeSavedRouteForRemote } from "../lib/saved-routes-core";
 
 type SavedRouteRow = {
 	_id: string;
@@ -20,6 +19,10 @@ type SavedRouteRow = {
 };
 type IndexQuery = {
 	eq: (field: "userId" | "routeId", value: string) => IndexQuery;
+};
+type PaginationOpts = {
+	numItems: number;
+	cursor: string | null;
 };
 
 const route: PlannedRoute = {
@@ -76,10 +79,40 @@ function createCtx({
 						};
 						buildQuery(query);
 						const collectRows = () =>
-							state.filter((row) => row.userId === filter.userId);
+							state
+								.filter((row) => row.userId === filter.userId)
+								.toSorted((a, b) => b.createdAtMs - a.createdAtMs);
 						const collection = {
 							collect: vi.fn(async () => collectRows()),
 							order: vi.fn((_direction: "desc") => collection),
+							paginate: vi.fn(async (paginationOpts: PaginationOpts) => {
+								const rows = collectRows();
+								const cursorOffsets = new Map<string, number>(
+									Array.from({ length: rows.length + 1 }, (_value, index) => [
+										`cursor_${index}`,
+										index,
+									]),
+								);
+								const start =
+									paginationOpts.cursor === null
+										? 0
+										: cursorOffsets.get(paginationOpts.cursor);
+
+								if (start === undefined) {
+									throw new Error(
+										`Unknown pagination cursor: ${paginationOpts.cursor}`,
+									);
+								}
+
+								const page = rows.slice(start, start + paginationOpts.numItems);
+								const next = start + page.length;
+
+								return {
+									page,
+									isDone: next >= rows.length,
+									continueCursor: `cursor_${next}`,
+								};
+							}),
 							unique: vi.fn(
 								async () =>
 									state.find(
@@ -119,9 +152,13 @@ function createCtx({
 	return { ctx, state };
 }
 
-async function runListForCurrentUser(ctx: unknown) {
+async function runListForCurrentUser(
+	ctx: unknown,
+	args: Parameters<typeof listForCurrentUserHandler>[1],
+) {
 	return await listForCurrentUserHandler(
 		ctx as Parameters<typeof listForCurrentUserHandler>[0],
+		args,
 	);
 }
 
@@ -153,7 +190,7 @@ describe("savedRoutes Convex functions", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("lists normalized route payloads for the authenticated user", async () => {
+	it("lists a paginated route payload page for the authenticated user", async () => {
 		const { ctx } = createCtx({
 			rows: [
 				{
@@ -175,9 +212,64 @@ describe("savedRoutes Convex functions", () => {
 			],
 		});
 
-		await expect(runListForCurrentUser(ctx)).resolves.toEqual([
-			remoteSavedRoute,
-		]);
+		await expect(
+			runListForCurrentUser(ctx, {
+				paginationOpts: { numItems: 25, cursor: null },
+			}),
+		).resolves.toEqual({
+			page: [remoteSavedRoute],
+			isDone: true,
+			continueCursor: "cursor_1",
+		});
+	});
+
+	it("returns modern routeJson rows without requiring route normalization", async () => {
+		const { ctx } = createCtx({
+			rows: [
+				{
+					_id: "route_1",
+					userId: "user_1",
+					routeId: remoteSavedRoute.id,
+					createdAtMs: Date.parse(remoteSavedRoute.createdAt),
+					updatedAtMs: 1,
+					routeJson: remoteSavedRoute.routeJson,
+				},
+			],
+		});
+
+		await expect(
+			runListForCurrentUser(ctx, {
+				paginationOpts: { numItems: 25, cursor: null },
+			}),
+		).resolves.toMatchObject({
+			page: [remoteSavedRoute],
+			isDone: true,
+		});
+	});
+
+	it("normalizes legacy route rows when routeJson is missing", async () => {
+		const { ctx } = createCtx({
+			rows: [
+				{
+					_id: "route_1",
+					userId: "user_1",
+					routeId: remoteSavedRoute.id,
+					createdAtMs: Date.parse(remoteSavedRoute.createdAt),
+					updatedAtMs: 1,
+					route,
+				},
+			],
+		});
+
+		await expect(
+			runListForCurrentUser(ctx, {
+				paginationOpts: { numItems: 25, cursor: null },
+			}),
+		).resolves.toEqual({
+			page: [remoteSavedRoute],
+			isDone: true,
+			continueCursor: "cursor_1",
+		});
 	});
 
 	it("upserts a route snapshot through the Effect handler", async () => {
@@ -253,9 +345,11 @@ describe("savedRoutes Convex functions", () => {
 
 	it("rejects unauthenticated access and blank deletes", async () => {
 		const unauthenticated = createCtx({ userId: null });
-		await expect(runListForCurrentUser(unauthenticated.ctx)).rejects.toThrow(
-			"Authentication is required to sync saved routes.",
-		);
+		await expect(
+			runListForCurrentUser(unauthenticated.ctx, {
+				paginationOpts: { numItems: 25, cursor: null },
+			}),
+		).rejects.toThrow("Authentication is required to sync saved routes.");
 
 		const { ctx } = createCtx();
 		await expect(runRemove(ctx, " ")).rejects.toThrow(

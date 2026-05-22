@@ -1,16 +1,20 @@
+import {
+	type PaginationOptions,
+	type PaginationResult,
+	paginationOptsValidator,
+} from "convex/server";
 import { v } from "convex/values";
 import { Effect } from "effect";
-
-import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { mutation, query } from "./_generated/server";
-import { runConvexEffect, tryConvexPromise } from "./effect";
+import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
 import {
 	deserializeRemoteSavedRoute,
 	normalizePlannedRoute,
-	serializeSavedRouteForRemote,
 	type RemoteSavedRoutePayload,
+	serializeSavedRouteForRemote,
 } from "../lib/saved-routes-core";
-import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
+import { runConvexEffect, tryConvexPromise } from "./effect";
 
 const maxMergeRouteCount = 200;
 
@@ -70,48 +74,53 @@ function remotePayloadFromRow(row: {
 	route?: unknown;
 }): RemoteSavedRoutePayload | null {
 	const createdAt = new Date(row.createdAtMs).toISOString();
-	const routeJson =
-		typeof row.routeJson === "string"
-			? row.routeJson
-			: (() => {
-					const legacyRoute = normalizePlannedRoute(row.route);
-					return legacyRoute ? JSON.stringify(legacyRoute) : null;
-				})();
 
-	if (!routeJson) {
-		return null;
+	if (typeof row.routeJson === "string") {
+		return {
+			id: row.routeId,
+			createdAt,
+			routeJson: row.routeJson,
+		};
 	}
 
-	const payload = {
-		id: row.routeId,
-		createdAt,
-		routeJson,
-	};
+	const legacyRoute = normalizePlannedRoute(row.route);
 
-	const savedRoute = deserializeRemoteSavedRoute(payload);
-
-	return savedRoute ? serializeSavedRouteForRemote(savedRoute) : null;
+	return legacyRoute
+		? {
+				id: row.routeId,
+				createdAt,
+				routeJson: JSON.stringify(legacyRoute),
+			}
+		: null;
 }
 
-export function listForCurrentUserHandler(ctx: QueryCtx) {
+export function listForCurrentUserHandler(
+	ctx: QueryCtx,
+	args: { paginationOpts: PaginationOptions },
+) {
 	return runConvexEffect(
 		Effect.gen(function* () {
 			const userId = yield* getAuthenticatedUserIdEffect(ctx);
-			const rows = yield* tryConvexPromise(
+			const result = yield* tryConvexPromise(
 				() =>
 					ctx.db
 						.query("savedRoutes")
 						.withIndex("by_user_createdAt", (q) => q.eq("userId", userId))
 						.order("desc")
-						.collect(),
+						.paginate(args.paginationOpts),
 				"Could not read saved routes.",
 			);
 
-			return rows.flatMap((row) => {
+			const page = result.page.flatMap((row) => {
 				const payload = remotePayloadFromRow(row);
 
 				return payload ? [payload] : [];
 			});
+
+			return {
+				...result,
+				page,
+			} satisfies PaginationResult<RemoteSavedRoutePayload>;
 		}),
 	);
 }
@@ -285,7 +294,9 @@ export function mergeLocalRoutesHandler(
 }
 
 export const listForCurrentUser = query({
-	args: {},
+	args: {
+		paginationOpts: paginationOptsValidator,
+	},
 	handler: listForCurrentUserHandler,
 });
 
