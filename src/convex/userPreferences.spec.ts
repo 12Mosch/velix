@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type {
+	BasemapId,
+	DistanceUnit,
+	ThemeMode,
+} from "../lib/preferences/user-preference-values";
 import { getForCurrentUser, upsertForCurrentUser } from "./userPreferences";
 
 type UserPreferenceRow = {
 	_id: string;
 	userId: string;
-	themeMode?: "system" | "light" | "dark";
-	mapStyle?:
-		| "stadia-alidade-smooth"
-		| "stadia-alidade-smooth-dark"
-		| "stadia-stamen-terrain"
-		| "maptiler-satellite-hybrid"
-		| "maptiler-outdoor";
-	distanceUnit?: "km" | "mi";
+	themeMode?: ThemeMode;
+	mapStyle?: BasemapId;
+	distanceUnit?: DistanceUnit;
 	createdAtMs: number;
 	updatedAtMs: number;
 };

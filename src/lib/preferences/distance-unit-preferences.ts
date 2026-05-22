@@ -1,14 +1,15 @@
 import type { PreferenceRepository } from "$lib/preferences/preference-repository";
+import {
+	isDistanceUnit,
+	type DistanceUnit,
+} from "$lib/preferences/user-preference-values";
 
 export const DISTANCE_UNIT_STORAGE_KEY = "velix.distanceUnit";
-export type DistanceUnit = "km" | "mi";
+export { isDistanceUnit };
+export type { DistanceUnit };
 
 const metersPerMile = 1609.344;
 export const fallbackDistanceUnit: DistanceUnit = "km";
-
-export function isDistanceUnit(value: string | null): value is DistanceUnit {
-	return value === "km" || value === "mi";
-}
 
 export function initDistanceUnitPreference(
 	repository: PreferenceRepository<DistanceUnit>,

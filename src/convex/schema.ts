@@ -2,6 +2,11 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 import { plannedRouteValidator } from "../lib/saved-route-convex-validators";
+import {
+	optionalDistanceUnitValidator,
+	optionalMapStyleValidator,
+	optionalThemeModeValidator,
+} from "./userPreferenceValidators";
 
 export default defineSchema({
 	savedRoutes: defineTable({
@@ -25,19 +30,9 @@ export default defineSchema({
 		.index("by_owner_createdAt", ["ownerUserId", "createdAtMs"]),
 	userPreferences: defineTable({
 		userId: v.string(),
-		themeMode: v.optional(
-			v.union(v.literal("system"), v.literal("light"), v.literal("dark")),
-		),
-		mapStyle: v.optional(
-			v.union(
-				v.literal("stadia-alidade-smooth"),
-				v.literal("stadia-alidade-smooth-dark"),
-				v.literal("stadia-stamen-terrain"),
-				v.literal("maptiler-satellite-hybrid"),
-				v.literal("maptiler-outdoor"),
-			),
-		),
-		distanceUnit: v.optional(v.union(v.literal("km"), v.literal("mi"))),
+		themeMode: optionalThemeModeValidator,
+		mapStyle: optionalMapStyleValidator,
+		distanceUnit: optionalDistanceUnitValidator,
 		createdAtMs: v.number(),
 		updatedAtMs: v.number(),
 	}).index("by_user", ["userId"]),
