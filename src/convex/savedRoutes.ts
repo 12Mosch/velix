@@ -241,17 +241,6 @@ export function mergeLocalRoutesHandler(
 			let invalid = 0;
 			let duplicate = 0;
 			const now = Date.now();
-			const existingRoutes = yield* tryConvexPromise(
-				() =>
-					ctx.db
-						.query("savedRoutes")
-						.withIndex("by_user_createdAt", (q) => q.eq("userId", userId))
-						.collect(),
-				"Could not read saved routes.",
-			);
-			const existingRouteIds = new Set(
-				existingRoutes.map((route) => route.routeId),
-			);
 
 			for (const candidateRoute of args.savedRoutes) {
 				const savedRoute = validateRemoteSavedRoutePayload(candidateRoute);
@@ -268,7 +257,18 @@ export function mergeLocalRoutesHandler(
 
 				seenRouteIds.add(savedRoute.id);
 
-				if (existingRouteIds.has(savedRoute.id)) {
+				const existingRoute = yield* tryConvexPromise(
+					() =>
+						ctx.db
+							.query("savedRoutes")
+							.withIndex("by_user_routeId", (q) =>
+								q.eq("userId", userId).eq("routeId", savedRoute.id),
+							)
+							.unique(),
+					"Could not read saved route.",
+				);
+
+				if (existingRoute) {
 					skipped += 1;
 					continue;
 				}
@@ -284,7 +284,6 @@ export function mergeLocalRoutesHandler(
 						}),
 					"Could not insert saved route.",
 				);
-				existingRouteIds.add(savedRoute.id);
 				inserted += 1;
 			}
 

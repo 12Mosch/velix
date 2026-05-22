@@ -24,6 +24,10 @@ type PaginationOpts = {
 	numItems: number;
 	cursor: string | null;
 };
+type IndexCall = {
+	index: "by_user_createdAt" | "by_user_routeId";
+	filter: Partial<Record<"userId" | "routeId", string>>;
+};
 
 const route: PlannedRoute = {
 	mode: "point_to_point",
@@ -59,6 +63,8 @@ function createCtx({
 	userId?: string | null;
 } = {}) {
 	const state = rows.map((row) => ({ ...row }));
+	const indexCalls: IndexCall[] = [];
+	const collectCalls: IndexCall[] = [];
 	const ctx = {
 		auth: {
 			getUserIdentity: vi.fn(async () => (userId ? { subject: userId } : null)),
@@ -67,7 +73,7 @@ function createCtx({
 			query: vi.fn((_table: "savedRoutes") => ({
 				withIndex: vi.fn(
 					(
-						_index: "by_user_createdAt" | "by_user_routeId",
+						index: "by_user_createdAt" | "by_user_routeId",
 						buildQuery: (query: IndexQuery) => IndexQuery,
 					) => {
 						const filter: Record<string, string> = {};
@@ -78,12 +84,16 @@ function createCtx({
 							},
 						};
 						buildQuery(query);
+						indexCalls.push({ index, filter: { ...filter } });
 						const collectRows = () =>
 							state
 								.filter((row) => row.userId === filter.userId)
 								.toSorted((a, b) => b.createdAtMs - a.createdAtMs);
 						const collection = {
-							collect: vi.fn(async () => collectRows()),
+							collect: vi.fn(async () => {
+								collectCalls.push({ index, filter: { ...filter } });
+								return collectRows();
+							}),
 							order: vi.fn((_direction: "desc") => collection),
 							paginate: vi.fn(async (paginationOpts: PaginationOpts) => {
 								const rows = collectRows();
@@ -149,7 +159,7 @@ function createCtx({
 		},
 	};
 
-	return { ctx, state };
+	return { ctx, state, indexCalls, collectCalls };
 }
 
 async function runListForCurrentUser(
@@ -303,7 +313,7 @@ describe("savedRoutes Convex functions", () => {
 	});
 
 	it("merges local routes while counting skipped, invalid, and duplicate rows", async () => {
-		const { ctx, state } = createCtx({
+		const { ctx, state, indexCalls, collectCalls } = createCtx({
 			rows: [
 				{
 					_id: "route_1",
@@ -341,6 +351,60 @@ describe("savedRoutes Convex functions", () => {
 			"existing-route",
 			"new-route",
 		]);
+		expect(
+			indexCalls
+				.filter((call) => call.index === "by_user_routeId")
+				.map((call) => call.filter),
+		).toEqual([
+			{ userId: "user_1", routeId: "existing-route" },
+			{ userId: "user_1", routeId: "new-route" },
+		]);
+		expect(
+			collectCalls.some((call) => call.index === "by_user_createdAt"),
+		).toBe(false);
+	});
+
+	it("bounds merge existence reads to unique valid incoming route ids", async () => {
+		const existingRows = Array.from({ length: 500 }, (_value, index) => ({
+			_id: `route_${index + 1}`,
+			userId: "user_1",
+			routeId: `seeded-route-${index + 1}`,
+			createdAtMs: index + 1,
+			updatedAtMs: index + 1,
+			routeJson: remoteSavedRoute.routeJson,
+		}));
+		const { ctx, indexCalls, collectCalls } = createCtx({
+			rows: existingRows,
+		});
+		const newRoute = {
+			...remoteSavedRoute,
+			id: "new-scale-route",
+		};
+		const existingRoute = {
+			...remoteSavedRoute,
+			id: "seeded-route-250",
+		};
+
+		await expect(
+			runMergeLocalRoutes(ctx, [newRoute, existingRoute, newRoute]),
+		).resolves.toEqual({
+			inserted: 1,
+			skipped: 1,
+			invalid: 0,
+			duplicate: 1,
+		});
+
+		const existenceReads = indexCalls.filter(
+			(call) => call.index === "by_user_routeId",
+		);
+		expect(existenceReads.map((call) => call.filter.routeId)).toEqual([
+			"new-scale-route",
+			"seeded-route-250",
+		]);
+		expect(existenceReads).toHaveLength(2);
+		expect(
+			collectCalls.some((call) => call.index === "by_user_createdAt"),
+		).toBe(false);
 	});
 
 	it("rejects unauthenticated access and blank deletes", async () => {
