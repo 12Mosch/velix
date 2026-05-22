@@ -5,6 +5,10 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { runConvexEffect, tryConvexPromise } from "./effect";
 import {
+	getAuthenticatedUserIdEffect,
+	validateRemoteSavedRoutePayload,
+} from "./savedRouteHelpers";
+import {
 	deserializeRemoteSavedRoute,
 	serializeSavedRouteForRemote,
 	type RemoteSavedRoutePayload,
@@ -13,10 +17,6 @@ import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-vali
 import { assertRemoteRouteJsonSize } from "../lib/saved-route-size";
 
 const shareTokenPattern = /^[A-Za-z0-9_-]{16,128}$/;
-
-type ValidatedSharedRoute = RemoteSavedRoutePayload & {
-	createdAtMs: number;
-};
 
 class SharedRouteAuthenticationError extends Error {
 	readonly _tag = "SharedRouteAuthenticationError";
@@ -30,42 +30,8 @@ class SharedRouteValidationError extends Error {
 	readonly _tag = "SharedRouteValidationError";
 }
 
-function getAuthenticatedUserIdEffect(
-	ctx: QueryCtx | MutationCtx,
-): Effect.Effect<string, Error | SharedRouteAuthenticationError> {
-	return tryConvexPromise(
-		() => ctx.auth.getUserIdentity(),
-		"Could not read authenticated user.",
-	).pipe(
-		Effect.flatMap((identity) =>
-			identity
-				? Effect.succeed(identity.subject)
-				: Effect.fail(new SharedRouteAuthenticationError()),
-		),
-	);
-}
-
 function isValidShareToken(shareToken: string): boolean {
 	return shareTokenPattern.test(shareToken);
-}
-
-function validateRemoteSavedRoutePayload(
-	value: unknown,
-): ValidatedSharedRoute | null {
-	const savedRoute = deserializeRemoteSavedRoute(value);
-	if (!savedRoute) {
-		return null;
-	}
-
-	const remotePayload = serializeSavedRouteForRemote(savedRoute);
-	const createdAtMs = Date.parse(remotePayload.createdAt);
-
-	return Number.isFinite(createdAtMs)
-		? {
-				...remotePayload,
-				createdAtMs,
-			}
-		: null;
 }
 
 function remotePayloadFromRow(row: {
@@ -93,7 +59,10 @@ export async function createHandler(
 ) {
 	return runConvexEffect(
 		Effect.gen(function* () {
-			const ownerUserId = yield* getAuthenticatedUserIdEffect(ctx);
+			const ownerUserId = yield* getAuthenticatedUserIdEffect(
+				ctx,
+				() => new SharedRouteAuthenticationError(),
+			);
 
 			if (!isValidShareToken(args.shareToken)) {
 				return yield* Effect.fail(
