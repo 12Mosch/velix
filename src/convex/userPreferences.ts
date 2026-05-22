@@ -1,23 +1,25 @@
-import { v } from "convex/values";
 import { Effect } from "effect";
 
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { runConvexEffect, tryConvexPromise } from "./effect";
+import {
+	userPreferencesPatchValidator,
+	type BasemapId,
+	type DistanceUnit,
+	type ThemeMode,
+} from "./userPreferenceValidators";
 
-const themeModeValidator = v.union(
-	v.literal("system"),
-	v.literal("light"),
-	v.literal("dark"),
-);
-const mapStyleValidator = v.union(
-	v.literal("stadia-alidade-smooth"),
-	v.literal("stadia-alidade-smooth-dark"),
-	v.literal("stadia-stamen-terrain"),
-	v.literal("maptiler-satellite-hybrid"),
-	v.literal("maptiler-outdoor"),
-);
-const distanceUnitValidator = v.union(v.literal("km"), v.literal("mi"));
+type UserPreferencesPatch = {
+	themeMode?: ThemeMode;
+	mapStyle?: BasemapId;
+	distanceUnit?: DistanceUnit;
+};
+
+type UserPreferencesRowSnapshot = UserPreferencesPatch & {
+	createdAtMs: number;
+	updatedAtMs: number;
+};
 
 class UserPreferencesAuthenticationError extends Error {
 	readonly _tag = "UserPreferencesAuthenticationError";
@@ -42,18 +44,7 @@ function getAuthenticatedUserIdEffect(
 	);
 }
 
-function snapshotFromRow(row: {
-	themeMode?: "system" | "light" | "dark";
-	mapStyle?:
-		| "stadia-alidade-smooth"
-		| "stadia-alidade-smooth-dark"
-		| "stadia-stamen-terrain"
-		| "maptiler-satellite-hybrid"
-		| "maptiler-outdoor";
-	distanceUnit?: "km" | "mi";
-	createdAtMs: number;
-	updatedAtMs: number;
-}) {
+function snapshotFromRow(row: UserPreferencesRowSnapshot) {
 	return {
 		themeMode: row.themeMode,
 		mapStyle: row.mapStyle,
@@ -88,16 +79,7 @@ export function getForCurrentUserHandler(ctx: QueryCtx) {
 export function upsertForCurrentUserHandler(
 	ctx: MutationCtx,
 	args: {
-		preferences: {
-			themeMode?: "system" | "light" | "dark";
-			mapStyle?:
-				| "stadia-alidade-smooth"
-				| "stadia-alidade-smooth-dark"
-				| "stadia-stamen-terrain"
-				| "maptiler-satellite-hybrid"
-				| "maptiler-outdoor";
-			distanceUnit?: "km" | "mi";
-		};
+		preferences: UserPreferencesPatch;
 	},
 ) {
 	return runConvexEffect(
@@ -141,11 +123,7 @@ export const getForCurrentUser = query({
 
 export const upsertForCurrentUser = mutation({
 	args: {
-		preferences: v.object({
-			themeMode: v.optional(themeModeValidator),
-			mapStyle: v.optional(mapStyleValidator),
-			distanceUnit: v.optional(distanceUnitValidator),
-		}),
+		preferences: userPreferencesPatchValidator,
 	},
 	handler: upsertForCurrentUserHandler,
 });

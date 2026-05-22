@@ -1,11 +1,8 @@
 import { env } from "$env/dynamic/public";
 
-export type BasemapId =
-	| "stadia-alidade-smooth"
-	| "stadia-alidade-smooth-dark"
-	| "stadia-stamen-terrain"
-	| "maptiler-satellite-hybrid"
-	| "maptiler-outdoor";
+import type { BasemapId } from "$lib/preferences/user-preference-values";
+
+export type { BasemapId };
 
 export type BasemapProvider = "stadia" | "maptiler";
 
