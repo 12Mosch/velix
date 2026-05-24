@@ -194,6 +194,7 @@ export function createPlannerPageContext() {
 	let isImportingGpx = $state(false);
 	let routeAlternatives = $state<PlannedRoute[]>([]);
 	let selectedRouteIndex = $state<number | null>(null);
+	let routeNeedsRecalculation = $state(false);
 	let lockedSegmentIndexes = $state<number[]>([]);
 	let avoidedRoads = $state<ResolvedRouteAvoidance[]>([]);
 	let lastGeneratedRouteCount = $state<number | null>(null);
@@ -325,6 +326,7 @@ export function createPlannerPageContext() {
 		return {
 			routeAlternatives,
 			selectedRouteIndex,
+			routeNeedsRecalculation,
 			lockedSegmentIndexes,
 			avoidedRoads,
 			lastGeneratedRouteCount,
@@ -354,6 +356,7 @@ export function createPlannerPageContext() {
 	function applyPlannerRouteState(state: PlannerRouteState) {
 		routeAlternatives = state.routeAlternatives;
 		selectedRouteIndex = state.selectedRouteIndex;
+		routeNeedsRecalculation = state.routeNeedsRecalculation;
 		lockedSegmentIndexes = state.lockedSegmentIndexes;
 		avoidedRoads = state.avoidedRoads;
 		lastGeneratedRouteCount = state.lastGeneratedRouteCount;
@@ -1114,7 +1117,7 @@ export function createPlannerPageContext() {
 	}
 
 	function recenterActiveRoute() {
-		if (!activeRoute) {
+		if (!activeRoute || routeNeedsRecalculation) {
 			return;
 		}
 
@@ -1308,7 +1311,12 @@ export function createPlannerPageContext() {
 		routeSaveRevision += 1;
 	}
 
-	function markPlannerEdited() {
+	function markPlannerEdited(
+		options: { requiresRecalculation?: boolean } = {},
+	) {
+		const requiresRecalculation = options.requiresRecalculation ?? true;
+		const staleRouteShareKey = activeRouteShareKey;
+
 		if (routeRequestError) {
 			routeRequestError = null;
 		}
@@ -1320,6 +1328,16 @@ export function createPlannerPageContext() {
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
 		pendingSavedRouteId = null;
+		if (requiresRecalculation && activeRoute) {
+			routeNeedsRecalculation = true;
+			cancelAutosaveTimer();
+			routeExportError = null;
+			if (staleRouteShareKey) {
+				setRouteShareError(staleRouteShareKey, null);
+				setRouteShareUrl(staleRouteShareKey, null);
+				setRouteShareCopied(staleRouteShareKey, false);
+			}
+		}
 		bumpRouteSaveRevision();
 	}
 
@@ -1368,6 +1386,10 @@ export function createPlannerPageContext() {
 		} = {},
 	) {
 		cancelAutosaveTimer();
+		if (routeNeedsRecalculation) {
+			return null;
+		}
+
 		const routeId = plannerDraftRouteId ?? activeSavedRouteId;
 
 		if (
@@ -1400,6 +1422,10 @@ export function createPlannerPageContext() {
 
 	function scheduleActiveRouteAutosave() {
 		cancelAutosaveTimer();
+		if (routeNeedsRecalculation) {
+			return;
+		}
+
 		autosaveTimer = setTimeout(() => {
 			void saveActiveRouteDraft({ source: "autosave" });
 		}, autosaveDebounceMs);
@@ -1439,8 +1465,10 @@ export function createPlannerPageContext() {
 		routeRequestError = null;
 		routeImportError = null;
 		routeExportError = null;
-		markPlannerEdited();
-		scheduleActiveRouteAutosave();
+		markPlannerEdited({ requiresRecalculation: false });
+		if (!routeNeedsRecalculation) {
+			scheduleActiveRouteAutosave();
+		}
 	}
 
 	function rollbackRouteEditSnapshot(
@@ -1457,7 +1485,9 @@ export function createPlannerPageContext() {
 		routeImportError = null;
 		routeExportError = null;
 		bumpRouteSaveRevision();
-		scheduleActiveRouteAutosave();
+		if (!routeNeedsRecalculation) {
+			scheduleActiveRouteAutosave();
+		}
 	}
 
 	function pushRouteEditUndoSnapshot(snapshot: RouteEditSnapshot) {
@@ -1655,6 +1685,7 @@ export function createPlannerPageContext() {
 		activeSavedRouteId = savedRoute.id;
 		plannerDraftRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
+		routeNeedsRecalculation = false;
 		routeRequestError = null;
 		fieldErrors = {};
 		activeProfileIndex = null;
@@ -2201,6 +2232,10 @@ export function createPlannerPageContext() {
 		selection: MapClickSelection,
 		recordHistory = true,
 	): boolean {
+		if (routeNeedsRecalculation) {
+			return false;
+		}
+
 		if (recordHistory && activeRoute) {
 			let changed = false;
 			performRouteEdit(() => {
@@ -2226,7 +2261,7 @@ export function createPlannerPageContext() {
 				);
 		lockedSegmentIndexes = nextLockedSegmentIndexes;
 		syncActiveRouteManualEditing(nextLockedSegmentIndexes);
-		markPlannerEdited();
+		markPlannerEdited({ requiresRecalculation: false });
 		closeMapClickMenu();
 		scheduleActiveRouteAutosave();
 		return true;
@@ -2265,7 +2300,12 @@ export function createPlannerPageContext() {
 	}
 
 	async function toggleMapSelectionRoadAvoidance(selection: MapClickSelection) {
-		if (!activeRoute || !selection.selectedSegment || isRouting) {
+		if (
+			!activeRoute ||
+			routeNeedsRecalculation ||
+			!selection.selectedSegment ||
+			isRouting
+		) {
 			return false;
 		}
 
@@ -2306,7 +2346,12 @@ export function createPlannerPageContext() {
 	}
 
 	function removeAvoidedRoad(index: number) {
-		if (index < 0 || index >= avoidedRoads.length || isRouting) {
+		if (
+			index < 0 ||
+			index >= avoidedRoads.length ||
+			isRouting ||
+			routeNeedsRecalculation
+		) {
 			return;
 		}
 
@@ -2588,6 +2633,7 @@ export function createPlannerPageContext() {
 		pendingSavedRouteId = null;
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
+		routeNeedsRecalculation = true;
 		routeRequestError = null;
 		routeImportError = null;
 		fieldErrors = {};
@@ -2617,6 +2663,7 @@ export function createPlannerPageContext() {
 			setRouteAlternativesState(nextRoutes, payload.selectedRouteIndex);
 			lastGeneratedRouteCount = nextRoutes.length;
 			syncStopsFromRoute(nextSelectedRoute);
+			routeNeedsRecalculation = false;
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
 			bumpRouteSaveRevision();
@@ -2632,7 +2679,11 @@ export function createPlannerPageContext() {
 	}
 
 	async function handleRouteStopDragEnd(detail: RouteStopDragEnd) {
-		if (!activeRoute || isLockedStopIndex(detail.stopIndex)) {
+		if (
+			!activeRoute ||
+			routeNeedsRecalculation ||
+			isLockedStopIndex(detail.stopIndex)
+		) {
 			return;
 		}
 
@@ -2663,7 +2714,7 @@ export function createPlannerPageContext() {
 	}
 
 	async function handleRouteSegmentDragEnd(detail: RouteSegmentDragEnd) {
-		if (!activeRoute) {
+		if (!activeRoute || routeNeedsRecalculation) {
 			return;
 		}
 
@@ -2772,6 +2823,7 @@ export function createPlannerPageContext() {
 			syncStopsFromRoute(nextSelectedRoute);
 			activeSavedRouteId = null;
 			isActiveRouteSaved = false;
+			routeNeedsRecalculation = false;
 			routeRequestError = null;
 			routeExportError = null;
 			activeProfileIndex = null;
@@ -2793,7 +2845,7 @@ export function createPlannerPageContext() {
 	}
 
 	async function handleSaveDraft() {
-		if (!activeRoute) {
+		if (!activeRoute || routeNeedsRecalculation) {
 			return;
 		}
 
@@ -2822,7 +2874,7 @@ export function createPlannerPageContext() {
 	}
 
 	async function handleShareActiveRoute() {
-		if (!activeRoute) {
+		if (!activeRoute || routeNeedsRecalculation) {
 			return;
 		}
 
@@ -2903,7 +2955,7 @@ export function createPlannerPageContext() {
 	}
 
 	function handleExportGpx() {
-		if (!activeRoute) {
+		if (!activeRoute || routeNeedsRecalculation) {
 			return;
 		}
 
@@ -2920,7 +2972,7 @@ export function createPlannerPageContext() {
 	}
 
 	function handleExportFit() {
-		if (!activeRoute) {
+		if (!activeRoute || routeNeedsRecalculation) {
 			return;
 		}
 
@@ -2973,6 +3025,7 @@ export function createPlannerPageContext() {
 			syncStopsFromRoute(importedRoute);
 			activeSavedRouteId = null;
 			isActiveRouteSaved = false;
+			routeNeedsRecalculation = false;
 			routeRequestError = null;
 			routeExportError = null;
 			fieldErrors = {};
@@ -3092,6 +3145,9 @@ export function createPlannerPageContext() {
 		},
 		get selectedRouteIndex() {
 			return selectedRouteIndex;
+		},
+		get routeNeedsRecalculation() {
+			return routeNeedsRecalculation;
 		},
 		get lockedSegmentIndexes() {
 			return lockedSegmentIndexes;

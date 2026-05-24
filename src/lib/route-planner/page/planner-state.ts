@@ -57,6 +57,7 @@ export type PlannerFormState = {
 export type PlannerRouteState = {
 	routeAlternatives: PlannedRoute[];
 	selectedRouteIndex: number | null;
+	routeNeedsRecalculation: boolean;
 	lockedSegmentIndexes: number[];
 	avoidedRoads: ResolvedRouteAvoidance[];
 	lastGeneratedRouteCount: number | null;
@@ -699,6 +700,7 @@ export function captureRouteEditSnapshot(
 			? routeState.routeAlternatives.map((route) => cloneRoute(route))
 			: [...routeState.routeAlternatives],
 		selectedRouteIndex: routeState.selectedRouteIndex,
+		routeNeedsRecalculation: routeState.routeNeedsRecalculation,
 		lockedSegmentIndexes: [...routeState.lockedSegmentIndexes],
 		avoidedRoads: cloneAvoidances(routeState.avoidedRoads),
 		plannerMode: form.plannerMode,
@@ -755,6 +757,7 @@ export function restoreRouteEditSnapshot(snapshot: RouteEditSnapshot): {
 				cloneRoute(route),
 			),
 			selectedRouteIndex: snapshot.selectedRouteIndex,
+			routeNeedsRecalculation: snapshot.routeNeedsRecalculation,
 			lockedSegmentIndexes: [...snapshot.lockedSegmentIndexes],
 			avoidedRoads: cloneAvoidances(snapshot.avoidedRoads),
 			lastGeneratedRouteCount: snapshot.lastGeneratedRouteCount,
