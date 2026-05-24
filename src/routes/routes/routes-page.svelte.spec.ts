@@ -20,7 +20,9 @@ vi.mock("convex-svelte", () => ({
 
 import {
 	resetSavedRoutesForTests,
+	readSavedRoutesForTests,
 	SAVED_ROUTES_STORAGE_KEY,
+	seedSavedRoutesForTests,
 	savedRoutesState,
 	type SavedRoute,
 	upsertSavedRoute,
@@ -185,7 +187,7 @@ function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
 }
 
 describe("routes/+page.svelte", () => {
-	beforeEach(() => {
+	beforeEach(async () => {
 		vi.restoreAllMocks();
 		Object.defineProperty(URL, "createObjectURL", {
 			configurable: true,
@@ -198,7 +200,7 @@ describe("routes/+page.svelte", () => {
 			value: originalRevokeObjectURL,
 		});
 		window.localStorage.clear();
-		resetSavedRoutesForTests();
+		await resetSavedRoutesForTests();
 		resetUnitPreferenceForTests();
 		window.history.replaceState({}, "", "/routes");
 		publicEnv.PUBLIC_CONVEX_URL = "";
@@ -241,7 +243,7 @@ describe("routes/+page.svelte", () => {
 	});
 
 	it("renders saved-route skeletons while remote sync is loading", async () => {
-		savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.setAuthUser("user_1");
 
 		render(RoutesPage);
 
@@ -299,8 +301,8 @@ describe("routes/+page.svelte", () => {
 			shareToken: "abc123_DEF456-7890",
 			urlPath: "/share/abc123_DEF456-7890",
 		});
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
 
 		render(RoutesPage);
 
@@ -339,8 +341,8 @@ describe("routes/+page.svelte", () => {
 	});
 
 	it("renders remote routes already applied through savedRoutesState", async () => {
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
 
 		render(RoutesPage);
 
@@ -743,7 +745,7 @@ describe("routes/+page.svelte", () => {
 			ascendMeters: 410,
 		};
 
-		upsertSavedRoute(updatedRoute, savedRoutes[0].id);
+		await upsertSavedRoute(updatedRoute, savedRoutes[0].id);
 
 		await searchInput.fill("schliersee");
 		await expect
@@ -787,8 +789,8 @@ describe("routes/+page.svelte", () => {
 	});
 
 	it("drops saved-route search matches for ids removed by remote replacement", async () => {
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", [
 			searchableSavedRoutes[0],
 			searchableSavedRoutes[1],
 		]);
@@ -804,7 +806,9 @@ describe("routes/+page.svelte", () => {
 			.element(page.getByText("Marienplatz, Munich, Germany"))
 			.toBeInTheDocument();
 
-		savedRoutesState.applyRemoteRoutes("user_1", [searchableSavedRoutes[1]]);
+		await savedRoutesState.applyRemoteRoutes("user_1", [
+			searchableSavedRoutes[1],
+		]);
 
 		await expect
 			.element(page.getByText("No routes match your filters"))
@@ -1147,9 +1151,7 @@ describe("routes/+page.svelte", () => {
 
 		await page.getByRole("button", { name: "Duplicate" }).click();
 
-		const storedRoutes = JSON.parse(
-			window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
-		);
+		const storedRoutes = await readSavedRoutesForTests();
 		expect(storedRoutes).toHaveLength(2);
 		expect(storedRoutes[0].id).not.toBe(savedRoutes[0].id);
 		expect(storedRoutes[0].route).toEqual(savedRoutes[0].route);
@@ -1159,8 +1161,8 @@ describe("routes/+page.svelte", () => {
 
 	it("duplicates optimistically and calls the remote adapter when signed in", async () => {
 		const save = vi.fn().mockResolvedValue(undefined);
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
 		savedRoutesState.setRemoteAdapter({
 			save,
 			delete: vi.fn(),
@@ -1176,15 +1178,17 @@ describe("routes/+page.svelte", () => {
 		expect(savedRoutesState.savedRoutes[0]?.route).toEqual(
 			savedRoutes[0].route,
 		);
-		expect(save).toHaveBeenCalledWith(
-			serializeSavedRouteForRemote(savedRoutesState.savedRoutes[0]),
-		);
+		await vi.waitFor(() => {
+			expect(save).toHaveBeenCalledWith(
+				serializeSavedRouteForRemote(savedRoutesState.savedRoutes[0]),
+			);
+		});
 	});
 
 	it("deletes optimistically and calls the remote adapter when signed in", async () => {
 		const deleteRemote = vi.fn().mockResolvedValue(undefined);
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", savedRoutes);
 		savedRoutesState.setRemoteAdapter({
 			save: vi.fn(),
 			delete: deleteRemote,
@@ -1198,7 +1202,9 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByText("No saved routes yet"))
 			.toBeInTheDocument();
-		expect(deleteRemote).toHaveBeenCalledWith("saved-route-1");
+		await vi.waitFor(() => {
+			expect(deleteRemote).toHaveBeenCalledWith("saved-route-1");
+		});
 	});
 
 	it("exports a saved route as a GPX download", async () => {
@@ -1331,31 +1337,32 @@ describe("routes/+page.svelte", () => {
 			.toBeInTheDocument();
 	});
 
-	it("loads legacy saved routes that do not include a waypoints array", async () => {
-		window.localStorage.setItem(
-			SAVED_ROUTES_STORAGE_KEY,
-			JSON.stringify([
-				{
-					id: "legacy-route",
-					createdAt: "2026-04-19T09:30:00.000Z",
-					route: {
-						startLabel: "Marienplatz, Munich, Germany",
-						destinationLabel: "Schliersee, Germany",
-						bounds: [11.5755, 47.7362, 11.8598, 48.1374],
-						distanceMeters: 61234,
-						durationMs: 9876000,
-						ascendMeters: 820,
-						descendMeters: 740,
-						coordinates: [
-							[11.5755, 48.1374, 520],
-							[11.8598, 47.7362, 785],
-						],
-						surfaceDetails: [],
-						smoothnessDetails: [],
-					},
+	it("loads saved routes with normalized waypoint data", async () => {
+		await seedSavedRoutesForTests([
+			{
+				id: "legacy-route",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				route: {
+					mode: "point_to_point",
+					source: { kind: "graphhopper" },
+					startLabel: "Marienplatz, Munich, Germany",
+					destinationLabel: "Schliersee, Germany",
+					waypoints: [],
+					bounds: [11.5755, 47.7362, 11.8598, 48.1374],
+					distanceMeters: 61234,
+					durationMs: 9876000,
+					ascendMeters: 820,
+					descendMeters: 740,
+					coordinates: [
+						[11.5755, 48.1374, 520],
+						[11.8598, 47.7362, 785],
+					],
+					instructions: [],
+					surfaceDetails: [],
+					smoothnessDetails: [],
 				},
-			]),
-		);
+			},
+		]);
 
 		render(RoutesPage);
 

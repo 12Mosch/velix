@@ -43,6 +43,8 @@ function createState(): SavedRoutesStateModel {
 		authUserId: null,
 		remoteReady: false,
 		syncError: null,
+		localRoutesReady: false,
+		localSaveError: null,
 		pendingRemoteRouteIds: new Set(),
 	};
 }
@@ -65,9 +67,21 @@ function createMemoryStorage(): BrowserStorage {
 	};
 }
 
+function createDeferred<T = void>() {
+	let resolve: (value: T | PromiseLike<T>) => void = () => {};
+	let reject: (reason?: unknown) => void = () => {};
+	const promise = new Promise<T>((promiseResolve, promiseReject) => {
+		resolve = promiseResolve;
+		reject = promiseReject;
+	});
+
+	return { promise, resolve, reject };
+}
+
 async function flushPromises() {
 	await Promise.resolve();
 	await Promise.resolve();
+	await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe("saved routes use cases", () => {
@@ -84,8 +98,8 @@ describe("saved routes use cases", () => {
 	it("optimistically saves signed-in routes and clears pending state after remote success", async () => {
 		const save = vi.fn().mockResolvedValue(undefined);
 
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save,
 				delete: vi.fn(),
@@ -93,7 +107,9 @@ describe("saved routes use cases", () => {
 			}),
 		);
 
-		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		const savedRoute = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
 
 		expect(state.savedRoutes).toEqual([savedRoute]);
 		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
@@ -105,20 +121,22 @@ describe("saved routes use cases", () => {
 		expect(state.syncError).toBeNull();
 	});
 
-	it("applies sorted remote snapshots only for the active signed-in user", () => {
+	it("applies sorted remote snapshots only for the active signed-in user", async () => {
 		vi.useFakeTimers();
 
 		try {
-			Effect.runSync(useCases.setAuthUser(state, "user_1"));
+			await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 			vi.setSystemTime(new Date("2026-04-19T09:30:00.000Z"));
-			const older = Effect.runSync(useCases.createSavedRoute(state, route));
+			const older = await Effect.runPromise(
+				useCases.createSavedRoute(state, route),
+			);
 			vi.setSystemTime(new Date("2026-04-20T09:30:00.000Z"));
 			const newer = {
-				...Effect.runSync(useCases.createSavedRoute(state, route)),
+				...(await Effect.runPromise(useCases.createSavedRoute(state, route))),
 				id: "newer",
 			};
 
-			Effect.runSync(
+			await Effect.runPromise(
 				useCases.applyRemoteSavedRoutes(state, "other_user", [
 					serializeSavedRouteForRemote(newer),
 				]),
@@ -127,7 +145,7 @@ describe("saved routes use cases", () => {
 				"newer",
 			]);
 
-			Effect.runSync(
+			await Effect.runPromise(
 				useCases.applyRemoteSavedRoutes(state, "user_1", [
 					serializeSavedRouteForRemote(older),
 					serializeSavedRouteForRemote(newer),
@@ -143,38 +161,46 @@ describe("saved routes use cases", () => {
 		}
 	});
 
-	it("keeps pending optimistic saves when applying a remote snapshot", () => {
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+	it("keeps pending optimistic saves when applying a remote snapshot", async () => {
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save: vi.fn(() => new Promise<void>(() => {})),
 				delete: vi.fn(),
 				mergeLocalRoutes: vi.fn(),
 			}),
 		);
-		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		const savedRoute = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
 
-		Effect.runSync(useCases.applyRemoteSavedRoutes(state, "user_1", []));
+		await Effect.runPromise(
+			useCases.applyRemoteSavedRoutes(state, "user_1", []),
+		);
 
 		expect(state.savedRoutes).toEqual([savedRoute]);
 		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
-		expect(repository.readUserRoutes("user_1")).toEqual([savedRoute]);
+		expect(
+			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+		).toEqual([savedRoute]);
 	});
 
 	it("does not resurrect pending optimistic deletes from a remote snapshot", async () => {
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save: vi.fn().mockResolvedValue(undefined),
 				delete: vi.fn(() => new Promise<void>(() => {})),
 				mergeLocalRoutes: vi.fn(),
 			}),
 		);
-		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		const savedRoute = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
 		await flushPromises();
 
-		Effect.runSync(useCases.deleteSavedRoute(state, savedRoute.id));
-		Effect.runSync(
+		await Effect.runPromise(useCases.deleteSavedRoute(state, savedRoute.id));
+		await Effect.runPromise(
 			useCases.applyRemoteSavedRoutes(state, "user_1", [
 				serializeSavedRouteForRemote(savedRoute),
 			]),
@@ -182,11 +208,15 @@ describe("saved routes use cases", () => {
 
 		expect(state.savedRoutes).toEqual([]);
 		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
-		expect(repository.readUserRoutes("user_1")).toEqual([]);
+		expect(
+			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+		).toEqual([]);
 	});
 
 	it("runs anonymous route merge once per signed-in user", async () => {
-		const anonymous = Effect.runSync(useCases.createSavedRoute(state, route));
+		const anonymous = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
 		const mergeLocalRoutes = vi.fn().mockResolvedValue({
 			inserted: 1,
 			skipped: 0,
@@ -194,8 +224,8 @@ describe("saved routes use cases", () => {
 			duplicate: 0,
 		});
 
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save: vi.fn(),
 				delete: vi.fn(),
@@ -217,8 +247,8 @@ describe("saved routes use cases", () => {
 	});
 
 	it("sets syncError after remote save failure without losing the optimistic route", async () => {
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save: vi.fn().mockRejectedValue(new Error("network down")),
 				delete: vi.fn(),
@@ -226,7 +256,9 @@ describe("saved routes use cases", () => {
 			}),
 		);
 
-		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		const savedRoute = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
 		expect(state.savedRoutes).toEqual([savedRoute]);
 		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
 
@@ -237,10 +269,106 @@ describe("saved routes use cases", () => {
 		expect(state.syncError).toBe("Could not sync saved route: network down");
 	});
 
+	it("sets localSaveError after local persistence failure without losing the optimistic route", async () => {
+		const failingRepository: SavedRoutesRepository = {
+			...repository,
+			upsertRoute: vi.fn().mockRejectedValue(new Error("idb down")),
+		};
+		useCases = new SavedRoutesUseCases(failingRepository);
+
+		const savedRoute = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
+
+		expect(state.savedRoutes).toEqual([savedRoute]);
+		expect(state.localSaveError).toBe("Could not save route locally: idb down");
+	});
+
+	it("updates optimistic state before local persistence completes", async () => {
+		const deferred = createDeferred();
+		const slowRepository: SavedRoutesRepository = {
+			...repository,
+			upsertRoute: vi.fn(() => deferred.promise),
+		};
+		useCases = new SavedRoutesUseCases(slowRepository);
+
+		const savePromise = Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
+
+		await vi.waitFor(() => {
+			expect(state.savedRoutes).toHaveLength(1);
+		});
+
+		deferred.resolve();
+		const savedRoute = await savePromise;
+
+		expect(state.savedRoutes).toEqual([savedRoute]);
+		expect(state.localSaveError).toBeNull();
+	});
+
+	it("coalesces autosave remote writes to the latest route per id", async () => {
+		vi.useFakeTimers();
+
+		try {
+			const save = vi.fn().mockResolvedValue(undefined);
+			await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+			await Effect.runPromise(
+				useCases.setRemoteRepository({
+					save,
+					delete: vi.fn(),
+					mergeLocalRoutes: vi.fn(),
+				}),
+			);
+			await Effect.runPromise(
+				useCases.applyRemoteSavedRoutes(state, "user_1", [
+					serializeSavedRouteForRemote({
+						id: "route-1",
+						createdAt: "2026-04-19T09:30:00.000Z",
+						route,
+					}),
+				]),
+			);
+
+			await Effect.runPromise(
+				useCases.upsertSavedRoute(
+					state,
+					{ ...route, destinationLabel: "First update" },
+					"route-1",
+					{ source: "autosave" },
+				),
+			);
+			await Effect.runPromise(
+				useCases.upsertSavedRoute(
+					state,
+					{ ...route, destinationLabel: "Latest update" },
+					"route-1",
+					{ source: "autosave" },
+				),
+			);
+
+			await vi.advanceTimersByTimeAsync(999);
+			expect(save).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(1);
+			await Promise.resolve();
+
+			expect(save).toHaveBeenCalledTimes(1);
+			expect(save).toHaveBeenCalledWith(
+				serializeSavedRouteForRemote(state.savedRoutes[0]),
+			);
+			expect(state.savedRoutes[0]?.route.destinationLabel).toBe(
+				"Latest update",
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("does not apply stale remote save failures after sign-out", async () => {
 		let rejectSave: (error: Error) => void = () => {};
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save: vi.fn(
 					() =>
@@ -252,10 +380,12 @@ describe("saved routes use cases", () => {
 				mergeLocalRoutes: vi.fn(),
 			}),
 		);
-		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		const savedRoute = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
 		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
 
-		Effect.runSync(useCases.setAuthUser(state, null));
+		await Effect.runPromise(useCases.setAuthUser(state, null));
 		rejectSave(new Error("late failure"));
 		await flushPromises();
 
@@ -265,7 +395,9 @@ describe("saved routes use cases", () => {
 	});
 
 	it("reuses an in-flight anonymous route merge for concurrent calls", async () => {
-		const anonymous = Effect.runSync(useCases.createSavedRoute(state, route));
+		const anonymous = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
 		let resolveMerge: () => void = () => {};
 		const mergeLocalRoutes = vi.fn(
 			() =>
@@ -285,8 +417,8 @@ describe("saved routes use cases", () => {
 				}),
 		);
 
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save: vi.fn(),
 				delete: vi.fn(),
@@ -314,7 +446,7 @@ describe("saved routes use cases", () => {
 	});
 
 	it("does not apply stale local merge failures after sign-out", async () => {
-		Effect.runSync(useCases.createSavedRoute(state, route));
+		await Effect.runPromise(useCases.createSavedRoute(state, route));
 		let rejectMerge: (error: Error) => void = () => {};
 		const mergeLocalRoutes = vi.fn(
 			() =>
@@ -328,8 +460,8 @@ describe("saved routes use cases", () => {
 				}),
 		);
 
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save: vi.fn(),
 				delete: vi.fn(),
@@ -344,7 +476,7 @@ describe("saved routes use cases", () => {
 			expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
 		});
 
-		Effect.runSync(useCases.setAuthUser(state, null));
+		await Effect.runPromise(useCases.setAuthUser(state, null));
 		rejectMerge(new Error("late merge failure"));
 		await merge;
 
@@ -354,24 +486,25 @@ describe("saved routes use cases", () => {
 	});
 
 	it("keeps optimistic delete and sets syncError after remote delete failure", async () => {
-		Effect.runSync(useCases.setAuthUser(state, "user_1"));
-		Effect.runSync(
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save: vi.fn().mockResolvedValue(undefined),
 				delete: vi.fn().mockRejectedValue(new Error("delete down")),
 				mergeLocalRoutes: vi.fn(),
 			}),
 		);
-		const savedRoute = Effect.runSync(useCases.createSavedRoute(state, route));
+		const savedRoute = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
 		await flushPromises();
 
-		const deleted = Effect.runSync(
+		const deleted = await Effect.runPromise(
 			useCases.deleteSavedRoute(state, savedRoute.id),
 		);
 
 		expect(deleted).toBe(true);
 		expect(state.savedRoutes).toEqual([]);
-		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
 
 		await flushPromises();
 

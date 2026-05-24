@@ -136,7 +136,7 @@
 		saveError = null;
 
 		try {
-			const savedCopy = addSavedRoute(route);
+			const savedCopy = await addSavedRoute(route);
 			await goto(`/?savedRoute=${savedCopy.id}`);
 		} catch (error) {
 			saveError =

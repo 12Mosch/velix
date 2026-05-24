@@ -453,9 +453,7 @@ async function importGpxFile(name: string, contents: string) {
 }
 
 function readSavedRoutesFromStorage() {
-	return JSON.parse(
-		window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]",
-	) as SavedRoute[];
+	return savedRoutesState.savedRoutes as SavedRoute[];
 }
 
 async function waitForAutosavedRoutes(count = 1) {
@@ -726,11 +724,11 @@ function getRouteSourceFeatureKinds(sourceId: string) {
 }
 
 describe("+page.svelte", () => {
-	beforeEach(() => {
+	beforeEach(async () => {
 		window.localStorage.clear();
 		resetMapStylePreferenceForTests();
 		resetUnitPreferenceForTests();
-		resetSavedRoutesForTests();
+		await resetSavedRoutesForTests();
 		window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, "maptiler-outdoor");
 		window.history.replaceState({}, "", "/");
 		mockState.sources.clear();
@@ -1204,7 +1202,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("button", { name: "Save Draft" }))
 			.toBeInTheDocument();
-		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+		expect(readSavedRoutesFromStorage()).toEqual([]);
 	});
 
 	it("shows route summary skeletons while route generation is pending", async () => {
@@ -3480,8 +3478,8 @@ describe("+page.svelte", () => {
 			)
 			.toBeInTheDocument();
 
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", [
 			{
 				id: "remote-route",
 				createdAt: "2026-04-19T09:30:00.000Z",

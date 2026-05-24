@@ -127,7 +127,7 @@
 		const userId = clerkUserId;
 
 		untrack(() => {
-			savedRoutesState.setAuthUser(userId);
+			void savedRoutesState.setAuthUser(userId);
 		});
 	});
 
@@ -335,7 +335,7 @@
 		}
 
 		untrack(() => {
-			savedRoutesState.setRemoteSyncUnavailable(authError);
+			void savedRoutesState.setRemoteSyncUnavailable(authError);
 		});
 	});
 </script>

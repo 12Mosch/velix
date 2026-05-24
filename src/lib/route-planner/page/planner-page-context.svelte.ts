@@ -24,6 +24,7 @@ import {
 	initSavedRoutes,
 	isPlannedRoute,
 	savedRoutesState,
+	type SavedRoute,
 	upsertSavedRoute,
 } from "$lib/saved-routes.svelte";
 import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
@@ -252,6 +253,9 @@ export function createPlannerPageContext() {
 	>();
 
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+	let routeSaveRevision = 0;
+	let lastAutosavedRouteId: string | null = null;
+	let lastAutosavedRevision: number | null = null;
 	let browserWindow: Window | null = null;
 	let detachRouteEditKeyboardListener = () => {};
 	const completionController = createPlannerCompletionController(
@@ -936,7 +940,7 @@ export function createPlannerPageContext() {
 		}
 
 		savedRoutesState.savedRoutes;
-		restorePendingSavedRoute();
+		void restorePendingSavedRoute();
 	});
 
 	$effect(() => {
@@ -971,8 +975,11 @@ export function createPlannerPageContext() {
 		clientFetch = nextWindow.fetch.bind(nextWindow);
 		initUnitPreference();
 		resetSpatialConstraintDefaults();
-		initSavedRoutes();
-		restoreSavedRouteFromLocation(nextWindow.location);
+		void initSavedRoutes()
+			.then(() => restoreSavedRouteFromLocation(nextWindow.location))
+			.catch((error) => {
+				console.error("Failed to initialize saved routes.", error);
+			});
 		const handleRouteEditKeydown = (event: KeyboardEvent) => {
 			if (!isRouteEditKeyboardShortcutAllowed(event)) {
 				return;
@@ -1293,7 +1300,12 @@ export function createPlannerPageContext() {
 		activeProfileIndex = null;
 		chartScrubPointerId = null;
 		clearRouteEditHistory();
+		bumpRouteSaveRevision();
 		scheduleActiveRouteAutosave();
+	}
+
+	function bumpRouteSaveRevision() {
+		routeSaveRevision += 1;
 	}
 
 	function markPlannerEdited() {
@@ -1308,6 +1320,7 @@ export function createPlannerPageContext() {
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
 		pendingSavedRouteId = null;
+		bumpRouteSaveRevision();
 	}
 
 	function cancelAutosaveTimer() {
@@ -1348,28 +1361,47 @@ export function createPlannerPageContext() {
 		};
 	}
 
-	function saveActiveRouteDraft() {
+	async function saveActiveRouteDraft(
+		options: {
+			force?: boolean;
+			source?: "autosave" | "explicit" | "share";
+		} = {},
+	) {
 		cancelAutosaveTimer();
+		const routeId = plannerDraftRouteId ?? activeSavedRouteId;
+
+		if (
+			!options.force &&
+			options.source === "autosave" &&
+			routeId === lastAutosavedRouteId &&
+			routeSaveRevision === lastAutosavedRevision
+		) {
+			return null;
+		}
+
 		const routeForSaving = getActiveRouteForSaving();
 
 		if (!routeForSaving) {
 			return null;
 		}
 
-		const savedRoute = upsertSavedRoute(
+		const savedRoute = await upsertSavedRoute(
 			routeForSaving,
 			plannerDraftRouteId ?? activeSavedRouteId ?? undefined,
+			{ source: options.source },
 		);
 		plannerDraftRouteId = savedRoute.id;
 		activeSavedRouteId = savedRoute.id;
 		isActiveRouteSaved = true;
+		lastAutosavedRouteId = savedRoute.id;
+		lastAutosavedRevision = routeSaveRevision;
 		return savedRoute;
 	}
 
 	function scheduleActiveRouteAutosave() {
 		cancelAutosaveTimer();
 		autosaveTimer = setTimeout(() => {
-			saveActiveRouteDraft();
+			void saveActiveRouteDraft({ source: "autosave" });
 		}, autosaveDebounceMs);
 	}
 
@@ -1424,6 +1456,7 @@ export function createPlannerPageContext() {
 		routeRequestError = preservedRouteRequestError;
 		routeImportError = null;
 		routeExportError = null;
+		bumpRouteSaveRevision();
 		scheduleActiveRouteAutosave();
 	}
 
@@ -1578,7 +1611,7 @@ export function createPlannerPageContext() {
 		markPlannerEdited();
 	}
 
-	function restoreSavedRouteFromLocation(location: Location) {
+	async function restoreSavedRouteFromLocation(location: Location) {
 		const savedRouteId = new URLSearchParams(location.search).get("savedRoute");
 
 		if (!savedRouteId) {
@@ -1586,7 +1619,7 @@ export function createPlannerPageContext() {
 		}
 
 		fitInitialSavedRouteBounds = true;
-		const savedRoute = getSavedRouteById(savedRouteId);
+		const savedRoute = await getSavedRouteById(savedRouteId);
 
 		if (!savedRoute) {
 			pendingSavedRouteId = savedRouteId;
@@ -1596,12 +1629,12 @@ export function createPlannerPageContext() {
 		restoreSavedRoute(savedRoute);
 	}
 
-	function restorePendingSavedRoute() {
+	async function restorePendingSavedRoute() {
 		if (!pendingSavedRouteId) {
 			return;
 		}
 
-		const savedRoute = getSavedRouteById(pendingSavedRouteId);
+		const savedRoute = await getSavedRouteById(pendingSavedRouteId);
 
 		if (!savedRoute) {
 			return;
@@ -1611,9 +1644,7 @@ export function createPlannerPageContext() {
 		pendingSavedRouteId = null;
 	}
 
-	function restoreSavedRoute(
-		savedRoute: NonNullable<ReturnType<typeof getSavedRouteById>>,
-	) {
+	function restoreSavedRoute(savedRoute: SavedRoute) {
 		if (!isPlannedRoute(savedRoute.route)) {
 			return;
 		}
@@ -2588,6 +2619,7 @@ export function createPlannerPageContext() {
 			syncStopsFromRoute(nextSelectedRoute);
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
+			bumpRouteSaveRevision();
 			scheduleActiveRouteAutosave();
 			return true;
 		} catch (error) {
@@ -2745,6 +2777,7 @@ export function createPlannerPageContext() {
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
 			clearRouteEditHistory();
+			bumpRouteSaveRevision();
 			scheduleActiveRouteAutosave();
 		} catch (error) {
 			console.error("Failed to generate route", error);
@@ -2759,7 +2792,7 @@ export function createPlannerPageContext() {
 		}
 	}
 
-	function handleSaveDraft() {
+	async function handleSaveDraft() {
 		if (!activeRoute) {
 			return;
 		}
@@ -2767,7 +2800,7 @@ export function createPlannerPageContext() {
 		if (isActiveRouteSaved && activeSavedRouteId) {
 			const deletedRouteId = activeSavedRouteId;
 			cancelAutosaveTimer();
-			deleteSavedRoute(deletedRouteId);
+			await deleteSavedRoute(deletedRouteId);
 			if (plannerDraftRouteId === deletedRouteId) {
 				plannerDraftRouteId = null;
 			}
@@ -2776,7 +2809,10 @@ export function createPlannerPageContext() {
 			return;
 		}
 
-		const savedRoute = saveActiveRouteDraft();
+		const savedRoute = await saveActiveRouteDraft({
+			force: true,
+			source: "explicit",
+		});
 		if (!savedRoute) {
 			return;
 		}
@@ -2816,7 +2852,10 @@ export function createPlannerPageContext() {
 		isSharingRoute = true;
 
 		try {
-			const savedRoute = saveActiveRouteDraft();
+			const savedRoute = await saveActiveRouteDraft({
+				force: true,
+				source: "share",
+			});
 
 			if (!savedRoute) {
 				return;
@@ -2940,6 +2979,7 @@ export function createPlannerPageContext() {
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
 			clearRouteEditHistory();
+			bumpRouteSaveRevision();
 			scheduleActiveRouteAutosave();
 		} catch (error) {
 			console.error("Failed to import GPX", error);

@@ -52,7 +52,7 @@ describe("saved routes one-shot sync", () => {
 		const events: string[] = [];
 		const remoteRoutes = [{ ...savedRoute, id: "remote-route" }];
 		const state = createState({
-			applyRemoteRoutes: vi.fn(() => {
+			applyRemoteRoutes: vi.fn(async () => {
 				events.push("apply");
 			}),
 			runLocalMergeOnce: vi.fn(async () => {

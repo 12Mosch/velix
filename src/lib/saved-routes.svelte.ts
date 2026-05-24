@@ -1,6 +1,7 @@
 import type { PlannedRoute } from "$lib/route-planning";
 import {
 	createSavedRoutesRepository,
+	type SavedRouteScope,
 	SYNCED_MIGRATIONS_STORAGE_KEY,
 } from "$lib/saved-routes/saved-routes-repository";
 import {
@@ -45,18 +46,20 @@ class SavedRoutesState {
 	authUserId = $state<string | null>(null);
 	remoteReady = $state(false);
 	syncError = $state<string | null>(null);
+	localRoutesReady = $state(false);
+	localSaveError = $state<string | null>(null);
 	pendingRemoteRouteIds = $state<Set<string>>(new Set());
 
-	initSavedRoutes(): SavedRoute[] {
-		return Effect.runSync(savedRoutesUseCases.initSavedRoutes(this));
+	initSavedRoutes(): Promise<SavedRoute[]> {
+		return Effect.runPromise(savedRoutesUseCases.initSavedRoutes(this));
 	}
 
-	setAuthUser(userId: string | null | undefined) {
-		Effect.runSync(savedRoutesUseCases.setAuthUser(this, userId));
+	async setAuthUser(userId: string | null | undefined) {
+		await Effect.runPromise(savedRoutesUseCases.setAuthUser(this, userId));
 	}
 
-	applyRemoteRoutes(userId: string, routes: unknown[]) {
-		Effect.runSync(
+	async applyRemoteRoutes(userId: string, routes: unknown[]) {
+		await Effect.runPromise(
 			savedRoutesUseCases.applyRemoteSavedRoutes(this, userId, routes),
 		);
 	}
@@ -65,8 +68,10 @@ class SavedRoutesState {
 		Effect.runSync(savedRoutesUseCases.setRemoteRepository(adapter));
 	}
 
-	setRemoteSyncUnavailable(message: string) {
-		Effect.runSync(savedRoutesUseCases.setRemoteSyncUnavailable(this, message));
+	async setRemoteSyncUnavailable(message: string) {
+		await Effect.runPromise(
+			savedRoutesUseCases.setRemoteSyncUnavailable(this, message),
+		);
 	}
 
 	async runLocalMergeOnce(userId: string) {
@@ -75,26 +80,30 @@ class SavedRoutesState {
 		);
 	}
 
-	addSavedRoute(route: PlannedRoute): SavedRoute {
-		return Effect.runSync(savedRoutesUseCases.createSavedRoute(this, route));
+	addSavedRoute(route: PlannedRoute): Promise<SavedRoute> {
+		return Effect.runPromise(savedRoutesUseCases.createSavedRoute(this, route));
 	}
 
-	upsertSavedRoute(route: PlannedRoute, id?: string): SavedRoute {
-		return Effect.runSync(
-			savedRoutesUseCases.upsertSavedRoute(this, route, id),
+	upsertSavedRoute(
+		route: PlannedRoute,
+		id?: string,
+		options?: { source?: "autosave" | "explicit" | "share" },
+	): Promise<SavedRoute> {
+		return Effect.runPromise(
+			savedRoutesUseCases.upsertSavedRoute(this, route, id, options),
 		);
 	}
 
-	getSavedRouteById(id: string | null | undefined): SavedRoute | null {
-		return Effect.runSync(savedRoutesUseCases.getSavedRouteById(this, id));
+	getSavedRouteById(id: string | null | undefined): Promise<SavedRoute | null> {
+		return Effect.runPromise(savedRoutesUseCases.getSavedRouteById(this, id));
 	}
 
-	deleteSavedRoute(id: string): boolean {
-		return Effect.runSync(savedRoutesUseCases.deleteSavedRoute(this, id));
+	deleteSavedRoute(id: string): Promise<boolean> {
+		return Effect.runPromise(savedRoutesUseCases.deleteSavedRoute(this, id));
 	}
 
-	resetSavedRoutesForTests() {
-		Effect.runSync(savedRoutesUseCases.reset(this));
+	resetSavedRoutesForTests(): Promise<void> {
+		return Effect.runPromise(savedRoutesUseCases.reset(this));
 	}
 }
 
@@ -108,8 +117,12 @@ export function addSavedRoute(route: PlannedRoute) {
 	return savedRoutesState.addSavedRoute(route);
 }
 
-export function upsertSavedRoute(route: PlannedRoute, id?: string) {
-	return savedRoutesState.upsertSavedRoute(route, id);
+export function upsertSavedRoute(
+	route: PlannedRoute,
+	id?: string,
+	options?: { source?: "autosave" | "explicit" | "share" },
+) {
+	return savedRoutesState.upsertSavedRoute(route, id, options);
 }
 
 export function getSavedRouteById(id: string | null | undefined) {
@@ -121,5 +134,36 @@ export function deleteSavedRoute(id: string) {
 }
 
 export function resetSavedRoutesForTests() {
-	savedRoutesState.resetSavedRoutesForTests();
+	return savedRoutesState.resetSavedRoutesForTests();
+}
+
+function getTestSavedRouteScope(
+	options: { userId?: string } = {},
+): SavedRouteScope {
+	return options.userId
+		? { kind: "user", userId: options.userId }
+		: { kind: "anonymous" };
+}
+
+export async function seedSavedRoutesForTests(
+	routes: SavedRoute[],
+	options: { userId?: string } = {},
+) {
+	const repository = createSavedRoutesRepository(createBrowserStorage());
+	await repository.init();
+	await repository.replaceRoutes(getTestSavedRouteScope(options), routes);
+	savedRoutesState.initialized = false;
+	await savedRoutesState.initSavedRoutes();
+}
+
+export async function readSavedRoutesForTests(
+	options: { userId?: string } = {},
+) {
+	const repository = createSavedRoutesRepository(createBrowserStorage());
+	await repository.init();
+	return await repository.readRoutes(getTestSavedRouteScope(options));
+}
+
+export async function clearSavedRoutesForTests() {
+	await resetSavedRoutesForTests();
 }

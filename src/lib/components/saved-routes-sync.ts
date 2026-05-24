@@ -19,7 +19,7 @@ export type SavedRoutesSyncState = {
 	applyRemoteRoutes: (
 		userId: string,
 		routes: SavedRoutesRemoteSnapshot,
-	) => void;
+	) => Promise<void>;
 	runLocalMergeOnce: (userId: string) => Promise<void>;
 	syncError: string | null;
 };
@@ -100,7 +100,7 @@ export async function syncSavedRoutesOnce({
 			return;
 		}
 
-		state.applyRemoteRoutes(userId, remoteRoutes);
+		await state.applyRemoteRoutes(userId, remoteRoutes);
 	} catch (error) {
 		if (getCurrentRequestId() !== requestId) {
 			return;
