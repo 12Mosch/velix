@@ -1088,6 +1088,15 @@ describe("calculateRouteGradientMetrics", () => {
 			0,
 			elevationMeters,
 		]) as PlannedRoute["coordinates"];
+	const coordinatesWithStep = (
+		elevations: number[],
+		longitudeStep: number,
+	): PlannedRoute["coordinates"] =>
+		elevations.map((elevationMeters, index) => [
+			index * longitudeStep,
+			0,
+			elevationMeters,
+		]) as PlannedRoute["coordinates"];
 
 	it("calculates average gradient from total ascent and route distance", () => {
 		const metrics = calculateRouteGradientMetrics(
@@ -1113,6 +1122,37 @@ describe("calculateRouteGradientMetrics", () => {
 		expect(metrics.maximumGradientPercent).not.toBeNull();
 		expect(metrics.maximumGradientPercent).toBeGreaterThan(0);
 		expect(metrics.maximumGradientPercent).toBeLessThan(50);
+	});
+
+	it("ignores uphill spikes shorter than the minimum gradient window", () => {
+		const metrics = calculateRouteGradientMetrics(
+			routeWithMetrics({
+				distanceMeters: 120,
+				ascendMeters: 50,
+				coordinates: [
+					[0, 0, 0],
+					[0.00089, 0, 50],
+					[0.00091, 0, 1],
+				],
+			}),
+		);
+
+		expect(metrics.maximumGradientPercent).not.toBeNull();
+		expect(metrics.maximumGradientPercent).toBeLessThan(2);
+	});
+
+	it("handles long dense routes without changing flat-route maximum gradients", () => {
+		const elevations = Array.from({ length: 8_000 }, () => 250);
+
+		const metrics = calculateRouteGradientMetrics(
+			routeWithMetrics({
+				distanceMeters: 8_000 * 50,
+				ascendMeters: 0,
+				coordinates: coordinatesWithStep(elevations, 0.00045),
+			}),
+		);
+
+		expect(metrics.maximumGradientPercent).toBeNull();
 	});
 
 	it("returns null maximum gradient for flat or downhill profiles", () => {

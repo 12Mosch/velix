@@ -190,7 +190,9 @@ export function calculateRouteGradientMetrics(
 
 		if (!start) continue;
 
-		endIndex = startIndex + 1;
+		if (endIndex <= startIndex) {
+			endIndex = startIndex + 1;
+		}
 
 		while (endIndex < smoothedPoints.length) {
 			const end = smoothedPoints[endIndex];
@@ -198,20 +200,32 @@ export function calculateRouteGradientMetrics(
 			if (!end) break;
 
 			const distanceMeters = end.distanceMeters - start.distanceMeters;
-			const elevationGainMeters = end.elevationMeters - start.elevationMeters;
 
-			if (
-				distanceMeters >= gradientAnalysisMinWindowMeters &&
-				elevationGainMeters > 0
-			) {
-				const gradientPercent = (elevationGainMeters / distanceMeters) * 100;
-				maximumGradientPercent =
-					maximumGradientPercent === null
-						? gradientPercent
-						: Math.max(maximumGradientPercent, gradientPercent);
+			if (distanceMeters >= gradientAnalysisMinWindowMeters) {
+				break;
 			}
 
 			endIndex += 1;
+		}
+
+		const end = smoothedPoints[endIndex];
+
+		if (!end) {
+			break;
+		}
+
+		const distanceMeters = end.distanceMeters - start.distanceMeters;
+		const elevationGainMeters = end.elevationMeters - start.elevationMeters;
+
+		if (
+			distanceMeters >= gradientAnalysisMinWindowMeters &&
+			elevationGainMeters > 0
+		) {
+			const gradientPercent = (elevationGainMeters / distanceMeters) * 100;
+			maximumGradientPercent =
+				maximumGradientPercent === null
+					? gradientPercent
+					: Math.max(maximumGradientPercent, gradientPercent);
 		}
 	}
 
