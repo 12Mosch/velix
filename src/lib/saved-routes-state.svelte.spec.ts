@@ -4,8 +4,9 @@ import type { PlannedRoute } from "$lib/route-planning";
 import {
 	addSavedRoute,
 	deleteSavedRoute,
+	readSavedRoutesForTests,
 	resetSavedRoutesForTests,
-	SAVED_ROUTES_STORAGE_KEY,
+	seedSavedRoutesForTests,
 	savedRoutesState,
 	type SavedRoutesRemoteAdapter,
 	upsertSavedRoute,
@@ -43,68 +44,56 @@ const savedRoute: SavedRoute = {
 	route,
 };
 
-function userCacheKey(userId: string) {
-	return `velix.savedRoutes.synced.${userId}`;
-}
-
 async function flushPromises() {
 	await Promise.resolve();
 	await Promise.resolve();
+	await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe("savedRoutesState", () => {
-	beforeEach(() => {
+	beforeEach(async () => {
 		window.localStorage.clear();
-		resetSavedRoutesForTests();
+		await resetSavedRoutesForTests();
 	});
 
-	it("keeps guest save and delete in anonymous localStorage", () => {
-		const saved = addSavedRoute(route);
+	it("keeps guest save and delete in anonymous IndexedDB", async () => {
+		const saved = await addSavedRoute(route);
 
-		expect(
-			JSON.parse(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]"),
-		).toEqual([saved]);
+		expect(await readSavedRoutesForTests()).toEqual([saved]);
 
-		expect(deleteSavedRoute(saved.id)).toBe(true);
-		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+		expect(await deleteSavedRoute(saved.id)).toBe(true);
+		expect(await readSavedRoutesForTests()).toEqual([]);
 	});
 
-	it("upsertSavedRoute creates a saved route when no ID is supplied", () => {
-		const saved = upsertSavedRoute(route);
+	it("upsertSavedRoute creates a saved route when no ID is supplied", async () => {
+		const saved = await upsertSavedRoute(route);
 
 		expect(savedRoutesState.savedRoutes).toEqual([saved]);
-		expect(
-			JSON.parse(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]"),
-		).toEqual([saved]);
+		expect(await readSavedRoutesForTests()).toEqual([saved]);
 	});
 
-	it("upsertSavedRoute updates an existing saved route by ID without adding a duplicate", () => {
-		const saved = upsertSavedRoute(route);
+	it("upsertSavedRoute updates an existing saved route by ID without adding a duplicate", async () => {
+		const saved = await upsertSavedRoute(route);
 		const updatedRoute = {
 			...route,
 			destinationLabel: "Garmisch-Partenkirchen, Germany",
 			distanceMeters: 81234,
 		};
 
-		const updatedSaved = upsertSavedRoute(updatedRoute, saved.id);
+		const updatedSaved = await upsertSavedRoute(updatedRoute, saved.id);
 
 		expect(savedRoutesState.savedRoutes).toHaveLength(1);
 		expect(savedRoutesState.savedRoutes[0]).toEqual(updatedSaved);
 		expect(savedRoutesState.savedRoutes[0]?.route.destinationLabel).toBe(
 			"Garmisch-Partenkirchen, Germany",
 		);
-		expect(
-			JSON.parse(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY) ?? "[]"),
-		).toEqual([updatedSaved]);
+		expect(await readSavedRoutesForTests()).toEqual([updatedSaved]);
 	});
 
-	it("upsertSavedRoute preserves the existing id and createdAt when updating", () => {
-		window.localStorage.setItem(
-			SAVED_ROUTES_STORAGE_KEY,
-			JSON.stringify([savedRoute]),
-		);
+	it("upsertSavedRoute preserves the existing id and createdAt when updating", async () => {
+		await seedSavedRoutesForTests([savedRoute]);
 
-		const updatedSaved = upsertSavedRoute(
+		const updatedSaved = await upsertSavedRoute(
 			{
 				...route,
 				distanceMeters: 71234,
@@ -117,29 +106,26 @@ describe("savedRoutesState", () => {
 		expect(updatedSaved.route.distanceMeters).toBe(71234);
 	});
 
-	it("replaces visible signed-in routes from remote snapshots and writes user cache", () => {
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [
+	it("replaces visible signed-in routes from remote snapshots and writes user cache", async () => {
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", [
 			serializeSavedRouteForRemote(savedRoute),
 		]);
 
 		expect(savedRoutesState.savedRoutes).toEqual([savedRoute]);
-		expect(
-			JSON.parse(window.localStorage.getItem(userCacheKey("user_1")) ?? "[]"),
-		).toEqual([savedRoute]);
+		expect(await readSavedRoutesForTests({ userId: "user_1" })).toEqual([
+			savedRoute,
+		]);
 	});
 
-	it("switches back to anonymous local routes on sign-out", () => {
-		window.localStorage.setItem(
-			SAVED_ROUTES_STORAGE_KEY,
-			JSON.stringify([{ ...savedRoute, id: "anonymous-route" }]),
-		);
+	it("switches back to anonymous local routes on sign-out", async () => {
+		await seedSavedRoutesForTests([{ ...savedRoute, id: "anonymous-route" }]);
 
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", [
 			serializeSavedRouteForRemote(savedRoute),
 		]);
-		savedRoutesState.setAuthUser(null);
+		await savedRoutesState.setAuthUser(null);
 
 		expect(savedRoutesState.savedRoutes.map((entry) => entry.id)).toEqual([
 			"anonymous-route",
@@ -147,10 +133,7 @@ describe("savedRoutesState", () => {
 	});
 
 	it("auto-merges anonymous routes once per user and dedupes by route id", async () => {
-		window.localStorage.setItem(
-			SAVED_ROUTES_STORAGE_KEY,
-			JSON.stringify([savedRoute, savedRoute]),
-		);
+		await seedSavedRoutesForTests([savedRoute, savedRoute]);
 		const mergeLocalRoutes = vi.fn().mockResolvedValue({
 			inserted: 1,
 			skipped: 0,
@@ -158,7 +141,7 @@ describe("savedRoutesState", () => {
 			duplicate: 0,
 		});
 
-		savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.setAuthUser("user_1");
 		savedRoutesState.setRemoteAdapter({
 			save: vi.fn(),
 			delete: vi.fn(),
@@ -174,14 +157,11 @@ describe("savedRoutesState", () => {
 		]);
 	});
 
-	it("falls back to anonymous routes when signed-in remote sync is unavailable", () => {
-		window.localStorage.setItem(
-			SAVED_ROUTES_STORAGE_KEY,
-			JSON.stringify([savedRoute]),
-		);
+	it("falls back to anonymous routes when signed-in remote sync is unavailable", async () => {
+		await seedSavedRoutesForTests([savedRoute]);
 
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.setRemoteSyncUnavailable(
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.setRemoteSyncUnavailable(
 			"Could not authenticate synced routes.",
 		);
 
@@ -190,17 +170,14 @@ describe("savedRoutesState", () => {
 			"Could not authenticate synced routes.",
 		);
 		expect(savedRoutesState.savedRoutes).toEqual([savedRoute]);
-		expect(
-			JSON.parse(window.localStorage.getItem(userCacheKey("user_1")) ?? "[]"),
-		).toEqual([savedRoute]);
-		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
+		expect(await readSavedRoutesForTests({ userId: "user_1" })).toEqual([
+			savedRoute,
+		]);
+		expect(await readSavedRoutesForTests()).toEqual([]);
 	});
 
 	it("reuses an in-flight anonymous route merge for concurrent calls", async () => {
-		window.localStorage.setItem(
-			SAVED_ROUTES_STORAGE_KEY,
-			JSON.stringify([savedRoute]),
-		);
+		await seedSavedRoutesForTests([savedRoute]);
 		let resolveMerge: () => void = () => {};
 		const mergeLocalRoutes = vi.fn(
 			() =>
@@ -220,7 +197,7 @@ describe("savedRoutesState", () => {
 				}),
 		);
 
-		savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.setAuthUser("user_1");
 		savedRoutesState.setRemoteAdapter({
 			save: vi.fn(),
 			delete: vi.fn(),
@@ -230,7 +207,9 @@ describe("savedRoutesState", () => {
 		const firstMerge = savedRoutesState.runLocalMergeOnce("user_1");
 		const secondMerge = savedRoutesState.runLocalMergeOnce("user_1");
 
-		expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => {
+			expect(mergeLocalRoutes).toHaveBeenCalledTimes(1);
+		});
 		resolveMerge();
 		await Promise.all([firstMerge, secondMerge]);
 
@@ -244,9 +223,9 @@ describe("savedRoutesState", () => {
 			mergeLocalRoutes: vi.fn(),
 		};
 
-		savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.setAuthUser("user_1");
 		savedRoutesState.setRemoteAdapter(adapter);
-		const saved = addSavedRoute(route);
+		const saved = await addSavedRoute(route);
 		await flushPromises();
 
 		expect(savedRoutesState.savedRoutes.map((entry) => entry.id)).toContain(
@@ -263,13 +242,13 @@ describe("savedRoutesState", () => {
 			mergeLocalRoutes: vi.fn(),
 		};
 
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", [
 			serializeSavedRouteForRemote(savedRoute),
 		]);
 		savedRoutesState.setRemoteAdapter(adapter);
 
-		const updatedSaved = upsertSavedRoute(
+		const updatedSaved = await upsertSavedRoute(
 			{
 				...route,
 				destinationLabel: "Garmisch-Partenkirchen, Germany",
@@ -292,13 +271,13 @@ describe("savedRoutesState", () => {
 			mergeLocalRoutes: vi.fn(),
 		};
 
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", [
 			serializeSavedRouteForRemote(savedRoute),
 		]);
 		savedRoutesState.setRemoteAdapter(adapter);
 
-		upsertSavedRoute(
+		await upsertSavedRoute(
 			{
 				...route,
 				destinationLabel: "Garmisch-Partenkirchen, Germany",
@@ -322,13 +301,13 @@ describe("savedRoutesState", () => {
 			mergeLocalRoutes: vi.fn(),
 		};
 
-		savedRoutesState.setAuthUser("user_1");
-		savedRoutesState.applyRemoteRoutes("user_1", [
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", [
 			serializeSavedRouteForRemote(savedRoute),
 		]);
 		savedRoutesState.setRemoteAdapter(adapter);
 
-		expect(deleteSavedRoute(savedRoute.id)).toBe(true);
+		expect(await deleteSavedRoute(savedRoute.id)).toBe(true);
 		await flushPromises();
 
 		expect(savedRoutesState.savedRoutes).toEqual([]);

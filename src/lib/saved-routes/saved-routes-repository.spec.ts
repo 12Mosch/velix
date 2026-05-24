@@ -4,7 +4,6 @@ import type { PlannedRoute } from "$lib/route-planning";
 import {
 	createSavedRoutesRepository,
 	dedupeSavedRoutesById,
-	getSyncedRoutesStorageKey,
 	SYNCED_MIGRATIONS_STORAGE_KEY,
 } from "$lib/saved-routes/saved-routes-repository";
 import {
@@ -54,7 +53,7 @@ function createMemoryStorage(): BrowserStorage {
 }
 
 describe("saved routes repository", () => {
-	it("reads and writes anonymous and user-scoped route caches", () => {
+	it("reads and writes anonymous and user-scoped route caches", async () => {
 		const storage = createMemoryStorage();
 		const repository = createSavedRoutesRepository(storage);
 		const savedRoute = buildSavedRoute(route, {
@@ -62,44 +61,61 @@ describe("saved routes repository", () => {
 			createdAt: "2026-04-19T09:30:00.000Z",
 		});
 
-		repository.writeAnonymousRoutes([savedRoute]);
-		repository.writeUserRoutes("user_1", [savedRoute]);
+		await repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]);
+		await repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
+			savedRoute,
+		]);
 
-		expect(repository.readAnonymousRoutes()).toEqual([savedRoute]);
-		expect(repository.readUserRoutes("user_1")).toEqual([savedRoute]);
-		expect(storage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeTruthy();
-		expect(storage.getItem(getSyncedRoutesStorageKey("user_1"))).toBeTruthy();
-	});
-
-	it("removes caches when writing an empty route list", () => {
-		const storage = createMemoryStorage();
-		const repository = createSavedRoutesRepository(storage);
-		const savedRoute = buildSavedRoute(route);
-
-		repository.writeAnonymousRoutes([savedRoute]);
-		repository.writeUserRoutes("user_1", [savedRoute]);
-		repository.writeAnonymousRoutes([]);
-		repository.writeUserRoutes("user_1", []);
-
+		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([
+			savedRoute,
+		]);
+		expect(
+			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+		).toEqual([savedRoute]);
 		expect(storage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
-		expect(storage.getItem(getSyncedRoutesStorageKey("user_1"))).toBeNull();
 	});
 
-	it("clears anonymous, migration, and all user-scoped route caches", () => {
+	it("removes scoped rows when replacing with an empty route list", async () => {
 		const storage = createMemoryStorage();
 		const repository = createSavedRoutesRepository(storage);
 		const savedRoute = buildSavedRoute(route);
 
-		repository.writeAnonymousRoutes([savedRoute]);
-		repository.writeUserRoutes("user_1", [savedRoute]);
-		repository.writeUserRoutes("user_2", [savedRoute]);
+		await repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]);
+		await repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
+			savedRoute,
+		]);
+		await repository.replaceRoutes({ kind: "anonymous" }, []);
+		await repository.replaceRoutes({ kind: "user", userId: "user_1" }, []);
+
+		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([]);
+		expect(
+			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+		).toEqual([]);
+	});
+
+	it("clears anonymous, migration, and all user-scoped route caches", async () => {
+		const storage = createMemoryStorage();
+		const repository = createSavedRoutesRepository(storage);
+		const savedRoute = buildSavedRoute(route);
+
+		await repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]);
+		await repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
+			savedRoute,
+		]);
+		await repository.replaceRoutes({ kind: "user", userId: "user_2" }, [
+			savedRoute,
+		]);
 		repository.writeMergedUserIds(new Set(["user_1"]));
 
-		repository.clear();
+		await repository.clear();
 
-		expect(repository.readAnonymousRoutes()).toEqual([]);
-		expect(repository.readUserRoutes("user_1")).toEqual([]);
-		expect(repository.readUserRoutes("user_2")).toEqual([]);
+		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([]);
+		expect(
+			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+		).toEqual([]);
+		expect(
+			await repository.readRoutes({ kind: "user", userId: "user_2" }),
+		).toEqual([]);
 		expect(repository.readMergedUserIds()).toEqual(new Set());
 	});
 

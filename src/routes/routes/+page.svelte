@@ -60,7 +60,7 @@
 
 	onMount(() => {
 		initUnitPreference();
-		initSavedRoutes();
+		void initSavedRoutes();
 	});
 
 	let exportError = $state<string | null>(null);
@@ -308,12 +308,12 @@
 		return true;
 	}
 
-	function handleDeleteSavedRoute(id: string) {
-		deleteSavedRoute(id);
+	async function handleDeleteSavedRoute(id: string) {
+		await deleteSavedRoute(id);
 	}
 
-	function handleDuplicateSavedRoute(route: PlannedRoute) {
-		addSavedRoute(route);
+	async function handleDuplicateSavedRoute(route: PlannedRoute) {
+		await addSavedRoute(route);
 	}
 
 	function handleExportSavedRoute(route: PlannedRoute) {

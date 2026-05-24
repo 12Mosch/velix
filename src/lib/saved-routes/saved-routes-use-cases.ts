@@ -1,5 +1,8 @@
 import type { PlannedRoute } from "$lib/route-planning";
-import type { SavedRoutesRepository } from "$lib/saved-routes/saved-routes-repository";
+import type {
+	SavedRouteScope,
+	SavedRoutesRepository,
+} from "$lib/saved-routes/saved-routes-repository";
 import { dedupeSavedRoutesById } from "$lib/saved-routes/saved-routes-repository";
 import {
 	buildSavedRoute,
@@ -31,27 +34,39 @@ export type SavedRoutesStateModel = {
 	authUserId: string | null;
 	remoteReady: boolean;
 	syncError: string | null;
+	localRoutesReady: boolean;
+	localSaveError: string | null;
 	pendingRemoteRouteIds: Set<string>;
 };
 
 export class SavedRoutesUseCases {
 	private remoteRepository: SavedRoutesRemoteRepository | null = null;
 	private readonly inFlightMerges = new Map<string, Promise<void>>();
+	private pendingRemoteSaves = new Map<string, SavedRoute>();
+	private remoteSaveFlushTimer: ReturnType<typeof setTimeout> | null = null;
 	private remoteSessionVersion = 0;
 
 	constructor(private readonly repository: SavedRoutesRepository) {}
 
 	initSavedRoutes(state: SavedRoutesStateModel): Effect.Effect<SavedRoute[]> {
-		return Effect.sync(() => {
+		return Effect.gen({ self: this }, function* () {
 			if (state.initialized) {
 				return state.savedRoutes;
 			}
 
+			yield* Effect.tryPromise({
+				try: () => this.repository.init(),
+				catch: (cause) => cause,
+			}).pipe(Effect.catch(() => Effect.void));
 			state.initialized = true;
+			state.localRoutesReady = true;
 			state.savedRoutes =
 				state.authStatus === "signedIn" && state.authUserId
-					? this.repository.readUserRoutes(state.authUserId)
-					: this.repository.readAnonymousRoutes();
+					? yield* this.readRoutesEffect({
+							kind: "user",
+							userId: state.authUserId,
+						})
+					: yield* this.readRoutesEffect({ kind: "anonymous" });
 
 			return state.savedRoutes;
 		});
@@ -81,7 +96,7 @@ export class SavedRoutesUseCases {
 				state.remoteReady = false;
 				state.pendingRemoteRouteIds = new Set();
 				yield* this.setRemoteRepository(null);
-				state.savedRoutes = this.repository.readAnonymousRoutes();
+				state.savedRoutes = yield* this.readRoutesEffect({ kind: "anonymous" });
 				state.syncError = null;
 				return;
 			}
@@ -89,7 +104,10 @@ export class SavedRoutesUseCases {
 			if (state.authUserId !== userId || state.authStatus !== "signedIn") {
 				this.bumpRemoteSession();
 				yield* this.setRemoteRepository(null);
-				state.savedRoutes = this.repository.readUserRoutes(userId);
+				state.savedRoutes = yield* this.readRoutesEffect({
+					kind: "user",
+					userId,
+				});
 				state.remoteReady = false;
 				state.pendingRemoteRouteIds = new Set();
 			}
@@ -105,7 +123,7 @@ export class SavedRoutesUseCases {
 		userId: string,
 		routes: unknown[],
 	): Effect.Effect<void> {
-		return Effect.sync(() => {
+		return Effect.gen({ self: this }, function* () {
 			if (state.authStatus !== "signedIn" || state.authUserId !== userId) {
 				return;
 			}
@@ -140,7 +158,11 @@ export class SavedRoutesUseCases {
 			state.savedRoutes = mergedSavedRoutes;
 			state.remoteReady = true;
 			state.syncError = null;
-			this.repository.writeUserRoutes(userId, mergedSavedRoutes);
+			yield* this.persistRoutesEffect(
+				state,
+				{ kind: "user", userId },
+				mergedSavedRoutes,
+			);
 		});
 	}
 
@@ -168,11 +190,17 @@ export class SavedRoutesUseCases {
 				state.authUserId &&
 				state.savedRoutes.length === 0
 			) {
-				const anonymousRoutes = this.repository.readAnonymousRoutes();
+				const anonymousRoutes = yield* this.readRoutesEffect({
+					kind: "anonymous",
+				});
 				if (anonymousRoutes.length > 0) {
 					state.savedRoutes = anonymousRoutes;
-					this.repository.writeUserRoutes(state.authUserId, anonymousRoutes);
-					this.repository.writeAnonymousRoutes([]);
+					yield* this.persistRoutesEffect(
+						state,
+						{ kind: "user", userId: state.authUserId },
+						anonymousRoutes,
+					);
+					yield* this.persistRoutesEffect(state, { kind: "anonymous" }, []);
 				}
 			}
 		});
@@ -205,7 +233,7 @@ export class SavedRoutesUseCases {
 				}
 
 				const localRoutes = dedupeSavedRoutesById(
-					this.repository.readAnonymousRoutes(),
+					yield* this.readRoutesEffect({ kind: "anonymous" }),
 				);
 				if (localRoutes.length === 0) {
 					migratedUserIds.add(userId);
@@ -275,8 +303,8 @@ export class SavedRoutesUseCases {
 			const savedRoute = buildSavedRoute(route);
 			state.savedRoutes = [savedRoute, ...state.savedRoutes];
 			state.syncError = null;
-			yield* this.persistSavedRoutesEffect(state);
-			yield* this.syncSavedRouteEffect(state, savedRoute);
+			yield* this.persistRouteEffect(state, savedRoute);
+			yield* this.syncSavedRouteEffect(state, savedRoute, "soon");
 
 			return savedRoute;
 		});
@@ -286,6 +314,7 @@ export class SavedRoutesUseCases {
 		state: SavedRoutesStateModel,
 		route: PlannedRoute,
 		id?: string,
+		options: { source?: "autosave" | "explicit" | "share" } = {},
 	): Effect.Effect<SavedRoute> {
 		return Effect.gen({ self: this }, function* () {
 			yield* this.initSavedRoutes(state);
@@ -297,6 +326,7 @@ export class SavedRoutesUseCases {
 			const savedRoute = buildSavedRoute(route, {
 				id: existingRoute?.id,
 				createdAt: existingRoute?.createdAt,
+				cloneRoute: false,
 			});
 
 			state.savedRoutes = existingRoute
@@ -305,8 +335,12 @@ export class SavedRoutesUseCases {
 					)
 				: [savedRoute, ...state.savedRoutes];
 			state.syncError = null;
-			yield* this.persistSavedRoutesEffect(state);
-			yield* this.syncSavedRouteEffect(state, savedRoute);
+			yield* this.persistRouteEffect(state, savedRoute);
+			yield* this.syncSavedRouteEffect(
+				state,
+				savedRoute,
+				options.source === "autosave" ? "deferred" : "soon",
+			);
 
 			return savedRoute;
 		});
@@ -346,7 +380,7 @@ export class SavedRoutesUseCases {
 
 			state.savedRoutes = nextSavedRoutes;
 			state.syncError = null;
-			yield* this.persistSavedRoutesEffect(state);
+			yield* this.deleteLocalRouteEffect(state, id);
 			yield* this.deleteRemoteSavedRouteEffect(state, id);
 
 			return true;
@@ -354,7 +388,7 @@ export class SavedRoutesUseCases {
 	}
 
 	reset(state: SavedRoutesStateModel): Effect.Effect<void> {
-		return Effect.sync(() => {
+		return Effect.gen({ self: this }, function* () {
 			this.bumpRemoteSession();
 			state.initialized = false;
 			state.savedRoutes = [];
@@ -362,24 +396,108 @@ export class SavedRoutesUseCases {
 			state.authUserId = null;
 			state.remoteReady = false;
 			state.syncError = null;
+			state.localRoutesReady = false;
+			state.localSaveError = null;
 			state.pendingRemoteRouteIds = new Set();
 			this.remoteRepository = null;
 			this.inFlightMerges.clear();
-			this.repository.clear();
+			this.pendingRemoteSaves.clear();
+			if (this.remoteSaveFlushTimer) {
+				clearTimeout(this.remoteSaveFlushTimer);
+				this.remoteSaveFlushTimer = null;
+			}
+			yield* Effect.tryPromise({
+				try: () => this.repository.clear(),
+				catch: (cause) => cause,
+			}).pipe(Effect.catch(() => Effect.void));
 		});
 	}
 
-	private persistSavedRoutesEffect(
-		state: SavedRoutesStateModel,
-	): Effect.Effect<void> {
-		return Effect.sync(() => {
-			if (state.authStatus === "signedIn" && state.authUserId) {
-				this.repository.writeUserRoutes(state.authUserId, state.savedRoutes);
-				return;
-			}
+	private getLocalScope(state: SavedRoutesStateModel): SavedRouteScope {
+		return state.authStatus === "signedIn" && state.authUserId
+			? { kind: "user", userId: state.authUserId }
+			: { kind: "anonymous" };
+	}
 
-			this.repository.writeAnonymousRoutes(state.savedRoutes);
-		});
+	private readRoutesEffect(
+		scope: SavedRouteScope,
+	): Effect.Effect<SavedRoute[]> {
+		return Effect.tryPromise({
+			try: () => this.repository.readRoutes(scope),
+			catch: (cause) => cause,
+		}).pipe(Effect.catch(() => Effect.succeed([])));
+	}
+
+	private persistRoutesEffect(
+		state: SavedRoutesStateModel,
+		scope: SavedRouteScope,
+		routes: SavedRoute[],
+	): Effect.Effect<void> {
+		return Effect.tryPromise({
+			try: () => this.repository.replaceRoutes(scope, routes),
+			catch: (cause) => cause,
+		}).pipe(
+			Effect.andThen(() =>
+				Effect.sync(() => {
+					state.localSaveError = null;
+				}),
+			),
+			Effect.catch((error) =>
+				Effect.sync(() => {
+					state.localSaveError = this.getLocalSaveErrorMessage(error);
+				}),
+			),
+		);
+	}
+
+	private persistRouteEffect(
+		state: SavedRoutesStateModel,
+		savedRoute: SavedRoute,
+	): Effect.Effect<void> {
+		const scope = this.getLocalScope(state);
+		return Effect.tryPromise({
+			try: () => this.repository.upsertRoute(scope, savedRoute),
+			catch: (cause) => cause,
+		}).pipe(
+			Effect.andThen(() =>
+				Effect.sync(() => {
+					state.localSaveError = null;
+				}),
+			),
+			Effect.catch((error) =>
+				Effect.sync(() => {
+					state.localSaveError = this.getLocalSaveErrorMessage(error);
+				}),
+			),
+		);
+	}
+
+	private deleteLocalRouteEffect(
+		state: SavedRoutesStateModel,
+		routeId: string,
+	): Effect.Effect<void> {
+		const scope = this.getLocalScope(state);
+		return Effect.tryPromise({
+			try: () => this.repository.deleteRoute(scope, routeId),
+			catch: (cause) => cause,
+		}).pipe(
+			Effect.andThen(() =>
+				Effect.sync(() => {
+					state.localSaveError = null;
+				}),
+			),
+			Effect.catch((error) =>
+				Effect.sync(() => {
+					state.localSaveError = this.getLocalSaveErrorMessage(error);
+				}),
+			),
+		);
+	}
+
+	private getLocalSaveErrorMessage(error: unknown) {
+		return error instanceof Error
+			? `Could not save route locally: ${error.message}`
+			: "Could not save route locally.";
 	}
 
 	private trackPendingRemoteRouteEffect(
@@ -419,18 +537,64 @@ export class SavedRoutesUseCases {
 	private syncSavedRouteEffect(
 		state: SavedRoutesStateModel,
 		savedRoute: SavedRoute,
+		flushMode: "deferred" | "soon" = "deferred",
 	): Effect.Effect<void> {
-		return Effect.gen({ self: this }, function* () {
+		return Effect.sync(() => {
 			if (state.authStatus !== "signedIn" || !this.remoteRepository) {
 				return;
 			}
 
-			const remoteRepository = this.remoteRepository;
 			const userId = state.authUserId;
 			const sessionVersion = this.remoteSessionVersion;
-			yield* this.trackPendingRemoteRouteEffect(state, savedRoute.id);
-			yield* this.forkBackgroundEffect(() =>
-				Effect.tryPromise({
+			state.pendingRemoteRouteIds = new Set([
+				...state.pendingRemoteRouteIds,
+				savedRoute.id,
+			]);
+			this.pendingRemoteSaves.set(savedRoute.id, savedRoute);
+			this.scheduleRemoteSaveFlush(state, userId, sessionVersion, flushMode);
+		});
+	}
+
+	private scheduleRemoteSaveFlush(
+		state: SavedRoutesStateModel,
+		userId: string | null,
+		sessionVersion: number,
+		flushMode: "deferred" | "soon",
+	) {
+		if (this.remoteSaveFlushTimer) {
+			clearTimeout(this.remoteSaveFlushTimer);
+		}
+
+		this.remoteSaveFlushTimer = setTimeout(
+			() => {
+				this.remoteSaveFlushTimer = null;
+				void Effect.runPromise(
+					this.flushRemoteSavesEffect(state, userId, sessionVersion),
+				);
+			},
+			flushMode === "soon" ? 0 : 1000,
+		);
+	}
+
+	private flushRemoteSavesEffect(
+		state: SavedRoutesStateModel,
+		userId: string | null,
+		sessionVersion: number,
+	): Effect.Effect<void> {
+		return Effect.gen({ self: this }, function* () {
+			const remoteRepository = this.remoteRepository;
+			if (
+				!remoteRepository ||
+				!this.isCurrentRemoteSession(state, userId, sessionVersion)
+			) {
+				return;
+			}
+
+			const pendingSaves = [...this.pendingRemoteSaves.values()];
+			this.pendingRemoteSaves.clear();
+
+			for (const savedRoute of pendingSaves) {
+				yield* Effect.tryPromise({
 					try: () =>
 						remoteRepository.save(serializeSavedRouteForRemote(savedRoute)),
 					catch: (cause) => cause,
@@ -457,8 +621,8 @@ export class SavedRoutesUseCases {
 								)
 							: Effect.void,
 					),
-				),
-			);
+				);
+			}
 		});
 	}
 
@@ -474,6 +638,7 @@ export class SavedRoutesUseCases {
 			const remoteRepository = this.remoteRepository;
 			const userId = state.authUserId;
 			const sessionVersion = this.remoteSessionVersion;
+			this.pendingRemoteSaves.delete(routeId);
 			yield* this.trackPendingRemoteRouteEffect(state, routeId);
 			yield* this.forkBackgroundEffect(() =>
 				Effect.tryPromise({
@@ -518,6 +683,11 @@ export class SavedRoutesUseCases {
 	private bumpRemoteSession() {
 		this.remoteSessionVersion += 1;
 		this.inFlightMerges.clear();
+		this.pendingRemoteSaves.clear();
+		if (this.remoteSaveFlushTimer) {
+			clearTimeout(this.remoteSaveFlushTimer);
+			this.remoteSaveFlushTimer = null;
+		}
 	}
 
 	private isCurrentRemoteSession(

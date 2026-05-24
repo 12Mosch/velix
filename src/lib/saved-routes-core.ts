@@ -333,6 +333,7 @@ export function cloneSavedRoute(savedRoute: SavedRoute): SavedRoute {
 export type BuildSavedRouteOptions = {
 	id?: string;
 	createdAt?: string;
+	cloneRoute?: boolean;
 };
 
 export function buildSavedRoute(
@@ -353,6 +354,6 @@ export function buildSavedRoute(
 	return {
 		id: routeId,
 		createdAt,
-		route: cloneRoute(route),
+		route: options.cloneRoute === false ? route : cloneRoute(route),
 	};
 }
