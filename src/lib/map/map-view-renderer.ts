@@ -429,9 +429,11 @@ export function syncRouteOverlays(
 	map: MapLibreMap,
 	routeOverlays: RouteMapOverlay[] | null,
 	renderedRouteOverlayIds: string[],
+	renderedRouteOverlayGeoJsonRefs: Map<string, FeatureCollection>,
 ) {
 	if (!routeOverlays || routeOverlays.length === 0) {
 		removeRouteOverlays(map, renderedRouteOverlayIds);
+		renderedRouteOverlayGeoJsonRefs.clear();
 		return [];
 	}
 
@@ -441,6 +443,7 @@ export function syncRouteOverlays(
 	for (const overlayId of renderedRouteOverlayIds) {
 		if (!nextOverlayIdSet.has(overlayId)) {
 			removeRouteOverlayById(map, overlayId);
+			renderedRouteOverlayGeoJsonRefs.delete(overlayId);
 		}
 	}
 
@@ -450,13 +453,20 @@ export function syncRouteOverlays(
 		) {
 			removeRouteOverlayById(map, overlay.id);
 			addRouteOverlay(map, overlay, index);
+			renderedRouteOverlayGeoJsonRefs.set(overlay.id, overlay.geoJson);
 			continue;
 		}
 
 		const existingSource = map.getSource(getRouteSourceId(overlay.id)) as
 			| GeoJSONSource
 			| undefined;
-		existingSource?.setData(overlay.geoJson);
+		if (
+			existingSource &&
+			renderedRouteOverlayGeoJsonRefs.get(overlay.id) !== overlay.geoJson
+		) {
+			existingSource.setData(overlay.geoJson);
+			renderedRouteOverlayGeoJsonRefs.set(overlay.id, overlay.geoJson);
+		}
 	}
 
 	return nextOverlayIds;

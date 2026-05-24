@@ -182,6 +182,27 @@ function createAlternativeRouteGeoJson(): FeatureCollection {
 	return geoJson;
 }
 
+function createAlternativeConstraintGeoJson(): FeatureCollection {
+	const geoJson = JSON.parse(
+		JSON.stringify(testConstraintGeoJson),
+	) as FeatureCollection;
+	const constraintFeature = geoJson.features[0];
+
+	if (constraintFeature?.geometry.type === "Polygon") {
+		constraintFeature.geometry.coordinates = [
+			[
+				[11.47, 47.17],
+				[11.63, 47.17],
+				[11.63, 47.29],
+				[11.47, 47.29],
+				[11.47, 47.17],
+			],
+		];
+	}
+
+	return geoJson;
+}
+
 function createWindRouteGeoJson(): FeatureCollection {
 	const geoJson = JSON.parse(
 		JSON.stringify(testRouteGeoJson),
@@ -1329,7 +1350,7 @@ describe("MapView", () => {
 		expect(mapInstance.fitBounds).toHaveBeenCalledTimes(1);
 	});
 
-	it("updates unchanged route overlay sources without recreating layers", async () => {
+	it("updates changed route overlay sources without recreating layers", async () => {
 		const view = render(MapView, {
 			routeOverlays: testRouteOverlays,
 		});
@@ -1354,6 +1375,70 @@ describe("MapView", () => {
 		expect(mapInstance.removeSource).not.toHaveBeenCalledWith(
 			"planned-route-route-0",
 		);
+	});
+
+	it("keeps same-reference route overlay sources without recreating layers", async () => {
+		const view = render(MapView, {
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		const source = mockState.sources.get("planned-route-route-0");
+		expect(source).toBeDefined();
+		source?.setData.mockClear();
+		const initialAddLayerCount = mapInstance.addLayer.mock.calls.length;
+
+		await view.rerender({
+			routeOverlays: [
+				{
+					...testRouteOverlays[0],
+				},
+			],
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(source?.setData).not.toHaveBeenCalled();
+		expect(mapInstance.addSource).toHaveBeenCalledTimes(1);
+		expect(mapInstance.addLayer).toHaveBeenCalledTimes(initialAddLayerCount);
+		expect(mapInstance.removeSource).not.toHaveBeenCalledWith(
+			"planned-route-route-0",
+		);
+	});
+
+	it("updates constraint overlays without resending unchanged route sources", async () => {
+		const view = render(MapView, {
+			routeOverlays: testRouteOverlays,
+			constraintOverlay: testConstraintGeoJson,
+		});
+
+		await expect
+			.poll(() => mockState.sources.has("planned-route-route-0"))
+			.toBe(true);
+		await expect
+			.poll(() => mockState.sources.has("route-constraint"))
+			.toBe(true);
+
+		const routeSource = mockState.sources.get("planned-route-route-0");
+		const constraintSource = mockState.sources.get("route-constraint");
+		expect(routeSource).toBeDefined();
+		expect(constraintSource).toBeDefined();
+		routeSource?.setData.mockClear();
+		const initialAddLayerCount = mapInstance.addLayer.mock.calls.length;
+		const nextConstraintOverlay = createAlternativeConstraintGeoJson();
+
+		await view.rerender({
+			routeOverlays: testRouteOverlays,
+			constraintOverlay: nextConstraintOverlay,
+		});
+
+		await expect
+			.poll(() => constraintSource?.setData.mock.calls.length)
+			.toBe(1);
+		expect(constraintSource?.setData).toHaveBeenCalledWith(
+			nextConstraintOverlay,
+		);
+		expect(routeSource?.setData).not.toHaveBeenCalled();
+		expect(mapInstance.addLayer).toHaveBeenCalledTimes(initialAddLayerCount);
 	});
 
 	it("emits route stop drag details and restores map panning", async () => {

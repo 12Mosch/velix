@@ -163,6 +163,7 @@
 	let resizeAnimationFrameId: number | null = null;
 	let resizeLoopUntil = 0;
 	let renderedRouteOverlayIds: string[] = [];
+	let renderedRouteOverlayGeoJsonRefs = new Map<string, FeatureCollection>();
 	let lastFocusedCurrentLocationKey: number | null = null;
 	let lastFocusedRouteCoordinateKey: number | null = null;
 
@@ -327,6 +328,7 @@
 		}
 
 		renderedRouteOverlayIds = [];
+		renderedRouteOverlayGeoJsonRefs.clear();
 		routeEditInteractions?.clearProjectionCache();
 	}
 
@@ -369,6 +371,7 @@
 			map,
 			routeOverlays,
 			renderedRouteOverlayIds,
+			renderedRouteOverlayGeoJsonRefs,
 		);
 		routeEditInteractions?.clearProjectionCache();
 	}
@@ -633,10 +636,37 @@
 			return;
 		}
 
-		ensureConstraintOverlay();
-		ensureRouteAvoidanceOverlay();
 		ensureRouteOverlays();
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		ensureConstraintOverlay();
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
+		ensureRouteAvoidanceOverlay();
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady) {
+			return;
+		}
+
 		ensureLockedSegmentOverlay();
+	});
+
+	$effect(() => {
+		if (!map || !isStyleReady) {
+			return;
+		}
 
 		if (fitBounds) {
 			fitRouteBounds();
