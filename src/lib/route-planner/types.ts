@@ -78,6 +78,7 @@ export type RouteSegmentDragEnd = {
 export type RouteEditSnapshot = {
 	routeAlternatives: PlannedRoute[];
 	selectedRouteIndex: number | null;
+	routeNeedsRecalculation: boolean;
 	lockedSegmentIndexes: number[];
 	avoidedRoads: ResolvedRouteAvoidance[];
 	plannerMode: PlannerMode;

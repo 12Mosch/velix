@@ -41,6 +41,7 @@ function createBaseRouteState(): PlannerRouteState {
 	return {
 		routeAlternatives: [baseRoute],
 		selectedRouteIndex: 0,
+		routeNeedsRecalculation: true,
 		lockedSegmentIndexes: [1],
 		avoidedRoads: [
 			{

@@ -20,6 +20,9 @@
 	const isOutAndBackMode = $derived(controller.form.isOutAndBackMode);
 	const waypointStops = $derived(controller.form.waypointStops);
 	const isRouting = $derived(controller.routes.isRouting);
+	const routeNeedsRecalculation = $derived(
+		controller.routes.routeNeedsRecalculation,
+	);
 	const mapClickSelection = $derived(controller.map.mapClickSelection);
 	const isResolvingMapSelection = $derived(controller.map.isResolvingMapSelection);
 	const routeOverlays = $derived(controller.overlays.routeOverlays);
@@ -73,7 +76,7 @@
 		{routeOverlays}
 		plannedRoute={activeRoute}
 		routeMode={activeRoute?.mode ?? plannerMode}
-		manualEditingEnabled={!!activeRoute && !isRouting}
+		manualEditingEnabled={!!activeRoute && !isRouting && !routeNeedsRecalculation}
 		{lockedSegmentOverlay}
 		lockedSegmentIndexes={sanitizedLockedSegmentIndexes}
 		{constraintOverlay}
@@ -94,7 +97,7 @@
 			{sidebar}
 			overlay={controller.overlays}
 			map={controller.map}
-			hasActiveRoute={!!activeRoute}
+			hasActiveRoute={!!activeRoute && !routeNeedsRecalculation}
 		/>
 
 		{#if mapClickSelection}

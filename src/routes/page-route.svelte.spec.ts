@@ -914,6 +914,148 @@ describe("+page.svelte", () => {
 		await expect.element(page.getByText("1 turn")).toBeInTheDocument();
 	});
 
+	it("marks generated route stale after builder input edits", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn<typeof fetch>()
+				.mockImplementation(() =>
+					Promise.resolve(new Response(JSON.stringify(successfulRoutePayload))),
+				),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Garmisch");
+
+		await expect
+			.element(
+				page.getByText(
+					"Route needs recalculation. Generate Route to update save, export, and share actions.",
+				),
+			)
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Save Draft" }))
+			.toBeDisabled();
+		await expect
+			.element(page.getByRole("button", { name: "Export GPX" }))
+			.toBeDisabled();
+		await expect
+			.element(page.getByRole("button", { name: "Export FIT" }))
+			.toBeDisabled();
+		await expect
+			.element(page.getByRole("button", { name: "Share" }))
+			.toBeDisabled();
+		await expect
+			.element(page.getByRole("button", { name: "Recenter route" }))
+			.toBeDisabled();
+	});
+
+	it("does not autosave stale active route after edit before debounce", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn<typeof fetch>()
+				.mockImplementation(() =>
+					Promise.resolve(new Response(JSON.stringify(successfulRoutePayload))),
+				),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Garmisch");
+		await new Promise((resolve) => setTimeout(resolve, 900));
+
+		expect(readSavedRoutesFromStorage()).toEqual([]);
+	});
+
+	it("regeneration clears stale state and re-enables route actions", async () => {
+		const secondRoute = {
+			...successfulRoute,
+			destinationLabel: "Garmisch-Partenkirchen, Germany",
+			distanceMeters: 81234,
+			coordinates: [
+				[11.5755, 48.1374, 520],
+				[11.3, 47.9, 650],
+				[11.0955, 47.4917, 708],
+			],
+			bounds: [11.0955, 47.4917, 11.5755, 48.1374],
+		};
+		let routeCallCount = 0;
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			if (url === "/api/route") {
+				routeCallCount += 1;
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							routeCallCount === 1
+								? successfulRoutePayload
+								: {
+										routes: [secondRoute],
+										selectedRouteIndex: 0,
+									},
+						),
+					),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await page
+			.getByRole("textbox", { name: "Destination" })
+			.fill("Garmisch-Partenkirchen");
+		await expect
+			.element(page.getByRole("button", { name: "Save Draft" }))
+			.toBeDisabled();
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => document.body.textContent).toContain("81.2");
+		await expect
+			.element(page.getByText("Route needs recalculation."))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: /Save Draft|Saved/ }))
+			.not.toBeDisabled();
+		await expect
+			.element(page.getByRole("button", { name: "Export GPX" }))
+			.not.toBeDisabled();
+		await expect
+			.element(page.getByRole("button", { name: "Export FIT" }))
+			.not.toBeDisabled();
+		await expect
+			.element(page.getByRole("button", { name: "Share" }))
+			.not.toBeDisabled();
+		await expect
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.destinationLabel)
+			.toBe("Garmisch-Partenkirchen, Germany");
+	});
+
 	it("shows directions and focuses the map when a cue is selected", async () => {
 		vi.stubGlobal(
 			"fetch",
@@ -1728,7 +1870,7 @@ describe("+page.svelte", () => {
 			.fill("Garmisch-Partenkirchen");
 		await expect
 			.element(page.getByRole("button", { name: "Save Draft" }))
-			.toBeInTheDocument();
+			.toBeDisabled();
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
 		await expect
@@ -2682,6 +2824,58 @@ describe("+page.svelte", () => {
 		expect(gpx).toContain("<trkpt");
 		expect(gpx).toContain("Marienplatz, Munich, Germany");
 		expect(gpx).toContain("Schliersee, Germany");
+	});
+
+	it("stale export is blocked", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const downloadSpy = setupGpxDownloadSpies();
+
+		render(PageTestShell);
+
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await page.getByRole("button", { name: "Export GPX" }).click();
+		await page.getByRole("button", { name: "Export FIT" }).click();
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(2);
+
+		await page.getByRole("textbox", { name: "Destination" }).fill("Garmisch");
+		await expect
+			.element(page.getByRole("button", { name: "Export GPX" }))
+			.toBeDisabled();
+		await expect
+			.element(page.getByRole("button", { name: "Export FIT" }))
+			.toBeDisabled();
+		page
+			.getByRole("button", { name: "Export GPX" })
+			.element()
+			.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		page
+			.getByRole("button", { name: "Export FIT" })
+			.element()
+			.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+		expect(downloadSpy.createObjectUrl).toHaveBeenCalledTimes(2);
+		expect(downloadSpy.anchorClick).toHaveBeenCalledTimes(2);
 	});
 
 	it("shows an alert when GPX export fails", async () => {

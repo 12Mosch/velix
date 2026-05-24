@@ -84,6 +84,7 @@
 	const isImportingGpx = $derived(controller.isImportingGpx);
 	const routeAlternatives = $derived(controller.routeAlternatives);
 	const selectedRouteIndex = $derived(controller.selectedRouteIndex);
+	const routeNeedsRecalculation = $derived(controller.routeNeedsRecalculation);
 	const lockedSegmentIndexes = $derived(controller.lockedSegmentIndexes);
 	const avoidedRoads = $derived(controller.avoidedRoads);
 	const lastGeneratedRouteCount = $derived(controller.lastGeneratedRouteCount);
@@ -169,6 +170,7 @@
 	const canUndoRouteEdit = $derived(controller.canUndoRouteEdit);
 	const canRedoRouteEdit = $derived(controller.canRedoRouteEdit);
 	const hasAdvancedErrors = $derived(controller.hasAdvancedErrors);
+	const routeActionsDisabled = $derived(routeNeedsRecalculation || isRouting);
 	const getWarningContainerClass: RouteResultDockController["getWarningContainerClass"] = (...args) => controller.getWarningContainerClass(...args);
 	const getWarningBadgeClass: RouteResultDockController["getWarningBadgeClass"] = (...args) => controller.getWarningBadgeClass(...args);
 	const showCurrentLocationOnMap: RouteResultDockController["showCurrentLocationOnMap"] = (...args) => controller.showCurrentLocationOnMap(...args);
@@ -434,6 +436,7 @@
 									variant={isActiveRouteSaved ? "secondary" : "outline"}
 									size="sm"
 									class="gap-1 font-semibold"
+									disabled={routeActionsDisabled}
 									onclick={handleSaveDraft}
 								>
 									{#if isActiveRouteSaved}
@@ -443,13 +446,19 @@
 										Save Draft
 									{/if}
 								</Button>
-								<Button size="sm" class="font-semibold" onclick={handleExportGpx}>
+								<Button
+									size="sm"
+									class="font-semibold"
+									disabled={routeActionsDisabled}
+									onclick={handleExportGpx}
+								>
 									Export GPX
 								</Button>
 								<Button
 									size="sm"
 									variant="outline"
 									class="font-semibold"
+									disabled={routeActionsDisabled}
 									onclick={handleExportFit}
 								>
 									Export FIT
@@ -458,7 +467,7 @@
 									size="sm"
 									variant="outline"
 									class="gap-1 font-semibold"
-									disabled={isSharingRoute}
+									disabled={routeActionsDisabled || isSharingRoute}
 									onclick={handleShareActiveRoute}
 								>
 									<Share2 class="size-3.5" />
@@ -504,6 +513,15 @@
 						</div>
 					</div>
 				</div>
+
+				{#if activeRoute && routeNeedsRecalculation}
+					<div
+						class="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-950 dark:text-amber-100"
+						role="status"
+					>
+						Route needs recalculation. Generate Route to update save, export, and share actions.
+					</div>
+				{/if}
 
 				{#if activeRoute && routeExportError}
 					<div
