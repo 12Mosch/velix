@@ -158,6 +158,8 @@
 	let detachStyleLoadListener = () => {};
 	let detachCameraPreferenceListeners = () => {};
 	let detachRouteEditingListeners = () => {};
+	let routeEditInteractions: ReturnType<typeof createRouteEditInteractions> | null =
+		null;
 	let resizeAnimationFrameId: number | null = null;
 	let resizeLoopUntil = 0;
 	let renderedRouteOverlayIds: string[] = [];
@@ -325,6 +327,7 @@
 		}
 
 		renderedRouteOverlayIds = [];
+		routeEditInteractions?.clearProjectionCache();
 	}
 
 	function removeConstraintOverlay() {
@@ -367,6 +370,7 @@
 			routeOverlays,
 			renderedRouteOverlayIds,
 		);
+		routeEditInteractions?.clearProjectionCache();
 	}
 
 	function ensureConstraintOverlay() {
@@ -853,7 +857,7 @@
 				attachCameraPreferenceListeners();
 				syncScaleControl();
 				if (typeof map.on === "function" && typeof map.off === "function") {
-					const routeEditInteractions = createRouteEditInteractions({
+					routeEditInteractions = createRouteEditInteractions({
 						map,
 						getRouteOverlays: () => routeOverlays,
 						getPlannedRoute: () => plannedRoute,
@@ -869,7 +873,8 @@
 					});
 					routeEditInteractions.attach();
 					detachRouteEditingListeners = () => {
-						routeEditInteractions.detach();
+						routeEditInteractions?.detach();
+						routeEditInteractions = null;
 						detachRouteEditingListeners = () => {};
 					};
 				}
