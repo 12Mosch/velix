@@ -2,6 +2,7 @@ export const desiredAlternativeRoutes = 3;
 export const alternativeRouteMaxWeightFactor = 1.4;
 export const alternativeRouteMaxShareFactor = 0.6;
 export const roundCourseDistanceSearchMultipliers = [0.9, 1, 1.1] as const;
+export const roundCourseCandidateSearchConcurrency = 2;
 export const broadRoundCourseSearchMultipliers = [0.75, 1, 1.25] as const;
 export const tightRoundCourseSearchMultipliers = [0.9, 1, 1.1] as const;
 export const roundCourseSearchSeeds = [
