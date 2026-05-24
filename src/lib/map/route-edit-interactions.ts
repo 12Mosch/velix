@@ -15,6 +15,7 @@ import {
 
 const routeSegmentSelectionThresholdPx = 18;
 const routeSegmentNearHitThresholdPx = 1;
+const cameraEvents = ["move", "zoom", "rotate", "pitch", "resize"] as const;
 
 export type SelectedRouteStop =
 	| {
@@ -55,6 +56,8 @@ type RouteProjectionCache = {
 	coordinates: RouteCoordinate[];
 	points: Array<{ x: number; y: number } | null>;
 };
+
+type ScreenPoint = { x: number; y: number };
 
 type DragPanControl = {
 	isEnabled?: () => boolean;
@@ -162,6 +165,8 @@ export function createRouteEditInteractions(
 	let dragPanWasEnabled = false;
 	let suppressNextMapClick = false;
 	let routeProjectionCache: RouteProjectionCache | null = null;
+	let latestHoverScreenPoint: ScreenPoint | null = null;
+	let pendingHoverFrameId: number | null = null;
 
 	function getSelectedOverlay() {
 		const routeOverlays = options.getRouteOverlays();
@@ -302,13 +307,21 @@ export function createRouteEditInteractions(
 		return projected ? { x: projected.x, y: projected.y } : null;
 	}
 
-	function prepareSelectedRouteProjectionCache() {
+	function getSelectedRouteProjectionCache() {
 		const coordinates = getSelectedRouteCoordinates();
+		if (routeProjectionCache?.coordinates === coordinates) {
+			return routeProjectionCache;
+		}
+
 		routeProjectionCache = {
 			coordinates,
 			points: coordinates.map((coordinate) => getProjectedPoint(coordinate)),
 		};
 		return routeProjectionCache;
+	}
+
+	function clearProjectionCache() {
+		routeProjectionCache = null;
 	}
 
 	function getEditableSegmentIndexForCoordinateSegment(
@@ -343,10 +356,7 @@ export function createRouteEditInteractions(
 		const coordinates = getSelectedRouteCoordinates();
 		if (coordinates.length < 2) return undefined;
 
-		const projectionCache =
-			routeProjectionCache?.coordinates === coordinates
-				? routeProjectionCache
-				: null;
+		const projectionCache = getSelectedRouteProjectionCache();
 		let bestCoordinateSegmentIndex = -1;
 		let bestDistance = Number.POSITIVE_INFINITY;
 
@@ -439,7 +449,80 @@ export function createRouteEditInteractions(
 		suppressNextMapClick = false;
 	}
 
+	function getScreenPoint(event: MapEvent): ScreenPoint | null {
+		const x = event.point?.x;
+		const y = event.point?.y;
+		return typeof x === "number" && typeof y === "number" ? { x, y } : null;
+	}
+
+	function getAnimationFrameApi() {
+		const requestFrame =
+			globalThis.requestAnimationFrame ??
+			(typeof window !== "undefined"
+				? window.requestAnimationFrame
+				: undefined);
+		const cancelFrame =
+			globalThis.cancelAnimationFrame ??
+			(typeof window !== "undefined" ? window.cancelAnimationFrame : undefined);
+
+		return { requestFrame, cancelFrame };
+	}
+
+	function cancelPendingHoverHitTest() {
+		latestHoverScreenPoint = null;
+		if (pendingHoverFrameId === null) return;
+
+		const { cancelFrame } = getAnimationFrameApi();
+		cancelFrame?.(pendingHoverFrameId);
+		pendingHoverFrameId = null;
+	}
+
+	function runHoverHitTest() {
+		pendingHoverFrameId = null;
+		const screenPoint = latestHoverScreenPoint;
+		latestHoverScreenPoint = null;
+
+		if (!screenPoint || !options.getManualEditingEnabled()) {
+			options.setCursor("");
+			return;
+		}
+
+		const selectedStop = getSelectedStopAtPoint(screenPoint);
+		if (selectedStop && !isStopLocked(getStopIndex(selectedStop))) {
+			options.setCursor("grab");
+			return;
+		}
+
+		const selectedSegment = getSelectedSegmentAtPoint(screenPoint);
+		options.setCursor(
+			selectedSegment && !isSegmentLocked(selectedSegment.segmentIndex)
+				? "crosshair"
+				: "",
+		);
+	}
+
+	function scheduleHoverHitTest(screenPoint: ScreenPoint) {
+		latestHoverScreenPoint = screenPoint;
+		if (pendingHoverFrameId !== null) return;
+
+		const { requestFrame } = getAnimationFrameApi();
+		if (typeof requestFrame !== "function") {
+			runHoverHitTest();
+			return;
+		}
+
+		pendingHoverFrameId = requestFrame(() => {
+			runHoverHitTest();
+		});
+	}
+
+	function handleCameraChange() {
+		cancelPendingHoverHitTest();
+		clearProjectionCache();
+	}
+
 	function handleMapClick(event: MapEvent) {
+		cancelPendingHoverHitTest();
 		if (suppressNextMapClick) {
 			suppressNextMapClick = false;
 			return;
@@ -471,6 +554,7 @@ export function createRouteEditInteractions(
 			const stopIndex = getStopIndex(selectedStop);
 			if (isStopLocked(stopIndex)) return;
 
+			cancelPendingHoverHitTest();
 			activeRouteDrag = {
 				kind: "stop",
 				selectedStop,
@@ -487,6 +571,7 @@ export function createRouteEditInteractions(
 		if (!selectedSegment || isSegmentLocked(selectedSegment.segmentIndex))
 			return;
 
+		cancelPendingHoverHitTest();
 		activeRouteDrag = {
 			kind: "segment",
 			...selectedSegment,
@@ -498,38 +583,28 @@ export function createRouteEditInteractions(
 	}
 
 	function handleRouteDragMove(event: MapEvent) {
-		prepareSelectedRouteProjectionCache();
-
 		if (activeRouteDrag) {
+			cancelPendingHoverHitTest();
 			options.setCursor(
 				activeRouteDrag.kind === "stop" ? "grabbing" : "crosshair",
 			);
 			return;
 		}
 
-		if (!options.getManualEditingEnabled() || !event.point) {
+		if (!options.getManualEditingEnabled()) {
+			cancelPendingHoverHitTest();
 			options.setCursor("");
 			return;
 		}
 
-		const selectedStop = getSelectedStopAtPoint({
-			x: event.point.x ?? 0,
-			y: event.point.y ?? 0,
-		});
-		if (selectedStop && !isStopLocked(getStopIndex(selectedStop))) {
-			options.setCursor("grab");
+		const screenPoint = getScreenPoint(event);
+		if (!screenPoint) {
+			cancelPendingHoverHitTest();
+			options.setCursor("");
 			return;
 		}
 
-		const selectedSegment = getSelectedSegmentAtPoint({
-			x: event.point.x ?? 0,
-			y: event.point.y ?? 0,
-		});
-		options.setCursor(
-			selectedSegment && !isSegmentLocked(selectedSegment.segmentIndex)
-				? "crosshair"
-				: "",
-		);
+		scheduleHoverHitTest(screenPoint);
 	}
 
 	function handleRouteDragEnd(event: MapEvent) {
@@ -545,8 +620,12 @@ export function createRouteEditInteractions(
 			options.map.on("mousemove", handleRouteDragMove);
 			options.map.on("mouseup", handleRouteDragEnd);
 			options.map.on("mouseleave", handleRouteDragEnd);
+			for (const event of cameraEvents) {
+				options.map.on(event, handleCameraChange);
+			}
 		},
 		detach() {
+			cancelPendingHoverHitTest();
 			options.map.off("click", handleMapClick);
 			options.map.off("mousedown", handleRouteDragStart);
 			options.map.off("pointerdown", clearStaleClickSuppression);
@@ -554,9 +633,10 @@ export function createRouteEditInteractions(
 			options.map.off("mousemove", handleRouteDragMove);
 			options.map.off("mouseup", handleRouteDragEnd);
 			options.map.off("mouseleave", handleRouteDragEnd);
+			for (const event of cameraEvents) {
+				options.map.off(event, handleCameraChange);
+			}
 		},
-		clearProjectionCache() {
-			routeProjectionCache = null;
-		},
+		clearProjectionCache,
 	};
 }

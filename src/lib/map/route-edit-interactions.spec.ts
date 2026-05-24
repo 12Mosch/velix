@@ -1,5 +1,5 @@
 import type { FeatureCollection } from "geojson";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { RouteMapOverlay } from "$lib/route-planning";
 import {
@@ -75,7 +75,41 @@ function createMapMock() {
 	};
 }
 
+function installAnimationFrameMock() {
+	const callbacks = new Map<number, FrameRequestCallback>();
+	let nextFrameId = 1;
+	const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+		const frameId = nextFrameId;
+		nextFrameId += 1;
+		callbacks.set(frameId, callback);
+		return frameId;
+	});
+	const cancelAnimationFrame = vi.fn((frameId: number) => {
+		callbacks.delete(frameId);
+	});
+
+	vi.stubGlobal("requestAnimationFrame", requestAnimationFrame);
+	vi.stubGlobal("cancelAnimationFrame", cancelAnimationFrame);
+
+	return {
+		requestAnimationFrame,
+		cancelAnimationFrame,
+		runFrame(frameId = 1) {
+			const callback = callbacks.get(frameId);
+			callbacks.delete(frameId);
+			callback?.(performance.now());
+		},
+		getPendingFrameIds() {
+			return [...callbacks.keys()];
+		},
+	};
+}
+
 describe("route edit interactions", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	it("computes point-to-segment screen distance", () => {
 		expect(
 			getPointToScreenSegmentDistance(
@@ -148,5 +182,218 @@ describe("route edit interactions", () => {
 
 		expect(onRouteSegmentDragEnd).not.toHaveBeenCalled();
 		expect(map.dragPan.disable).not.toHaveBeenCalled();
+	});
+
+	it("does not project route coordinates on mousemove when manual editing is disabled", () => {
+		const { map, handlers } = createMapMock();
+		const animationFrame = installAnimationFrameMock();
+		const interactions = createRouteEditInteractions({
+			map: map as never,
+			getRouteOverlays: () => routeOverlays,
+			getPlannedRoute: () => null,
+			getRouteMode: () => "point_to_point",
+			getManualEditingEnabled: () => false,
+			getLockedSegmentIndexes: () => [],
+			setCursor: vi.fn(),
+		});
+
+		interactions.attach();
+		handlers.get("mousemove")?.({
+			point: { x: 14, y: 1 },
+		});
+
+		expect(animationFrame.requestAnimationFrame).not.toHaveBeenCalled();
+		expect(map.project).not.toHaveBeenCalled();
+	});
+
+	it("throttles hover hit testing to one frame with the latest point", () => {
+		const { map, handlers } = createMapMock();
+		const setCursor = vi.fn();
+		const animationFrame = installAnimationFrameMock();
+		const interactions = createRouteEditInteractions({
+			map: map as never,
+			getRouteOverlays: () => routeOverlays,
+			getPlannedRoute: () => null,
+			getRouteMode: () => "point_to_point",
+			getManualEditingEnabled: () => true,
+			getLockedSegmentIndexes: () => [],
+			setCursor,
+		});
+
+		interactions.attach();
+		handlers.get("mousemove")?.({ point: { x: 1, y: 100 } });
+		handlers.get("mousemove")?.({ point: { x: 14, y: 1 } });
+
+		expect(animationFrame.requestAnimationFrame).toHaveBeenCalledTimes(1);
+		expect(map.queryRenderedFeatures).not.toHaveBeenCalled();
+		expect(map.project).not.toHaveBeenCalled();
+
+		animationFrame.runFrame();
+
+		expect(map.queryRenderedFeatures).toHaveBeenCalledTimes(1);
+		expect(map.queryRenderedFeatures).toHaveBeenCalledWith([14, 1], {
+			layers: [
+				"planned-route-route-0-start",
+				"planned-route-route-0-waypoint",
+				"planned-route-route-0-destination",
+			],
+		});
+		expect(map.project).toHaveBeenCalledTimes(3);
+		expect(setCursor).toHaveBeenLastCalledWith("crosshair");
+	});
+
+	it("reuses projected route coordinates across unchanged hover frames", () => {
+		const { map, handlers } = createMapMock();
+		const animationFrame = installAnimationFrameMock();
+		const interactions = createRouteEditInteractions({
+			map: map as never,
+			getRouteOverlays: () => routeOverlays,
+			getPlannedRoute: () => null,
+			getRouteMode: () => "point_to_point",
+			getManualEditingEnabled: () => true,
+			getLockedSegmentIndexes: () => [],
+			setCursor: vi.fn(),
+		});
+
+		interactions.attach();
+		handlers.get("mousemove")?.({ point: { x: 14, y: 1 } });
+		animationFrame.runFrame(1);
+		expect(map.project).toHaveBeenCalledTimes(3);
+
+		map.project.mockClear();
+		handlers.get("mousemove")?.({ point: { x: 4, y: 1 } });
+		animationFrame.runFrame(2);
+
+		expect(map.project).not.toHaveBeenCalled();
+	});
+
+	it("invalidates projected route coordinates on camera changes", () => {
+		const { map, handlers } = createMapMock();
+		const animationFrame = installAnimationFrameMock();
+		const interactions = createRouteEditInteractions({
+			map: map as never,
+			getRouteOverlays: () => routeOverlays,
+			getPlannedRoute: () => null,
+			getRouteMode: () => "point_to_point",
+			getManualEditingEnabled: () => true,
+			getLockedSegmentIndexes: () => [],
+			setCursor: vi.fn(),
+		});
+
+		interactions.attach();
+		handlers.get("mousemove")?.({ point: { x: 14, y: 1 } });
+		animationFrame.runFrame(1);
+		expect(map.project).toHaveBeenCalledTimes(3);
+
+		map.project.mockClear();
+		handlers.get("move")?.({});
+		handlers.get("mousemove")?.({ point: { x: 14, y: 1 } });
+		animationFrame.runFrame(2);
+
+		expect(map.project).toHaveBeenCalledTimes(3);
+	});
+
+	it("cancels pending hover hit testing on camera changes", () => {
+		const { map, handlers } = createMapMock();
+		const animationFrame = installAnimationFrameMock();
+		const interactions = createRouteEditInteractions({
+			map: map as never,
+			getRouteOverlays: () => routeOverlays,
+			getPlannedRoute: () => null,
+			getRouteMode: () => "point_to_point",
+			getManualEditingEnabled: () => true,
+			getLockedSegmentIndexes: () => [],
+			setCursor: vi.fn(),
+		});
+
+		interactions.attach();
+		handlers.get("mousemove")?.({ point: { x: 14, y: 1 } });
+		expect(animationFrame.getPendingFrameIds()).toEqual([1]);
+
+		handlers.get("move")?.({});
+		animationFrame.runFrame(1);
+
+		expect(animationFrame.cancelAnimationFrame).toHaveBeenCalledWith(1);
+		expect(map.queryRenderedFeatures).not.toHaveBeenCalled();
+		expect(map.project).not.toHaveBeenCalled();
+	});
+
+	it("cancels pending hover hit testing when a route drag starts", () => {
+		const { map, handlers } = createMapMock();
+		const animationFrame = installAnimationFrameMock();
+		const setCursor = vi.fn();
+		const interactions = createRouteEditInteractions({
+			map: map as never,
+			getRouteOverlays: () => routeOverlays,
+			getPlannedRoute: () => null,
+			getRouteMode: () => "point_to_point",
+			getManualEditingEnabled: () => true,
+			getLockedSegmentIndexes: () => [],
+			setCursor,
+		});
+
+		interactions.attach();
+		handlers.get("mousemove")?.({ point: { x: 1, y: 100 } });
+		handlers.get("mousedown")?.({
+			lngLat: { lng: 14, lat: 0 },
+			point: { x: 14, y: 0 },
+			preventDefault: vi.fn(),
+		});
+		animationFrame.runFrame(1);
+
+		expect(animationFrame.cancelAnimationFrame).toHaveBeenCalledWith(1);
+		expect(setCursor).toHaveBeenLastCalledWith("crosshair");
+	});
+
+	it("cancels pending hover hit testing on map click", () => {
+		const { map, handlers } = createMapMock();
+		const animationFrame = installAnimationFrameMock();
+		const setCursor = vi.fn();
+		const interactions = createRouteEditInteractions({
+			map: map as never,
+			getRouteOverlays: () => routeOverlays,
+			getPlannedRoute: () => null,
+			getRouteMode: () => "point_to_point",
+			getManualEditingEnabled: () => true,
+			getLockedSegmentIndexes: () => [],
+			setCursor,
+		});
+
+		interactions.attach();
+		handlers.get("mousemove")?.({ point: { x: 14, y: 1 } });
+		handlers.get("click")?.({
+			lngLat: { lng: 14, lat: 1 },
+			point: { x: 14, y: 1 },
+		});
+		animationFrame.runFrame(1);
+
+		expect(animationFrame.cancelAnimationFrame).toHaveBeenCalledWith(1);
+		expect(setCursor).not.toHaveBeenCalled();
+	});
+
+	it("cancels pending hover frames and removes camera invalidation listeners on detach", () => {
+		const { map, handlers } = createMapMock();
+		const animationFrame = installAnimationFrameMock();
+		const interactions = createRouteEditInteractions({
+			map: map as never,
+			getRouteOverlays: () => routeOverlays,
+			getPlannedRoute: () => null,
+			getRouteMode: () => "point_to_point",
+			getManualEditingEnabled: () => true,
+			getLockedSegmentIndexes: () => [],
+			setCursor: vi.fn(),
+		});
+
+		interactions.attach();
+		handlers.get("mousemove")?.({ point: { x: 14, y: 1 } });
+		expect(animationFrame.getPendingFrameIds()).toEqual([1]);
+
+		interactions.detach();
+
+		expect(animationFrame.cancelAnimationFrame).toHaveBeenCalledWith(1);
+		expect(animationFrame.getPendingFrameIds()).toEqual([]);
+		for (const event of ["move", "zoom", "rotate", "pitch", "resize"]) {
+			expect(map.off).toHaveBeenCalledWith(event, expect.any(Function));
+		}
 	});
 });
