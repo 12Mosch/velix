@@ -65,6 +65,7 @@ import {
 	type RouteApiSuccess,
 	type RouteMapOverlay,
 	type RouteClimb,
+	type RouteGradientMetrics,
 	type RouteRequestPayload,
 	type RouteWarning,
 	type RouteWindSegment,
@@ -232,6 +233,7 @@ export function createPlannerPageContext() {
 		baseGeoJson: FeatureCollection;
 		surfaceGeoJson?: FeatureCollection;
 		climbGeoJsonBySignature: Map<string, FeatureCollection>;
+		gradientMetrics?: RouteGradientMetrics;
 		gradientGeoJson?: FeatureCollection;
 		windSignature?: string;
 		windGeoJson?: FeatureCollection;
@@ -543,6 +545,16 @@ export function createPlannerPageContext() {
 		return cached.gradientGeoJson;
 	}
 
+	function getCachedRouteGradientMetrics(
+		route: PlannedRoute,
+	): RouteGradientMetrics {
+		const cached = getCachedRouteOverlayGeoJson(route);
+
+		cached.gradientMetrics ??= calculateRouteGradientMetrics(route);
+
+		return cached.gradientMetrics;
+	}
+
 	function getCachedWindRouteGeoJson(route: PlannedRoute): FeatureCollection {
 		const cached = getCachedRouteOverlayGeoJson(route);
 		const windSignature = getRouteWindOverlaySignature(route);
@@ -610,7 +622,7 @@ export function createPlannerPageContext() {
 			: [],
 	);
 	const activeRouteGradientMetrics = $derived(
-		activeRoute ? calculateRouteGradientMetrics(activeRoute) : null,
+		activeRoute ? getCachedRouteGradientMetrics(activeRoute) : null,
 	);
 	const activeRouteGradientGeoJson = $derived(
 		activeRoute && (gradientOverlayEnabled || activeRouteGradientMetrics)

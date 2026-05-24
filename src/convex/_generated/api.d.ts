@@ -9,8 +9,10 @@
  */
 
 import type * as effect from "../effect.js";
+import type * as savedRouteHelpers from "../savedRouteHelpers.js";
 import type * as savedRoutes from "../savedRoutes.js";
 import type * as sharedRoutes from "../sharedRoutes.js";
+import type * as userPreferenceValidators from "../userPreferenceValidators.js";
 import type * as userPreferences from "../userPreferences.js";
 
 import type {
@@ -21,8 +23,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   effect: typeof effect;
+  savedRouteHelpers: typeof savedRouteHelpers;
   savedRoutes: typeof savedRoutes;
   sharedRoutes: typeof sharedRoutes;
+  userPreferenceValidators: typeof userPreferenceValidators;
   userPreferences: typeof userPreferences;
 }>;
 
