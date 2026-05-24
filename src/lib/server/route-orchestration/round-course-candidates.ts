@@ -16,6 +16,7 @@ import type { TimeoutFetch } from "$lib/server/resilience";
 import {
 	broadRoundCourseSearchMultipliers,
 	desiredAlternativeRoutes,
+	roundCourseCandidateSearchConcurrency,
 	roundCourseDistanceSearchMultipliers,
 	roundCourseSearchSeeds,
 	tightRoundCourseSearchMultipliers,
@@ -112,64 +113,83 @@ export function searchRoundCourseCandidateRoutesEffect(
 				continue;
 			}
 
-			const attemptEffects = requestedDistances.map(
-				(requestedDistanceMeters, candidateIndex) => {
-					const candidateSequence = sequence++;
-					const seed = seeds[candidateIndex];
-					const context: RoundCourseCandidateAttemptContext = {
-						roundIndex,
-						candidateIndex,
-						sequence: candidateSequence,
-						requestedDistanceMeters,
-						...(seed === undefined ? {} : { seed }),
-					};
+			const roundSuccessfulCandidates: CandidateRouteResult[] = [];
 
-					return requestRoutesEffect([startPoint], {
-						mode: "round_course",
-						roundTripDistanceMeters: requestedDistanceMeters,
-						roundTripSeed: seed,
-						roundCourseTarget: target,
-						spatialConstraint,
-						avoidances,
-					}).pipe(
-						Effect.map(
-							({ routes }): RoundCourseCandidateSuccess => ({
-								...context,
-								_tag: "RoundCourseCandidateSuccess",
-								candidates: routes.map((route, routeIndex) => ({
-									route,
-									requestedDistanceMeters,
-									sequence:
-										candidateSequence * desiredAlternativeRoutes + routeIndex,
-								})),
+			for (
+				let batchStart = 0;
+				batchStart < requestedDistances.length;
+				batchStart += roundCourseCandidateSearchConcurrency
+			) {
+				const batch = requestedDistances.slice(
+					batchStart,
+					batchStart + roundCourseCandidateSearchConcurrency,
+				);
+				const attemptEffects = batch.map(
+					(requestedDistanceMeters, batchIndex) => {
+						const candidateIndex = batchStart + batchIndex;
+						const candidateSequence = sequence++;
+						const seed = seeds[candidateIndex];
+						const context: RoundCourseCandidateAttemptContext = {
+							roundIndex,
+							candidateIndex,
+							sequence: candidateSequence,
+							requestedDistanceMeters,
+							...(seed === undefined ? {} : { seed }),
+						};
+
+						return requestRoutesEffect([startPoint], {
+							mode: "round_course",
+							roundTripDistanceMeters: requestedDistanceMeters,
+							roundTripSeed: seed,
+							roundCourseTarget: target,
+							spatialConstraint,
+							avoidances,
+						}).pipe(
+							Effect.map(
+								({ routes }): RoundCourseCandidateSuccess => ({
+									...context,
+									_tag: "RoundCourseCandidateSuccess",
+									candidates: routes.map((route, routeIndex) => ({
+										route,
+										requestedDistanceMeters,
+										sequence:
+											candidateSequence * desiredAlternativeRoutes + routeIndex,
+									})),
+								}),
+							),
+							Effect.match({
+								onFailure: (error): RoundCourseCandidateFailure => ({
+									...context,
+									_tag: "RoundCourseCandidateFailure",
+									error,
+								}),
+								onSuccess: (success) => success,
 							}),
-						),
-						Effect.match({
-							onFailure: (error): RoundCourseCandidateFailure => ({
-								...context,
-								_tag: "RoundCourseCandidateFailure",
-								error,
-							}),
-							onSuccess: (success) => success,
-						}),
-					);
-				},
-			);
+						);
+					},
+				);
 
-			const candidateResults: RoundCourseCandidateAttempt[] = yield* Effect.all(
-				attemptEffects,
-				{
-					concurrency: "unbounded",
-				},
-			);
+				const candidateResults: RoundCourseCandidateAttempt[] =
+					yield* Effect.all(attemptEffects, {
+						concurrency: roundCourseCandidateSearchConcurrency,
+					});
 
-			for (const candidateResult of candidateResults) {
-				if (candidateResult._tag === "RoundCourseCandidateSuccess") {
-					successfulCandidates.push(...candidateResult.candidates);
-					continue;
+				for (const candidateResult of candidateResults) {
+					if (candidateResult._tag === "RoundCourseCandidateSuccess") {
+						roundSuccessfulCandidates.push(...candidateResult.candidates);
+						successfulCandidates.push(...candidateResult.candidates);
+						continue;
+					}
+
+					candidateFailures.push(candidateResult);
 				}
 
-				candidateFailures.push(candidateResult);
+				if (
+					dedupeCandidateRoutes(roundSuccessfulCandidates).length >=
+					desiredCount
+				) {
+					break;
+				}
 			}
 
 			const uniqueCandidates = dedupeCandidateRoutes(successfulCandidates);
