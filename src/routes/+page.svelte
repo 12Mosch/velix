@@ -160,7 +160,6 @@
 				form={controller.form}
 				routes={controller.routes}
 				analysis={controller.analysis}
-				overlay={controller.overlays}
 				save={controller.save}
 				sharing={controller.sharing}
 				importExport={controller.importExport}

@@ -26,116 +26,68 @@
 		getRoutingBadgeLabel,
 		getRoutingProfileLabel,
 	} from "$lib/route-planner/formatters";
-	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerOverlayController, PlannerRoutesController, PlannerSaveController, PlannerSharingController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
+	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerRoutesController, PlannerSaveController, PlannerSharingController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
 	import { AlertTriangle, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronDown, ChevronUp, CircleDot, CornerDownLeft, CornerDownRight, Flag, MountainSnow, Navigation, Redo2, Route, Share2, ShieldCheck, Shuffle, TrendingDown, TrendingUp, Undo2, Wind, X } from "@lucide/svelte";
 
 
-	let { form, routes, analysis, overlay, save, sharing, importExport }: { form: PlannerFormController; routes: PlannerRoutesController; analysis: PlannerAnalysisController; overlay: PlannerOverlayController; save: PlannerSaveController; sharing: PlannerSharingController; importExport: PlannerImportExportController } = $props();
-	const directionsOpen = $derived(analysis.directionsOpen);
-	const routeAnalysisOpen = $derived(analysis.routeAnalysisOpen);
-	const gradientOverlayEnabled = $derived(overlay.gradientOverlayEnabled);
-	const windOverlayEnabled = $derived(overlay.windOverlayEnabled);
-	const plannerMode = $derived(form.plannerMode);
-	const startStop = $derived(form.startStop);
-	const waypointStops = $derived(form.waypointStops);
-	const destinationStop = $derived(form.destinationStop);
-	const roundCourseTargetKind = $derived(form.roundCourseTargetKind);
-	const roundCourseDistanceInput = $derived(form.roundCourseDistanceInput);
-	const roundCourseDistanceMetersInput = $derived(form.roundCourseDistanceMetersInput);
-	const roundCourseDurationInput = $derived(form.roundCourseDurationInput);
-	const roundCourseAscendMeters = $derived(form.roundCourseAscendMeters);
-	const spatialConstraintKind = $derived(form.spatialConstraintKind);
-	const spatialConstraintEnforcement = $derived(form.spatialConstraintEnforcement);
-	const constraintCenterStop = $derived(form.constraintCenterStop);
-	const areaRadiusInput = $derived(form.areaRadiusInput);
-	const corridorWidthInput = $derived(form.corridorWidthInput);
-	const areaRadiusMetersInput = $derived(form.areaRadiusMetersInput);
-	const corridorWidthMetersInput = $derived(form.corridorWidthMetersInput);
-	const formattedInputDistanceUnit = $derived(form.formattedInputDistanceUnit);
-	const routeRequestError = $derived(routes.routeRequestError);
-	const routeImportError = $derived(importExport.routeImportError);
-	const fieldErrors = $derived(form.fieldErrors);
-	const isRouting = $derived(routes.isRouting);
-	const isImportingGpx = $derived(importExport.isImportingGpx);
-	const routeAlternatives = $derived(routes.routeAlternatives);
-	const selectedRouteIndex = $derived(routes.selectedRouteIndex);
-	const routeNeedsRecalculation = $derived(routes.routeNeedsRecalculation);
-	const lockedSegmentIndexes = $derived(routes.lockedSegmentIndexes);
-	const avoidedRoads = $derived(routes.avoidedRoads);
-	const lastGeneratedRouteCount = $derived(routes.lastGeneratedRouteCount);
-	const routeExportError = $derived(importExport.routeExportError);
-	const routeShareErrors = $derived(sharing.routeShareErrors);
-	const routeShareUrls = $derived(sharing.routeShareUrls);
-	const isSharingRoute = $derived(sharing.isSharingRoute);
-	const activeRouteShareCopied = $derived(sharing.activeRouteShareCopied);
-	const saveSyncError = $derived(save.saveSyncError);
-	const activeSavedRouteId = $derived(save.activeSavedRouteId);
-	const plannerDraftRouteId = $derived(save.plannerDraftRouteId);
-	const isActiveRouteSaved = $derived(save.isActiveRouteSaved);
-	const pendingSavedRouteId = $derived(save.pendingSavedRouteId);
-	const activeProfileIndex = $derived(analysis.activeProfileIndex);
-	const chartScrubPointerId = $derived(analysis.chartScrubPointerId);
-	const fitInitialSavedRouteBounds = $derived(routes.fitInitialSavedRouteBounds);
-	const gpxImportInput = $derived(importExport.gpxImportInput);
-	const undoStack = $derived(routes.undoStack);
-	const redoStack = $derived(routes.redoStack);
-	const advancedOpen = $derived(form.advancedOpen);
-	const completionController = $derived(form.completionController);
-	const selectedCueIndex = $derived(analysis.selectedCueIndex);
-	const selectedCueFocusKey = $derived(analysis.selectedCueFocusKey);
-	const lastCueRouteKey = $derived(analysis.lastCueRouteKey);
-	const isRoundCourseMode = $derived(form.isRoundCourseMode);
-	const isOutAndBackMode = $derived(form.isOutAndBackMode);
-	const activeRoute = $derived(routes.activeRoute);
-	const activeDirections = $derived(routes.activeDirections);
-	const activeTurnCount = $derived(routes.activeTurnCount);
-	const selectedCue = $derived(analysis.selectedCue);
-	const activeRouteShareKey = $derived(sharing.activeRouteShareKey);
-	const activeRouteShareError = $derived(sharing.activeRouteShareError);
-	const activeRouteShareUrl = $derived(sharing.activeRouteShareUrl);
-	const isActiveRouteShareCopied = $derived(sharing.isActiveRouteShareCopied);
-	const activeRoundCourseTarget = $derived(routes.activeRoundCourseTarget);
-	const activeRouteClimbs = $derived(analysis.activeRouteClimbs);
-	const activeRouteGradientMetrics = $derived(analysis.activeRouteGradientMetrics);
-	const activeRouteGradientGeoJson = $derived(overlay.activeRouteGradientGeoJson);
-	const canShowGradientOverlay = $derived(overlay.canShowGradientOverlay);
-	const activeRouteWindGeoJson = $derived(overlay.activeRouteWindGeoJson);
-	const canShowWindOverlay = $derived(overlay.canShowWindOverlay);
-	const activeWindSummary = $derived(analysis.activeWindSummary);
-	const strongestWindSegments = $derived(analysis.strongestWindSegments);
-	const activeCategorizedClimbs = $derived(analysis.activeCategorizedClimbs);
-	const activeKeyClimbs = $derived(analysis.activeKeyClimbs);
-	const hardestClimb = $derived(analysis.hardestClimb);
-	const routeOverlays = $derived(overlay.routeOverlays);
-	const constraintOverlay = $derived(overlay.constraintOverlay);
-	const avoidanceOverlay = $derived(overlay.avoidanceOverlay);
-	const activeRouteSegmentCount = $derived(overlay.activeRouteSegmentCount);
-	const sanitizedLockedSegmentIndexes = $derived(overlay.sanitizedLockedSegmentIndexes);
-	const lockedSegmentOverlay = $derived(overlay.lockedSegmentOverlay);
-	const combinedRouteBounds = $derived(overlay.combinedRouteBounds);
-	const surfaceMix = $derived(analysis.surfaceMix);
-	const activeWarnings = $derived(analysis.activeWarnings);
-	const activeReadinessWarnings = $derived(analysis.activeReadinessWarnings);
-	const activeProviderWarnings = $derived(analysis.activeProviderWarnings);
-	const primaryActiveWarning = $derived(analysis.primaryActiveWarning);
-	const activeImportedRouteSource = $derived(routes.activeImportedRouteSource);
-	const alternativeInfoMessage = $derived(routes.alternativeInfoMessage);
-	const elevationSamples = $derived(analysis.elevationSamples);
-	const chartH = $derived(analysis.chartH);
-	const elevMin = $derived(analysis.elevMin);
-	const elevMax = $derived(analysis.elevMax);
-	const elevRange = $derived(analysis.elevRange);
-	const sampledProfileDistanceTotal = $derived(analysis.sampledProfileDistanceTotal);
-	const chartProfilePoints = $derived(analysis.chartProfilePoints);
-	const activeProfilePoint = $derived(analysis.activeProfilePoint);
-	const highlightedRouteCoordinate = $derived(overlay.highlightedRouteCoordinate);
-	const linePoints = $derived(analysis.linePoints);
-	const areaD = $derived(analysis.areaD);
-	const distanceTickLabels = $derived(analysis.distanceTickLabels);
-	const canUndoRouteEdit = $derived(routes.canUndoRouteEdit);
-	const canRedoRouteEdit = $derived(routes.canRedoRouteEdit);
-	const hasAdvancedErrors = $derived(form.hasAdvancedErrors);
-	const routeActionsDisabled = $derived(routeNeedsRecalculation || isRouting);
+	type Props = {
+		form: PlannerFormController;
+		routes: PlannerRoutesController;
+		analysis: PlannerAnalysisController;
+		save: PlannerSaveController;
+		sharing: PlannerSharingController;
+		importExport: PlannerImportExportController;
+	};
+
+	let { form, routes, analysis, save, sharing, importExport }: Props = $props();
+	const dockView = $derived.by(() => ({
+		directionsOpen: analysis.directionsOpen,
+		routeAnalysisOpen: analysis.routeAnalysisOpen,
+		isRouting: routes.isRouting,
+		isImportingGpx: importExport.isImportingGpx,
+		routeAlternatives: routes.routeAlternatives,
+		selectedRouteIndex: routes.selectedRouteIndex,
+		routeNeedsRecalculation: routes.routeNeedsRecalculation,
+		avoidedRoads: routes.avoidedRoads,
+		routeExportError: importExport.routeExportError,
+		isSharingRoute: sharing.isSharingRoute,
+		saveSyncError: save.saveSyncError,
+		isActiveRouteSaved: save.isActiveRouteSaved,
+		selectedCueIndex: analysis.selectedCueIndex,
+		isRoundCourseMode: form.isRoundCourseMode,
+		isOutAndBackMode: form.isOutAndBackMode,
+		activeRoute: routes.activeRoute,
+		activeDirections: routes.activeDirections,
+		activeTurnCount: routes.activeTurnCount,
+		activeRouteShareError: sharing.activeRouteShareError,
+		activeRouteShareUrl: sharing.activeRouteShareUrl,
+		isActiveRouteShareCopied: sharing.isActiveRouteShareCopied,
+		activeRoundCourseTarget: routes.activeRoundCourseTarget,
+		activeRouteClimbs: analysis.activeRouteClimbs,
+		activeRouteGradientMetrics: analysis.activeRouteGradientMetrics,
+		activeWindSummary: analysis.activeWindSummary,
+		strongestWindSegments: analysis.strongestWindSegments,
+		activeCategorizedClimbs: analysis.activeCategorizedClimbs,
+		activeKeyClimbs: analysis.activeKeyClimbs,
+		hardestClimb: analysis.hardestClimb,
+		surfaceMix: analysis.surfaceMix,
+		activeReadinessWarnings: analysis.activeReadinessWarnings,
+		activeProviderWarnings: analysis.activeProviderWarnings,
+		activeImportedRouteSource: routes.activeImportedRouteSource,
+		alternativeInfoMessage: routes.alternativeInfoMessage,
+		elevationSamples: analysis.elevationSamples,
+		chartH: analysis.chartH,
+		elevMin: analysis.elevMin,
+		elevMax: analysis.elevMax,
+		sampledProfileDistanceTotal: analysis.sampledProfileDistanceTotal,
+		activeProfilePoint: analysis.activeProfilePoint,
+		linePoints: analysis.linePoints,
+		areaD: analysis.areaD,
+		distanceTickLabels: analysis.distanceTickLabels,
+		canUndoRouteEdit: routes.canUndoRouteEdit,
+		canRedoRouteEdit: routes.canRedoRouteEdit,
+		routeActionsDisabled: routes.routeNeedsRecalculation || routes.isRouting,
+	}));
 </script>
 
 {#snippet routeSummarySkeleton()}
@@ -146,9 +98,9 @@
 		aria-label={form.getSubmitButtonText()}
 	>
 		<span class="sr-only">
-			{isRoundCourseMode
+			{dockView.isRoundCourseMode
 				? "Calculating the round course..."
-				: isOutAndBackMode
+				: dockView.isOutAndBackMode
 					? "Calculating the out-and-back route..."
 					: "Calculating the road-bike route..."}
 		</span>
@@ -167,15 +119,15 @@
 				class="rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-sm md:p-3.5"
 			>
 				<div class="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-					{#if isRouting}
+					{#if dockView.isRouting}
 						{@render routeSummarySkeleton()}
-					{:else if activeRoute}
+					{:else if dockView.activeRoute}
 						<div
 							class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground tabular-nums sm:text-sm"
 						>
 							<span class="font-semibold text-foreground">
 								<span class="font-heading text-base sm:text-lg">
-									{formatDistanceValue(activeRoute.distanceMeters)}
+									{formatDistanceValue(dockView.activeRoute.distanceMeters)}
 								</span>
 								{getDistanceUnitLabel()}
 							</span>
@@ -184,7 +136,7 @@
 								<MountainSnow class="size-3.5 shrink-0 text-emerald-500" />
 								<span class="font-semibold text-foreground">
 									<span class="font-heading text-base sm:text-lg">
-										{Math.round(activeRoute.ascendMeters).toLocaleString()}
+										{Math.round(dockView.activeRoute.ascendMeters).toLocaleString()}
 									</span>
 									m
 								</span>
@@ -194,65 +146,65 @@
 								<TrendingDown class="size-3.5 shrink-0 opacity-80" />
 								<span class="font-semibold">
 									<span class="font-heading text-base sm:text-lg">
-										{Math.round(activeRoute.descendMeters).toLocaleString()}
+										{Math.round(dockView.activeRoute.descendMeters).toLocaleString()}
 									</span>
 									m
 								</span>
 							</span>
 							<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 							<span class="font-semibold text-foreground">
-								{activeRouteClimbs.length} climb{activeRouteClimbs.length === 1 ? "" : "s"}
-								{#if activeCategorizedClimbs.length > 0}
+								{dockView.activeRouteClimbs.length} climb{dockView.activeRouteClimbs.length === 1 ? "" : "s"}
+								{#if dockView.activeCategorizedClimbs.length > 0}
 									<span class="text-muted-foreground">
-										({activeCategorizedClimbs.length} categorized)
+										({dockView.activeCategorizedClimbs.length} categorized)
 									</span>
 								{/if}
 							</span>
-							{#if activeRouteGradientMetrics && activeRouteGradientMetrics.averageGradientPercent !== null}
+							{#if dockView.activeRouteGradientMetrics && dockView.activeRouteGradientMetrics.averageGradientPercent !== null}
 								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 								<span class="font-semibold text-foreground">
-									Avg {formatGrade(activeRouteGradientMetrics.averageGradientPercent)}
+									Avg {formatGrade(dockView.activeRouteGradientMetrics.averageGradientPercent)}
 								</span>
 							{/if}
-							{#if activeRouteGradientMetrics && activeRouteGradientMetrics.maximumGradientPercent !== null}
+							{#if dockView.activeRouteGradientMetrics && dockView.activeRouteGradientMetrics.maximumGradientPercent !== null}
 								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 								<span class="font-semibold text-foreground">
-									Max {formatGrade(activeRouteGradientMetrics.maximumGradientPercent)}
+									Max {formatGrade(dockView.activeRouteGradientMetrics.maximumGradientPercent)}
 								</span>
 							{/if}
-							{#if activeWindSummary}
+							{#if dockView.activeWindSummary}
 								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 								<span class="flex items-center gap-1 font-semibold text-foreground">
 									<Wind class="size-3.5 shrink-0 text-teal-600 dark:text-teal-400" />
-									{#if activeWindSummary.averageHeadwindKmh < 0}
-										Tailwind {formatWindSpeed(activeWindSummary.averageTailwindKmh)}
+									{#if dockView.activeWindSummary.averageHeadwindKmh < 0}
+										Tailwind {formatWindSpeed(dockView.activeWindSummary.averageTailwindKmh)}
 									{:else}
-										Avg headwind {formatWindSpeed(activeWindSummary.averageHeadwindKmh)}
+										Avg headwind {formatWindSpeed(dockView.activeWindSummary.averageHeadwindKmh)}
 									{/if}
 								</span>
 							{/if}
 							<span class="hidden text-border md:inline" aria-hidden="true">·</span>
-							<span class="font-semibold text-foreground">{getRouteDurationText(activeRoute)}</span>
-							{#if activeDirections.length > 0}
+							<span class="font-semibold text-foreground">{getRouteDurationText(dockView.activeRoute)}</span>
+							{#if dockView.activeDirections.length > 0}
 								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
 								<span class="font-semibold text-foreground">
-									{activeTurnCount} turn{activeTurnCount === 1 ? "" : "s"}
+									{dockView.activeTurnCount} turn{dockView.activeTurnCount === 1 ? "" : "s"}
 								</span>
 							{/if}
 						</div>
 					{:else}
 						<div class="flex min-w-0 flex-col gap-1">
 							<span class="text-sm font-semibold text-foreground">
-								{isRoundCourseMode
+								{dockView.isRoundCourseMode
 										? "Generate a round course to see live distance, climbing, and elevation."
-										: isOutAndBackMode
+										: dockView.isOutAndBackMode
 											? "Generate an out-and-back route to see live distance, climbing, and elevation."
 										: "Generate a route to see live distance, climbing, and elevation."}
 							</span>
 							<span class="text-xs text-muted-foreground">
-								{isRoundCourseMode
+								{dockView.isRoundCourseMode
 										? "The map overlay and summary will update once a loop route is found."
-										: isOutAndBackMode
+										: dockView.isOutAndBackMode
 											? "The map overlay and summary will update once the outbound leg is mirrored."
 										: "The map overlay and summary will update once a route is found."}
 							</span>
@@ -265,22 +217,22 @@
 								variant="outline"
 								size="sm"
 								class="gap-1.5 font-semibold"
-								disabled={isImportingGpx}
+								disabled={dockView.isImportingGpx}
 								onclick={importExport.openGpxImportPicker}
 							>
-								{#if isImportingGpx}
+								{#if dockView.isImportingGpx}
 									<Skeleton class="size-3 rounded-full" />
 								{/if}
-								{isImportingGpx ? "Importing GPX..." : "Import GPX"}
+								{dockView.isImportingGpx ? "Importing GPX..." : "Import GPX"}
 							</Button>
-							{#if activeRoute}
+							{#if dockView.activeRoute}
 								<div class="flex items-center gap-1">
 									<Button
 										variant="outline"
 										size="icon"
 										class="size-8"
 										type="button"
-										disabled={!canUndoRouteEdit}
+										disabled={!dockView.canUndoRouteEdit}
 										aria-label="Undo route edit"
 										onclick={routes.undoRouteEdit}
 									>
@@ -291,7 +243,7 @@
 										size="icon"
 										class="size-8"
 										type="button"
-										disabled={!canRedoRouteEdit}
+										disabled={!dockView.canRedoRouteEdit}
 										aria-label="Redo route edit"
 										onclick={routes.redoRouteEdit}
 									>
@@ -299,13 +251,13 @@
 									</Button>
 								</div>
 								<Button
-									variant={isActiveRouteSaved ? "secondary" : "outline"}
+									variant={dockView.isActiveRouteSaved ? "secondary" : "outline"}
 									size="sm"
 									class="gap-1 font-semibold"
-									disabled={routeActionsDisabled}
+									disabled={dockView.routeActionsDisabled}
 									onclick={save.handleSaveDraft}
 								>
-									{#if isActiveRouteSaved}
+									{#if dockView.isActiveRouteSaved}
 										<Check class="size-3.5" />
 										Saved
 									{:else}
@@ -315,7 +267,7 @@
 								<Button
 									size="sm"
 									class="font-semibold"
-									disabled={routeActionsDisabled}
+									disabled={dockView.routeActionsDisabled}
 									onclick={importExport.handleExportGpx}
 								>
 									Export GPX
@@ -324,7 +276,7 @@
 									size="sm"
 									variant="outline"
 									class="font-semibold"
-									disabled={routeActionsDisabled}
+									disabled={dockView.routeActionsDisabled}
 									onclick={importExport.handleExportFit}
 								>
 									Export FIT
@@ -333,18 +285,18 @@
 									size="sm"
 									variant="outline"
 									class="gap-1 font-semibold"
-									disabled={routeActionsDisabled || isSharingRoute}
+									disabled={dockView.routeActionsDisabled || dockView.isSharingRoute}
 									onclick={sharing.handleShareActiveRoute}
 								>
 									<Share2 class="size-3.5" />
-									{isSharingRoute ? "Sharing..." : isActiveRouteShareCopied ? "Copied" : "Share"}
+									{dockView.isSharingRoute ? "Sharing..." : dockView.isActiveRouteShareCopied ? "Copied" : "Share"}
 								</Button>
 								<Button
 									variant="outline"
 									size="sm"
 									class="gap-1 font-semibold"
-									onclick={() => (analysis.directionsOpen = !directionsOpen)}
-									aria-expanded={directionsOpen}
+									onclick={() => (analysis.directionsOpen = !dockView.directionsOpen)}
+									aria-expanded={dockView.directionsOpen}
 									aria-controls="route-directions-panel"
 								>
 									Directions
@@ -352,9 +304,9 @@
 										variant="secondary"
 										class="h-5 px-1.5 text-[10px] font-semibold"
 									>
-										{activeTurnCount}
+										{dockView.activeTurnCount}
 									</Badge>
-									{#if directionsOpen}
+									{#if dockView.directionsOpen}
 										<ChevronUp class="size-3.5 opacity-70" />
 									{:else}
 										<ChevronDown class="size-3.5 opacity-70" />
@@ -364,12 +316,12 @@
 									variant="outline"
 									size="sm"
 									class="gap-1 font-semibold"
-									onclick={() => (analysis.routeAnalysisOpen = !routeAnalysisOpen)}
-									aria-expanded={routeAnalysisOpen}
+									onclick={() => (analysis.routeAnalysisOpen = !dockView.routeAnalysisOpen)}
+									aria-expanded={dockView.routeAnalysisOpen}
 									aria-controls="route-analysis-panel"
 								>
-									{routeAnalysisOpen ? "Less" : "Analysis"}
-									{#if routeAnalysisOpen}
+									{dockView.routeAnalysisOpen ? "Less" : "Analysis"}
+									{#if dockView.routeAnalysisOpen}
 										<ChevronUp class="size-3.5 opacity-70" />
 									{:else}
 										<ChevronDown class="size-3.5 opacity-70" />
@@ -380,7 +332,7 @@
 					</div>
 				</div>
 
-				{#if activeRoute && routeNeedsRecalculation}
+				{#if dockView.activeRoute && dockView.routeNeedsRecalculation}
 					<div
 						class="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-950 dark:text-amber-100"
 						role="status"
@@ -389,26 +341,26 @@
 					</div>
 				{/if}
 
-				{#if activeRoute && routeExportError}
+				{#if dockView.activeRoute && dockView.routeExportError}
 					<div
 						class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
 						role="alert"
 					>
-						{routeExportError}
+						{dockView.routeExportError}
 					</div>
 				{/if}
 
-				{#if activeRoute && activeRouteShareError}
+				{#if dockView.activeRoute && dockView.activeRouteShareError}
 					<div
 						class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
 						role="alert"
 					>
-						{activeRouteShareError}
-						{#if activeRouteShareUrl}
+						{dockView.activeRouteShareError}
+						{#if dockView.activeRouteShareUrl}
 							<input
 								class="mt-2 w-full rounded-md border border-destructive/20 bg-background px-2 py-1 font-mono text-xs text-foreground"
 								readonly
-								value={activeRouteShareUrl}
+								value={dockView.activeRouteShareUrl}
 								aria-label="Share link"
 								onfocus={(event) => event.currentTarget.select()}
 							/>
@@ -416,36 +368,36 @@
 					</div>
 				{/if}
 
-				{#if saveSyncError}
+				{#if dockView.saveSyncError}
 					<div
 						class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
 						role="alert"
 					>
-						{saveSyncError}
+						{dockView.saveSyncError}
 					</div>
 				{/if}
 
-				{#if activeRoute && activeImportedRouteSource}
+				{#if dockView.activeRoute && dockView.activeImportedRouteSource}
 					<div
 						class="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/8 px-3 py-2 text-sm text-sky-900 dark:text-sky-100"
 						role="status"
 					>
 						<div class="font-semibold">Imported GPX</div>
-						<div>{activeImportedRouteSource.filename}</div>
-						<div>{getImportedRouteStopSummary(activeRoute)}</div>
+						<div>{dockView.activeImportedRouteSource.filename}</div>
+						<div>{getImportedRouteStopSummary(dockView.activeRoute)}</div>
 						<div>Edit stops, then Generate Route to recalculate.</div>
 					</div>
 				{/if}
 
-				{#if activeRoute && avoidedRoads.length > 0}
+				{#if dockView.activeRoute && dockView.avoidedRoads.length > 0}
 					<div class="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
 						<div class="mb-2 flex items-center justify-between gap-3">
 							<div class="text-xs font-semibold uppercase tracking-wide text-destructive">
-								{avoidedRoads.length} avoided
+								{dockView.avoidedRoads.length} avoided
 							</div>
 						</div>
 						<div class="flex flex-wrap gap-2">
-							{#each avoidedRoads as avoidance, index (`avoidance-${index}`)}
+							{#each dockView.avoidedRoads as avoidance, index (`avoidance-${index}`)}
 								<div class="flex items-center gap-1 rounded-md border border-destructive/20 bg-background/80 px-2 py-1 text-xs font-medium text-foreground">
 									<span>{avoidance.label}</span>
 									<Button
@@ -453,7 +405,7 @@
 										size="icon"
 										class="size-6 text-muted-foreground hover:text-destructive"
 										type="button"
-										disabled={isRouting}
+										disabled={dockView.isRouting}
 										aria-label={`Remove ${avoidance.label}`}
 										onclick={() => routes.removeAvoidedRoad(index)}
 									>
@@ -465,7 +417,7 @@
 					</div>
 				{/if}
 
-				{#if activeRoute && routeAlternatives.length > 1}
+				{#if dockView.activeRoute && dockView.routeAlternatives.length > 1}
 					<div class="mt-3 rounded-lg border border-border/50 bg-secondary/10 p-3">
 						<div class="mb-2 flex items-center justify-between gap-3">
 							<div class="text-xs font-semibold uppercase tracking-wide text-foreground/75">
@@ -476,15 +428,15 @@
 							</div>
 						</div>
 						<div class="grid gap-2 md:grid-cols-3">
-							{#each routeAlternatives as route, index (`alternative-${index}`)}
+							{#each dockView.routeAlternatives as route, index (`alternative-${index}`)}
 								<button
 									type="button"
 									class={`rounded-lg border p-3 text-left transition-colors ${
-										index === selectedRouteIndex
+										index === dockView.selectedRouteIndex
 											? "border-primary/40 bg-background shadow-sm"
 											: "border-border/50 bg-background/70 hover:border-border hover:bg-background"
 									}`}
-									aria-pressed={index === selectedRouteIndex}
+									aria-pressed={index === dockView.selectedRouteIndex}
 									onclick={() => routes.selectRouteAlternative(index)}
 								>
 									<div class="mb-2 flex items-center justify-between gap-2">
@@ -500,7 +452,7 @@
 													Recommended
 												</Badge>
 											{/if}
-											{#if index === selectedRouteIndex}
+											{#if index === dockView.selectedRouteIndex}
 												<Badge
 													variant="secondary"
 													class="h-5 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-primary"
@@ -552,24 +504,24 @@
 					</div>
 				{/if}
 
-				{#if activeRoute && alternativeInfoMessage}
+				{#if dockView.activeRoute && dockView.alternativeInfoMessage}
 					<div
 						class="mt-3 rounded-lg border border-border/50 bg-secondary/10 px-3 py-2 text-sm text-muted-foreground"
 						role="status"
 					>
-						{alternativeInfoMessage}
+						{dockView.alternativeInfoMessage}
 					</div>
 				{/if}
 
-				{#if activeRoute}
+				{#if dockView.activeRoute}
 				<div class="mt-2.5 min-w-0 rounded-md border border-border/40 bg-secondary/10">
-					{#if activeRoute}
+					{#if dockView.activeRoute}
 						<div class="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 px-3 py-2">
 							<div class="flex min-w-0 flex-wrap items-center gap-2">
 								<span class="text-xs font-semibold uppercase tracking-wide text-foreground/75">
-									{activeRoute.startLabel}
+									{dockView.activeRoute.startLabel}
 								</span>
-								{#if activeRoute.mode === "round_course"}
+								{#if dockView.activeRoute.mode === "round_course"}
 									<Badge
 										variant="secondary"
 										class="h-5 border-emerald-500/20 bg-emerald-500/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
@@ -577,7 +529,7 @@
 										Round course
 									</Badge>
 									<span class="text-xs text-muted-foreground">Returns to start</span>
-								{:else if activeRoute.mode === "out_and_back"}
+								{:else if dockView.activeRoute.mode === "out_and_back"}
 									<Badge
 										variant="secondary"
 										class="h-5 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-primary"
@@ -585,33 +537,33 @@
 										Out and back
 									</Badge>
 									<span class="text-xs text-muted-foreground">
-										to {activeRoute.destinationLabel} and back
+										to {dockView.activeRoute.destinationLabel} and back
 									</span>
 								{:else}
 									<span class="text-xs text-muted-foreground">
-										to {activeRoute.destinationLabel}
+										to {dockView.activeRoute.destinationLabel}
 									</span>
 								{/if}
-								{#if activeRoute.spatialConstraint}
+								{#if dockView.activeRoute.spatialConstraint}
 									<Badge
 										variant="outline"
 										class="h-5 border-sky-500/25 bg-sky-500/8 px-2 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200"
 									>
-										{formatSpatialConstraintSummary(activeRoute)}
+										{formatSpatialConstraintSummary(dockView.activeRoute)}
 									</Badge>
 									<Badge
 										variant="outline"
 										class="h-5 px-2 text-[10px] font-semibold uppercase tracking-wide"
 									>
 										{formatSpatialConstraintEnforcement(
-											activeRoute.spatialConstraint.enforcement,
+											dockView.activeRoute.spatialConstraint.enforcement,
 										)}
 									</Badge>
 								{/if}
 							</div>
-							{#if activeRoute.mode === "round_course" && activeRoundCourseTarget}
+							{#if dockView.activeRoute.mode === "round_course" && dockView.activeRoundCourseTarget}
 								<span class="text-xs text-muted-foreground">
-									Target {formatRoundCourseTarget(activeRoundCourseTarget)}
+									Target {formatRoundCourseTarget(dockView.activeRoundCourseTarget)}
 								</span>
 							{/if}
 						</div>
@@ -625,31 +577,31 @@
 							<TrendingUp class="size-3 shrink-0" />
 							Elevation
 						</div>
-						{#if elevationSamples.length > 0}
+						{#if dockView.elevationSamples.length > 0}
 							<div
 								class="flex min-w-0 flex-nowrap items-center justify-end gap-x-2 overflow-x-auto whitespace-nowrap text-xs tabular-nums text-muted-foreground"
 							>
-								{#if activeProfilePoint}
+								{#if dockView.activeProfilePoint}
 									<span class="font-semibold text-foreground">
-										At {formatExactDistance(activeProfilePoint.distanceMeters)}
+										At {formatExactDistance(dockView.activeProfilePoint.distanceMeters)}
 									</span>
 									<span class="font-semibold text-foreground">
-										{formatElevation(activeProfilePoint.elevationMeters)}
+										{formatElevation(dockView.activeProfilePoint.elevationMeters)}
 									</span>
 									<span class="text-border">|</span>
 								{/if}
-								<span>min {formatElevation(elevMin)}</span>
+								<span>min {formatElevation(dockView.elevMin)}</span>
 								<span class="text-border">|</span>
-								<span>max {formatElevation(elevMax)}</span>
+								<span>max {formatElevation(dockView.elevMax)}</span>
 								<span class="text-border">|</span>
-								<span>delta {formatElevation(elevMax - elevMin)}</span>
-								{#if activeRouteGradientMetrics && activeRouteGradientMetrics.averageGradientPercent !== null}
+								<span>delta {formatElevation(dockView.elevMax - dockView.elevMin)}</span>
+								{#if dockView.activeRouteGradientMetrics && dockView.activeRouteGradientMetrics.averageGradientPercent !== null}
 									<span class="text-border">|</span>
-									<span>avg {formatGrade(activeRouteGradientMetrics.averageGradientPercent)}</span>
+									<span>avg {formatGrade(dockView.activeRouteGradientMetrics.averageGradientPercent)}</span>
 								{/if}
-								{#if activeRouteGradientMetrics && activeRouteGradientMetrics.maximumGradientPercent !== null}
+								{#if dockView.activeRouteGradientMetrics && dockView.activeRouteGradientMetrics.maximumGradientPercent !== null}
 									<span class="text-border">|</span>
-									<span>max {formatGrade(activeRouteGradientMetrics.maximumGradientPercent)}</span>
+									<span>max {formatGrade(dockView.activeRouteGradientMetrics.maximumGradientPercent)}</span>
 								{/if}
 							</div>
 						{:else}
@@ -657,11 +609,11 @@
 						{/if}
 					</div>
 					<div class="px-2 pb-1.5 pt-1">
-						{#if elevationSamples.length > 0}
+						{#if dockView.elevationSamples.length > 0}
 							<svg
 								class="block w-full touch-none"
-								height={chartH}
-								viewBox="0 0 {chartW} {chartH}"
+								height={dockView.chartH}
+								viewBox="0 0 {chartW} {dockView.chartH}"
 								preserveAspectRatio="none"
 								role="img"
 								aria-label="Elevation along route"
@@ -681,37 +633,37 @@
 								{#each [0.25, 0.5, 0.75] as gridLine}
 									<line
 										x1="0"
-										y1={gridLine * chartH}
+										y1={gridLine * dockView.chartH}
 										x2={chartW}
-										y2={gridLine * chartH}
+										y2={gridLine * dockView.chartH}
 										stroke="currentColor"
 										class="text-border/40"
 										stroke-width="1"
 										vector-effect="non-scaling-stroke"
 									/>
 								{/each}
-								{#each activeRouteClimbs as climb}
+								{#each dockView.activeRouteClimbs as climb}
 									<rect
-										x={(climb.startDistanceMeters / Math.max(sampledProfileDistanceTotal ?? 1, 1)) * chartW}
+										x={(climb.startDistanceMeters / Math.max(dockView.sampledProfileDistanceTotal ?? 1, 1)) * chartW}
 										y="0"
 										width={Math.max(
 											1.5,
 											((climb.endDistanceMeters - climb.startDistanceMeters) /
-												Math.max(sampledProfileDistanceTotal ?? 1, 1)) *
+												Math.max(dockView.sampledProfileDistanceTotal ?? 1, 1)) *
 												chartW,
 										)}
-										height={chartH}
+										height={dockView.chartH}
 										fill={getClimbColor(climb)}
 										opacity={climb.isKeyClimb ? "0.24" : "0.13"}
 									/>
 								{/each}
-								<path d={areaD} fill="url(#elevFill)" class="text-emerald-500" />
-								{#if activeProfilePoint}
+								<path d={dockView.areaD} fill="url(#elevFill)" class="text-emerald-500" />
+								{#if dockView.activeProfilePoint}
 									<line
-										x1={activeProfilePoint.x}
+										x1={dockView.activeProfilePoint.x}
 										y1="0"
-										x2={activeProfilePoint.x}
-										y2={chartH}
+										x2={dockView.activeProfilePoint.x}
+										y2={dockView.chartH}
 										stroke="rgb(16 185 129 / 0.45)"
 										stroke-width="1.5"
 										stroke-dasharray="3 4"
@@ -724,19 +676,19 @@
 									stroke-width="2.5"
 									stroke-linejoin="round"
 									stroke-linecap="round"
-									points={linePoints}
+									points={dockView.linePoints}
 									vector-effect="non-scaling-stroke"
 								/>
-								{#if activeProfilePoint}
+								{#if dockView.activeProfilePoint}
 									<circle
-										cx={activeProfilePoint.x}
-										cy={activeProfilePoint.y}
+										cx={dockView.activeProfilePoint.x}
+										cy={dockView.activeProfilePoint.y}
 										r="5.75"
 										fill="rgba(16, 185, 129, 0.22)"
 									/>
 									<circle
-										cx={activeProfilePoint.x}
-										cy={activeProfilePoint.y}
+										cx={dockView.activeProfilePoint.x}
+										cy={dockView.activeProfilePoint.y}
 										r="3.5"
 										fill="rgb(16 185 129)"
 										stroke="rgba(255, 255, 255, 0.96)"
@@ -747,7 +699,7 @@
 									x="0"
 									y="0"
 									width={chartW}
-									height={chartH}
+									height={dockView.chartH}
 									fill="transparent"
 									pointer-events="all"
 								/>
@@ -756,10 +708,10 @@
 								class="flex justify-between px-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
 							>
 								<span>Start</span>
-								<span class="hidden min-[480px]:inline">{distanceTickLabels[0]}</span>
-								<span class="hidden min-[640px]:inline">{distanceTickLabels[1]}</span>
-								<span class="hidden min-[900px]:inline">{distanceTickLabels[2]}</span>
-								<span>{distanceTickLabels[3]}</span>
+								<span class="hidden min-[480px]:inline">{dockView.distanceTickLabels[0]}</span>
+								<span class="hidden min-[640px]:inline">{dockView.distanceTickLabels[1]}</span>
+								<span class="hidden min-[900px]:inline">{dockView.distanceTickLabels[2]}</span>
+								<span>{dockView.distanceTickLabels[3]}</span>
 							</div>
 						{:else}
 							<div class="flex min-h-24 items-center justify-center text-center text-sm text-muted-foreground">
@@ -767,18 +719,18 @@
 							</div>
 						{/if}
 					</div>
-					{#if activeRoute && elevationSamples.length > 0}
+					{#if dockView.activeRoute && dockView.elevationSamples.length > 0}
 						<div class="border-t border-border/30 px-3 py-2">
-							{#if activeRouteClimbs.length > 0}
+							{#if dockView.activeRouteClimbs.length > 0}
 								<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
 									<span class="font-semibold text-foreground">
-										{activeRouteClimbs.length} detected climb{activeRouteClimbs.length === 1 ? "" : "s"}
+										{dockView.activeRouteClimbs.length} detected climb{dockView.activeRouteClimbs.length === 1 ? "" : "s"}
 									</span>
-									<span>{activeCategorizedClimbs.length} categorized</span>
-									<span>{activeKeyClimbs.length} key highlighted</span>
-									{#if hardestClimb}
+									<span>{dockView.activeCategorizedClimbs.length} categorized</span>
+									<span>{dockView.activeKeyClimbs.length} key highlighted</span>
+									{#if dockView.hardestClimb}
 										<span class="font-semibold text-foreground">
-											Hardest: {hardestClimb.category}, {formatElevation(hardestClimb.elevationGainMeters)} over {formatDistance(hardestClimb.distanceMeters)} at {formatGrade(hardestClimb.averageGradePercent)}
+											Hardest: {dockView.hardestClimb.category}, {formatElevation(dockView.hardestClimb.elevationGainMeters)} over {formatDistance(dockView.hardestClimb.distanceMeters)} at {formatGrade(dockView.hardestClimb.averageGradePercent)}
 										</span>
 									{/if}
 								</div>
@@ -788,7 +740,7 @@
 								</p>
 							{/if}
 						</div>
-					{:else if activeRoute}
+					{:else if dockView.activeRoute}
 						<div class="border-t border-border/30 px-3 py-2 text-xs text-muted-foreground">
 							No climb data available because this route has no elevation samples.
 						</div>
@@ -796,7 +748,7 @@
 				</div>
 				{/if}
 
-				{#if directionsOpen && activeRoute}
+				{#if dockView.directionsOpen && dockView.activeRoute}
 					<div
 						id="route-directions-panel"
 						class="mt-3 max-h-[min(38vh,22rem)] overflow-y-auto rounded-lg border border-border/40 bg-secondary/5 p-2"
@@ -809,21 +761,21 @@
 								</span>
 							</div>
 							<span class="text-xs text-muted-foreground">
-								{activeDirections.length} cue{activeDirections.length === 1 ? "" : "s"}
+								{dockView.activeDirections.length} cue{dockView.activeDirections.length === 1 ? "" : "s"}
 							</span>
 						</div>
 
-						{#if activeDirections.length > 0}
+						{#if dockView.activeDirections.length > 0}
 							<div class="space-y-1">
-								{#each activeDirections as cue, index (`cue-${index}-${cue.coordinateIndex}-${cue.sign}`)}
+								{#each dockView.activeDirections as cue, index (`cue-${index}-${cue.coordinateIndex}-${cue.sign}`)}
 									<button
 										type="button"
 										class={`grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors ${
-											selectedCueIndex === index
+											dockView.selectedCueIndex === index
 												? "border-primary/35 bg-primary/10 text-foreground"
 												: "border-transparent bg-background/60 text-foreground hover:border-border/70 hover:bg-background"
 										}`}
-										aria-pressed={selectedCueIndex === index}
+										aria-pressed={dockView.selectedCueIndex === index}
 										onclick={() => analysis.selectCue(index)}
 									>
 										<span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
@@ -868,7 +820,7 @@
 					</div>
 				{/if}
 
-				{#if routeAnalysisOpen && activeRoute}
+				{#if dockView.routeAnalysisOpen && dockView.activeRoute}
 					<div
 						id="route-analysis-panel"
 						class="mt-3 max-h-[min(38vh,22rem)] overflow-y-auto rounded-lg border border-border/40 bg-secondary/5 p-3 md:max-h-[min(42vh,26rem)] md:p-3.5"
@@ -890,7 +842,7 @@
 										variant="secondary"
 										class="h-5 shrink-0 px-2 text-[10px] font-semibold"
 									>
-										{getRoutingBadgeLabel(activeRoute)}
+										{getRoutingBadgeLabel(dockView.activeRoute)}
 									</Badge>
 								</div>
 
@@ -900,9 +852,9 @@
 											<AlertTriangle class="size-3" /> Readiness
 										</span>
 									</div>
-									{#if activeReadinessWarnings.length > 0}
+									{#if dockView.activeReadinessWarnings.length > 0}
 										<div class="grid gap-1.5">
-											{#each activeReadinessWarnings as warning}
+											{#each dockView.activeReadinessWarnings as warning}
 												<div
 													class={`rounded-md border px-2.5 py-2 text-xs ${analysis.getWarningContainerClass(warning)}`}
 												>
@@ -933,9 +885,9 @@
 											<Route class="size-3" /> Surface mix
 										</span>
 									</div>
-									{#if surfaceMix.length > 0}
+									{#if dockView.surfaceMix.length > 0}
 										<div class="flex h-2 overflow-hidden rounded-full bg-secondary">
-											{#each surfaceMix as surface}
+											{#each dockView.surfaceMix as surface}
 												<div
 													class="{surface.className} opacity-90"
 													style="width: {surface.pct}%"
@@ -944,7 +896,7 @@
 											{/each}
 										</div>
 										<div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-											{#each surfaceMix as surface}
+											{#each dockView.surfaceMix as surface}
 												<span class="flex items-center gap-1">
 													<span class="size-1.5 rounded-full {surface.className}"></span>
 													{surface.label} ({surface.pct}%)
@@ -953,7 +905,7 @@
 										</div>
 									{:else}
 										<p class="text-xs text-muted-foreground">
-											{isImportedRoute(activeRoute)
+											{isImportedRoute(dockView.activeRoute)
 												? "Surface analysis becomes available after re-routing this imported track."
 												: "Surface details were not available for this route."}
 										</p>
@@ -965,37 +917,37 @@
 										<span class="flex items-center gap-1">
 											<Wind class="size-3" /> Wind
 										</span>
-										{#if activeWindSummary}
-											<span>{activeWindSummary.forecastTime}</span>
+										{#if dockView.activeWindSummary}
+											<span>{dockView.activeWindSummary.forecastTime}</span>
 										{/if}
 									</div>
-									{#if activeWindSummary}
+									{#if dockView.activeWindSummary}
 										<div class="grid gap-1.5 text-xs">
 											<div class="grid grid-cols-2 gap-1.5">
 												<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 													<div class="text-muted-foreground">Average</div>
 													<div class="font-semibold text-foreground">
-														{activeWindSummary.averageHeadwindKmh < 0
-															? `${formatWindSpeed(activeWindSummary.averageTailwindKmh)} tailwind`
-															: `${formatWindSpeed(activeWindSummary.averageHeadwindKmh)} headwind`}
+														{dockView.activeWindSummary.averageHeadwindKmh < 0
+															? `${formatWindSpeed(dockView.activeWindSummary.averageTailwindKmh)} tailwind`
+															: `${formatWindSpeed(dockView.activeWindSummary.averageHeadwindKmh)} headwind`}
 													</div>
 												</div>
 												<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 													<div class="text-muted-foreground">Max crosswind</div>
 													<div class="font-semibold text-foreground">
-														{formatWindSpeed(activeWindSummary.maxCrosswindKmh)}
+														{formatWindSpeed(dockView.activeWindSummary.maxCrosswindKmh)}
 													</div>
 												</div>
 											</div>
 											<div class="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
-												<span>Headwind {formatDistance(activeWindSummary.headwindDistanceMeters)}</span>
-												<span>Crosswind {formatDistance(activeWindSummary.crosswindDistanceMeters)}</span>
-												<span>Tailwind {formatDistance(activeWindSummary.tailwindDistanceMeters)}</span>
-												<span>Max headwind {formatWindSpeed(activeWindSummary.maxHeadwindKmh)}</span>
+												<span>Headwind {formatDistance(dockView.activeWindSummary.headwindDistanceMeters)}</span>
+												<span>Crosswind {formatDistance(dockView.activeWindSummary.crosswindDistanceMeters)}</span>
+												<span>Tailwind {formatDistance(dockView.activeWindSummary.tailwindDistanceMeters)}</span>
+												<span>Max headwind {formatWindSpeed(dockView.activeWindSummary.maxHeadwindKmh)}</span>
 											</div>
-											{#if strongestWindSegments.length > 0}
+											{#if dockView.strongestWindSegments.length > 0}
 												<div class="grid gap-1.5">
-													{#each strongestWindSegments as segment}
+													{#each dockView.strongestWindSegments as segment}
 														<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 															<div class="mb-1 flex items-center justify-between gap-2">
 																<span class="font-semibold text-foreground">
@@ -1006,7 +958,7 @@
 																</span>
 															</div>
 															<div class="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
-																<span>{analysis.getWindSegmentDistanceRange(activeRoute, segment)}</span>
+																<span>{analysis.getWindSegmentDistanceRange(dockView.activeRoute, segment)}</span>
 																<span>{formatWindComponent(segment.headwindComponentKmh)}</span>
 																<span>{formatWindSpeed(Math.abs(segment.crosswindComponentKmh))} cross</span>
 															</div>
@@ -1017,7 +969,7 @@
 										</div>
 									{:else}
 										<p class="text-xs text-muted-foreground">
-											{isImportedRoute(activeRoute)
+											{isImportedRoute(dockView.activeRoute)
 												? "Wind analysis becomes available after re-routing this imported track."
 												: "Wind analysis was not available for this route."}
 										</p>
@@ -1030,9 +982,9 @@
 											<MountainSnow class="size-3" /> Climbs
 										</span>
 									</div>
-									{#if activeRouteClimbs.length > 0}
+									{#if dockView.activeRouteClimbs.length > 0}
 										<div class="grid gap-1.5">
-											{#each activeRouteClimbs as climb, index}
+											{#each dockView.activeRouteClimbs as climb, index}
 												<div
 													class={`rounded-md border px-2.5 py-2 text-xs ${
 														climb.isKeyClimb
@@ -1079,15 +1031,15 @@
 									<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 										Resolved start
 									</div>
-									<div class="font-medium text-foreground">{activeRoute.startLabel}</div>
+									<div class="font-medium text-foreground">{dockView.activeRoute.startLabel}</div>
 								</div>
-								{#if activeRoute.waypoints.length > 0 && activeRoute.mode !== "out_and_back"}
+								{#if dockView.activeRoute.waypoints.length > 0 && dockView.activeRoute.mode !== "out_and_back"}
 									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 											Resolved waypoints
 										</div>
 										<div class="space-y-1">
-											{#each activeRoute.waypoints as waypoint, index}
+											{#each dockView.activeRoute.waypoints as waypoint, index}
 												<div class="font-medium text-foreground">
 													{index + 1}. {waypoint.label}
 												</div>
@@ -1095,49 +1047,49 @@
 										</div>
 									</div>
 								{/if}
-								{#if activeRoute.mode === "round_course"}
+								{#if dockView.activeRoute.mode === "round_course"}
 									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 											Loop finish
 										</div>
-										<div class="font-medium text-foreground">Returns to {activeRoute.startLabel}</div>
+										<div class="font-medium text-foreground">Returns to {dockView.activeRoute.startLabel}</div>
 									</div>
-									{#if activeRoundCourseTarget}
+									{#if dockView.activeRoundCourseTarget}
 										<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 											<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 												Requested target
 											</div>
 											<div class="font-medium text-foreground">
-												{formatRoundCourseTarget(activeRoundCourseTarget)}
+												{formatRoundCourseTarget(dockView.activeRoundCourseTarget)}
 											</div>
 										</div>
 									{/if}
-								{:else if activeRoute.mode === "out_and_back"}
+								{:else if dockView.activeRoute.mode === "out_and_back"}
 									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 											Resolved turnaround
 										</div>
-										<div class="font-medium text-foreground">{activeRoute.destinationLabel}</div>
+										<div class="font-medium text-foreground">{dockView.activeRoute.destinationLabel}</div>
 									</div>
 								{:else}
 									<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-foreground/70">
 											Resolved destination
 										</div>
-										<div class="font-medium text-foreground">{activeRoute.destinationLabel}</div>
+										<div class="font-medium text-foreground">{dockView.activeRoute.destinationLabel}</div>
 									</div>
 								{/if}
-								{#if activeRoute.spatialConstraint}
+								{#if dockView.activeRoute.spatialConstraint}
 									<div class="rounded-md border border-sky-500/20 bg-sky-500/8 px-2.5 py-2">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-sky-900/70 dark:text-sky-100/70">
 											Route bounds
 										</div>
 										<div class="font-medium text-foreground">
-											{formatSpatialConstraintSummary(activeRoute)}
+											{formatSpatialConstraintSummary(dockView.activeRoute)}
 										</div>
 										<div class="text-muted-foreground">
 											{formatSpatialConstraintEnforcement(
-												activeRoute.spatialConstraint.enforcement,
+												dockView.activeRoute.spatialConstraint.enforcement,
 											)}
 										</div>
 									</div>
@@ -1147,16 +1099,16 @@
 										Routing profile
 									</div>
 									<div class="font-medium text-foreground">
-										{getRoutingProfileLabel(activeRoute)}
+										{getRoutingProfileLabel(dockView.activeRoute)}
 									</div>
 								</div>
-								{#if activeProviderWarnings.length > 0}
+								{#if dockView.activeProviderWarnings.length > 0}
 									<div class="rounded-md border border-amber-500/20 bg-amber-500/8 px-2.5 py-2 text-amber-900 dark:text-amber-100">
 										<div class="mb-1 font-semibold uppercase tracking-wide text-amber-900/70 dark:text-amber-100/70">
 											Routing fallback
 										</div>
 										<div class="space-y-1 font-medium">
-											{#each activeProviderWarnings as warning}
+											{#each dockView.activeProviderWarnings as warning}
 												<div>{warning.message}</div>
 											{/each}
 										</div>
