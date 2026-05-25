@@ -29,238 +29,113 @@
 	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerOverlayController, PlannerRoutesController, PlannerSaveController, PlannerSharingController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
 	import { AlertTriangle, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronDown, ChevronUp, CircleDot, CornerDownLeft, CornerDownRight, Flag, MountainSnow, Navigation, Redo2, Route, Share2, ShieldCheck, Shuffle, TrendingDown, TrendingUp, Undo2, Wind, X } from "@lucide/svelte";
 
-	type RouteResultDockController = PlannerFormController & PlannerRoutesController & PlannerAnalysisController & PlannerOverlayController & PlannerSaveController & PlannerSharingController & PlannerImportExportController;
 
 	let { form, routes, analysis, overlay, save, sharing, importExport }: { form: PlannerFormController; routes: PlannerRoutesController; analysis: PlannerAnalysisController; overlay: PlannerOverlayController; save: PlannerSaveController; sharing: PlannerSharingController; importExport: PlannerImportExportController } = $props();
-	const slices = $derived.by(() => [form, routes, analysis, overlay, save, sharing, importExport]);
-	const controller = $derived(
-		new Proxy(
-			{},
-			{
-				get: (_target, property) => {
-					for (const slice of slices) {
-						if (property in slice) {
-							return slice[property as keyof typeof slice];
-						}
-					}
-				},
-				set: (_target, property, value) => {
-					for (const slice of slices) {
-						if (property in slice) {
-							(slice as Record<PropertyKey, unknown>)[property] = value;
-							return true;
-						}
-					}
-					return false;
-				},
-			},
-		) as RouteResultDockController,
-	);
-	const directionsOpen = $derived(controller.directionsOpen);
-	const routeAnalysisOpen = $derived(controller.routeAnalysisOpen);
-	const gradientOverlayEnabled = $derived(controller.gradientOverlayEnabled);
-	const windOverlayEnabled = $derived(controller.windOverlayEnabled);
-	const plannerMode = $derived(controller.plannerMode);
-	const startStop = $derived(controller.startStop);
-	const waypointStops = $derived(controller.waypointStops);
-	const destinationStop = $derived(controller.destinationStop);
-	const roundCourseTargetKind = $derived(controller.roundCourseTargetKind);
-	const roundCourseDistanceInput = $derived(controller.roundCourseDistanceInput);
-	const roundCourseDistanceMetersInput = $derived(controller.roundCourseDistanceMetersInput);
-	const roundCourseDurationInput = $derived(controller.roundCourseDurationInput);
-	const roundCourseAscendMeters = $derived(controller.roundCourseAscendMeters);
-	const spatialConstraintKind = $derived(controller.spatialConstraintKind);
-	const spatialConstraintEnforcement = $derived(controller.spatialConstraintEnforcement);
-	const constraintCenterStop = $derived(controller.constraintCenterStop);
-	const areaRadiusInput = $derived(controller.areaRadiusInput);
-	const corridorWidthInput = $derived(controller.corridorWidthInput);
-	const areaRadiusMetersInput = $derived(controller.areaRadiusMetersInput);
-	const corridorWidthMetersInput = $derived(controller.corridorWidthMetersInput);
-	const formattedInputDistanceUnit = $derived(controller.formattedInputDistanceUnit);
-	const routeRequestError = $derived(controller.routeRequestError);
-	const routeImportError = $derived(controller.routeImportError);
-	const fieldErrors = $derived(controller.fieldErrors);
-	const isRouting = $derived(controller.isRouting);
-	const isImportingGpx = $derived(controller.isImportingGpx);
-	const routeAlternatives = $derived(controller.routeAlternatives);
-	const selectedRouteIndex = $derived(controller.selectedRouteIndex);
-	const routeNeedsRecalculation = $derived(controller.routeNeedsRecalculation);
-	const lockedSegmentIndexes = $derived(controller.lockedSegmentIndexes);
-	const avoidedRoads = $derived(controller.avoidedRoads);
-	const lastGeneratedRouteCount = $derived(controller.lastGeneratedRouteCount);
-	const routeExportError = $derived(controller.routeExportError);
-	const routeShareErrors = $derived(controller.routeShareErrors);
-	const routeShareUrls = $derived(controller.routeShareUrls);
-	const isSharingRoute = $derived(controller.isSharingRoute);
-	const activeRouteShareCopied = $derived(controller.activeRouteShareCopied);
-	const saveSyncError = $derived(controller.saveSyncError);
-	const activeSavedRouteId = $derived(controller.activeSavedRouteId);
-	const plannerDraftRouteId = $derived(controller.plannerDraftRouteId);
-	const isActiveRouteSaved = $derived(controller.isActiveRouteSaved);
-	const pendingSavedRouteId = $derived(controller.pendingSavedRouteId);
-	const clientFetch = $derived(controller.clientFetch);
-	const activeProfileIndex = $derived(controller.activeProfileIndex);
-	const chartScrubPointerId = $derived(controller.chartScrubPointerId);
-	const mapClickSelection = $derived(controller.mapClickSelection);
-	const isResolvingMapSelection = $derived(controller.isResolvingMapSelection);
-	const currentLocation = $derived(controller.currentLocation);
-	const currentLocationFocusKey = $derived(controller.currentLocationFocusKey);
-	const recenterRouteRequestKey = $derived(controller.recenterRouteRequestKey);
-	const fitInitialSavedRouteBounds = $derived(controller.fitInitialSavedRouteBounds);
-	const isLocating = $derived(controller.isLocating);
-	const currentLocationError = $derived(controller.currentLocationError);
-	const gpxImportInput = $derived(controller.gpxImportInput);
-	const undoStack = $derived(controller.undoStack);
-	const redoStack = $derived(controller.redoStack);
-	const advancedOpen = $derived(controller.advancedOpen);
-	const completionController = $derived(controller.completionController);
-	const selectedCueIndex = $derived(controller.selectedCueIndex);
-	const selectedCueFocusKey = $derived(controller.selectedCueFocusKey);
-	const lastCueRouteKey = $derived(controller.lastCueRouteKey);
-	const selectedBasemap = $derived(controller.selectedBasemap);
-	const availableBasemapOptions = $derived(controller.availableBasemapOptions);
-	const isRoundCourseMode = $derived(controller.isRoundCourseMode);
-	const isOutAndBackMode = $derived(controller.isOutAndBackMode);
-	const activeRoute = $derived(controller.activeRoute);
-	const activeDirections = $derived(controller.activeDirections);
-	const activeTurnCount = $derived(controller.activeTurnCount);
-	const selectedCue = $derived(controller.selectedCue);
-	const activeRouteShareKey = $derived(controller.activeRouteShareKey);
-	const activeRouteShareError = $derived(controller.activeRouteShareError);
-	const activeRouteShareUrl = $derived(controller.activeRouteShareUrl);
-	const isActiveRouteShareCopied = $derived(controller.isActiveRouteShareCopied);
-	const activeRoundCourseTarget = $derived(controller.activeRoundCourseTarget);
-	const activeRouteClimbs = $derived(controller.activeRouteClimbs);
-	const activeRouteGradientMetrics = $derived(controller.activeRouteGradientMetrics);
-	const activeRouteGradientGeoJson = $derived(controller.activeRouteGradientGeoJson);
-	const canShowGradientOverlay = $derived(controller.canShowGradientOverlay);
-	const activeRouteWindGeoJson = $derived(controller.activeRouteWindGeoJson);
-	const canShowWindOverlay = $derived(controller.canShowWindOverlay);
-	const activeWindSummary = $derived(controller.activeWindSummary);
-	const strongestWindSegments = $derived(controller.strongestWindSegments);
-	const activeCategorizedClimbs = $derived(controller.activeCategorizedClimbs);
-	const activeKeyClimbs = $derived(controller.activeKeyClimbs);
-	const hardestClimb = $derived(controller.hardestClimb);
-	const routeOverlays = $derived(controller.routeOverlays);
-	const constraintOverlay = $derived(controller.constraintOverlay);
-	const avoidanceOverlay = $derived(controller.avoidanceOverlay);
-	const activeRouteSegmentCount = $derived(controller.activeRouteSegmentCount);
-	const sanitizedLockedSegmentIndexes = $derived(controller.sanitizedLockedSegmentIndexes);
-	const lockedSegmentOverlay = $derived(controller.lockedSegmentOverlay);
-	const combinedRouteBounds = $derived(controller.combinedRouteBounds);
-	const surfaceMix = $derived(controller.surfaceMix);
-	const activeWarnings = $derived(controller.activeWarnings);
-	const activeReadinessWarnings = $derived(controller.activeReadinessWarnings);
-	const activeProviderWarnings = $derived(controller.activeProviderWarnings);
-	const primaryActiveWarning = $derived(controller.primaryActiveWarning);
-	const activeImportedRouteSource = $derived(controller.activeImportedRouteSource);
-	const alternativeInfoMessage = $derived(controller.alternativeInfoMessage);
-	const elevationSamples = $derived(controller.elevationSamples);
-	const chartH = $derived(controller.chartH);
-	const elevMin = $derived(controller.elevMin);
-	const elevMax = $derived(controller.elevMax);
-	const elevRange = $derived(controller.elevRange);
-	const sampledProfileDistanceTotal = $derived(controller.sampledProfileDistanceTotal);
-	const chartProfilePoints = $derived(controller.chartProfilePoints);
-	const activeProfilePoint = $derived(controller.activeProfilePoint);
-	const highlightedRouteCoordinate = $derived(controller.highlightedRouteCoordinate);
-	const linePoints = $derived(controller.linePoints);
-	const areaD = $derived(controller.areaD);
-	const distanceTickLabels = $derived(controller.distanceTickLabels);
-	const canUndoRouteEdit = $derived(controller.canUndoRouteEdit);
-	const canRedoRouteEdit = $derived(controller.canRedoRouteEdit);
-	const hasAdvancedErrors = $derived(controller.hasAdvancedErrors);
+	const directionsOpen = $derived(analysis.directionsOpen);
+	const routeAnalysisOpen = $derived(analysis.routeAnalysisOpen);
+	const gradientOverlayEnabled = $derived(overlay.gradientOverlayEnabled);
+	const windOverlayEnabled = $derived(overlay.windOverlayEnabled);
+	const plannerMode = $derived(form.plannerMode);
+	const startStop = $derived(form.startStop);
+	const waypointStops = $derived(form.waypointStops);
+	const destinationStop = $derived(form.destinationStop);
+	const roundCourseTargetKind = $derived(form.roundCourseTargetKind);
+	const roundCourseDistanceInput = $derived(form.roundCourseDistanceInput);
+	const roundCourseDistanceMetersInput = $derived(form.roundCourseDistanceMetersInput);
+	const roundCourseDurationInput = $derived(form.roundCourseDurationInput);
+	const roundCourseAscendMeters = $derived(form.roundCourseAscendMeters);
+	const spatialConstraintKind = $derived(form.spatialConstraintKind);
+	const spatialConstraintEnforcement = $derived(form.spatialConstraintEnforcement);
+	const constraintCenterStop = $derived(form.constraintCenterStop);
+	const areaRadiusInput = $derived(form.areaRadiusInput);
+	const corridorWidthInput = $derived(form.corridorWidthInput);
+	const areaRadiusMetersInput = $derived(form.areaRadiusMetersInput);
+	const corridorWidthMetersInput = $derived(form.corridorWidthMetersInput);
+	const formattedInputDistanceUnit = $derived(form.formattedInputDistanceUnit);
+	const routeRequestError = $derived(routes.routeRequestError);
+	const routeImportError = $derived(importExport.routeImportError);
+	const fieldErrors = $derived(form.fieldErrors);
+	const isRouting = $derived(routes.isRouting);
+	const isImportingGpx = $derived(importExport.isImportingGpx);
+	const routeAlternatives = $derived(routes.routeAlternatives);
+	const selectedRouteIndex = $derived(routes.selectedRouteIndex);
+	const routeNeedsRecalculation = $derived(routes.routeNeedsRecalculation);
+	const lockedSegmentIndexes = $derived(routes.lockedSegmentIndexes);
+	const avoidedRoads = $derived(routes.avoidedRoads);
+	const lastGeneratedRouteCount = $derived(routes.lastGeneratedRouteCount);
+	const routeExportError = $derived(importExport.routeExportError);
+	const routeShareErrors = $derived(sharing.routeShareErrors);
+	const routeShareUrls = $derived(sharing.routeShareUrls);
+	const isSharingRoute = $derived(sharing.isSharingRoute);
+	const activeRouteShareCopied = $derived(sharing.activeRouteShareCopied);
+	const saveSyncError = $derived(save.saveSyncError);
+	const activeSavedRouteId = $derived(save.activeSavedRouteId);
+	const plannerDraftRouteId = $derived(save.plannerDraftRouteId);
+	const isActiveRouteSaved = $derived(save.isActiveRouteSaved);
+	const pendingSavedRouteId = $derived(save.pendingSavedRouteId);
+	const activeProfileIndex = $derived(analysis.activeProfileIndex);
+	const chartScrubPointerId = $derived(analysis.chartScrubPointerId);
+	const fitInitialSavedRouteBounds = $derived(routes.fitInitialSavedRouteBounds);
+	const gpxImportInput = $derived(importExport.gpxImportInput);
+	const undoStack = $derived(routes.undoStack);
+	const redoStack = $derived(routes.redoStack);
+	const advancedOpen = $derived(form.advancedOpen);
+	const completionController = $derived(form.completionController);
+	const selectedCueIndex = $derived(analysis.selectedCueIndex);
+	const selectedCueFocusKey = $derived(analysis.selectedCueFocusKey);
+	const lastCueRouteKey = $derived(analysis.lastCueRouteKey);
+	const isRoundCourseMode = $derived(form.isRoundCourseMode);
+	const isOutAndBackMode = $derived(form.isOutAndBackMode);
+	const activeRoute = $derived(routes.activeRoute);
+	const activeDirections = $derived(routes.activeDirections);
+	const activeTurnCount = $derived(routes.activeTurnCount);
+	const selectedCue = $derived(analysis.selectedCue);
+	const activeRouteShareKey = $derived(sharing.activeRouteShareKey);
+	const activeRouteShareError = $derived(sharing.activeRouteShareError);
+	const activeRouteShareUrl = $derived(sharing.activeRouteShareUrl);
+	const isActiveRouteShareCopied = $derived(sharing.isActiveRouteShareCopied);
+	const activeRoundCourseTarget = $derived(routes.activeRoundCourseTarget);
+	const activeRouteClimbs = $derived(analysis.activeRouteClimbs);
+	const activeRouteGradientMetrics = $derived(analysis.activeRouteGradientMetrics);
+	const activeRouteGradientGeoJson = $derived(overlay.activeRouteGradientGeoJson);
+	const canShowGradientOverlay = $derived(overlay.canShowGradientOverlay);
+	const activeRouteWindGeoJson = $derived(overlay.activeRouteWindGeoJson);
+	const canShowWindOverlay = $derived(overlay.canShowWindOverlay);
+	const activeWindSummary = $derived(analysis.activeWindSummary);
+	const strongestWindSegments = $derived(analysis.strongestWindSegments);
+	const activeCategorizedClimbs = $derived(analysis.activeCategorizedClimbs);
+	const activeKeyClimbs = $derived(analysis.activeKeyClimbs);
+	const hardestClimb = $derived(analysis.hardestClimb);
+	const routeOverlays = $derived(overlay.routeOverlays);
+	const constraintOverlay = $derived(overlay.constraintOverlay);
+	const avoidanceOverlay = $derived(overlay.avoidanceOverlay);
+	const activeRouteSegmentCount = $derived(overlay.activeRouteSegmentCount);
+	const sanitizedLockedSegmentIndexes = $derived(overlay.sanitizedLockedSegmentIndexes);
+	const lockedSegmentOverlay = $derived(overlay.lockedSegmentOverlay);
+	const combinedRouteBounds = $derived(overlay.combinedRouteBounds);
+	const surfaceMix = $derived(analysis.surfaceMix);
+	const activeWarnings = $derived(analysis.activeWarnings);
+	const activeReadinessWarnings = $derived(analysis.activeReadinessWarnings);
+	const activeProviderWarnings = $derived(analysis.activeProviderWarnings);
+	const primaryActiveWarning = $derived(analysis.primaryActiveWarning);
+	const activeImportedRouteSource = $derived(routes.activeImportedRouteSource);
+	const alternativeInfoMessage = $derived(routes.alternativeInfoMessage);
+	const elevationSamples = $derived(analysis.elevationSamples);
+	const chartH = $derived(analysis.chartH);
+	const elevMin = $derived(analysis.elevMin);
+	const elevMax = $derived(analysis.elevMax);
+	const elevRange = $derived(analysis.elevRange);
+	const sampledProfileDistanceTotal = $derived(analysis.sampledProfileDistanceTotal);
+	const chartProfilePoints = $derived(analysis.chartProfilePoints);
+	const activeProfilePoint = $derived(analysis.activeProfilePoint);
+	const highlightedRouteCoordinate = $derived(overlay.highlightedRouteCoordinate);
+	const linePoints = $derived(analysis.linePoints);
+	const areaD = $derived(analysis.areaD);
+	const distanceTickLabels = $derived(analysis.distanceTickLabels);
+	const canUndoRouteEdit = $derived(routes.canUndoRouteEdit);
+	const canRedoRouteEdit = $derived(routes.canRedoRouteEdit);
+	const hasAdvancedErrors = $derived(form.hasAdvancedErrors);
 	const routeActionsDisabled = $derived(routeNeedsRecalculation || isRouting);
-	const getWarningContainerClass: RouteResultDockController["getWarningContainerClass"] = (...args) => controller.getWarningContainerClass(...args);
-	const getWarningBadgeClass: RouteResultDockController["getWarningBadgeClass"] = (...args) => controller.getWarningBadgeClass(...args);
-	const showCurrentLocationOnMap: RouteResultDockController["showCurrentLocationOnMap"] = (...args) => controller.showCurrentLocationOnMap(...args);
-	const recenterActiveRoute: RouteResultDockController["recenterActiveRoute"] = (...args) => controller.recenterActiveRoute(...args);
-	const selectCue: RouteResultDockController["selectCue"] = (...args) => controller.selectCue(...args);
-	const getWindSegmentDistanceRange: RouteResultDockController["getWindSegmentDistanceRange"] = (...args) => controller.getWindSegmentDistanceRange(...args);
-	const formatCueSegmentTime: RouteResultDockController["formatCueSegmentTime"] = (...args) => controller.formatCueSegmentTime(...args);
-	const getDestinationFieldLabel: RouteResultDockController["getDestinationFieldLabel"] = (...args) => controller.getDestinationFieldLabel(...args);
-	const getDestinationSuggestionsLabel: RouteResultDockController["getDestinationSuggestionsLabel"] = (...args) => controller.getDestinationSuggestionsLabel(...args);
-	const getDestinationPlaceholder: RouteResultDockController["getDestinationPlaceholder"] = (...args) => controller.getDestinationPlaceholder(...args);
-	const getCurrentLocationDestinationLabel: RouteResultDockController["getCurrentLocationDestinationLabel"] = (...args) => controller.getCurrentLocationDestinationLabel(...args);
-	const getSubmitButtonText: RouteResultDockController["getSubmitButtonText"] = (...args) => controller.getSubmitButtonText(...args);
-	const resetSpatialConstraintDefaults: RouteResultDockController["resetSpatialConstraintDefaults"] = (...args) => controller.resetSpatialConstraintDefaults(...args);
-	const syncStopsFromRoute: RouteResultDockController["syncStopsFromRoute"] = (...args) => controller.syncStopsFromRoute(...args);
-	const syncActiveRouteManualEditing: RouteResultDockController["syncActiveRouteManualEditing"] = (...args) => controller.syncActiveRouteManualEditing(...args);
-	const setRouteAlternativesState: RouteResultDockController["setRouteAlternativesState"] = (...args) => controller.setRouteAlternativesState(...args);
-	const setSingleRouteState: RouteResultDockController["setSingleRouteState"] = (...args) => controller.setSingleRouteState(...args);
-	const selectRouteAlternative: RouteResultDockController["selectRouteAlternative"] = (...args) => controller.selectRouteAlternative(...args);
-	const markPlannerEdited: RouteResultDockController["markPlannerEdited"] = (...args) => controller.markPlannerEdited(...args);
-	const cancelAutosaveTimer: RouteResultDockController["cancelAutosaveTimer"] = (...args) => controller.cancelAutosaveTimer(...args);
-	const getActiveRouteForSaving: RouteResultDockController["getActiveRouteForSaving"] = (...args) => controller.getActiveRouteForSaving(...args);
-	const saveActiveRouteDraft: RouteResultDockController["saveActiveRouteDraft"] = (...args) => controller.saveActiveRouteDraft(...args);
-	const scheduleActiveRouteAutosave: RouteResultDockController["scheduleActiveRouteAutosave"] = (...args) => controller.scheduleActiveRouteAutosave(...args);
-	const captureRouteEditSnapshot: RouteResultDockController["captureRouteEditSnapshot"] = (...args) => controller.captureRouteEditSnapshot(...args);
-	const performRouteEdit: RouteResultDockController["performRouteEdit"] = (...args) => controller.performRouteEdit(...args);
-	const performAsyncRouteEdit: RouteResultDockController["performAsyncRouteEdit"] = (...args) => controller.performAsyncRouteEdit(...args);
-	const undoRouteEdit: RouteResultDockController["undoRouteEdit"] = (...args) => controller.undoRouteEdit(...args);
-	const redoRouteEdit: RouteResultDockController["redoRouteEdit"] = (...args) => controller.redoRouteEdit(...args);
-	const clearRouteEditHistory: RouteResultDockController["clearRouteEditHistory"] = (...args) => controller.clearRouteEditHistory(...args);
-	const setPlannerMode: RouteResultDockController["setPlannerMode"] = (...args) => controller.setPlannerMode(...args);
-	const restorePendingSavedRoute: RouteResultDockController["restorePendingSavedRoute"] = (...args) => controller.restorePendingSavedRoute(...args);
-	const restoreSavedRoute: RouteResultDockController["restoreSavedRoute"] = (...args) => controller.restoreSavedRoute(...args);
-	const updateRoundCourseTargetKind: RouteResultDockController["updateRoundCourseTargetKind"] = (...args) => controller.updateRoundCourseTargetKind(...args);
-	const updateRoundCourseDistanceInput: RouteResultDockController["updateRoundCourseDistanceInput"] = (...args) => controller.updateRoundCourseDistanceInput(...args);
-	const updateRoundCourseDuration: RouteResultDockController["updateRoundCourseDuration"] = (...args) => controller.updateRoundCourseDuration(...args);
-	const updateRoundCourseAscend: RouteResultDockController["updateRoundCourseAscend"] = (...args) => controller.updateRoundCourseAscend(...args);
-	const updateSpatialConstraintKind: RouteResultDockController["updateSpatialConstraintKind"] = (...args) => controller.updateSpatialConstraintKind(...args);
-	const updateSpatialConstraintEnforcement: RouteResultDockController["updateSpatialConstraintEnforcement"] = (...args) => controller.updateSpatialConstraintEnforcement(...args);
-	const setConstraintCenterStop: RouteResultDockController["setConstraintCenterStop"] = (...args) => controller.setConstraintCenterStop(...args);
-	const updateConstraintCenterInput: RouteResultDockController["updateConstraintCenterInput"] = (...args) => controller.updateConstraintCenterInput(...args);
-	const updateAreaRadiusInput: RouteResultDockController["updateAreaRadiusInput"] = (...args) => controller.updateAreaRadiusInput(...args);
-	const updateCorridorWidthInput: RouteResultDockController["updateCorridorWidthInput"] = (...args) => controller.updateCorridorWidthInput(...args);
-	const handleChartPointerDown: RouteResultDockController["handleChartPointerDown"] = (...args) => controller.handleChartPointerDown(...args);
-	const handleChartPointerMove: RouteResultDockController["handleChartPointerMove"] = (...args) => controller.handleChartPointerMove(...args);
-	const handleChartPointerLeave: RouteResultDockController["handleChartPointerLeave"] = (...args) => controller.handleChartPointerLeave(...args);
-	const releaseChartScrub: RouteResultDockController["releaseChartScrub"] = (...args) => controller.releaseChartScrub(...args);
-	const handleChartLostPointerCapture: RouteResultDockController["handleChartLostPointerCapture"] = (...args) => controller.handleChartLostPointerCapture(...args);
-	const closeCompletionMenu: RouteResultDockController["closeCompletionMenu"] = (...args) => controller.closeCompletionMenu(...args);
-	const setFieldStop: RouteResultDockController["setFieldStop"] = (...args) => controller.setFieldStop(...args);
-	const setWaypointStop: RouteResultDockController["setWaypointStop"] = (...args) => controller.setWaypointStop(...args);
-	const handleFieldInput: RouteResultDockController["handleFieldInput"] = (...args) => controller.handleFieldInput(...args);
-	const updateField: RouteResultDockController["updateField"] = (...args) => controller.updateField(...args);
-	const getWaypointError: RouteResultDockController["getWaypointError"] = (...args) => controller.getWaypointError(...args);
-	const clearWaypointError: RouteResultDockController["clearWaypointError"] = (...args) => controller.clearWaypointError(...args);
-	const updateWaypoint: RouteResultDockController["updateWaypoint"] = (...args) => controller.updateWaypoint(...args);
-	const handleWaypointInput: RouteResultDockController["handleWaypointInput"] = (...args) => controller.handleWaypointInput(...args);
-	const addWaypoint: RouteResultDockController["addWaypoint"] = (...args) => controller.addWaypoint(...args);
-	const removeWaypoint: RouteResultDockController["removeWaypoint"] = (...args) => controller.removeWaypoint(...args);
-	const canMoveWaypoint: RouteResultDockController["canMoveWaypoint"] = (...args) => controller.canMoveWaypoint(...args);
-	const moveWaypoint: RouteResultDockController["moveWaypoint"] = (...args) => controller.moveWaypoint(...args);
-	const closeMapClickMenu: RouteResultDockController["closeMapClickMenu"] = (...args) => controller.closeMapClickMenu(...args);
-	const handleMapClick: RouteResultDockController["handleMapClick"] = (...args) => controller.handleMapClick(...args);
-	const getMapClickMenuTitle: RouteResultDockController["getMapClickMenuTitle"] = (...args) => controller.getMapClickMenuTitle(...args);
-	const getMapClickMenuSubtitle: RouteResultDockController["getMapClickMenuSubtitle"] = (...args) => controller.getMapClickMenuSubtitle(...args);
-	const getRemoveActionLabel: RouteResultDockController["getRemoveActionLabel"] = (...args) => controller.getRemoveActionLabel(...args);
-	const removeSelectedMapStop: RouteResultDockController["removeSelectedMapStop"] = (...args) => controller.removeSelectedMapStop(...args);
-	const getSelectedSegmentIndex: RouteResultDockController["getSelectedSegmentIndex"] = (...args) => controller.getSelectedSegmentIndex(...args);
-	const isMapSelectionSegmentLocked: RouteResultDockController["isMapSelectionSegmentLocked"] = (...args) => controller.isMapSelectionSegmentLocked(...args);
-	const toggleMapSelectionSegmentLock: RouteResultDockController["toggleMapSelectionSegmentLock"] = (...args) => controller.toggleMapSelectionSegmentLock(...args);
-	const getAvoidanceForSelection: RouteResultDockController["getAvoidanceForSelection"] = (...args) => controller.getAvoidanceForSelection(...args);
-	const isMapSelectionRoadAvoided: RouteResultDockController["isMapSelectionRoadAvoided"] = (...args) => controller.isMapSelectionRoadAvoided(...args);
-	const toggleMapSelectionRoadAvoidance: RouteResultDockController["toggleMapSelectionRoadAvoidance"] = (...args) => controller.toggleMapSelectionRoadAvoidance(...args);
-	const removeAvoidedRoad: RouteResultDockController["removeAvoidedRoad"] = (...args) => controller.removeAvoidedRoad(...args);
-	const getMapWaypointInsertionSegmentIndex: RouteResultDockController["getMapWaypointInsertionSegmentIndex"] = (...args) => controller.getMapWaypointInsertionSegmentIndex(...args);
-	const isMapWaypointInsertionLocked: RouteResultDockController["isMapWaypointInsertionLocked"] = (...args) => controller.isMapWaypointInsertionLocked(...args);
-	const applyMapPointAsStop: RouteResultDockController["applyMapPointAsStop"] = (...args) => controller.applyMapPointAsStop(...args);
-	const requestRouteCalculation: RouteResultDockController["requestRouteCalculation"] = (...args) => controller.requestRouteCalculation(...args);
-	const rerouteAfterManualEdit: RouteResultDockController["rerouteAfterManualEdit"] = (...args) => controller.rerouteAfterManualEdit(...args);
-	const isLockedStopIndex: RouteResultDockController["isLockedStopIndex"] = (...args) => controller.isLockedStopIndex(...args);
-	const handleRouteStopDragEnd: RouteResultDockController["handleRouteStopDragEnd"] = (...args) => controller.handleRouteStopDragEnd(...args);
-	const handleRouteSegmentDragEnd: RouteResultDockController["handleRouteSegmentDragEnd"] = (...args) => controller.handleRouteSegmentDragEnd(...args);
-	const useCurrentLocationAsStop: RouteResultDockController["useCurrentLocationAsStop"] = (...args) => controller.useCurrentLocationAsStop(...args);
-	const handleGenerateRoute: RouteResultDockController["handleGenerateRoute"] = (...args) => controller.handleGenerateRoute(...args);
-	const handleSaveDraft: RouteResultDockController["handleSaveDraft"] = (...args) => controller.handleSaveDraft(...args);
-	const handleShareActiveRoute: RouteResultDockController["handleShareActiveRoute"] = (...args) => controller.handleShareActiveRoute(...args);
-	const handleExportGpx: RouteResultDockController["handleExportGpx"] = (...args) => controller.handleExportGpx(...args);
-	const handleExportFit: RouteResultDockController["handleExportFit"] = (...args) => controller.handleExportFit(...args);
-	const openGpxImportPicker: RouteResultDockController["openGpxImportPicker"] = (...args) => controller.openGpxImportPicker(...args);
-	const chooseBasemap: RouteResultDockController["chooseBasemap"] = (...args) => controller.chooseBasemap(...args);
-	const handleGpxImportSelection: RouteResultDockController["handleGpxImportSelection"] = (...args) => controller.handleGpxImportSelection(...args);
 </script>
 
 {#snippet routeSummarySkeleton()}
@@ -268,7 +143,7 @@
 		class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3"
 		role="status"
 		aria-live="polite"
-		aria-label={getSubmitButtonText()}
+		aria-label={form.getSubmitButtonText()}
 	>
 		<span class="sr-only">
 			{isRoundCourseMode
@@ -288,15 +163,6 @@
 {/snippet}
 
 		<div class="pointer-events-auto relative w-full shrink-0">
-			{#if selectedBasemap}
-				<div
-					class="absolute bottom-[calc(100%+0.5rem)] right-0 z-20 max-w-[23rem] rounded-md border border-white/10 bg-black/42 px-2 py-1 text-[10px] leading-none text-white/58 shadow-sm backdrop-blur-[6px] supports-[backdrop-filter]:bg-black/34 md:text-[11px]"
-				>
-					<span class="mr-1 uppercase tracking-wide text-white/42">Basemap</span>
-					{@html selectedBasemap.attributionHtml}
-				</div>
-			{/if}
-
 			<div
 				class="rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-sm md:p-3.5"
 			>
@@ -400,7 +266,7 @@
 								size="sm"
 								class="gap-1.5 font-semibold"
 								disabled={isImportingGpx}
-								onclick={openGpxImportPicker}
+								onclick={importExport.openGpxImportPicker}
 							>
 								{#if isImportingGpx}
 									<Skeleton class="size-3 rounded-full" />
@@ -416,7 +282,7 @@
 										type="button"
 										disabled={!canUndoRouteEdit}
 										aria-label="Undo route edit"
-										onclick={undoRouteEdit}
+										onclick={routes.undoRouteEdit}
 									>
 										<Undo2 class="size-3.5" />
 									</Button>
@@ -427,7 +293,7 @@
 										type="button"
 										disabled={!canRedoRouteEdit}
 										aria-label="Redo route edit"
-										onclick={redoRouteEdit}
+										onclick={routes.redoRouteEdit}
 									>
 										<Redo2 class="size-3.5" />
 									</Button>
@@ -437,7 +303,7 @@
 									size="sm"
 									class="gap-1 font-semibold"
 									disabled={routeActionsDisabled}
-									onclick={handleSaveDraft}
+									onclick={save.handleSaveDraft}
 								>
 									{#if isActiveRouteSaved}
 										<Check class="size-3.5" />
@@ -450,7 +316,7 @@
 									size="sm"
 									class="font-semibold"
 									disabled={routeActionsDisabled}
-									onclick={handleExportGpx}
+									onclick={importExport.handleExportGpx}
 								>
 									Export GPX
 								</Button>
@@ -459,7 +325,7 @@
 									variant="outline"
 									class="font-semibold"
 									disabled={routeActionsDisabled}
-									onclick={handleExportFit}
+									onclick={importExport.handleExportFit}
 								>
 									Export FIT
 								</Button>
@@ -468,7 +334,7 @@
 									variant="outline"
 									class="gap-1 font-semibold"
 									disabled={routeActionsDisabled || isSharingRoute}
-									onclick={handleShareActiveRoute}
+									onclick={sharing.handleShareActiveRoute}
 								>
 									<Share2 class="size-3.5" />
 									{isSharingRoute ? "Sharing..." : isActiveRouteShareCopied ? "Copied" : "Share"}
@@ -477,7 +343,7 @@
 									variant="outline"
 									size="sm"
 									class="gap-1 font-semibold"
-									onclick={() => (controller.directionsOpen = !directionsOpen)}
+									onclick={() => (analysis.directionsOpen = !directionsOpen)}
 									aria-expanded={directionsOpen}
 									aria-controls="route-directions-panel"
 								>
@@ -498,7 +364,7 @@
 									variant="outline"
 									size="sm"
 									class="gap-1 font-semibold"
-									onclick={() => (controller.routeAnalysisOpen = !routeAnalysisOpen)}
+									onclick={() => (analysis.routeAnalysisOpen = !routeAnalysisOpen)}
 									aria-expanded={routeAnalysisOpen}
 									aria-controls="route-analysis-panel"
 								>
@@ -589,7 +455,7 @@
 										type="button"
 										disabled={isRouting}
 										aria-label={`Remove ${avoidance.label}`}
-										onclick={() => removeAvoidedRoad(index)}
+										onclick={() => routes.removeAvoidedRoad(index)}
 									>
 										<X class="size-3.5" />
 									</Button>
@@ -619,7 +485,7 @@
 											: "border-border/50 bg-background/70 hover:border-border hover:bg-background"
 									}`}
 									aria-pressed={index === selectedRouteIndex}
-									onclick={() => selectRouteAlternative(index)}
+									onclick={() => routes.selectRouteAlternative(index)}
 								>
 									<div class="mb-2 flex items-center justify-between gap-2">
 										<div class="text-sm font-semibold text-foreground">
@@ -799,12 +665,12 @@
 								preserveAspectRatio="none"
 								role="img"
 								aria-label="Elevation along route"
-								onpointerdown={handleChartPointerDown}
-								onpointermove={handleChartPointerMove}
-								onpointerleave={handleChartPointerLeave}
-								onpointerup={releaseChartScrub}
-								onpointercancel={releaseChartScrub}
-								onlostpointercapture={handleChartLostPointerCapture}
+								onpointerdown={analysis.handleChartPointerDown}
+								onpointermove={analysis.handleChartPointerMove}
+								onpointerleave={analysis.handleChartPointerLeave}
+								onpointerup={analysis.releaseChartScrub}
+								onpointercancel={analysis.releaseChartScrub}
+								onlostpointercapture={analysis.handleChartLostPointerCapture}
 							>
 								<defs>
 									<linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
@@ -958,7 +824,7 @@
 												: "border-transparent bg-background/60 text-foreground hover:border-border/70 hover:bg-background"
 										}`}
 										aria-pressed={selectedCueIndex === index}
-										onclick={() => selectCue(index)}
+										onclick={() => analysis.selectCue(index)}
 									>
 										<span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
 											{#if cue.type === "left" || cue.type === "slight_left" || cue.type === "sharp_left" || cue.type === "keep_left"}
@@ -989,7 +855,7 @@
 										</span>
 										<span class="text-right text-xs tabular-nums text-muted-foreground">
 											<span class="block">{formatDistance(cue.segmentDistanceMeters)}</span>
-											<span class="block">{formatCueSegmentTime(cue.segmentTimeMs)}</span>
+											<span class="block">{analysis.formatCueSegmentTime(cue.segmentTimeMs)}</span>
 										</span>
 									</button>
 								{/each}
@@ -1038,13 +904,13 @@
 										<div class="grid gap-1.5">
 											{#each activeReadinessWarnings as warning}
 												<div
-													class={`rounded-md border px-2.5 py-2 text-xs ${getWarningContainerClass(warning)}`}
+													class={`rounded-md border px-2.5 py-2 text-xs ${analysis.getWarningContainerClass(warning)}`}
 												>
 													<div class="mb-1 flex items-center justify-between gap-2">
 														<span class="font-semibold">{warning.title}</span>
 														{#if warning.metricLabel && warning.metricValue}
 															<span
-																class={`shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${getWarningBadgeClass(warning)}`}
+																class={`shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${analysis.getWarningBadgeClass(warning)}`}
 															>
 																{warning.metricLabel}: {warning.metricValue}
 															</span>
@@ -1140,7 +1006,7 @@
 																</span>
 															</div>
 															<div class="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
-																<span>{getWindSegmentDistanceRange(activeRoute, segment)}</span>
+																<span>{analysis.getWindSegmentDistanceRange(activeRoute, segment)}</span>
 																<span>{formatWindComponent(segment.headwindComponentKmh)}</span>
 																<span>{formatWindSpeed(Math.abs(segment.crosswindComponentKmh))} cross</span>
 															</div>

@@ -42,6 +42,7 @@
 	const recenterRouteRequestKey = $derived(controller.map.recenterRouteRequestKey);
 	const currentLocation = $derived(controller.map.currentLocation);
 	const currentLocationFocusKey = $derived(controller.map.currentLocationFocusKey);
+	const selectedBasemap = $derived(controller.map.selectedBasemap);
 	const selectedCue = $derived(controller.analysis.selectedCue);
 	const selectedCueFocusKey = $derived(controller.analysis.selectedCueFocusKey);
 
@@ -145,14 +146,25 @@
 			/>
 		</div>
 
-		<RouteResultDock
-			form={controller.form}
-			routes={controller.routes}
-			analysis={controller.analysis}
-			overlay={controller.overlays}
-			save={controller.save}
-			sharing={controller.sharing}
-			importExport={controller.importExport}
-		/>
+		<div class="pointer-events-auto relative w-full shrink-0">
+			{#if selectedBasemap}
+				<div
+					class="absolute bottom-[calc(100%+0.5rem)] right-0 z-20 max-w-[23rem] rounded-md border border-white/10 bg-black/42 px-2 py-1 text-[10px] leading-none text-white/58 shadow-sm backdrop-blur-[6px] supports-[backdrop-filter]:bg-black/34 md:text-[11px]"
+				>
+					<span class="mr-1 uppercase tracking-wide text-white/42">Basemap</span>
+					{@html selectedBasemap.attributionHtml}
+				</div>
+			{/if}
+
+			<RouteResultDock
+				form={controller.form}
+				routes={controller.routes}
+				analysis={controller.analysis}
+				overlay={controller.overlays}
+				save={controller.save}
+				sharing={controller.sharing}
+				importExport={controller.importExport}
+			/>
+		</div>
 	</div>
 </div>
