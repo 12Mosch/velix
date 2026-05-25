@@ -129,6 +129,10 @@ import {
 	type PlannerRouteState,
 } from "$lib/route-planner/page/planner-state";
 import {
+	routeHasGradientOverlayFeatures,
+	routeHasWindOverlayFeatures,
+} from "$lib/route-planner/page/route-overlay-capabilities";
+import {
 	createPlannerCompletionController,
 	getWaypointCompletionTarget,
 } from "$lib/route-planner/page/planner-completion.svelte";
@@ -236,6 +240,7 @@ export function createPlannerPageContext() {
 		surfaceGeoJson?: FeatureCollection;
 		climbGeoJsonBySignature: Map<string, FeatureCollection>;
 		gradientMetrics?: RouteGradientMetrics;
+		gradientOverlayAvailable?: boolean;
 		gradientGeoJson?: FeatureCollection;
 		windSignature?: string;
 		windGeoJson?: FeatureCollection;
@@ -552,6 +557,16 @@ export function createPlannerPageContext() {
 		return cached.gradientGeoJson;
 	}
 
+	function getCachedRouteGradientOverlayAvailable(
+		route: PlannedRoute,
+	): boolean {
+		const cached = getCachedRouteOverlayGeoJson(route);
+
+		cached.gradientOverlayAvailable ??= routeHasGradientOverlayFeatures(route);
+
+		return cached.gradientOverlayAvailable;
+	}
+
 	function getCachedRouteGradientMetrics(
 		route: PlannedRoute,
 	): RouteGradientMetrics {
@@ -631,26 +646,21 @@ export function createPlannerPageContext() {
 	const activeRouteGradientMetrics = $derived(
 		activeRoute ? getCachedRouteGradientMetrics(activeRoute) : null,
 	);
+	const canShowGradientOverlay = $derived(
+		activeRoute ? getCachedRouteGradientOverlayAvailable(activeRoute) : false,
+	);
 	const activeRouteGradientGeoJson = $derived(
-		activeRoute && (gradientOverlayEnabled || activeRouteGradientMetrics)
+		activeRoute && gradientOverlayEnabled && canShowGradientOverlay
 			? getCachedGradientRouteGeoJson(activeRoute)
 			: null,
 	);
-	const canShowGradientOverlay = $derived(
-		activeRoute
-			? getCachedGradientRouteGeoJson(activeRoute).features.length > 0
-			: false,
+	const canShowWindOverlay = $derived(
+		activeRoute ? routeHasWindOverlayFeatures(activeRoute) : false,
 	);
 	const activeRouteWindGeoJson = $derived(
-		activeRoute?.windAnalysis &&
-			(windOverlayEnabled || activeRoute.windAnalysis.segments.length > 0)
+		activeRoute && windOverlayEnabled && canShowWindOverlay
 			? getCachedWindRouteGeoJson(activeRoute)
 			: null,
-	);
-	const canShowWindOverlay = $derived(
-		activeRoute?.windAnalysis
-			? getCachedWindRouteGeoJson(activeRoute).features.length > 0
-			: false,
 	);
 	const activeWindSummary = $derived(
 		activeRoute ? getWindSummary(activeRoute) : null,
