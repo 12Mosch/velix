@@ -27,92 +27,40 @@
 	import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronUp, LocateFixed, MapPin, Navigation, Plus, X } from "@lucide/svelte";
 
 
-	let { form, routes, map, importExport, analysis }: { form: PlannerFormController; routes: PlannerRoutesController; map: PlannerMapController; importExport: PlannerImportExportController; analysis: PlannerAnalysisController } = $props();
-	const directionsOpen = $derived(analysis.directionsOpen);
-	const routeAnalysisOpen = $derived(analysis.routeAnalysisOpen);
-	const plannerMode = $derived(form.plannerMode);
-	const startStop = $derived(form.startStop);
-	const waypointStops = $derived(form.waypointStops);
-	const destinationStop = $derived(form.destinationStop);
-	const roundCourseTargetKind = $derived(form.roundCourseTargetKind);
-	const roundCourseDistanceInput = $derived(form.roundCourseDistanceInput);
-	const roundCourseDistanceMetersInput = $derived(form.roundCourseDistanceMetersInput);
-	const roundCourseDurationInput = $derived(form.roundCourseDurationInput);
-	const roundCourseAscendMeters = $derived(form.roundCourseAscendMeters);
-	const spatialConstraintKind = $derived(form.spatialConstraintKind);
-	const spatialConstraintEnforcement = $derived(form.spatialConstraintEnforcement);
-	const constraintCenterStop = $derived(form.constraintCenterStop);
-	const areaRadiusInput = $derived(form.areaRadiusInput);
-	const corridorWidthInput = $derived(form.corridorWidthInput);
-	const areaRadiusMetersInput = $derived(form.areaRadiusMetersInput);
-	const corridorWidthMetersInput = $derived(form.corridorWidthMetersInput);
-	const formattedInputDistanceUnit = $derived(form.formattedInputDistanceUnit);
-	const routeRequestError = $derived(routes.routeRequestError);
-	const routeImportError = $derived(importExport.routeImportError);
-	const fieldErrors = $derived(form.fieldErrors);
-	const isRouting = $derived(routes.isRouting);
-	const isImportingGpx = $derived(importExport.isImportingGpx);
-	const routeAlternatives = $derived(routes.routeAlternatives);
-	const selectedRouteIndex = $derived(routes.selectedRouteIndex);
-	const lockedSegmentIndexes = $derived(routes.lockedSegmentIndexes);
-	const avoidedRoads = $derived(routes.avoidedRoads);
-	const lastGeneratedRouteCount = $derived(routes.lastGeneratedRouteCount);
-	const routeExportError = $derived(importExport.routeExportError);
-	const activeProfileIndex = $derived(analysis.activeProfileIndex);
-	const chartScrubPointerId = $derived(analysis.chartScrubPointerId);
-	const mapClickSelection = $derived(map.mapClickSelection);
-	const isResolvingMapSelection = $derived(map.isResolvingMapSelection);
-	const currentLocation = $derived(map.currentLocation);
-	const currentLocationFocusKey = $derived(map.currentLocationFocusKey);
-	const recenterRouteRequestKey = $derived(map.recenterRouteRequestKey);
-	const fitInitialSavedRouteBounds = $derived(routes.fitInitialSavedRouteBounds);
-	const isLocating = $derived(map.isLocating);
-	const currentLocationError = $derived(map.currentLocationError);
-	const gpxImportInput = $derived(importExport.gpxImportInput);
-	const undoStack = $derived(routes.undoStack);
-	const redoStack = $derived(routes.redoStack);
-	const advancedOpen = $derived(form.advancedOpen);
-	const completionController = $derived(form.completionController);
-	const selectedCueIndex = $derived(analysis.selectedCueIndex);
-	const selectedCueFocusKey = $derived(analysis.selectedCueFocusKey);
-	const lastCueRouteKey = $derived(analysis.lastCueRouteKey);
-	const selectedBasemap = $derived(map.selectedBasemap);
-	const availableBasemapOptions = $derived(map.availableBasemapOptions);
-	const isRoundCourseMode = $derived(form.isRoundCourseMode);
-	const isOutAndBackMode = $derived(form.isOutAndBackMode);
-	const activeRoute = $derived(routes.activeRoute);
-	const activeDirections = $derived(routes.activeDirections);
-	const activeTurnCount = $derived(routes.activeTurnCount);
-	const selectedCue = $derived(analysis.selectedCue);
-	const activeRoundCourseTarget = $derived(routes.activeRoundCourseTarget);
-	const activeRouteClimbs = $derived(analysis.activeRouteClimbs);
-	const activeRouteGradientMetrics = $derived(analysis.activeRouteGradientMetrics);
-	const activeWindSummary = $derived(analysis.activeWindSummary);
-	const strongestWindSegments = $derived(analysis.strongestWindSegments);
-	const activeCategorizedClimbs = $derived(analysis.activeCategorizedClimbs);
-	const activeKeyClimbs = $derived(analysis.activeKeyClimbs);
-	const hardestClimb = $derived(analysis.hardestClimb);
-	const surfaceMix = $derived(analysis.surfaceMix);
-	const activeWarnings = $derived(analysis.activeWarnings);
-	const activeReadinessWarnings = $derived(analysis.activeReadinessWarnings);
-	const activeProviderWarnings = $derived(analysis.activeProviderWarnings);
-	const primaryActiveWarning = $derived(analysis.primaryActiveWarning);
-	const activeImportedRouteSource = $derived(routes.activeImportedRouteSource);
-	const alternativeInfoMessage = $derived(routes.alternativeInfoMessage);
-	const elevationSamples = $derived(analysis.elevationSamples);
-	const chartH = $derived(analysis.chartH);
-	const elevMin = $derived(analysis.elevMin);
-	const elevMax = $derived(analysis.elevMax);
-	const elevRange = $derived(analysis.elevRange);
-	const sampledProfileDistanceTotal = $derived(analysis.sampledProfileDistanceTotal);
-	const chartProfilePoints = $derived(analysis.chartProfilePoints);
-	const activeProfilePoint = $derived(analysis.activeProfilePoint);
-	const linePoints = $derived(analysis.linePoints);
-	const areaD = $derived(analysis.areaD);
-	const distanceTickLabels = $derived(analysis.distanceTickLabels);
-	const canUndoRouteEdit = $derived(routes.canUndoRouteEdit);
-	const canRedoRouteEdit = $derived(routes.canRedoRouteEdit);
-	const hasAdvancedErrors = $derived(form.hasAdvancedErrors);
+	type Props = {
+		form: PlannerFormController;
+		routes: PlannerRoutesController;
+		map: PlannerMapController;
+		importExport: PlannerImportExportController;
+		analysis: PlannerAnalysisController;
+	};
+
+	let { form, routes, map, importExport, analysis }: Props = $props();
+	const builderView = $derived.by(() => ({
+		plannerMode: form.plannerMode,
+		startStop: form.startStop,
+		waypointStops: form.waypointStops,
+		destinationStop: form.destinationStop,
+		roundCourseTargetKind: form.roundCourseTargetKind,
+		roundCourseDistanceInput: form.roundCourseDistanceInput,
+		roundCourseDurationInput: form.roundCourseDurationInput,
+		roundCourseAscendMeters: form.roundCourseAscendMeters,
+		spatialConstraintKind: form.spatialConstraintKind,
+		spatialConstraintEnforcement: form.spatialConstraintEnforcement,
+		constraintCenterStop: form.constraintCenterStop,
+		areaRadiusInput: form.areaRadiusInput,
+		corridorWidthInput: form.corridorWidthInput,
+		routeRequestError: routes.routeRequestError,
+		routeImportError: importExport.routeImportError,
+		fieldErrors: form.fieldErrors,
+		isLocating: map.isLocating,
+		currentLocationError: map.currentLocationError,
+		advancedOpen: form.advancedOpen,
+		completionController: form.completionController,
+		isRoundCourseMode: form.isRoundCourseMode,
+		activeWarnings: analysis.activeWarnings,
+		primaryActiveWarning: analysis.primaryActiveWarning,
+	}));
 </script>
 
 			<div
@@ -131,14 +79,14 @@
 						{#each plannerModeOptions as option}
 							<Button
 								type="button"
-								variant={plannerMode === option.mode ? "secondary" : "ghost"}
+								variant={builderView.plannerMode === option.mode ? "secondary" : "ghost"}
 								size="sm"
 								class={`h-auto min-w-0 whitespace-normal flex-col items-start justify-start gap-0.5 rounded-md px-3 py-2 text-left ${
-									plannerMode === option.mode
+									builderView.plannerMode === option.mode
 										? "border-primary/20 bg-background shadow-sm"
 										: "text-muted-foreground"
 								}`}
-								aria-pressed={plannerMode === option.mode}
+								aria-pressed={builderView.plannerMode === option.mode}
 								onclick={() => form.setPlannerMode(option.mode)}
 							>
 								<span class="text-xs font-semibold uppercase tracking-wide">
@@ -155,12 +103,12 @@
 						<PlannerStopInput
 							id="start-point"
 							label="Start"
-							value={startStop.label}
+							value={builderView.startStop.label}
 							placeholder="Enter starting point..."
 							target={startCompletionTarget}
-							controller={completionController}
+							controller={builderView.completionController}
 							completionLabel="Start suggestions"
-							error={fieldErrors.startQuery}
+							error={builderView.fieldErrors.startQuery}
 							inputClass="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
 							onInput={(value) => form.handleFieldInput("startQuery", value)}
 						>
@@ -173,7 +121,7 @@
 									size="icon-xs"
 									type="button"
 									class="size-7 text-muted-foreground hover:text-foreground"
-									disabled={isLocating}
+									disabled={builderView.isLocating}
 									aria-label="Use current location as start"
 									onclick={() => form.useCurrentLocationAsStop("startQuery")}
 								>
@@ -182,8 +130,8 @@
 							{/snippet}
 						</PlannerStopInput>
 
-						{#if isRoundCourseMode}
-							{#if roundCourseTargetKind === "distance"}
+						{#if builderView.isRoundCourseMode}
+							{#if builderView.roundCourseTargetKind === "distance"}
 								<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 									<div class="space-y-2">
 										<label
@@ -199,10 +147,10 @@
 												min={formatDistanceInputAttribute(minRoundCourseDistanceMeters)}
 												step="0.5"
 												inputmode="decimal"
-												value={roundCourseDistanceInput}
+												value={builderView.roundCourseDistanceInput}
 												placeholder="e.g. 60"
 												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
+												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : undefined}
 												oninput={(event) =>
 													form.updateRoundCourseDistanceInput(
 														(event.currentTarget as HTMLInputElement).value,
@@ -215,15 +163,15 @@
 											</span>
 										</div>
 									</div>
-									{#if fieldErrors.roundCourseTarget}
+									{#if builderView.fieldErrors.roundCourseTarget}
 										<p class="text-xs font-medium text-destructive">
-											{fieldErrors.roundCourseTarget}
+											{builderView.fieldErrors.roundCourseTarget}
 										</p>
 									{/if}
 								</div>
 							{/if}
 						{:else}
-							{#if advancedOpen && !isRoundCourseMode}
+							{#if builderView.advancedOpen && !builderView.isRoundCourseMode}
 							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 								<div class="flex items-center justify-between gap-3">
 									<div>
@@ -236,7 +184,7 @@
 										size="sm"
 										type="button"
 										class="gap-1"
-										disabled={waypointStops.length >= maxWaypoints}
+										disabled={builderView.waypointStops.length >= maxWaypoints}
 										onclick={() => form.addWaypoint()}
 									>
 										<Plus class="size-3.5" />
@@ -244,9 +192,9 @@
 									</Button>
 								</div>
 
-								{#if waypointStops.length > 0}
+								{#if builderView.waypointStops.length > 0}
 									<div class="space-y-2">
-										{#each waypointStops as waypointStop, index (`waypoint-${index}`)}
+										{#each builderView.waypointStops as waypointStop, index (`waypoint-${index}`)}
 											<div class="rounded-md border border-border/50 bg-background/80 p-2.5">
 												<div class="flex items-start gap-2">
 													<div class="flex h-9 w-7 shrink-0 items-center justify-center">
@@ -269,7 +217,7 @@
 															value={waypointStop.label}
 															placeholder="Add a stop..."
 															target={getWaypointCompletionTarget(index)}
-															controller={completionController}
+															controller={builderView.completionController}
 															completionLabel={`Waypoint ${index + 1} suggestions`}
 															error={form.getWaypointError(index)}
 															inputClass="border-none bg-secondary/20 pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
@@ -330,12 +278,12 @@
 							<PlannerStopInput
 								id="destination"
 								label={form.getDestinationFieldLabel()}
-								value={destinationStop.label}
+								value={builderView.destinationStop.label}
 								placeholder={form.getDestinationPlaceholder()}
 								target={destinationCompletionTarget}
-								controller={completionController}
+								controller={builderView.completionController}
 								completionLabel={form.getDestinationSuggestionsLabel()}
-								error={fieldErrors.destinationQuery}
+								error={builderView.fieldErrors.destinationQuery}
 								inputClass="border-none bg-secondary/20 pl-9 pr-10 focus-visible:ring-1 focus-visible:ring-primary/50"
 								onInput={(value) => form.handleFieldInput("destinationQuery", value)}
 							>
@@ -348,7 +296,7 @@
 										size="icon-xs"
 										type="button"
 										class="size-7 text-muted-foreground hover:text-foreground"
-										disabled={isLocating}
+										disabled={builderView.isLocating}
 										aria-label={form.getCurrentLocationDestinationLabel()}
 										onclick={() => form.useCurrentLocationAsStop("destinationQuery")}
 									>
@@ -363,21 +311,21 @@
 						type="button"
 						variant="ghost"
 						class="justify-between rounded-lg border border-border/60 px-3 font-semibold"
-						aria-expanded={advancedOpen}
+						aria-expanded={builderView.advancedOpen}
 						aria-controls="route-builder-advanced"
-						onclick={() => (form.advancedOpen = !advancedOpen)}
+						onclick={() => (form.advancedOpen = !builderView.advancedOpen)}
 					>
 						Advanced
-						{#if advancedOpen}
+						{#if builderView.advancedOpen}
 							<ChevronUp class="size-4 opacity-70" />
 						{:else}
 							<ChevronDown class="size-4 opacity-70" />
 						{/if}
 					</Button>
 
-					{#if advancedOpen}
+					{#if builderView.advancedOpen}
 					<div id="route-builder-advanced" class="space-y-3">
-						{#if isRoundCourseMode}
+						{#if builderView.isRoundCourseMode}
 							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 								<div class="space-y-1">
 									<div class="block text-xs font-semibold uppercase tracking-wide text-foreground/80">
@@ -393,11 +341,11 @@
 												type="button"
 												variant="outline"
 												class={`h-auto min-w-0 justify-center rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-													roundCourseTargetKind === option.kind
+													builderView.roundCourseTargetKind === option.kind
 														? "border-primary/20 bg-background shadow-sm"
 														: "text-muted-foreground"
 												}`}
-												aria-pressed={roundCourseTargetKind === option.kind}
+												aria-pressed={builderView.roundCourseTargetKind === option.kind}
 												onclick={() =>
 													form.updateRoundCourseTargetKind(option.kind as RoundCourseTargetKind)}
 											>
@@ -407,7 +355,7 @@
 									</div>
 								</div>
 
-								{#if roundCourseTargetKind === "duration"}
+								{#if builderView.roundCourseTargetKind === "duration"}
 									<div class="space-y-2">
 										<label
 											for="round-course-time"
@@ -418,10 +366,10 @@
 										<div class="relative">
 											<Input
 												id="round-course-time"
-												value={roundCourseDurationInput}
+												value={builderView.roundCourseDurationInput}
 												placeholder="e.g. 3:30"
 												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
+												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : undefined}
 												oninput={(event) =>
 													form.updateRoundCourseDuration(
 														(event.currentTarget as HTMLInputElement).value,
@@ -434,7 +382,7 @@
 											</span>
 										</div>
 									</div>
-								{:else if roundCourseTargetKind === "ascend"}
+								{:else if builderView.roundCourseTargetKind === "ascend"}
 									<div class="space-y-2">
 										<label
 											for="round-course-climb"
@@ -449,10 +397,10 @@
 												min="50"
 												step="50"
 												inputmode="decimal"
-												value={roundCourseAscendMeters}
+												value={builderView.roundCourseAscendMeters}
 												placeholder="e.g. 800"
 												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-												aria-invalid={fieldErrors.roundCourseTarget ? "true" : undefined}
+												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : undefined}
 												oninput={(event) =>
 													form.updateRoundCourseAscend(
 														(event.currentTarget as HTMLInputElement).value,
@@ -471,9 +419,9 @@
 									Distance targets search around the requested loop distance; time
 									and climb targets search nearby loop distances for the closest match.
 								</p>
-								{#if roundCourseTargetKind !== "distance" && fieldErrors.roundCourseTarget}
+								{#if builderView.roundCourseTargetKind !== "distance" && builderView.fieldErrors.roundCourseTarget}
 									<p class="text-xs font-medium text-destructive">
-										{fieldErrors.roundCourseTarget}
+										{builderView.fieldErrors.roundCourseTarget}
 									</p>
 								{/if}
 							</div>
@@ -494,12 +442,12 @@
 										type="button"
 										variant="outline"
 										class={`h-auto min-w-0 justify-center rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-											spatialConstraintKind === option.kind
+											builderView.spatialConstraintKind === option.kind
 												? "border-primary/20 bg-background shadow-sm"
 												: "text-muted-foreground"
 										}`}
-										aria-pressed={spatialConstraintKind === option.kind}
-										disabled={isRoundCourseMode && option.kind === "corridor"}
+										aria-pressed={builderView.spatialConstraintKind === option.kind}
+										disabled={builderView.isRoundCourseMode && option.kind === "corridor"}
 										onclick={() =>
 											form.updateSpatialConstraintKind(option.kind as SpatialConstraintKind)}
 									>
@@ -509,7 +457,7 @@
 							</div>
 						</div>
 
-						{#if spatialConstraintKind !== "none"}
+						{#if builderView.spatialConstraintKind !== "none"}
 							<div class="grid grid-cols-2 gap-2">
 								{#each [
 									{ enforcement: "strict", label: "Keep inside" },
@@ -519,11 +467,11 @@
 										type="button"
 										variant="outline"
 										class={`h-auto min-w-0 justify-center rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-											spatialConstraintEnforcement === option.enforcement
+											builderView.spatialConstraintEnforcement === option.enforcement
 												? "border-primary/20 bg-background shadow-sm"
 												: "text-muted-foreground"
 										}`}
-										aria-pressed={spatialConstraintEnforcement === option.enforcement}
+										aria-pressed={builderView.spatialConstraintEnforcement === option.enforcement}
 										onclick={() =>
 											form.updateSpatialConstraintEnforcement(
 												option.enforcement as SpatialConstraintEnforcement,
@@ -535,15 +483,15 @@
 							</div>
 						{/if}
 
-						{#if spatialConstraintKind === "area"}
+						{#if builderView.spatialConstraintKind === "area"}
 							<div class="space-y-2">
 								<PlannerStopInput
 									id="constraint-center"
 									label="Area center"
-									value={constraintCenterStop.label}
+									value={builderView.constraintCenterStop.label}
 									placeholder="Enter area center..."
 									target={constraintCenterCompletionTarget}
-									controller={completionController}
+									controller={builderView.completionController}
 									completionLabel="Area center suggestions"
 									error=""
 									inputClass="border-none bg-background pl-9 focus-visible:ring-1 focus-visible:ring-primary/50"
@@ -567,9 +515,9 @@
 											max={formatDistanceInputAttribute(maxAreaRadiusMeters)}
 											step={formatDistanceInputAttribute(areaRadiusStepMeters)}
 											inputmode="decimal"
-											value={areaRadiusInput}
+											value={builderView.areaRadiusInput}
 										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-										aria-invalid={fieldErrors.spatialConstraint ? "true" : undefined}
+										aria-invalid={builderView.fieldErrors.spatialConstraint ? "true" : undefined}
 										oninput={(event) =>
 											form.updateAreaRadiusInput(
 												(event.currentTarget as HTMLInputElement).value,
@@ -582,7 +530,7 @@
 									</span>
 								</div>
 							</div>
-						{:else if spatialConstraintKind === "corridor"}
+						{:else if builderView.spatialConstraintKind === "corridor"}
 							<div class="space-y-2">
 								<label
 									for="corridor-width"
@@ -598,9 +546,9 @@
 											max={formatDistanceInputAttribute(maxCorridorWidthMeters)}
 											step={formatDistanceInputAttribute(corridorWidthStepMeters)}
 											inputmode="decimal"
-											value={corridorWidthInput}
+											value={builderView.corridorWidthInput}
 										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-										aria-invalid={fieldErrors.spatialConstraint ? "true" : undefined}
+										aria-invalid={builderView.fieldErrors.spatialConstraint ? "true" : undefined}
 										oninput={(event) =>
 											form.updateCorridorWidthInput(
 												(event.currentTarget as HTMLInputElement).value,
@@ -615,9 +563,9 @@
 							</div>
 						{/if}
 
-						{#if fieldErrors.spatialConstraint}
+						{#if builderView.fieldErrors.spatialConstraint}
 							<p class="text-xs font-medium text-destructive">
-								{fieldErrors.spatialConstraint}
+								{builderView.fieldErrors.spatialConstraint}
 							</p>
 						{/if}
 					</div>
@@ -661,36 +609,36 @@
 					</div>
 					{/if}
 
-					{#if routeRequestError}
+					{#if builderView.routeRequestError}
 						<div
 							class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
 							role="alert"
 						>
-							{routeRequestError}
+							{builderView.routeRequestError}
 						</div>
 					{/if}
 
-					{#if routeImportError}
+					{#if builderView.routeImportError}
 						<div
 							class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
 							role="alert"
 						>
-							{routeImportError}
+							{builderView.routeImportError}
 						</div>
 					{/if}
 
-					{#if currentLocationError}
+					{#if builderView.currentLocationError}
 						<div
 							class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
 							role="alert"
 						>
-							{currentLocationError}
+							{builderView.currentLocationError}
 						</div>
 					{/if}
 
-					{#if activeWarnings.length > 0 && primaryActiveWarning}
+					{#if builderView.activeWarnings.length > 0 && builderView.primaryActiveWarning}
 						<div
-							class={`rounded-lg border px-3 py-2 text-sm ${analysis.getWarningContainerClass(primaryActiveWarning)}`}
+							class={`rounded-lg border px-3 py-2 text-sm ${analysis.getWarningContainerClass(builderView.primaryActiveWarning)}`}
 							role="status"
 						>
 							<div class="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide opacity-75">
@@ -698,16 +646,16 @@
 								Route readiness
 							</div>
 							<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-								<span class="font-semibold">{primaryActiveWarning.title}</span>
-								{#if primaryActiveWarning.metricLabel && primaryActiveWarning.metricValue}
+								<span class="font-semibold">{builderView.primaryActiveWarning.title}</span>
+								{#if builderView.primaryActiveWarning.metricLabel && builderView.primaryActiveWarning.metricValue}
 									<span
-										class={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${analysis.getWarningBadgeClass(primaryActiveWarning)}`}
+										class={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${analysis.getWarningBadgeClass(builderView.primaryActiveWarning)}`}
 									>
-										{primaryActiveWarning.metricLabel}: {primaryActiveWarning.metricValue}
+										{builderView.primaryActiveWarning.metricLabel}: {builderView.primaryActiveWarning.metricValue}
 									</span>
 								{/if}
 							</div>
-							<p class="mt-0.5 text-xs opacity-85">{primaryActiveWarning.message}</p>
+							<p class="mt-0.5 text-xs opacity-85">{builderView.primaryActiveWarning.message}</p>
 						</div>
 					{/if}
 
