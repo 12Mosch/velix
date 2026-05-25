@@ -1,7 +1,6 @@
 import { Effect } from "effect";
 
 import type {
-	PlannedRoute,
 	ResolvedRouteAvoidance,
 	ResolvedRouteSpatialConstraint,
 	RoundCourseCandidateError,
