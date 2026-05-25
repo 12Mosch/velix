@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ActionTooltip from "$lib/components/route-planner/action-tooltip.svelte";
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
@@ -179,17 +180,23 @@
 											Waypoints
 										</div>
 									</div>
-									<Button
-										variant="ghost"
-										size="sm"
-										type="button"
-										class="gap-1"
-										disabled={builderView.waypointStops.length >= maxWaypoints}
-										onclick={() => form.addWaypoint()}
+									<ActionTooltip
+										content={builderView.waypointStops.length >= maxWaypoints
+											? "Waypoint limit reached"
+											: null}
 									>
-										<Plus class="size-3.5" />
-										Add waypoint
-									</Button>
+										<Button
+											variant="ghost"
+											size="sm"
+											type="button"
+											class="gap-1"
+											disabled={builderView.waypointStops.length >= maxWaypoints}
+											onclick={() => form.addWaypoint()}
+										>
+											<Plus class="size-3.5" />
+											Add waypoint
+										</Button>
+									</ActionTooltip>
 								</div>
 
 								{#if builderView.waypointStops.length > 0}
@@ -230,39 +237,61 @@
 													</div>
 												</div>
 												<div class="mt-2 flex flex-wrap justify-end gap-1.5">
-													<Button
-														variant="outline"
-														size="sm"
-														type="button"
-														class="gap-1"
-														disabled={!form.canMoveWaypoint(index, -1)}
-														onclick={() => form.moveWaypoint(index, -1)}
+													<ActionTooltip
+														content={!form.canMoveWaypoint(index, -1)
+															? index === 0
+																? "Already first waypoint"
+																: "Unlock adjacent segment first"
+															: null}
 													>
-														<ArrowUp class="size-3.5" />
-														Move up
-													</Button>
-													<Button
-														variant="outline"
-														size="sm"
-														type="button"
-														class="gap-1"
-														disabled={!form.canMoveWaypoint(index, 1)}
-														onclick={() => form.moveWaypoint(index, 1)}
+														<Button
+															variant="outline"
+															size="sm"
+															type="button"
+															class="gap-1"
+															disabled={!form.canMoveWaypoint(index, -1)}
+															onclick={() => form.moveWaypoint(index, -1)}
+														>
+															<ArrowUp class="size-3.5" />
+															Move up
+														</Button>
+													</ActionTooltip>
+													<ActionTooltip
+														content={!form.canMoveWaypoint(index, 1)
+															? index === builderView.waypointStops.length - 1
+																? "Already last waypoint"
+																: "Unlock adjacent segment first"
+															: null}
 													>
-														<ArrowDown class="size-3.5" />
-														Move down
-													</Button>
-													<Button
-														variant="ghost"
-														size="sm"
-														type="button"
-														class="gap-1 text-muted-foreground hover:text-foreground"
-														disabled={routes.isLockedStopIndex(index + 1)}
-														onclick={() => form.removeWaypoint(index)}
+														<Button
+															variant="outline"
+															size="sm"
+															type="button"
+															class="gap-1"
+															disabled={!form.canMoveWaypoint(index, 1)}
+															onclick={() => form.moveWaypoint(index, 1)}
+														>
+															<ArrowDown class="size-3.5" />
+															Move down
+														</Button>
+													</ActionTooltip>
+													<ActionTooltip
+														content={routes.isLockedStopIndex(index + 1)
+															? "Unlock adjacent segment first"
+															: null}
 													>
-														<X class="size-3.5" />
-														Remove
-													</Button>
+														<Button
+															variant="ghost"
+															size="sm"
+															type="button"
+															class="gap-1 text-muted-foreground hover:text-foreground"
+															disabled={routes.isLockedStopIndex(index + 1)}
+															onclick={() => form.removeWaypoint(index)}
+														>
+															<X class="size-3.5" />
+															Remove
+														</Button>
+													</ActionTooltip>
 												</div>
 											</div>
 										{/each}

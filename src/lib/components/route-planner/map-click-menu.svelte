@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ActionTooltip from "$lib/components/route-planner/action-tooltip.svelte";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import type { MapClickSelection, PlannerMode, SelectedMapStop } from "$lib/route-planner/types";
 	import { Ban, Lock, Unlock } from "@lucide/svelte";
@@ -44,6 +45,16 @@
 		onRemoveStop: (selectedStop: SelectedMapStop) => void;
 		onClose: () => void;
 	} = $props();
+
+	const waypointDisabledReason = $derived(
+		isResolving
+			? "Resolving map point"
+			: waypointCount >= maxWaypoints
+				? "Waypoint limit reached"
+				: isWaypointInsertionLocked(selection)
+					? "Unlock segment before adding a waypoint"
+					: null,
+	);
 </script>
 
 <div
@@ -70,16 +81,18 @@
 			Set as start
 		</Button>
 		{#if plannerMode === "point_to_point"}
-			<Button
-				variant="ghost"
-				size="sm"
-				class="justify-start"
-				type="button"
-				disabled={isResolving || waypointCount >= maxWaypoints || isWaypointInsertionLocked(selection)}
-				onclick={onApplyAsWaypoint}
-			>
-				Add waypoint here
-			</Button>
+			<ActionTooltip content={waypointDisabledReason} class="flex">
+				<Button
+					variant="ghost"
+					size="sm"
+					class="w-full justify-start"
+					type="button"
+					disabled={isResolving || waypointCount >= maxWaypoints || isWaypointInsertionLocked(selection)}
+					onclick={onApplyAsWaypoint}
+				>
+					Add waypoint here
+				</Button>
+			</ActionTooltip>
 			<Button
 				variant="ghost"
 				size="sm"
