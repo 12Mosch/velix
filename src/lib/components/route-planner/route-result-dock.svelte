@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ActionTooltip from "$lib/components/route-planner/action-tooltip.svelte";
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
@@ -88,6 +89,28 @@
 		canRedoRouteEdit: routes.canRedoRouteEdit,
 		routeActionsDisabled: routes.routeNeedsRecalculation || routes.isRouting,
 	}));
+	const routeActionDisabledReason = $derived(
+		dockView.isRouting ? "Route is generating" : "Recalculate before export",
+	);
+	const saveDraftDisabledReason = $derived(
+		dockView.routeActionsDisabled
+			? dockView.isRouting
+				? "Route is generating"
+				: "Recalculate before saving"
+			: null,
+	);
+	const exportDisabledReason = $derived(
+		dockView.routeActionsDisabled ? routeActionDisabledReason : null,
+	);
+	const shareDisabledReason = $derived(
+		dockView.routeActionsDisabled
+			? dockView.isRouting
+				? "Route is generating"
+				: "Recalculate before sharing"
+			: dockView.isSharingRoute
+				? "Sharing route"
+				: null,
+	);
 </script>
 
 {#snippet routeSummarySkeleton()}
@@ -250,47 +273,55 @@
 										<Redo2 class="size-3.5" />
 									</Button>
 								</div>
-								<Button
-									variant={dockView.isActiveRouteSaved ? "secondary" : "outline"}
-									size="sm"
-									class="gap-1 font-semibold"
-									disabled={dockView.routeActionsDisabled}
-									onclick={save.handleSaveDraft}
-								>
-									{#if dockView.isActiveRouteSaved}
-										<Check class="size-3.5" />
-										Saved
-									{:else}
-										Save Draft
-									{/if}
-								</Button>
-								<Button
-									size="sm"
-									class="font-semibold"
-									disabled={dockView.routeActionsDisabled}
-									onclick={importExport.handleExportGpx}
-								>
-									Export GPX
-								</Button>
-								<Button
-									size="sm"
-									variant="outline"
-									class="font-semibold"
-									disabled={dockView.routeActionsDisabled}
-									onclick={importExport.handleExportFit}
-								>
-									Export FIT
-								</Button>
-								<Button
-									size="sm"
-									variant="outline"
-									class="gap-1 font-semibold"
-									disabled={dockView.routeActionsDisabled || dockView.isSharingRoute}
-									onclick={sharing.handleShareActiveRoute}
-								>
-									<Share2 class="size-3.5" />
-									{dockView.isSharingRoute ? "Sharing..." : dockView.isActiveRouteShareCopied ? "Copied" : "Share"}
-								</Button>
+								<ActionTooltip content={saveDraftDisabledReason}>
+									<Button
+										variant={dockView.isActiveRouteSaved ? "secondary" : "outline"}
+										size="sm"
+										class="gap-1 font-semibold"
+										disabled={dockView.routeActionsDisabled}
+										onclick={save.handleSaveDraft}
+									>
+										{#if dockView.isActiveRouteSaved}
+											<Check class="size-3.5" />
+											Saved
+										{:else}
+											Save Draft
+										{/if}
+									</Button>
+								</ActionTooltip>
+								<ActionTooltip content={exportDisabledReason}>
+									<Button
+										size="sm"
+										class="font-semibold"
+										disabled={dockView.routeActionsDisabled}
+										onclick={importExport.handleExportGpx}
+									>
+										Export GPX
+									</Button>
+								</ActionTooltip>
+								<ActionTooltip content={exportDisabledReason}>
+									<Button
+										size="sm"
+										variant="outline"
+										class="font-semibold"
+										disabled={dockView.routeActionsDisabled}
+										onclick={importExport.handleExportFit}
+									>
+										Export FIT
+									</Button>
+								</ActionTooltip>
+								<ActionTooltip content={shareDisabledReason}>
+									<Button
+										size="sm"
+										variant="outline"
+										class="gap-1 font-semibold"
+										disabled={dockView.routeActionsDisabled || dockView.isSharingRoute}
+										onclick={sharing.handleShareActiveRoute}
+									>
+										<Share2 class="size-3.5" />
+										{dockView.isSharingRoute ? "Sharing..." : dockView.isActiveRouteShareCopied ? "Copied" : "Share"}
+									</Button>
+								</ActionTooltip>
 								<Button
 									variant="outline"
 									size="sm"

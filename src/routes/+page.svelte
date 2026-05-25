@@ -99,6 +99,8 @@
 			overlay={controller.overlays}
 			map={controller.map}
 			hasActiveRoute={!!activeRoute && !routeNeedsRecalculation}
+			hasGeneratedRoute={!!activeRoute}
+			{routeNeedsRecalculation}
 		/>
 
 		{#if mapClickSelection}

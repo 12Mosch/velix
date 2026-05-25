@@ -798,9 +798,13 @@ describe("+page.svelte", () => {
 	it("disables route recentering until a route exists", async () => {
 		render(PageTestShell);
 
+		const recenterButton = page.getByRole("button", { name: "Recenter route" });
+
+		await expect.element(recenterButton).toBeDisabled();
+		await recenterButton.hover();
 		await expect
-			.element(page.getByRole("button", { name: "Recenter route" }))
-			.toBeDisabled();
+			.element(page.getByText("Generate a route first", { exact: true }))
+			.toBeInTheDocument();
 	});
 
 	it("shows the simplified route builder before a route exists", async () => {
@@ -865,6 +869,42 @@ describe("+page.svelte", () => {
 		await expect.element(page.getByText("Route bounds")).toBeInTheDocument();
 		await expect
 			.element(page.getByText("Optimization strategy"))
+			.toBeInTheDocument();
+	});
+
+	it("explains disabled waypoint controls", async () => {
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await page.getByRole("button", { name: "Add waypoint" }).click();
+
+		const moveUpButton = page.getByRole("button", { name: "Move up" });
+		const moveDownButton = page.getByRole("button", { name: "Move down" });
+
+		await expect.element(moveUpButton).toBeDisabled();
+		await moveUpButton.hover();
+		await expect
+			.element(page.getByText("Already first waypoint", { exact: true }))
+			.toBeInTheDocument();
+		await moveUpButton.unhover();
+
+		await expect.element(moveDownButton).toBeDisabled();
+		await moveDownButton.hover();
+		await expect
+			.element(page.getByText("Already last waypoint", { exact: true }))
+			.toBeInTheDocument();
+		await moveDownButton.unhover();
+
+		await page.getByRole("button", { name: "Add waypoint" }).click();
+		await page.getByRole("button", { name: "Add waypoint" }).click();
+
+		const addWaypointButton = page.getByRole("button", {
+			name: "Add waypoint",
+		});
+		await expect.element(addWaypointButton).toBeDisabled();
+		await addWaypointButton.hover();
+		await expect
+			.element(page.getByText("Waypoint limit reached", { exact: true }))
 			.toBeInTheDocument();
 	});
 
@@ -955,6 +995,23 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("button", { name: "Recenter route" }))
 			.toBeDisabled();
+
+		await page.getByRole("button", { name: "Export GPX" }).hover();
+		await expect
+			.element(page.getByText("Recalculate before export", { exact: true }))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Export GPX" }).unhover();
+
+		await page.getByRole("button", { name: "Save Draft" }).hover();
+		await expect
+			.element(page.getByText("Recalculate before saving", { exact: true }))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Save Draft" }).unhover();
+
+		await page.getByRole("button", { name: "Recenter route" }).hover();
+		await expect
+			.element(page.getByText("Recalculate route first", { exact: true }))
+			.toBeInTheDocument();
 	});
 
 	it("does not autosave stale active route after edit before debounce", async () => {
@@ -1153,9 +1210,15 @@ describe("+page.svelte", () => {
 	it("disables the gradient overlay toggle until a route with elevation exists", async () => {
 		render(PageTestShell);
 
+		const gradientToggle = page.getByRole("button", {
+			name: "Gradient overlay",
+		});
+
+		await expect.element(gradientToggle).toBeDisabled();
+		await gradientToggle.hover();
 		await expect
-			.element(page.getByRole("button", { name: "Gradient overlay" }))
-			.toBeDisabled();
+			.element(page.getByText("Generate a route first", { exact: true }))
+			.toBeInTheDocument();
 	});
 
 	it("toggles the selected route gradient overlay after elevation loads", async () => {
@@ -1200,6 +1263,15 @@ describe("+page.svelte", () => {
 				),
 			)
 			.toBe(true);
+
+		const windToggle = page.getByRole("button", {
+			name: "Wind and conditions",
+		});
+		await expect.element(windToggle).toBeDisabled();
+		await windToggle.hover();
+		await expect
+			.element(page.getByText("Wind data unavailable", { exact: true }))
+			.toBeInTheDocument();
 	});
 
 	it("keeps the gradient overlay toggle disabled for routes without elevation", async () => {
@@ -1227,9 +1299,14 @@ describe("+page.svelte", () => {
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		const gradientToggle = page.getByRole("button", {
+			name: "Gradient overlay",
+		});
+		await expect.element(gradientToggle).toBeDisabled();
+		await gradientToggle.hover();
 		await expect
-			.element(page.getByRole("button", { name: "Gradient overlay" }))
-			.toBeDisabled();
+			.element(page.getByText("Elevation data unavailable", { exact: true }))
+			.toBeInTheDocument();
 		expect(
 			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
 		).not.toContain("planned-route-route-0-gradient");
