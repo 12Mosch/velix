@@ -14,6 +14,8 @@ Avoid-road implementation evidence reviewed on 2026-05-10: `src/lib/route-api-sc
 
 Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-api-schema.ts`, `src/lib/route-api-schema.spec.ts`, `src/lib/server/graphhopper-routing.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/server/route-orchestration.spec.ts`, `src/routes/+page.svelte`, and `src/routes/page-route.svelte.spec.ts`.
 
+Route quality scoring evidence reviewed on 2026-05-26: `src/lib/route-planning/quality.ts`, `src/lib/route-planning/types.ts`, `src/lib/route-planning/warnings.ts`, `src/lib/route-api-schema.ts`, `src/lib/saved-route-convex-validators.ts`, `src/lib/server/graphhopper-routing.ts`, `src/lib/server/route-orchestration/route-normalization.ts`, `src/lib/server/route-orchestration/warnings.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-planner/page/planner-page-context.svelte.ts`, `src/lib/route-planner/formatters.ts`, `src/lib/components/route-planner/route-result-dock.svelte`, `src/lib/route-planning.spec.ts`, `src/lib/route-api-schema.spec.ts`, `src/lib/saved-routes-core.spec.ts`, `src/convex/savedRoutes.spec.ts`, and `src/routes/api/route/server.spec.ts`. Verification: `bun run test` passed with 42 test files and 575 tests, `bun run check` passed with 0 errors and 0 warnings, and `bun run lint` passed.
+
 ## 1. Routing & Route Builder
 
 ### 1.1 Route planning entry
@@ -49,17 +51,17 @@ Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning
 | Prefer asphalt | Half | GraphHopper custom model strongly penalizes unpaved and rough surfaces; no user control or guarantee. |
 | Avoid poor surfaces | Half | Rough surface penalties exist via `surface` and `smoothness` rules. |
 | Avoid cobblestones | Half | Cobblestone-like surfaces are penalized, not strictly avoided. |
-| Minimize stop-and-go | Missing | No stop/turn/interruption model. |
+| Minimize stop-and-go | Half | Generated routes now receive a flow score based on turn density, roundabouts, U-turns, urban-like share, and interruption environments; this is analysis/warning output, not a routing optimizer. |
 | Minimize traffic lights | Missing | No traffic-light data or parameter. |
-| Avoid city traffic | Half | Residential/service/main road classes are penalized, but no city traffic model. |
-| Use main roads only when they are fast and rideable | Missing | Main roads are simply penalized; no speed/rideability exception logic. |
+| Avoid city traffic | Half | Residential/service/main road classes are penalized in routing and now also influence urban exposure, traffic stress, and readiness warnings; no live or historical traffic model exists. |
+| Use main roads only when they are fast and rideable | Half | Main-road exposure now affects traffic stress, safety, and road-quality scoring, but routing still uses coarse penalties rather than speed/rideability exception logic. |
 | Avoid small, poor-quality farm/service roads | Half | Service roads and poor surfaces are penalized, but farm-road quality is not modeled. |
-| Prefer roads with good riding flow | Missing | No flow score or uninterrupted-road model. |
-| Handle descents/climbs deliberately | Missing | No climb/descent routing strategy beyond elevation metrics. |
+| Prefer roads with good riding flow | Half | Flow and interruption-risk scores are calculated and displayed for generated routes, but not yet used as route-generation constraints. |
+| Handle descents/climbs deliberately | Half | Gradient suitability and descent safety are included in route-quality scoring; no climb/descent routing strategy or user control exists. |
 | Prefer flatter routes | Missing | No flat preference control. |
 | Prefer hillier routes | Half | Loop by climb approximates this for round courses only. |
 | Prefer even effort distribution | Missing | No effort distribution model. |
-| Prefer long uninterrupted sections | Missing | No uninterrupted-section optimizer. |
+| Prefer long uninterrupted sections | Half | Flow and interruption-risk analysis penalize dense turns and interruptions; there is no uninterrupted-section optimizer. |
 
 ### 1.4 Training-focused routing profiles
 
@@ -104,8 +106,8 @@ Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning
 | --- | --- | --- |
 | Generate 2-5 alternatives | Half | Requests up to three alternatives; actual count depends on GraphHopper/deduping. |
 | Sort alternatives by criteria | Half | Round-course candidates are internally ranked by target fit; no user-facing sort criteria. |
-| Show differences between alternatives | Half | Alternative cards compare distance, duration, and climb only. |
-| Alternative with more climbing / less traffic / better asphalt | Missing | No targeted alternative-generation options. |
+| Show differences between alternatives | Full | Alternative cards compare distance, duration, climb, and route-quality score/band. |
+| Alternative with more climbing / less traffic / better asphalt | Half | Alternatives can be compared by route quality and its subscores after generation, but there are no targeted alternative-generation options. |
 | Compare two routes side by side | Missing | Alternatives are listed, but no side-by-side comparison view. |
 | Quickly switch between variants | Full | Alternative cards switch the selected route. |
 
@@ -161,12 +163,12 @@ Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning
 | Alternative route | Full | Unselected alternatives are rendered as subdued lines. |
 | Locked route segment overlay | Full | Locked route legs are rendered as amber dashed overlays above the selected route line. |
 | Surface overlay | Full | Selected route surface sections are rendered on the map from GraphHopper surface details, with smooth/mixed/coarse bucket colors and smoothness fallback coverage in `route-planning` and MapView specs. |
-| Traffic stress overlay | Missing | No traffic stress data. |
+| Traffic stress overlay | Missing | Traffic stress is scored from persisted GraphHopper road-class/access/bike-network details, but there is no map overlay for it. |
 | Wind overlay | Full | Selected generated routes with `windAnalysis` can show a toggleable wind line overlay, bucketed as headwind, cross-headwind, crosswind, cross-tailwind, and tailwind. |
 | Gradient overlay | Full | Toggleable selected-route overlay derives uphill/downhill gradient buckets from route elevation samples, renders a diverging descent/flat/climb palette, and has `route-planning`, MapView, and planner page test coverage. |
 | Heatmap of popular road cycling roads | Missing | No heatmap layer. |
 | Contours / terrain | Half | Available only through terrain/outdoor basemap styles, not a separate overlay. |
-| Road classification | Missing | Road class is requested from GraphHopper details but not exposed as overlay. |
+| Road classification | Half | Road class details are persisted and used in route-quality scoring, but not exposed as a dedicated map overlay. |
 | Hillshade | Half | May be present in terrain basemap; no dedicated overlay control. |
 | Weather overlay | Missing | No general weather overlay beyond the dedicated wind overlay. |
 | Hazard / warning overlay | Missing | No hazard layer. |
@@ -201,9 +203,9 @@ Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning
 | Average gradient | Full | Calculated as total ascent divided by route distance and displayed in the active route summary and elevation analysis stats. |
 | Maximum gradient | Full | Calculated from smoothed elevation samples over forward windows of at least 100 m and displayed in the active route summary and elevation analysis stats. |
 | Minimum/maximum elevation | Full | Elevation panel shows min/max. |
-| Number of turns | Missing | Route requests set `instructions: false`; no turn count. |
+| Number of turns | Full | GraphHopper instructions are requested, normalized, displayed in the Directions list, and counted for route quality/flow analysis. |
 | Number of waypoints | Half | Waypoints are visible/listed and can include mode-specific shaping points, but no explicit count metric is shown. |
-| Loop quality | Missing | No loop-quality metric. |
+| Loop quality | Half | Route quality includes route-efficiency scoring and round-course target adherence where available, but there is no dedicated loop-quality metric. |
 
 ### 3.2 Road-cycling-specific quality metrics
 
@@ -212,18 +214,18 @@ Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning
 | Asphalt share | Half | Surface mix groups "smooth" surfaces, but not asphalt specifically. |
 | Smooth surface share | Full | Surface mix calculates smooth share from surface/smoothness details. |
 | Poor surface share | Full | Surface mix calculates coarse share. |
-| Traffic stress score | Missing | No traffic stress score. |
-| Stop-and-go score | Missing | No stop-and-go score. |
-| Flow score | Missing | No flow score. |
-| Safety score | Missing | No safety score. |
-| Road quality score | Missing | No aggregate road-quality score. |
+| Traffic stress score | Full | Route quality calculates a traffic-stress subscore from road class, road access, and bike-network coverage. |
+| Stop-and-go score | Full | Route quality calculates flow/stop-and-go scoring from instructions, turn density, roundabouts, U-turns, urban-like share, and interruption environments. |
+| Flow score | Full | The Analysis panel displays the flow subscore with label and summary. |
+| Safety score | Full | Route quality combines traffic stress, road-environment safety, wind safety, access, and steep descent exposure into a safety subscore. |
+| Road quality score | Full | Route quality calculates aggregate road quality from surface/smoothness, road-class suitability, and access suitability. |
 | Scenic score optional | Missing | No scenic model. |
-| Training suitability score | Missing | No training score. |
-| Interruption risk | Missing | No interruption model. |
-| Urban exposure | Missing | No urban exposure metric. |
-| Climb density | Missing | No climb-density metric. |
-| Descent quality | Missing | No descent-quality metric. |
-| Route efficiency | Missing | No efficiency metric. |
+| Training suitability score | Half | The overall persisted route-quality score is biased toward road-training suitability, but there are no workout/session-specific training profiles. |
+| Interruption risk | Full | Route quality calculates interruption risk from turn density, roundabouts/U-turns, ferry/tunnel exposure, access restrictions, and unsuitable path classes. |
+| Urban exposure | Full | Route quality calculates urban exposure from road environment, residential/service road classes, and turn-density fallback. |
+| Climb density | Half | Climb density influences gradient suitability, but it is not exposed as a standalone metric. |
+| Descent quality | Half | Steep descending exposure affects safety scoring, but there is no standalone descent-quality analysis. |
+| Route efficiency | Full | Route quality calculates route-efficiency scoring for point-to-point, round-course, and out-and-back route modes. |
 
 ### 3.3 Segment analysis
 
@@ -231,7 +233,7 @@ Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning
 | --- | --- | --- |
 | Sections by surface | Half | Surface details are fetched, summarized as mix, and rendered as selected-route map sections; no detailed section-by-section table exists. |
 | Sections by gradient | Missing | No gradient section analysis. |
-| Sections by road type | Missing | Road class details are fetched from GraphHopper but not stored/displayed in `PlannedRoute`. |
+| Sections by road type | Half | Road class, road environment, road access, and bike-network details are persisted on `PlannedRoute` and used for quality scoring; no section-by-section road-type table exists. |
 | Sections with high interruption probability | Missing | No interruption probability analysis. |
 | Sections suitable for intervals | Missing | No interval suitability analysis. |
 | Sections with headwind / tailwind | Full | `RouteWindSegment` analysis stores per-segment route bearing, wind bearing, relative angle, headwind/crosswind components, and wind bucket; the analysis panel lists the strongest wind sections. |
@@ -298,7 +300,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Feature | Status | Notes |
 | --- | --- | --- |
 | "I have 75 minutes" | Half | Loop-by-time can approximate this, but no natural-language/session workflow. |
-| "I want 90 km with few stops" | Half | Distance target exists for loops; "few stops" is not modeled. |
+| "I want 90 km with few stops" | Half | Distance target exists for loops and generated routes now score flow/interruption risk, but "few stops" is not a route-generation constraint. |
 | "I need 3x15 min tempo" | Missing | No interval/session block planner. |
 | "I want 5x5 min uphill" | Missing | No hill interval planner. |
 | "I need an easy recovery loop" | Missing | No recovery loop profile. |
@@ -310,7 +312,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | --- | --- | --- |
 | Estimated training load | Missing | No training load model. |
 | Estimated intensity distribution | Missing | No intensity model. |
-| Interruption risk for interval sessions | Missing | No interruption model. |
+| Interruption risk for interval sessions | Half | Route-level interruption risk is scored and displayed, but there is no interval-session-specific suitability model. |
 | Expected variability of effort | Missing | No effort variability model. |
 | Suitability for pacing | Missing | No pacing suitability score. |
 | Aero / speed suitability | Missing | No aero/speed suitability score. |
@@ -412,9 +414,9 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Show turns | Missing | GraphHopper instructions are disabled. |
-| Generate cue sheet | Missing | No cue sheet. |
-| Mark important instructions | Missing | No instructions. |
+| Show turns | Full | GraphHopper instructions are requested, normalized, and displayed in the route dock Directions section. |
+| Generate cue sheet | Half | The route dock shows a cue list with instruction distance/time, but there is no exported cue sheet. |
+| Mark important instructions | Missing | Directions are displayed, but there is no important-instruction classification. |
 | Highlight critical intersections | Missing | No intersection analysis. |
 | Show navigation section by section | Missing | No section navigation. |
 
@@ -422,11 +424,12 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Critical points | Missing | No critical point analysis. |
+| Critical points | Half | Route-quality and readiness warnings identify poor overall quality, high traffic stress, high interruption risk, high urban exposure, wind, surface, and gradient risks; there is no point-level critical-intersection analysis. |
 | Major climbs | Full | Climb detection implemented: analysis panel, profile bands, map overlay, and key-climb highlights present. |
 | Dangerous road transitions | Missing | No transition/hazard analysis. |
 | Gravel / poor-surface warnings | Full | Generated routes carry structured readiness warnings for coarse and mixed surface exposure, and the planner displays them separately from routing fallbacks. |
 | Long exposed headwind sections | Full | Wind analysis now produces structured readiness warnings for strong headwind and crosswind exposure using route-distance thresholds. |
+| Low route quality / high stress warnings | Full | Persisted route-quality analysis feeds readiness warnings for low overall quality, high traffic stress, high interruption risk, and high urban exposure. |
 | Supply points along the route | Missing | No supply POIs. |
 
 ### 7.3 Ride-readiness checks
@@ -434,9 +437,9 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Are there implausible segments? | Half | Point-to-point routes now warn when route distance is implausibly inefficient versus straight-line distance; no per-segment geometry anomaly detector. |
-| Does the route contain closed or unsuitable paths? | Half | Route readiness warns on poor surfaces, steep gradients, inefficient routing, and wind exposure, and routing still uses road-bike penalties; true closure detection is not implemented. |
+| Does the route contain closed or unsuitable paths? | Half | Route readiness warns on poor surfaces, steep gradients, inefficient routing, wind exposure, access restrictions, high traffic stress, interruption risk, and urban exposure; true closure detection is not implemented. |
 | Are there poor OSM data areas? | Missing | No OSM data-quality check. |
-| Is the route appropriate for the planned session? | Missing | No session suitability model. |
+| Is the route appropriate for the planned session? | Half | The persisted route-quality score is biased toward road-training suitability, but no user-selected workout/session suitability model exists. |
 
 ## 8. Explore & Discovery
 
@@ -680,10 +683,10 @@ Share links are immutable public snapshots. Creating one requires a signed-in us
 | Feature | Status | Notes |
 | --- | --- | --- |
 | "This section appears unsuitable for road bikes" | Missing | No section-level suitability warnings. |
-| "High interruption probability" | Missing | No interruption model. |
-| "Gravel section included" | Missing | Surface mix exists, but no explicit gravel warning. |
+| "High interruption probability" | Full | Route-quality readiness warnings flag high interruption risk at the route level. |
+| "Gravel section included" | Full | Generated routes carry structured mixed/coarse surface readiness warnings. |
 | "Gradient exceeds your target profile" | Missing | No gradient target profile. |
-| "Major urban crossing" | Missing | No urban crossing warning. |
+| "Major urban crossing" | Full | Route-quality readiness warnings flag high urban exposure at the route level. |
 
 ## 16. Admin / Platform Features
 
@@ -749,7 +752,7 @@ Share links are immutable public snapshots. Creating one requires a signed-in us
 | Feature | Status | Notes |
 | --- | --- | --- |
 | AI route planner | Missing | No AI planner. |
-| Readiness-based route suggestions | Missing | No readiness model. |
+| Readiness-based route suggestions | Half | A readiness/quality model exists and is shown for generated routes, but it does not yet drive route suggestions. |
 | Calendar-based recommendations | Missing | No calendar integration. |
 | Training plan integration | Missing | No training plan integration. |
 | Session-specific route blocks | Missing | No session block modeling. |
