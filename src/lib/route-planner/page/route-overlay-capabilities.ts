@@ -1,5 +1,6 @@
 import {
 	getRouteElevationAnalysisPoints,
+	routeHasTrafficStressOverlayFeatures as routeHasTrafficStressOverlayFeatureCoverage,
 	type PlannedRoute,
 } from "$lib/route-planning";
 
@@ -47,4 +48,10 @@ export function routeHasWindOverlayFeatures(route: PlannedRoute): boolean {
 			to < route.coordinates.length
 		);
 	});
+}
+
+export function routeHasTrafficStressOverlayFeatures(
+	route: PlannedRoute,
+): boolean {
+	return routeHasTrafficStressOverlayFeatureCoverage(route);
 }

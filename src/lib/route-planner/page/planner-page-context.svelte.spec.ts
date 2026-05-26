@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlannedRoute, RouteWindAnalysis } from "$lib/route-planning";
 import {
 	routeHasGradientOverlayFeatures,
+	routeHasTrafficStressOverlayFeatures,
 	routeHasWindOverlayFeatures,
 } from "./route-overlay-capabilities";
 
 const routePlanningMocks = vi.hoisted(() => ({
 	buildRouteGradientGeoJson: vi.fn(),
+	buildRouteTrafficStressGeoJson: vi.fn(),
 	buildRouteWindGeoJson: vi.fn(),
 }));
 
@@ -19,6 +21,10 @@ vi.mock("$lib/route-planning", async (importActual) => {
 		buildRouteGradientGeoJson:
 			routePlanningMocks.buildRouteGradientGeoJson.mockImplementation(
 				actual.buildRouteGradientGeoJson,
+			),
+		buildRouteTrafficStressGeoJson:
+			routePlanningMocks.buildRouteTrafficStressGeoJson.mockImplementation(
+				actual.buildRouteTrafficStressGeoJson,
 			),
 		buildRouteWindGeoJson:
 			routePlanningMocks.buildRouteWindGeoJson.mockImplementation(
@@ -90,6 +96,7 @@ function createWindSegment(
 describe("planner-page-context route overlay capabilities", () => {
 	beforeEach(() => {
 		routePlanningMocks.buildRouteGradientGeoJson.mockClear();
+		routePlanningMocks.buildRouteTrafficStressGeoJson.mockClear();
 		routePlanningMocks.buildRouteWindGeoJson.mockClear();
 	});
 
@@ -136,5 +143,71 @@ describe("planner-page-context route overlay capabilities", () => {
 
 		expect(routeHasWindOverlayFeatures(route)).toBe(false);
 		expect(routePlanningMocks.buildRouteWindGeoJson).not.toHaveBeenCalled();
+	});
+
+	it("detects traffic stress overlay availability without building traffic GeoJSON", () => {
+		const route = createRoute({
+			roadClassDetails: [{ from: 0, to: 1, value: "primary" }],
+		});
+
+		expect(routeHasTrafficStressOverlayFeatures(route)).toBe(true);
+		expect(
+			routePlanningMocks.buildRouteTrafficStressGeoJson,
+		).not.toHaveBeenCalled();
+	});
+
+	it("does not enable traffic stress overlay without valid road or access details", () => {
+		const route = createRoute({
+			bikeNetworkDetails: [{ from: 0, to: 1, value: "local" }],
+		});
+
+		expect(routeHasTrafficStressOverlayFeatures(route)).toBe(false);
+		expect(
+			routePlanningMocks.buildRouteTrafficStressGeoJson,
+		).not.toHaveBeenCalled();
+	});
+
+	it("does not enable traffic stress overlay for zero-length interval", () => {
+		const route = createRoute({
+			roadClassDetails: [{ from: 1, to: 1, value: "primary" }],
+		});
+
+		expect(routeHasTrafficStressOverlayFeatures(route)).toBe(false);
+		expect(
+			routePlanningMocks.buildRouteTrafficStressGeoJson,
+		).not.toHaveBeenCalled();
+	});
+
+	it("does not enable traffic stress overlay for non-integer start", () => {
+		const route = createRoute({
+			roadClassDetails: [{ from: 0.5, to: 1, value: "primary" }],
+		});
+
+		expect(routeHasTrafficStressOverlayFeatures(route)).toBe(false);
+		expect(
+			routePlanningMocks.buildRouteTrafficStressGeoJson,
+		).not.toHaveBeenCalled();
+	});
+
+	it("does not enable traffic stress overlay for negative bounds", () => {
+		const route = createRoute({
+			roadClassDetails: [{ from: -1, to: 1, value: "primary" }],
+		});
+
+		expect(routeHasTrafficStressOverlayFeatures(route)).toBe(false);
+		expect(
+			routePlanningMocks.buildRouteTrafficStressGeoJson,
+		).not.toHaveBeenCalled();
+	});
+
+	it("does not enable traffic stress overlay for detail interval exceeding range", () => {
+		const route = createRoute({
+			roadClassDetails: [{ from: 0, to: 3, value: "primary" }],
+		});
+
+		expect(routeHasTrafficStressOverlayFeatures(route)).toBe(false);
+		expect(
+			routePlanningMocks.buildRouteTrafficStressGeoJson,
+		).not.toHaveBeenCalled();
 	});
 });

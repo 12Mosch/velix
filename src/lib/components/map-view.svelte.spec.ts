@@ -228,6 +228,29 @@ function createWindRouteGeoJson(): FeatureCollection {
 
 	return geoJson;
 }
+
+function createTrafficStressRouteGeoJson(): FeatureCollection {
+	const geoJson = JSON.parse(
+		JSON.stringify(testRouteGeoJson),
+	) as FeatureCollection;
+	geoJson.features.push({
+		type: "Feature",
+		properties: {
+			kind: "traffic_stress",
+			trafficStressBucket: "high",
+			trafficStressScore: 32,
+		},
+		geometry: {
+			type: "LineString",
+			coordinates: [
+				[11.5, 47.2, 700],
+				[11.6, 47.25, 760],
+			],
+		},
+	});
+
+	return geoJson;
+}
 const testRouteOverlays = [
 	{
 		id: "route-0",
@@ -249,6 +272,12 @@ const windRouteOverlays = [
 	{
 		...testRouteOverlays[0],
 		geoJson: createWindRouteGeoJson(),
+	},
+];
+const trafficStressRouteOverlays = [
+	{
+		...testRouteOverlays[0],
+		geoJson: createTrafficStressRouteGeoJson(),
 	},
 ];
 
@@ -607,6 +636,83 @@ describe("MapView", () => {
 			.poll(() =>
 				mapInstance.addLayer.mock.calls.some(
 					(call) => call[0].id === "planned-route-route-0-wind",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.removeSource).toHaveBeenCalledWith(
+			"planned-route-route-0",
+		);
+	});
+
+	it("creates a traffic stress layer for selected route traffic features", async () => {
+		render(MapView, {
+			routeOverlays: trafficStressRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(mapInstance.addLayer.mock.calls.map((call) => call[0].id)).toContain(
+			"planned-route-route-0-traffic-stress",
+		);
+		expect(
+			mapInstance.addLayer.mock.calls.find(
+				(call) => call[0].id === "planned-route-route-0-traffic-stress",
+			)?.[0],
+		).toMatchObject({
+			type: "line",
+			source: "planned-route-route-0",
+			filter: ["==", ["get", "kind"], "traffic_stress"],
+		});
+	});
+
+	it("does not create a traffic stress layer when traffic features are absent", async () => {
+		render(MapView, {
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-0-traffic-stress");
+	});
+
+	it("recreates a selected route overlay when traffic stress layer presence changes", async () => {
+		const view = render(MapView, {
+			routeOverlays: testRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		await view.rerender({
+			routeOverlays: trafficStressRouteOverlays,
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.addLayer.mock.calls.some(
+					(call) => call[0].id === "planned-route-route-0-traffic-stress",
+				),
+			)
+			.toBe(true);
+		expect(mapInstance.removeSource).toHaveBeenCalledWith(
+			"planned-route-route-0",
+		);
+	});
+
+	it("removes the traffic stress layer with its route overlay", async () => {
+		const view = render(MapView, {
+			routeOverlays: trafficStressRouteOverlays,
+		});
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+
+		await view.rerender({
+			routeOverlays: [],
+		});
+
+		await expect
+			.poll(() =>
+				mapInstance.removeLayer.mock.calls.some(
+					(call) => call[0] === "planned-route-route-0-traffic-stress",
 				),
 			)
 			.toBe(true);

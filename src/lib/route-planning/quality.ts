@@ -10,6 +10,10 @@ import {
 	classifySurfaceValue,
 	normalizeDetailValue,
 } from "./surface";
+import {
+	trafficStressAccessPenalties,
+	trafficStressRoadClassPenalties,
+} from "./traffic-stress";
 import type {
 	PlannedRoute,
 	RouteDetailInterval,
@@ -207,28 +211,6 @@ function calculateSurfaceScore(route: PlannedRoute): RouteQualitySubscore {
 	);
 }
 
-const stressPenalties: Record<string, number> = {
-	MOTORWAY: 100,
-	TRUNK: 100,
-	PRIMARY: 80,
-	SECONDARY: 55,
-	TERTIARY: 35,
-	RESIDENTIAL: 18,
-	LIVING_STREET: 18,
-	SERVICE: 18,
-	CYCLEWAY: 0,
-	TRACK: 70,
-	PATH: 70,
-	FOOTWAY: 70,
-	STEPS: 70,
-};
-
-const accessPenalties: Record<string, number> = {
-	PRIVATE: 100,
-	NO: 100,
-	DESTINATION: 35,
-};
-
 function calculateTrafficStressScore(
 	route: PlannedRoute,
 ): RouteQualitySubscore {
@@ -244,15 +226,33 @@ function calculateTrafficStressScore(
 		);
 	}
 
-	const roadClassPenalty = weightedPenalty(roadClass, stressPenalties) ?? 0;
-	const accessPenalty = weightedPenalty(roadAccess, accessPenalties) ?? 0;
+	const roadClassPenalty = weightedPenalty(
+		roadClass,
+		trafficStressRoadClassPenalties,
+	);
+	const accessPenalty = weightedPenalty(
+		roadAccess,
+		trafficStressAccessPenalties,
+	);
 	const network = getDetailTotals(route, route.bikeNetworkDetails ?? []);
 	const networkCoverage =
 		route.distanceMeters > 0
 			? Math.min(1, network.total / route.distanceMeters)
 			: 0;
+	const hasRoadClassPenalty = roadClassPenalty != null;
+	const hasAccessPenalty = accessPenalty != null;
+	const weightRoadClass =
+		hasRoadClassPenalty && hasAccessPenalty
+			? 0.85
+			: hasRoadClassPenalty
+				? 1
+				: 0;
+	const weightAccess =
+		hasRoadClassPenalty && hasAccessPenalty ? 0.15 : hasAccessPenalty ? 1 : 0;
 	const penalty =
-		roadClassPenalty * 0.85 + accessPenalty * 0.15 - networkCoverage * 15;
+		(roadClassPenalty ?? 0) * weightRoadClass +
+		(accessPenalty ?? 0) * weightAccess -
+		networkCoverage * 15;
 	const score = clampScore(100 - penalty);
 
 	return subscore(
@@ -519,7 +519,7 @@ function calculateRoadClassSuitability(route: PlannedRoute): number | null {
 
 function calculateAccessSuitability(route: PlannedRoute): number | null {
 	const access = getDetailTotals(route, route.roadAccessDetails ?? []);
-	const penalty = weightedPenalty(access, accessPenalties);
+	const penalty = weightedPenalty(access, trafficStressAccessPenalties);
 	return penalty === null ? null : clampScore(100 - penalty);
 }
 

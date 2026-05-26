@@ -20,6 +20,7 @@ import {
 	getRouteElevationAnalysisPoints,
 	smoothClimbPoints,
 } from "./elevation";
+import { getCoordinateDistanceMeters } from "./geometry";
 import {
 	buildRouteSurfaceFeatures,
 	classifySmoothnessSurfaceFallbackValue,
@@ -30,6 +31,10 @@ import {
 	getRouteSegmentCount,
 	sanitizeLockedSegmentIndexes,
 } from "./editing";
+import {
+	getRouteTrafficStressSegments,
+	type RouteTrafficStressBucket,
+} from "./traffic-stress";
 type RouteFeatureProperties =
 	| {
 			kind: "route";
@@ -50,6 +55,11 @@ type RouteFeatureProperties =
 			crosswindComponentKmh: number;
 			speedKmh: number;
 			directionDegrees: number;
+	  }
+	| {
+			kind: "traffic_stress";
+			trafficStressBucket: RouteTrafficStressBucket;
+			trafficStressScore: number;
 	  }
 	| {
 			kind: "start" | "destination" | "waypoint";
@@ -335,6 +345,77 @@ export function buildRouteWindGeoJson(
 	return {
 		type: "FeatureCollection",
 		features,
+	};
+}
+export function buildRouteTrafficStressGeoJson(
+	route: PlannedRoute,
+): FeatureCollection<LineString, RouteFeatureProperties> {
+	type StressSection = {
+		bucket: RouteTrafficStressBucket;
+		coordinates: Position[];
+		weightedScoreTotal: number;
+		distanceTotal: number;
+		lastSegmentIndex: number;
+	};
+	const sections: StressSection[] = [];
+
+	for (const segment of getRouteTrafficStressSegments(route)) {
+		const left = route.coordinates[segment.index];
+		const right = route.coordinates[segment.index + 1];
+
+		if (!left || !right) {
+			continue;
+		}
+
+		const distanceMeters = getCoordinateDistanceMeters(left, right);
+
+		if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+			continue;
+		}
+
+		const previousSection = sections[sections.length - 1];
+
+		if (
+			previousSection?.bucket === segment.bucket &&
+			previousSection.lastSegmentIndex + 1 === segment.index
+		) {
+			previousSection.coordinates.push(right as Position);
+			previousSection.weightedScoreTotal += segment.score * distanceMeters;
+			previousSection.distanceTotal += distanceMeters;
+			previousSection.lastSegmentIndex = segment.index;
+			continue;
+		}
+
+		sections.push({
+			bucket: segment.bucket,
+			coordinates: [left as Position, right as Position],
+			weightedScoreTotal: segment.score * distanceMeters,
+			distanceTotal: distanceMeters,
+			lastSegmentIndex: segment.index,
+		});
+	}
+
+	return {
+		type: "FeatureCollection",
+		features: sections
+			.filter(
+				(section) =>
+					section.coordinates.length >= 2 && section.distanceTotal > 0,
+			)
+			.map((section) => ({
+				type: "Feature" as const,
+				properties: {
+					kind: "traffic_stress" as const,
+					trafficStressBucket: section.bucket,
+					trafficStressScore: Math.round(
+						section.weightedScoreTotal / section.distanceTotal,
+					),
+				},
+				geometry: {
+					type: "LineString" as const,
+					coordinates: section.coordinates,
+				},
+			})),
 	};
 }
 export function buildSpatialConstraintGeoJson(

@@ -91,9 +91,26 @@ const successfulRoute = {
 		{ from: 4, to: 5, value: "fine gravel" },
 	],
 	smoothnessDetails: [{ from: 0, to: 5, value: "GOOD" }],
+	roadClassDetails: [
+		{ from: 0, to: 2, value: "residential" },
+		{ from: 2, to: 4, value: "tertiary" },
+		{ from: 4, to: 5, value: "primary" },
+	],
+	roadAccessDetails: [{ from: 0, to: 5, value: "yes" }],
+	bikeNetworkDetails: [{ from: 0, to: 2, value: "local" }],
 };
 const successfulRoutePayload = {
 	routes: [successfulRoute],
+	selectedRouteIndex: 0,
+};
+const routeWithoutTrafficStressDetails = {
+	...successfulRoute,
+	roadClassDetails: undefined,
+	roadAccessDetails: undefined,
+	bikeNetworkDetails: undefined,
+};
+const routeWithoutTrafficStressDetailsPayload = {
+	routes: [routeWithoutTrafficStressDetails],
 	selectedRouteIndex: 0,
 };
 const successfulAvoidedRoute = {
@@ -1219,6 +1236,22 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByText("Generate a route first", { exact: true }))
 			.toBeInTheDocument();
+		await gradientToggle.unhover();
+	});
+
+	it("disables the traffic stress overlay toggle until a route exists", async () => {
+		render(PageTestShell);
+
+		const trafficStressToggle = page.getByRole("button", {
+			name: "Traffic stress overlay",
+		});
+
+		await expect.element(trafficStressToggle).toBeDisabled();
+		await trafficStressToggle.hover();
+		await expect
+			.element(page.getByText("Generate a route first", { exact: true }))
+			.toBeInTheDocument();
+		await trafficStressToggle.unhover();
 	});
 
 	it("toggles the selected route gradient overlay after elevation loads", async () => {
@@ -1272,6 +1305,91 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByText("Wind data unavailable", { exact: true }))
 			.toBeInTheDocument();
+	});
+
+	it("toggles the selected route traffic stress overlay after road details load", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url = String(input);
+
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: successfulRoutePayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-0-traffic-stress");
+
+		const trafficStressToggle = page.getByRole("button", {
+			name: "Traffic stress overlay",
+		});
+		await expect.element(trafficStressToggle).not.toBeDisabled();
+		await trafficStressToggle.click();
+
+		await expect
+			.poll(() =>
+				mapInstance.addLayer.mock.calls.some(
+					(call) => call[0].id === "planned-route-route-0-traffic-stress",
+				),
+			)
+			.toBe(true);
+	});
+
+	it("keeps the traffic stress toggle disabled for generated routes without road details", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url = String(input);
+
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: routeWithoutTrafficStressDetailsPayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+
+		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
+		const trafficStressToggle = page.getByRole("button", {
+			name: "Traffic stress overlay",
+		});
+		await expect.element(trafficStressToggle).toBeDisabled();
+		await trafficStressToggle.hover();
+		await expect
+			.element(
+				page.getByText("Traffic stress data unavailable", { exact: true }),
+			)
+			.toBeInTheDocument();
+		await trafficStressToggle.unhover();
+		expect(
+			mapInstance.addLayer.mock.calls.map((call) => call[0].id),
+		).not.toContain("planned-route-route-0-traffic-stress");
 	});
 
 	it("keeps the gradient overlay toggle disabled for routes without elevation", async () => {
@@ -2047,6 +2165,15 @@ describe("+page.svelte", () => {
 			"climb",
 		);
 
+		await page.getByRole("button", { name: "Traffic stress overlay" }).click();
+
+		await expect
+			.poll(() => getRouteSourceFeatureKinds("planned-route-route-0"))
+			.toContain("traffic_stress");
+		expect(getRouteSourceFeatureKinds("planned-route-route-1")).not.toContain(
+			"traffic_stress",
+		);
+
 		await page.getByRole("button", { name: /Route 2/i }).click();
 
 		await expect
@@ -2060,6 +2187,12 @@ describe("+page.svelte", () => {
 		);
 		expect(getRouteSourceFeatureKinds("planned-route-route-0")).not.toContain(
 			"climb",
+		);
+		expect(getRouteSourceFeatureKinds("planned-route-route-0")).not.toContain(
+			"traffic_stress",
+		);
+		expect(getRouteSourceFeatureKinds("planned-route-route-1")).toContain(
+			"traffic_stress",
 		);
 	});
 

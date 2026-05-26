@@ -45,6 +45,10 @@ export function getRouteWindLayerId(overlayId: string) {
 	return `${getRouteSourceId(overlayId)}-wind`;
 }
 
+export function getRouteTrafficStressLayerId(overlayId: string) {
+	return `${getRouteSourceId(overlayId)}-traffic-stress`;
+}
+
 export function getRouteClimbLayerId(overlayId: string) {
 	return `${getRouteSourceId(overlayId)}-climbs`;
 }
@@ -71,6 +75,7 @@ export function removeRouteOverlayById(map: MapLibreMap, overlayId: string) {
 		getRouteWaypointLayerId(overlayId),
 		getRouteStartLayerId(overlayId),
 		getRouteClimbLayerId(overlayId),
+		getRouteTrafficStressLayerId(overlayId),
 		getRouteWindLayerId(overlayId),
 		getRouteGradientLayerId(overlayId),
 		getRouteSurfaceLayerId(overlayId),
@@ -108,6 +113,9 @@ function addRouteOverlay(
 	);
 	const hasWindFeatures = overlay.geoJson.features.some(
 		(feature) => feature.properties?.kind === "wind",
+	);
+	const hasTrafficStressFeatures = overlay.geoJson.features.some(
+		(feature) => feature.properties?.kind === "traffic_stress",
 	);
 
 	map.addSource(sourceId, {
@@ -339,6 +347,42 @@ function addRouteOverlay(
 				},
 			});
 		}
+		if (hasTrafficStressFeatures) {
+			map.addLayer({
+				id: getRouteTrafficStressLayerId(overlay.id),
+				type: "line",
+				source: sourceId,
+				filter: ["==", ["get", "kind"], "traffic_stress"],
+				layout: { "line-cap": "round", "line-join": "round" },
+				paint: {
+					"line-color": [
+						"match",
+						["get", "trafficStressBucket"],
+						"low",
+						"rgb(22, 163, 74)",
+						"moderate",
+						"rgb(234, 179, 8)",
+						"elevated",
+						"rgb(249, 115, 22)",
+						"high",
+						"rgb(220, 38, 38)",
+						"rgb(100, 116, 139)",
+					],
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						6,
+						4,
+						12,
+						6,
+						16,
+						8,
+					],
+					"line-opacity": 0.88,
+				},
+			});
+		}
 	}
 
 	if (!overlay.isSelected) {
@@ -422,7 +466,19 @@ function shouldRecreateRouteOverlay(
 		overlay.geoJson.features.some(
 			(feature) => feature.properties?.kind === "wind",
 		);
-	return renderedWithWind !== shouldRenderWind;
+	if (renderedWithWind !== shouldRenderWind) {
+		return true;
+	}
+
+	const renderedWithTrafficStress = !!map.getLayer(
+		getRouteTrafficStressLayerId(overlay.id),
+	);
+	const shouldRenderTrafficStress =
+		overlay.isSelected &&
+		overlay.geoJson.features.some(
+			(feature) => feature.properties?.kind === "traffic_stress",
+		);
+	return renderedWithTrafficStress !== shouldRenderTrafficStress;
 }
 
 export function syncRouteOverlays(

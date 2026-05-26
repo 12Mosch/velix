@@ -163,7 +163,7 @@ Route quality scoring evidence reviewed on 2026-05-26: `src/lib/route-planning/q
 | Alternative route | Full | Unselected alternatives are rendered as subdued lines. |
 | Locked route segment overlay | Full | Locked route legs are rendered as amber dashed overlays above the selected route line. |
 | Surface overlay | Full | Selected route surface sections are rendered on the map from GraphHopper surface details, with smooth/mixed/coarse bucket colors and smoothness fallback coverage in `route-planning` and MapView specs. |
-| Traffic stress overlay | Missing | Traffic stress is scored from persisted GraphHopper road-class/access/bike-network details, but there is no map overlay for it. |
+| Traffic stress overlay | Full | Selected routes can render stress buckets from persisted GraphHopper road-class/access/bike-network details, with route-planning, MapView, and planner page test coverage. |
 | Wind overlay | Full | Selected generated routes with `windAnalysis` can show a toggleable wind line overlay, bucketed as headwind, cross-headwind, crosswind, cross-tailwind, and tailwind. |
 | Gradient overlay | Full | Toggleable selected-route overlay derives uphill/downhill gradient buckets from route elevation samples, renders a diverging descent/flat/climb palette, and has `route-planning`, MapView, and planner page test coverage. |
 | Heatmap of popular road cycling roads | Missing | No heatmap layer. |

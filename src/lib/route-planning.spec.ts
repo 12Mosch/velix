@@ -7,6 +7,7 @@ import {
 	buildRouteGeoJson,
 	buildRouteGradientGeoJson,
 	buildRouteSurfaceGeoJson,
+	buildRouteTrafficStressGeoJson,
 	buildRouteAvoidanceGeoJson,
 	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
@@ -205,6 +206,26 @@ describe("route quality scoring", () => {
 		expect(quality.subscores.safety.score).toBeLessThan(60);
 	});
 
+	it("normalizes traffic stress weights when one detail source is missing", () => {
+		const roadClassOnly = calculateRouteQuality(
+			buildQualityRoute({
+				roadClassDetails: [{ from: 0, to: 2, value: "primary" }],
+				roadAccessDetails: [],
+				bikeNetworkDetails: [],
+			}),
+		);
+		const accessOnly = calculateRouteQuality(
+			buildQualityRoute({
+				roadClassDetails: [],
+				roadAccessDetails: [{ from: 0, to: 2, value: "private" }],
+				bikeNetworkDetails: [],
+			}),
+		);
+
+		expect(roadClassOnly.subscores.trafficStress.score).toBe(20);
+		expect(accessOnly.subscores.trafficStress.score).toBe(0);
+	});
+
 	it("penalizes residential and service-heavy routes for urban exposure and flow", () => {
 		const route = buildQualityRoute({
 			roadClassDetails: [
@@ -317,6 +338,177 @@ describe("route quality scoring", () => {
 		const routeQuality = calculateRouteQuality(route);
 
 		expect(getRouteQuality({ ...route, routeQuality })).toBe(routeQuality);
+	});
+});
+
+describe("traffic stress GeoJSON", () => {
+	function buildTrafficStressRoute(
+		overrides: Partial<PlannedRoute> = {},
+	): PlannedRoute {
+		return buildQualityRoute({
+			distanceMeters: 4000,
+			coordinates: [
+				[0, 0, 10],
+				[0.01, 0, 10],
+				[0.02, 0, 10],
+				[0.03, 0, 10],
+				[0.04, 0, 10],
+			],
+			roadClassDetails: [],
+			roadAccessDetails: [],
+			bikeNetworkDetails: [],
+			...overrides,
+		});
+	}
+
+	it("builds traffic stress GeoJSON and classifies all buckets", () => {
+		const geoJson = buildRouteTrafficStressGeoJson(
+			buildTrafficStressRoute({
+				roadClassDetails: [
+					{ from: 0, to: 1, value: "cycleway" },
+					{ from: 1, to: 2, value: "tertiary" },
+					{ from: 2, to: 3, value: "secondary" },
+					{ from: 3, to: 4, value: "primary" },
+				],
+			}),
+		);
+
+		expect(
+			geoJson.features.flatMap((feature) =>
+				feature.properties?.kind === "traffic_stress"
+					? [feature.properties.trafficStressBucket]
+					: [],
+			),
+		).toEqual(["low", "moderate", "elevated", "high"]);
+		expect(
+			geoJson.features.flatMap((feature) =>
+				feature.properties?.kind === "traffic_stress"
+					? [feature.properties.trafficStressScore]
+					: [],
+			),
+		).toEqual([100, 65, 45, 20]);
+	});
+
+	it("applies access penalties and bike-network offsets", () => {
+		const geoJson = buildRouteTrafficStressGeoJson(
+			buildTrafficStressRoute({
+				roadClassDetails: [
+					{ from: 0, to: 1, value: "primary" },
+					{ from: 1, to: 2, value: "residential" },
+				],
+				roadAccessDetails: [{ from: 1, to: 2, value: "destination" }],
+				bikeNetworkDetails: [{ from: 0, to: 1, value: "regional" }],
+			}),
+		);
+
+		expect(
+			geoJson.features.flatMap((feature) =>
+				feature.properties?.kind === "traffic_stress"
+					? [
+							{
+								bucket: feature.properties.trafficStressBucket,
+								score: feature.properties.trafficStressScore,
+							},
+						]
+					: [],
+			),
+		).toEqual([
+			{ bucket: "high", score: 35 },
+			{ bucket: "moderate", score: 79 },
+		]);
+	});
+
+	it("classifies access-only restricted segments as high stress", () => {
+		const geoJson = buildRouteTrafficStressGeoJson(
+			buildTrafficStressRoute({
+				roadClassDetails: undefined,
+				roadAccessDetails: [{ from: 0, to: 1, value: "private" }],
+			}),
+		);
+
+		const trafficStressFeature = geoJson.features.find(
+			(feature) => feature.properties?.kind === "traffic_stress",
+		);
+
+		expect(trafficStressFeature?.properties).toMatchObject({
+			kind: "traffic_stress",
+			trafficStressBucket: "high",
+			trafficStressScore: 0,
+		});
+	});
+
+	it("merges adjacent same-bucket traffic stress segments", () => {
+		const geoJson = buildRouteTrafficStressGeoJson(
+			buildTrafficStressRoute({
+				roadClassDetails: [
+					{ from: 0, to: 1, value: "residential" },
+					{ from: 1, to: 2, value: "service" },
+					{ from: 2, to: 3, value: "primary" },
+				],
+			}),
+		);
+
+		expect(geoJson.features).toHaveLength(2);
+		expect(geoJson.features[0]?.properties).toMatchObject({
+			kind: "traffic_stress",
+			trafficStressBucket: "low",
+		});
+		expect(geoJson.features[0]?.geometry.coordinates).toHaveLength(3);
+	});
+
+	it("distance-weights merged traffic stress scores", () => {
+		const geoJson = buildRouteTrafficStressGeoJson(
+			buildTrafficStressRoute({
+				coordinates: [
+					[0, 0, 10],
+					[0.001, 0, 10],
+					[0.011, 0, 10],
+				],
+				roadClassDetails: [
+					{ from: 0, to: 1, value: "cycleway" },
+					{ from: 1, to: 2, value: "residential" },
+				],
+			}),
+		);
+
+		expect(geoJson.features).toHaveLength(1);
+		expect(geoJson.features[0]?.properties).toMatchObject({
+			kind: "traffic_stress",
+			trafficStressBucket: "low",
+			trafficStressScore: 84,
+		});
+	});
+
+	it("skips missing, unknown, degenerate, fractional, negative, and out-of-bounds intervals", () => {
+		const geoJson = buildRouteTrafficStressGeoJson(
+			buildTrafficStressRoute({
+				coordinates: [
+					[0, 0, 10],
+					[0, 0, 10],
+					[0.01, 0, 10],
+					[0.02, 0, 10],
+				],
+				roadClassDetails: [
+					{ from: 0, to: 1, value: "primary" },
+					{ from: 1, to: 2, value: "missing" },
+					{ from: 2, to: 3, value: "unknown" },
+					{ from: 0.5, to: 2, value: "primary" },
+					{ from: -1, to: 2, value: "primary" },
+					{ from: 2, to: 4, value: "primary" },
+					{ from: 2, to: 3, value: "cycleway" },
+				],
+			}),
+		);
+
+		expect(geoJson.features).toHaveLength(1);
+		expect(geoJson.features[0]?.properties).toMatchObject({
+			kind: "traffic_stress",
+			trafficStressBucket: "low",
+		});
+		expect(geoJson.features[0]?.geometry.coordinates).toEqual([
+			[0.01, 0, 10],
+			[0.02, 0, 10],
+		]);
 	});
 });
 
