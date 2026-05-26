@@ -121,6 +121,10 @@ function buildRouteResponse(points: number[][]) {
 							[2, 3, "COMPACTED"],
 						],
 						smoothness: [[0, 3, "GOOD"]],
+						road_class: [[0, 3, "TERTIARY"]],
+						road_environment: [[0, 3, "ROAD"]],
+						road_access: [[0, 3, "YES"]],
+						bike_network: [[0, 3, "LOCAL"]],
 					},
 				},
 			],
@@ -162,6 +166,10 @@ function buildRoundCourseResponse(
 							[2, 3, "COMPACTED"],
 						],
 						smoothness: [[0, 3, "GOOD"]],
+						road_class: [[0, 3, "TERTIARY"]],
+						road_environment: [[0, 3, "ROAD"]],
+						road_access: [[0, 3, "YES"]],
+						bike_network: [[0, 3, "LOCAL"]],
 					},
 				},
 			],
@@ -192,6 +200,10 @@ function buildRoundCourseResponseWithoutSnappedWaypoints() {
 							[2, 3, "COMPACTED"],
 						],
 						smoothness: [[0, 3, "GOOD"]],
+						road_class: [[0, 3, "TERTIARY"]],
+						road_environment: [[0, 3, "ROAD"]],
+						road_access: [[0, 3, "YES"]],
+						bike_network: [[0, 3, "LOCAL"]],
 					},
 				},
 			],
@@ -1436,6 +1448,10 @@ describe("POST /api/route", () => {
 			{ from: 3, to: 4, value: "COMPACTED" },
 			{ from: 4, to: 6, value: "ASPHALT" },
 		]);
+		expect(route?.roadClassDetails).toEqual([
+			{ from: 0, to: 3, value: "TERTIARY" },
+			{ from: 3, to: 6, value: "TERTIARY" },
+		]);
 	});
 
 	it("validates the required turnaround for out-and-back requests", async () => {
@@ -1667,6 +1683,19 @@ describe("POST /api/route", () => {
 			{ from: 0, to: 2, value: "ASPHALT" },
 			{ from: 2, to: 3, value: "COMPACTED" },
 		]);
+		expect(route?.roadClassDetails).toEqual([
+			{ from: 0, to: 3, value: "TERTIARY" },
+		]);
+		expect(route?.roadEnvironmentDetails).toEqual([
+			{ from: 0, to: 3, value: "ROAD" },
+		]);
+		expect(route?.roadAccessDetails).toEqual([
+			{ from: 0, to: 3, value: "YES" },
+		]);
+		expect(route?.bikeNetworkDetails).toEqual([
+			{ from: 0, to: 3, value: "LOCAL" },
+		]);
+		expect(route?.routeQuality?.overallScore).not.toBeNull();
 	});
 
 	it("returns multiple point-to-point alternatives when GraphHopper provides distinct paths", async () => {

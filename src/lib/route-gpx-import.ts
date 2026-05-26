@@ -570,5 +570,9 @@ export function parseRouteGpx(
 		instructions: [],
 		surfaceDetails: [],
 		smoothnessDetails: [],
+		roadClassDetails: [],
+		roadEnvironmentDetails: [],
+		roadAccessDetails: [],
+		bikeNetworkDetails: [],
 	};
 }

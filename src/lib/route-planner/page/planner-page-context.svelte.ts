@@ -48,6 +48,7 @@ import {
 	getRouteLegIndexForCoordinateSegment,
 	getRouteSegmentCount,
 	getRouteTurnCount,
+	getRouteQuality,
 	getProviderWarnings,
 	getReadinessWarnings,
 	getRouteWarnings,
@@ -67,6 +68,7 @@ import {
 	type RouteMapOverlay,
 	type RouteClimb,
 	type RouteGradientMetrics,
+	type RouteQualityAnalysis,
 	type RouteRequestPayload,
 	type RouteWarning,
 	type RouteWindSegment,
@@ -259,6 +261,7 @@ export function createPlannerPageContext() {
 		surfaceGeoJson?: FeatureCollection;
 		climbGeoJsonBySignature: Map<string, FeatureCollection>;
 		gradientMetrics?: RouteGradientMetrics;
+		routeQuality?: RouteQualityAnalysis;
 		gradientOverlayAvailable?: boolean;
 		gradientGeoJson?: FeatureCollection;
 		windSignature?: string;
@@ -596,6 +599,14 @@ export function createPlannerPageContext() {
 		return cached.gradientMetrics;
 	}
 
+	function getCachedRouteQuality(route: PlannedRoute): RouteQualityAnalysis {
+		const cached = getCachedRouteOverlayGeoJson(route);
+
+		cached.routeQuality ??= getRouteQuality(route);
+
+		return cached.routeQuality;
+	}
+
 	function getCachedWindRouteGeoJson(route: PlannedRoute): FeatureCollection {
 		const cached = getCachedRouteOverlayGeoJson(route);
 		const windSignature = getRouteWindOverlaySignature(route);
@@ -664,6 +675,12 @@ export function createPlannerPageContext() {
 	);
 	const activeRouteGradientMetrics = $derived(
 		activeRoute ? getCachedRouteGradientMetrics(activeRoute) : null,
+	);
+	const activeRouteQuality = $derived(
+		activeRoute ? getCachedRouteQuality(activeRoute) : null,
+	);
+	const routeAlternativeQualities = $derived(
+		routeAlternatives.map((route) => getCachedRouteQuality(route)),
 	);
 	const canShowGradientOverlay = $derived(
 		activeRoute ? getCachedRouteGradientOverlayAvailable(activeRoute) : false,
@@ -3325,6 +3342,12 @@ export function createPlannerPageContext() {
 		get activeRouteGradientMetrics() {
 			return activeRouteGradientMetrics;
 		},
+		get activeRouteQuality() {
+			return activeRouteQuality;
+		},
+		get routeAlternativeQualities() {
+			return routeAlternativeQualities;
+		},
 		get activeRouteGradientGeoJson() {
 			return activeRouteGradientGeoJson;
 		},
@@ -3728,6 +3751,8 @@ export function createPlannerPageContext() {
 		"chartScrubPointerId",
 		"activeRouteClimbs",
 		"activeRouteGradientMetrics",
+		"activeRouteQuality",
+		"routeAlternativeQualities",
 		"activeWindSummary",
 		"strongestWindSegments",
 		"activeCategorizedClimbs",

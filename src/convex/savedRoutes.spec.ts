@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PlannedRoute } from "../lib/route-planning";
+import {
+	calculateRouteQuality,
+	type PlannedRoute,
+} from "../lib/route-planning";
 import { MAX_REMOTE_ROUTE_JSON_BYTES } from "../lib/saved-route-size";
 import { serializeSavedRouteForRemote } from "../lib/saved-routes-core";
 import {
@@ -30,7 +33,7 @@ type IndexCall = {
 	filter: Partial<Record<"userId" | "routeId", string>>;
 };
 
-const route: PlannedRoute = {
+const baseRoute: PlannedRoute = {
 	mode: "point_to_point",
 	source: {
 		kind: "graphhopper",
@@ -49,6 +52,14 @@ const route: PlannedRoute = {
 	],
 	surfaceDetails: [],
 	smoothnessDetails: [],
+	roadClassDetails: [{ from: 0, to: 1, value: "TERTIARY" }],
+	roadEnvironmentDetails: [{ from: 0, to: 1, value: "ROAD" }],
+	roadAccessDetails: [{ from: 0, to: 1, value: "YES" }],
+	bikeNetworkDetails: [],
+};
+const route: PlannedRoute = {
+	...baseRoute,
+	routeQuality: calculateRouteQuality(baseRoute),
 };
 const remoteSavedRoute = serializeSavedRouteForRemote({
 	id: "saved-route-1",

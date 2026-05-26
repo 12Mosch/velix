@@ -281,6 +281,10 @@ export type RouteWarningCode =
 	| "steep_gradient"
 	| "major_climb"
 	| "low_route_efficiency"
+	| "low_route_quality"
+	| "high_traffic_stress"
+	| "high_interruption_risk"
+	| "high_urban_exposure"
 	| "surface_analysis_unavailable"
 	| "wind_analysis_unavailable"
 	| "routing_profile_fallback";
@@ -293,6 +297,45 @@ export type RouteWarning = {
 	message: string;
 	metricLabel?: string;
 	metricValue?: string;
+};
+
+export type RouteQualityBand = "excellent" | "good" | "mixed" | "poor";
+export type RouteQualityConfidence = "high" | "medium" | "low";
+export type RouteQualityFlag = {
+	code:
+		| "low_route_quality"
+		| "high_traffic_stress"
+		| "high_interruption_risk"
+		| "high_urban_exposure";
+	severity: RouteWarningSeverity;
+	label: string;
+	summary: string;
+};
+export type RouteQualitySubscore = {
+	score: number | null;
+	label: string;
+	summary: string;
+	available: boolean;
+	weight: number;
+};
+export type RouteQualityAnalysis = {
+	version: 1;
+	overallScore: number | null;
+	band: RouteQualityBand | "unknown";
+	confidence: RouteQualityConfidence;
+	subscores: {
+		surface: RouteQualitySubscore;
+		trafficStress: RouteQualitySubscore;
+		flow: RouteQualitySubscore;
+		safety: RouteQualitySubscore;
+		roadQuality: RouteQualitySubscore;
+		urbanExposure: RouteQualitySubscore;
+		interruptionRisk: RouteQualitySubscore;
+		windExposure: RouteQualitySubscore;
+		gradientSuitability: RouteQualitySubscore;
+		routeEfficiency: RouteQualitySubscore;
+	};
+	flags: RouteQualityFlag[];
 };
 
 export type PlannedRoute = {
@@ -319,7 +362,12 @@ export type PlannedRoute = {
 	instructions?: RouteInstruction[];
 	surfaceDetails: RouteDetailInterval[];
 	smoothnessDetails: RouteDetailInterval[];
+	roadClassDetails?: RouteDetailInterval[];
+	roadEnvironmentDetails?: RouteDetailInterval[];
+	roadAccessDetails?: RouteDetailInterval[];
+	bikeNetworkDetails?: RouteDetailInterval[];
 	windAnalysis?: RouteWindAnalysis;
+	routeQuality?: RouteQualityAnalysis;
 };
 
 export type RouteApiSuccess = {

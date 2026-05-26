@@ -147,6 +147,23 @@ export function buildOutAndBackRoute(
 			outboundRoute.smoothnessDetails,
 			outboundCoordinates.length,
 		),
+		roadClassDetails: mirrorDetailIntervals(
+			outboundRoute.roadClassDetails ?? [],
+			outboundCoordinates.length,
+		),
+		roadEnvironmentDetails: mirrorDetailIntervals(
+			outboundRoute.roadEnvironmentDetails ?? [],
+			outboundCoordinates.length,
+		),
+		roadAccessDetails: mirrorDetailIntervals(
+			outboundRoute.roadAccessDetails ?? [],
+			outboundCoordinates.length,
+		),
+		bikeNetworkDetails: mirrorDetailIntervals(
+			outboundRoute.bikeNetworkDetails ?? [],
+			outboundCoordinates.length,
+		),
+		routeQuality: undefined,
 	};
 }
 

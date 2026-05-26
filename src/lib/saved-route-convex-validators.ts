@@ -184,6 +184,10 @@ const routeWarningCodeValidator = v.union(
 	v.literal("steep_gradient"),
 	v.literal("major_climb"),
 	v.literal("low_route_efficiency"),
+	v.literal("low_route_quality"),
+	v.literal("high_traffic_stress"),
+	v.literal("high_interruption_risk"),
+	v.literal("high_urban_exposure"),
 	v.literal("surface_analysis_unavailable"),
 	v.literal("wind_analysis_unavailable"),
 	v.literal("routing_profile_fallback"),
@@ -197,6 +201,60 @@ const routeWarningValidator = v.object({
 	message: v.string(),
 	metricLabel: v.optional(v.string()),
 	metricValue: v.optional(v.string()),
+});
+
+const routeQualityBandValidator = v.union(
+	v.literal("excellent"),
+	v.literal("good"),
+	v.literal("mixed"),
+	v.literal("poor"),
+	v.literal("unknown"),
+);
+
+const routeQualityConfidenceValidator = v.union(
+	v.literal("high"),
+	v.literal("medium"),
+	v.literal("low"),
+);
+
+const routeQualitySubscoreValidator = v.object({
+	score: v.union(v.number(), v.null()),
+	label: v.string(),
+	summary: v.string(),
+	available: v.boolean(),
+	weight: v.number(),
+});
+
+const routeQualityFlagValidator = v.object({
+	code: v.union(
+		v.literal("low_route_quality"),
+		v.literal("high_traffic_stress"),
+		v.literal("high_interruption_risk"),
+		v.literal("high_urban_exposure"),
+	),
+	severity: routeWarningSeverityValidator,
+	label: v.string(),
+	summary: v.string(),
+});
+
+const routeQualityAnalysisValidator = v.object({
+	version: v.literal(1),
+	overallScore: v.union(v.number(), v.null()),
+	band: routeQualityBandValidator,
+	confidence: routeQualityConfidenceValidator,
+	subscores: v.object({
+		surface: routeQualitySubscoreValidator,
+		trafficStress: routeQualitySubscoreValidator,
+		flow: routeQualitySubscoreValidator,
+		safety: routeQualitySubscoreValidator,
+		roadQuality: routeQualitySubscoreValidator,
+		urbanExposure: routeQualitySubscoreValidator,
+		interruptionRisk: routeQualitySubscoreValidator,
+		windExposure: routeQualitySubscoreValidator,
+		gradientSuitability: routeQualitySubscoreValidator,
+		routeEfficiency: routeQualitySubscoreValidator,
+	}),
+	flags: v.array(routeQualityFlagValidator),
 });
 
 export const plannedRouteValidator = v.object({
@@ -225,7 +283,12 @@ export const plannedRouteValidator = v.object({
 	instructions: v.optional(v.array(routeInstructionValidator)),
 	surfaceDetails: v.array(routeDetailIntervalValidator),
 	smoothnessDetails: v.array(routeDetailIntervalValidator),
+	roadClassDetails: v.optional(v.array(routeDetailIntervalValidator)),
+	roadEnvironmentDetails: v.optional(v.array(routeDetailIntervalValidator)),
+	roadAccessDetails: v.optional(v.array(routeDetailIntervalValidator)),
+	bikeNetworkDetails: v.optional(v.array(routeDetailIntervalValidator)),
 	windAnalysis: v.optional(routeWindAnalysisValidator),
+	routeQuality: v.optional(routeQualityAnalysisValidator),
 });
 
 export const remoteSavedRoutePayloadValidator = v.object({

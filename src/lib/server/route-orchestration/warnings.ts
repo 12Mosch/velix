@@ -2,6 +2,7 @@ import type { PlannedRoute, RouteWarning } from "$lib/route-planning";
 import {
 	buildRouteReadinessWarnings,
 	mergeRouteWarnings,
+	withRouteQuality,
 } from "$lib/route-planning";
 
 import { windUnavailableWarning } from "./constants";
@@ -37,7 +38,11 @@ export function withProviderWarning(
 export function finalizeGeneratedRouteWarnings(
 	route: PlannedRoute,
 ): PlannedRoute {
-	return mergeRouteWarnings(route, buildRouteReadinessWarnings(route));
+	const routeWithQuality = withRouteQuality(route);
+	return mergeRouteWarnings(
+		routeWithQuality,
+		buildRouteReadinessWarnings(routeWithQuality),
+	);
 }
 
 export function finalizeGeneratedRoutesWarnings(

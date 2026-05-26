@@ -11,12 +11,14 @@ import {
 	buildLockedSegmentGeoJson,
 	buildSpatialConstraintGeoJson,
 	calculateBearingDegrees,
+	calculateRouteQuality,
 	calculateRouteGradientMetrics,
 	calculateWindComponents,
 	classifyClimbCategory,
 	classifyWindBucket,
 	getEditableRouteStops,
 	getProviderWarnings,
+	getRouteQuality,
 	getRouteLegIndexForCoordinateSegment,
 	getRouteSegmentCount,
 	getRouteStopInputs,
@@ -111,6 +113,210 @@ describe("route instruction helpers", () => {
 		}));
 
 		expect(getRouteTurnCount(route)).toBe(7);
+	});
+});
+
+function buildQualityRoute(
+	overrides: Partial<PlannedRoute> = {},
+): PlannedRoute {
+	const route: PlannedRoute = {
+		mode: "point_to_point",
+		source: { kind: "graphhopper" },
+		startLabel: "Start",
+		destinationLabel: "Finish",
+		waypoints: [],
+		bounds: [0, 0, 0.1, 0],
+		distanceMeters: 11119,
+		durationMs: 1800000,
+		ascendMeters: 80,
+		descendMeters: 60,
+		coordinates: [
+			[0, 0, 100],
+			[0.05, 0, 130],
+			[0.1, 0, 180],
+		],
+		instructions: [],
+		surfaceDetails: [{ from: 0, to: 2, value: "asphalt" }],
+		smoothnessDetails: [{ from: 0, to: 2, value: "good" }],
+		roadClassDetails: [{ from: 0, to: 2, value: "tertiary" }],
+		roadEnvironmentDetails: [{ from: 0, to: 2, value: "road" }],
+		roadAccessDetails: [{ from: 0, to: 2, value: "yes" }],
+		bikeNetworkDetails: [{ from: 0, to: 2, value: "local" }],
+	};
+
+	return {
+		...route,
+		...overrides,
+	};
+}
+
+function buildTurnInstructions(
+	route: PlannedRoute,
+	count: number,
+	type: NonNullable<PlannedRoute["instructions"]>[number]["type"] = "left",
+) {
+	return Array.from({ length: count }, (_, index) => ({
+		distanceFromStartMeters: index * 100,
+		text: `${type} ${index}`,
+		sign: type === "u_turn" ? 98 : 2,
+		type,
+		segmentDistanceMeters: 100,
+		segmentTimeMs: 10000,
+		coordinateIndex: 0,
+		coordinate: route.coordinates[0] as RouteCoordinate,
+		interval: [0, 1] as [number, number],
+	}));
+}
+
+describe("route quality scoring", () => {
+	it("scores smooth asphalt road-training routes highly", () => {
+		const quality = calculateRouteQuality(buildQualityRoute());
+
+		expect(quality.overallScore).toBeGreaterThan(80);
+		expect(quality.subscores.surface.score).toBe(100);
+		expect(quality.subscores.roadQuality.score).toBeGreaterThan(85);
+		expect(quality.confidence).toBe("medium");
+	});
+
+	it("penalizes gravel/coarse routes for surface and road quality", () => {
+		const quality = calculateRouteQuality(
+			buildQualityRoute({
+				surfaceDetails: [{ from: 0, to: 2, value: "gravel" }],
+				roadClassDetails: [{ from: 0, to: 2, value: "track" }],
+			}),
+		);
+
+		expect(quality.subscores.surface.score).toBeLessThan(20);
+		expect(quality.subscores.roadQuality.score).toBeLessThan(45);
+	});
+
+	it("penalizes primary and trunk exposure for traffic stress and safety", () => {
+		const quality = calculateRouteQuality(
+			buildQualityRoute({
+				roadClassDetails: [
+					{ from: 0, to: 1, value: "primary" },
+					{ from: 1, to: 2, value: "trunk" },
+				],
+				bikeNetworkDetails: [],
+			}),
+		);
+
+		expect(quality.subscores.trafficStress.score).toBeLessThan(30);
+		expect(quality.subscores.safety.score).toBeLessThan(60);
+	});
+
+	it("penalizes residential and service-heavy routes for urban exposure and flow", () => {
+		const route = buildQualityRoute({
+			roadClassDetails: [
+				{ from: 0, to: 1, value: "residential" },
+				{ from: 1, to: 2, value: "service" },
+			],
+			roadEnvironmentDetails: [{ from: 0, to: 2, value: "urban" }],
+		});
+		route.instructions = buildTurnInstructions(route, 10);
+		const quality = calculateRouteQuality(route);
+
+		expect(quality.subscores.urbanExposure.score).toBeLessThan(25);
+		expect(quality.subscores.flow.score).toBeLessThan(70);
+	});
+
+	it("lowers flow and interruption risk for high turn density", () => {
+		const route = buildQualityRoute({
+			distanceMeters: 5000,
+			roadAccessDetails: [{ from: 0, to: 2, value: "destination" }],
+		});
+		route.instructions = [
+			...buildTurnInstructions(route, 22),
+			...buildTurnInstructions(route, 2, "roundabout"),
+			...buildTurnInstructions(route, 1, "u_turn"),
+		];
+		const quality = calculateRouteQuality(route);
+
+		expect(quality.subscores.flow.score).toBeLessThan(55);
+		expect(quality.subscores.interruptionRisk.score).toBeLessThan(55);
+	});
+
+	it("penalizes strong headwind and crosswind exposure", () => {
+		const quality = calculateRouteQuality(
+			buildQualityRoute({
+				windAnalysis: {
+					source: "open_meteo",
+					fetchedAt: "2026-05-26T10:00:00.000Z",
+					forecastTime: "2026-05-26T10:00",
+					samples: [],
+					segments: [],
+					averageHeadwindKmh: 18,
+					maxHeadwindKmh: 34,
+					averageTailwindKmh: 0,
+					maxCrosswindKmh: 28,
+					headwindDistanceMeters: 8000,
+					tailwindDistanceMeters: 0,
+					crosswindDistanceMeters: 3119,
+				},
+			}),
+		);
+
+		expect(quality.subscores.windExposure.score).toBeLessThan(20);
+		expect(quality.confidence).toBe("high");
+	});
+
+	it("penalizes very steep routes for gradient suitability", () => {
+		const quality = calculateRouteQuality(
+			buildQualityRoute({
+				distanceMeters: 1000,
+				ascendMeters: 220,
+				coordinates: [
+					[0, 0, 100],
+					[0.001, 0, 100],
+					[0.002, 0, 130],
+					[0.003, 0, 170],
+					[0.004, 0, 220],
+				],
+			}),
+		);
+
+		expect(quality.subscores.gradientSuitability.score).toBeLessThan(50);
+	});
+
+	it("penalizes inefficient point-to-point geometry", () => {
+		const quality = calculateRouteQuality(
+			buildQualityRoute({
+				distanceMeters: 30000,
+				coordinates: [
+					[0, 0, 100],
+					[0.05, 0.05, 110],
+					[0.1, 0, 120],
+				],
+			}),
+		);
+
+		expect(quality.subscores.routeEfficiency.score).toBeLessThan(40);
+	});
+
+	it("handles missing details without treating unavailable subscores as zero", () => {
+		const quality = calculateRouteQuality(
+			buildQualityRoute({
+				surfaceDetails: [],
+				smoothnessDetails: [],
+				roadClassDetails: undefined,
+				roadEnvironmentDetails: undefined,
+				roadAccessDetails: undefined,
+				bikeNetworkDetails: undefined,
+			}),
+		);
+
+		expect(quality.confidence).toBe("low");
+		expect(quality.subscores.surface.score).toBeNull();
+		expect(quality.subscores.trafficStress.score).toBeNull();
+		expect(quality.overallScore).not.toBeNull();
+		expect(quality.overallScore).toBeGreaterThan(60);
+	});
+
+	it("returns persisted route quality when present", () => {
+		const route = buildQualityRoute();
+		const routeQuality = calculateRouteQuality(route);
+
+		expect(getRouteQuality({ ...route, routeQuality })).toBe(routeQuality);
 	});
 });
 
