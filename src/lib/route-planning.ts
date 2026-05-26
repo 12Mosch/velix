@@ -47,3 +47,9 @@ export {
 	getRouteWarnings,
 	mergeRouteWarnings,
 } from "./route-planning/warnings";
+export {
+	calculateRouteQuality,
+	getQualityBand,
+	getRouteQuality,
+	withRouteQuality,
+} from "./route-planning/quality";

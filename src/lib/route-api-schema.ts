@@ -205,6 +205,10 @@ export const RouteWarningCodeSchema = Schema.Literals([
 	"steep_gradient",
 	"major_climb",
 	"low_route_efficiency",
+	"low_route_quality",
+	"high_traffic_stress",
+	"high_interruption_risk",
+	"high_urban_exposure",
 	"surface_analysis_unavailable",
 	"wind_analysis_unavailable",
 	"routing_profile_fallback",
@@ -222,6 +226,54 @@ export const RouteDetailIntervalSchema = Schema.Struct({
 	from: Schema.Finite,
 	to: Schema.Finite,
 	value: Schema.String,
+});
+export const RouteQualityBandSchema = Schema.Literals([
+	"excellent",
+	"good",
+	"mixed",
+	"poor",
+]);
+export const RouteQualityConfidenceSchema = Schema.Literals([
+	"high",
+	"medium",
+	"low",
+]);
+export const RouteQualitySubscoreSchema = Schema.Struct({
+	score: Schema.NullOr(Schema.Finite),
+	label: Schema.String,
+	summary: Schema.String,
+	available: Schema.Boolean,
+	weight: Schema.Finite,
+});
+export const RouteQualityFlagSchema = Schema.Struct({
+	code: Schema.Literals([
+		"low_route_quality",
+		"high_traffic_stress",
+		"high_interruption_risk",
+		"high_urban_exposure",
+	]),
+	severity: RouteWarningSeveritySchema,
+	label: Schema.String,
+	summary: Schema.String,
+});
+export const RouteQualityAnalysisSchema = Schema.Struct({
+	version: Schema.Literal(1),
+	overallScore: Schema.NullOr(Schema.Finite),
+	band: Schema.Union([RouteQualityBandSchema, Schema.Literal("unknown")]),
+	confidence: RouteQualityConfidenceSchema,
+	subscores: Schema.Struct({
+		surface: RouteQualitySubscoreSchema,
+		trafficStress: RouteQualitySubscoreSchema,
+		flow: RouteQualitySubscoreSchema,
+		safety: RouteQualitySubscoreSchema,
+		roadQuality: RouteQualitySubscoreSchema,
+		urbanExposure: RouteQualitySubscoreSchema,
+		interruptionRisk: RouteQualitySubscoreSchema,
+		windExposure: RouteQualitySubscoreSchema,
+		gradientSuitability: RouteQualitySubscoreSchema,
+		routeEfficiency: RouteQualitySubscoreSchema,
+	}),
+	flags: Schema.mutable(Schema.Array(RouteQualityFlagSchema)),
 });
 export const RouteInstructionTypeSchema = Schema.Literals([
 	"continue",
@@ -339,7 +391,22 @@ export const PlannedRouteSchema = Schema.Struct({
 	),
 	surfaceDetails: Schema.mutable(Schema.Array(RouteDetailIntervalSchema)),
 	smoothnessDetails: Schema.mutable(Schema.Array(RouteDetailIntervalSchema)),
+	roadClassDetails: Schema.optionalKey(
+		Schema.UndefinedOr(Schema.mutable(Schema.Array(RouteDetailIntervalSchema))),
+	),
+	roadEnvironmentDetails: Schema.optionalKey(
+		Schema.UndefinedOr(Schema.mutable(Schema.Array(RouteDetailIntervalSchema))),
+	),
+	roadAccessDetails: Schema.optionalKey(
+		Schema.UndefinedOr(Schema.mutable(Schema.Array(RouteDetailIntervalSchema))),
+	),
+	bikeNetworkDetails: Schema.optionalKey(
+		Schema.UndefinedOr(Schema.mutable(Schema.Array(RouteDetailIntervalSchema))),
+	),
 	windAnalysis: Schema.optionalKey(Schema.UndefinedOr(RouteWindAnalysisSchema)),
+	routeQuality: Schema.optionalKey(
+		Schema.UndefinedOr(RouteQualityAnalysisSchema),
+	),
 });
 export const SavedRouteSchema = Schema.Struct({
 	id: Schema.String,

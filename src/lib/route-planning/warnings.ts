@@ -6,6 +6,7 @@ import {
 } from "./elevation";
 import { analyzeRouteClimbs } from "./climbs";
 import { getSurfaceDistanceTotals } from "./surface";
+import { getRouteQuality } from "./quality";
 
 function formatWarningPercent(value: number): string {
 	return `${Math.round(value)}%`;
@@ -287,6 +288,60 @@ export function buildRouteReadinessWarnings(
 				metricValue: `${efficiency.toFixed(1)}x direct`,
 			});
 		}
+	}
+
+	const quality = getRouteQuality(route);
+	if (quality.overallScore !== null && quality.overallScore < 55) {
+		warnings.push({
+			category: "readiness",
+			code: "low_route_quality",
+			severity: quality.overallScore < 40 ? "warning" : "caution",
+			title: "Low route quality",
+			message:
+				"Overall road-training quality is below target based on available route details.",
+			metricLabel: "Quality",
+			metricValue: String(Math.round(quality.overallScore)),
+		});
+	}
+
+	const trafficStress = quality.subscores.trafficStress.score;
+	if (trafficStress !== null && trafficStress < 50) {
+		warnings.push({
+			category: "readiness",
+			code: "high_traffic_stress",
+			severity: trafficStress < 35 ? "warning" : "caution",
+			title: "High traffic stress",
+			message: "Road class and access mix suggest stressful riding.",
+			metricLabel: "Stress score",
+			metricValue: String(Math.round(trafficStress)),
+		});
+	}
+
+	const interruptionRisk = quality.subscores.interruptionRisk.score;
+	if (interruptionRisk !== null && interruptionRisk < 55) {
+		warnings.push({
+			category: "readiness",
+			code: "high_interruption_risk",
+			severity: "caution",
+			title: "High interruption risk",
+			message:
+				"Turns, restricted access, or route environments may interrupt flow.",
+			metricLabel: "Risk score",
+			metricValue: String(Math.round(interruptionRisk)),
+		});
+	}
+
+	const urbanExposure = quality.subscores.urbanExposure.score;
+	if (urbanExposure !== null && urbanExposure < 45) {
+		warnings.push({
+			category: "readiness",
+			code: "high_urban_exposure",
+			severity: "caution",
+			title: "High urban exposure",
+			message: "Urban-like riding makes up a large share of the route.",
+			metricLabel: "Urban score",
+			metricValue: String(Math.round(urbanExposure)),
+		});
 	}
 
 	return warnings;

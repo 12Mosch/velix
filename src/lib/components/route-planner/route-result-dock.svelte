@@ -14,6 +14,8 @@
 		formatElevation,
 		formatExactDistance,
 		formatGrade,
+		formatQualityBand,
+		formatQualityScore,
 		formatRoundCourseTarget,
 		formatSpatialConstraintEnforcement,
 		formatSpatialConstraintSummary,
@@ -23,6 +25,7 @@
 		getClimbColor,
 		getClimbLabel,
 		getImportedRouteStopSummary,
+		getQualityToneClass,
 		getRouteDurationText,
 		getRoutingBadgeLabel,
 		getRoutingProfileLabel,
@@ -66,6 +69,8 @@
 		activeRoundCourseTarget: routes.activeRoundCourseTarget,
 		activeRouteClimbs: analysis.activeRouteClimbs,
 		activeRouteGradientMetrics: analysis.activeRouteGradientMetrics,
+		activeRouteQuality: analysis.activeRouteQuality,
+		routeAlternativeQualities: analysis.routeAlternativeQualities,
 		activeWindSummary: analysis.activeWindSummary,
 		strongestWindSegments: analysis.strongestWindSegments,
 		activeCategorizedClimbs: analysis.activeCategorizedClimbs,
@@ -194,6 +199,15 @@
 								<span class="font-semibold text-foreground">
 									Max {formatGrade(dockView.activeRouteGradientMetrics.maximumGradientPercent)}
 								</span>
+							{/if}
+							{#if dockView.activeRouteQuality}
+								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+								<Badge
+									variant="outline"
+									class={`h-6 px-2 text-[10px] font-semibold uppercase tracking-wide ${getQualityToneClass(dockView.activeRouteQuality.band)}`}
+								>
+									Quality {formatQualityScore(dockView.activeRouteQuality.overallScore)}
+								</Badge>
 							{/if}
 							{#if dockView.activeWindSummary}
 								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
@@ -509,7 +523,7 @@
 											{/if}
 										</div>
 									</div>
-									<div class="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+									<div class="grid grid-cols-2 gap-2 text-xs text-muted-foreground min-[520px]:grid-cols-4">
 										<div>
 											<div class="font-semibold text-foreground">
 												{formatDistance(route.distanceMeters)}
@@ -527,6 +541,12 @@
 												{Math.round(route.ascendMeters).toLocaleString()} m
 											</div>
 											<div>Climb</div>
+										</div>
+										<div>
+											<div class="font-semibold text-foreground">
+												Quality {formatQualityScore(dockView.routeAlternativeQualities[index]?.overallScore ?? null)}
+											</div>
+											<div>{formatQualityBand(dockView.routeAlternativeQualities[index]?.band ?? "unknown")}</div>
 										</div>
 									</div>
 								</button>
@@ -883,6 +903,41 @@
 											<AlertTriangle class="size-3" /> Readiness
 										</span>
 									</div>
+									{#if dockView.activeRouteQuality}
+										<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2 text-xs">
+											<div class="mb-2 flex items-center justify-between gap-2">
+												<div>
+													<div class="font-semibold text-foreground">
+														Quality {formatQualityScore(dockView.activeRouteQuality.overallScore)}
+													</div>
+													<div class="text-muted-foreground">
+														{formatQualityBand(dockView.activeRouteQuality.band)} · {dockView.activeRouteQuality.confidence} confidence
+													</div>
+												</div>
+												<Badge
+													variant="outline"
+													class={`h-5 px-2 text-[10px] font-semibold uppercase tracking-wide ${getQualityToneClass(dockView.activeRouteQuality.band)}`}
+												>
+													{formatQualityBand(dockView.activeRouteQuality.band)}
+												</Badge>
+											</div>
+											<div class="grid gap-1.5">
+												{#each Object.values(dockView.activeRouteQuality.subscores) as item}
+													<div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
+														<div class="w-8 text-right font-semibold tabular-nums text-foreground">
+															{item.available ? formatQualityScore(item.score) : "--"}
+														</div>
+														<div class="min-w-0">
+															<div class="font-semibold text-foreground">{item.label}</div>
+															<div class={item.available ? "text-muted-foreground" : "text-muted-foreground/70"}>
+																{item.available ? item.summary : "Unavailable"}
+															</div>
+														</div>
+													</div>
+												{/each}
+											</div>
+										</div>
+									{/if}
 									{#if dockView.activeReadinessWarnings.length > 0}
 										<div class="grid gap-1.5">
 											{#each dockView.activeReadinessWarnings as warning}

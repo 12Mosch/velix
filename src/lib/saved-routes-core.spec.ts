@@ -7,6 +7,7 @@ import {
 	serializeSavedRouteForRemote,
 	type SavedRoute,
 } from "$lib/saved-routes-core";
+import { calculateRouteQuality } from "$lib/route-planning";
 
 const baseRoute: SavedRoute["route"] = {
 	mode: "point_to_point",
@@ -31,6 +32,10 @@ const baseRoute: SavedRoute["route"] = {
 	instructions: [],
 	surfaceDetails: [{ from: 0, to: 2, value: "asphalt" }],
 	smoothnessDetails: [{ from: 0, to: 2, value: "GOOD" }],
+	roadClassDetails: [{ from: 0, to: 2, value: "tertiary" }],
+	roadEnvironmentDetails: [{ from: 0, to: 2, value: "road" }],
+	roadAccessDetails: [{ from: 0, to: 2, value: "yes" }],
+	bikeNetworkDetails: [],
 };
 
 describe("saved-routes-core", () => {
@@ -139,6 +144,34 @@ describe("saved-routes-core", () => {
 			waypoints: [],
 			instructions: [],
 		});
+	});
+
+	it("restores older routes without route quality or new detail arrays", () => {
+		const legacyRoute = { ...baseRoute };
+		delete (legacyRoute as { routeQuality?: unknown }).routeQuality;
+		delete (legacyRoute as { roadClassDetails?: unknown }).roadClassDetails;
+		delete (legacyRoute as { roadEnvironmentDetails?: unknown })
+			.roadEnvironmentDetails;
+		delete (legacyRoute as { roadAccessDetails?: unknown }).roadAccessDetails;
+		delete (legacyRoute as { bikeNetworkDetails?: unknown }).bikeNetworkDetails;
+
+		expect(normalizePlannedRoute(legacyRoute)).toEqual(legacyRoute);
+	});
+
+	it("saves and restores route quality", () => {
+		const route = {
+			...baseRoute,
+			routeQuality: calculateRouteQuality(baseRoute),
+		};
+		const savedRoute: SavedRoute = {
+			id: "quality-route",
+			createdAt: "2026-04-19T09:30:00.000Z",
+			route,
+		};
+
+		expect(parseSavedRoutes(JSON.stringify([savedRoute]))[0]?.route).toEqual(
+			route,
+		);
 	});
 
 	it("preserves valid instructions and defaults missing instructions", () => {

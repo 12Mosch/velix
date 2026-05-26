@@ -5,6 +5,7 @@ export {
 	getRouteDurationText,
 } from "$lib/route-display";
 import {
+	type RouteQualityBand,
 	isImportedRoute,
 	type PlannedRoute,
 	type RouteClimb,
@@ -87,6 +88,37 @@ export function formatWindComponent(kmh: number): string {
 	return kmh < 0
 		? `${rounded.toLocaleString()} km/h tail`
 		: `${rounded.toLocaleString()} km/h head`;
+}
+
+export function formatQualityScore(score: number | null): string {
+	return score === null ? "--" : String(Math.round(score));
+}
+
+export function formatQualityBand(band: RouteQualityBand | "unknown"): string {
+	if (band === "excellent") return "Excellent";
+	if (band === "good") return "Good";
+	if (band === "mixed") return "Mixed";
+	if (band === "poor") return "Poor";
+	return "Unknown";
+}
+
+export function getQualityToneClass(
+	band: RouteQualityBand | "unknown",
+): string {
+	if (band === "excellent") {
+		return "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+	}
+	if (band === "good") {
+		return "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300";
+	}
+	if (band === "mixed") {
+		return "border-amber-500/25 bg-amber-500/10 text-amber-800 dark:text-amber-200";
+	}
+	if (band === "poor") {
+		return "border-destructive/25 bg-destructive/10 text-destructive";
+	}
+
+	return "border-border/40 bg-secondary/60 text-muted-foreground";
 }
 
 export function getClimbLabel(climb: RouteClimb, index: number): string {

@@ -13,6 +13,7 @@ import {
 	RouteStopInputSchema,
 } from "$lib/route-api-schema";
 import { normalizePlannedRoute } from "$lib/saved-routes-core";
+import { calculateRouteQuality, type PlannedRoute } from "$lib/route-planning";
 
 function expectDecodedPayload(value: unknown) {
 	const result = decodeRouteRequestPayload(value);
@@ -26,7 +27,7 @@ function expectDecodedPayload(value: unknown) {
 	return result.payload;
 }
 
-function buildValidRoute() {
+function buildValidRoute(): PlannedRoute {
 	return {
 		mode: "point_to_point",
 		source: {
@@ -52,6 +53,10 @@ function buildValidRoute() {
 		instructions: [],
 		surfaceDetails: [{ from: 0, to: 1, value: "ASPHALT" }],
 		smoothnessDetails: [{ from: 0, to: 1, value: "GOOD" }],
+		roadClassDetails: [{ from: 0, to: 1, value: "TERTIARY" }],
+		roadEnvironmentDetails: [{ from: 0, to: 1, value: "ROAD" }],
+		roadAccessDetails: [{ from: 0, to: 1, value: "YES" }],
+		bikeNetworkDetails: [],
 	};
 }
 
@@ -295,6 +300,28 @@ describe("route API schema helpers", () => {
 		delete (legacyRoute as { instructions?: unknown }).instructions;
 
 		expect(normalizePlannedRoute(legacyRoute)?.instructions).toEqual([]);
+	});
+
+	it("accepts route quality payloads", () => {
+		const route = buildValidRoute();
+		const decoded = Schema.decodeUnknownSync(PlannedRouteSchema)({
+			...route,
+			routeQuality: calculateRouteQuality(route),
+		});
+
+		expect(decoded.routeQuality?.version).toBe(1);
+		expect(decoded.routeQuality?.overallScore).not.toBeNull();
+	});
+
+	it("normalizes legacy planned routes without new detail arrays", () => {
+		const legacyRoute = buildValidRoute();
+		delete (legacyRoute as { roadClassDetails?: unknown }).roadClassDetails;
+		delete (legacyRoute as { roadEnvironmentDetails?: unknown })
+			.roadEnvironmentDetails;
+		delete (legacyRoute as { roadAccessDetails?: unknown }).roadAccessDetails;
+		delete (legacyRoute as { bikeNetworkDetails?: unknown }).bikeNetworkDetails;
+
+		expect(normalizePlannedRoute(legacyRoute)).toEqual(legacyRoute);
 	});
 
 	it("accepts planned routes with resolved avoidances", () => {

@@ -423,6 +423,12 @@ function normalizeGraphHopperPath(
 			),
 			surfaceDetails: normalizeDetailIntervals(path.details?.surface),
 			smoothnessDetails: normalizeDetailIntervals(path.details?.smoothness),
+			roadClassDetails: normalizeDetailIntervals(path.details?.road_class),
+			roadEnvironmentDetails: normalizeDetailIntervals(
+				path.details?.road_environment,
+			),
+			roadAccessDetails: normalizeDetailIntervals(path.details?.road_access),
+			bikeNetworkDetails: normalizeDetailIntervals(path.details?.bike_network),
 		},
 		snappedWaypoints: normalizedSnappedWaypoints,
 	};
