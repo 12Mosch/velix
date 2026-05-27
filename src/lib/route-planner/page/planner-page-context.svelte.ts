@@ -46,6 +46,7 @@ import {
 	analyzeRouteClimbs,
 	calculateRouteGradientMetrics,
 	getRouteElevationAnalysisPoints,
+	getRouteGradientSections,
 	getRouteLegIndexForCoordinateSegment,
 	getRouteSegmentCount,
 	getRouteTurnCount,
@@ -69,6 +70,7 @@ import {
 	type RouteMapOverlay,
 	type RouteClimb,
 	type RouteGradientMetrics,
+	type RouteGradientSection,
 	type RouteQualityAnalysis,
 	type RouteRequestPayload,
 	type RouteWarning,
@@ -264,6 +266,7 @@ export function createPlannerPageContext() {
 		surfaceGeoJson?: FeatureCollection;
 		climbGeoJsonBySignature: Map<string, FeatureCollection>;
 		gradientMetrics?: RouteGradientMetrics;
+		gradientSections?: RouteGradientSection[];
 		routeQuality?: RouteQualityAnalysis;
 		gradientOverlayAvailable?: boolean;
 		gradientGeoJson?: FeatureCollection;
@@ -625,6 +628,16 @@ export function createPlannerPageContext() {
 		return cached.gradientMetrics;
 	}
 
+	function getCachedRouteGradientSections(
+		route: PlannedRoute,
+	): RouteGradientSection[] {
+		const cached = getCachedRouteOverlayGeoJson(route);
+
+		cached.gradientSections ??= getRouteGradientSections(route);
+
+		return cached.gradientSections;
+	}
+
 	function getCachedRouteQuality(route: PlannedRoute): RouteQualityAnalysis {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
@@ -741,6 +754,18 @@ export function createPlannerPageContext() {
 	);
 	const activeRouteGradientMetrics = $derived(
 		activeRoute ? getCachedRouteGradientMetrics(activeRoute) : null,
+	);
+	const activeRouteGradientSections = $derived<RouteGradientSection[]>(
+		activeRoute ? getCachedRouteGradientSections(activeRoute) : [],
+	);
+	const notableGradientSections = $derived<RouteGradientSection[]>(
+		[...activeRouteGradientSections]
+			.filter((section) => section.bucket !== "flat")
+			.sort(
+				(a, b) =>
+					Math.abs(b.averageGradePercent) - Math.abs(a.averageGradePercent),
+			)
+			.slice(0, 5),
 	);
 	const activeRouteQuality = $derived(
 		activeRoute ? getCachedRouteQuality(activeRoute) : null,
@@ -3434,6 +3459,12 @@ export function createPlannerPageContext() {
 		get activeRouteGradientMetrics() {
 			return activeRouteGradientMetrics;
 		},
+		get activeRouteGradientSections() {
+			return activeRouteGradientSections;
+		},
+		get notableGradientSections() {
+			return notableGradientSections;
+		},
 		get activeRouteQuality() {
 			return activeRouteQuality;
 		},
@@ -3852,6 +3883,8 @@ export function createPlannerPageContext() {
 		"chartScrubPointerId",
 		"activeRouteClimbs",
 		"activeRouteGradientMetrics",
+		"activeRouteGradientSections",
+		"notableGradientSections",
 		"activeRouteQuality",
 		"routeAlternativeQualities",
 		"activeWindSummary",

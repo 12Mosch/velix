@@ -19,6 +19,7 @@ import {
 	classifyWindBucket,
 	getEditableRouteStops,
 	getProviderWarnings,
+	getRouteGradientSections,
 	getRouteQuality,
 	getRouteLegIndexForCoordinateSegment,
 	getRouteSegmentCount,
@@ -1055,6 +1056,70 @@ describe("buildRouteGradientGeoJson", () => {
 		);
 
 		expect(geoJson.features).toEqual([]);
+	});
+});
+
+describe("getRouteGradientSections", () => {
+	const gradientRoute = (
+		coordinates: PlannedRoute["coordinates"],
+	): PlannedRoute => ({
+		...buildRoute([], []),
+		coordinates,
+	});
+
+	it("returns no sections when elevation samples are missing", () => {
+		expect(
+			getRouteGradientSections(
+				gradientRoute([
+					[0, 0],
+					[0.001, 0],
+				]),
+			),
+		).toEqual([]);
+	});
+
+	it("merges adjacent same-bucket intervals", () => {
+		const coordinates: PlannedRoute["coordinates"] = [
+			[0, 0, 100],
+			[0.001, 0, 104],
+			[0.002, 0, 108],
+		];
+		const sections = getRouteGradientSections(gradientRoute(coordinates));
+
+		expect(sections).toHaveLength(1);
+		expect(sections[0]).toMatchObject({
+			bucket: "up",
+			coordinates,
+		});
+	});
+
+	it("calculates section distance, elevation delta, and average grade", () => {
+		const sections = getRouteGradientSections(
+			gradientRoute([
+				[0, 0, 100],
+				[0.001, 0, 104],
+			]),
+		);
+
+		expect(sections).toHaveLength(1);
+		expect(sections[0]?.startDistanceMeters).toBe(0);
+		expect(sections[0]?.endDistanceMeters).toBeCloseTo(111.2, 1);
+		expect(sections[0]?.distanceMeters).toBeCloseTo(111.2, 1);
+		expect(sections[0]?.elevationDeltaMeters).toBeCloseTo(4, 5);
+		expect(sections[0]?.averageGradePercent).toBeCloseTo(3.6, 1);
+	});
+
+	it("retains flat sections for shared overlay data", () => {
+		const sections = getRouteGradientSections(
+			gradientRoute([
+				[0, 0, 100],
+				[0.001, 0, 100.5],
+				[0.002, 0, 100.8],
+			]),
+		);
+
+		expect(sections).toHaveLength(1);
+		expect(sections[0]?.bucket).toBe("flat");
 	});
 });
 

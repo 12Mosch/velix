@@ -3,7 +3,7 @@
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-	import { isImportedRoute } from "$lib/route-planning";
+	import { isImportedRoute, type RouteGradientSection } from "$lib/route-planning";
 	import { chartW } from "$lib/route-planner/constants";
 	import {
 		formatDistance,
@@ -69,6 +69,8 @@
 		activeRoundCourseTarget: routes.activeRoundCourseTarget,
 		activeRouteClimbs: analysis.activeRouteClimbs,
 		activeRouteGradientMetrics: analysis.activeRouteGradientMetrics,
+		activeRouteGradientSections: analysis.activeRouteGradientSections,
+		notableGradientSections: analysis.notableGradientSections,
 		activeRouteQuality: analysis.activeRouteQuality,
 		routeAlternativeQualities: analysis.routeAlternativeQualities,
 		activeWindSummary: analysis.activeWindSummary,
@@ -116,6 +118,20 @@
 				? "Sharing route"
 				: null,
 	);
+	function getGradientSectionDirection(section: RouteGradientSection): string {
+		if (section.averageGradePercent > 1) return "Climb";
+		if (section.averageGradePercent < -1) return "Descent";
+		return "Flat";
+	}
+	function getGradientSectionTone(section: RouteGradientSection): string {
+		if (section.averageGradePercent > 1) {
+			return "border-rose-500/25 bg-rose-500/8";
+		}
+		if (section.averageGradePercent < -1) {
+			return "border-sky-500/25 bg-sky-500/8";
+		}
+		return "border-border/30 bg-background/60";
+	}
 </script>
 
 {#snippet routeSummarySkeleton()}
@@ -1058,6 +1074,56 @@
 											{isImportedRoute(dockView.activeRoute)
 												? "Wind analysis becomes available after re-routing this imported track."
 												: "Wind analysis was not available for this route."}
+										</p>
+									{/if}
+								</div>
+
+								<div class="space-y-2">
+									<div class="flex items-center justify-between text-xs text-muted-foreground">
+										<span class="flex items-center gap-1">
+											<TrendingUp class="size-3" /> Gradient sections
+										</span>
+										{#if dockView.activeRouteGradientSections.length > 0}
+											<span>{dockView.activeRouteGradientSections.length} total</span>
+										{/if}
+									</div>
+									{#if dockView.elevationSamples.length === 0}
+										<p class="text-xs text-muted-foreground">
+											No gradient section data available because this route has no elevation samples.
+										</p>
+									{:else if dockView.notableGradientSections.length > 0}
+										<div class="grid gap-1.5">
+											{#each dockView.notableGradientSections as section}
+												<div
+													class={`rounded-md border px-2.5 py-2 text-xs ${getGradientSectionTone(section)}`}
+												>
+													<div class="mb-1 flex items-center justify-between gap-2">
+														<div class="flex min-w-0 items-center gap-2 font-semibold text-foreground">
+															{#if section.averageGradePercent < -1}
+																<TrendingDown class="size-3 shrink-0 text-sky-600 dark:text-sky-300" />
+															{:else}
+																<TrendingUp class="size-3 shrink-0 text-rose-600 dark:text-rose-300" />
+															{/if}
+															<span>{getGradientSectionDirection(section)}</span>
+														</div>
+														<span class="shrink-0 font-semibold tabular-nums text-foreground">
+															{formatGrade(section.averageGradePercent)}
+														</span>
+													</div>
+													<div class="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+														<span>{formatDistance(section.distanceMeters)}</span>
+														<span>
+															{formatElevation(Math.abs(section.elevationDeltaMeters))}
+															{section.elevationDeltaMeters < 0 ? " loss" : " gain"}
+														</span>
+														<span>from {formatExactDistance(section.startDistanceMeters)}</span>
+													</div>
+												</div>
+											{/each}
+										</div>
+									{:else}
+										<p class="text-xs text-muted-foreground">
+											No notable non-flat gradient sections for this elevation profile.
 										</p>
 									{/if}
 								</div>
