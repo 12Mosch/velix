@@ -282,6 +282,87 @@ describe("routes/+page.svelte", () => {
 			.toHaveAttribute("href", "/?savedRoute=saved-route-1");
 	});
 
+	it("restores the previous route payload and persists it locally", async () => {
+		await seedSavedRoutesForTests(savedRoutes);
+		await upsertSavedRoute(
+			{
+				...savedRoutes[0].route,
+				destinationLabel: "Garmisch-Partenkirchen, Germany",
+			},
+			"saved-route-1",
+		);
+
+		render(RoutesPage);
+
+		await expect
+			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
+			.toBeInTheDocument();
+		await page.getByRole("button", { name: "Restore previous" }).click();
+
+		await expect
+			.element(page.getByText("Schliersee, Germany"))
+			.toBeInTheDocument();
+		await vi.waitFor(async () => {
+			expect((await readSavedRoutesForTests())[0]?.route.destinationLabel).toBe(
+				"Schliersee, Germany",
+			);
+		});
+	});
+
+	it("shows a scoped message when no previous version is available", async () => {
+		await seedSavedRoutesForTests(savedRoutes);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Restore previous" }).click();
+
+		await expect
+			.element(page.getByText("No previous version available."))
+			.toBeInTheDocument();
+	});
+
+	it("loads remote route versions before restoring signed-in routes", async () => {
+		const save = vi.fn().mockResolvedValue(undefined);
+		const listVersions = vi.fn().mockResolvedValue([
+			{
+				versionId: "remote-version-1",
+				routeId: "saved-route-1",
+				capturedAt: "2026-04-20T09:30:00.000Z",
+				savedRoute: serializeSavedRouteForRemote(savedRoutes[0]),
+			},
+		]);
+		await savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.setRemoteAdapter({
+			save,
+			delete: vi.fn(),
+			listVersions,
+			mergeLocalRoutes: vi.fn(),
+		});
+		await savedRoutesState.applyRemoteRoutes("user_1", [
+			serializeSavedRouteForRemote({
+				...savedRoutes[0],
+				route: {
+					...savedRoutes[0].route,
+					destinationLabel: "Current remote",
+				},
+			}),
+		]);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Restore previous" }).click();
+
+		expect(listVersions).toHaveBeenCalledWith("saved-route-1");
+		await expect
+			.element(page.getByText("Schliersee, Germany"))
+			.toBeInTheDocument();
+		await vi.waitFor(() => {
+			expect(save).toHaveBeenCalledWith(
+				serializeSavedRouteForRemote(savedRoutesState.savedRoutes[0]),
+			);
+		});
+	});
+
 	it("shows a Share action on saved-route cards", async () => {
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,

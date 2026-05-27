@@ -25,6 +25,20 @@ export type RemoteSavedRoutePayload = {
 	routeJson: string;
 };
 
+export type SavedRouteVersion = {
+	versionId: string;
+	routeId: string;
+	capturedAt: string;
+	savedRoute: SavedRoute;
+};
+
+export type RemoteSavedRouteVersionPayload = {
+	versionId: string;
+	routeId: string;
+	capturedAt: string;
+	savedRoute: RemoteSavedRoutePayload;
+};
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object";
 }
@@ -197,6 +211,13 @@ const RawSavedRouteSchema = Schema.Struct({
 	route: Schema.Unknown,
 });
 
+const RawSavedRouteVersionSchema = Schema.Struct({
+	versionId: Schema.String,
+	routeId: Schema.String,
+	capturedAt: Schema.String,
+	savedRoute: Schema.Unknown,
+});
+
 function getNormalizedSavedRoute(value: unknown): SavedRoute | null {
 	const candidate = decodeOrNull(RawSavedRouteSchema, value);
 	if (!candidate || candidate.id.length === 0) {
@@ -211,6 +232,37 @@ function getNormalizedSavedRoute(value: unknown): SavedRoute | null {
 
 export function isSavedRoute(value: unknown): value is SavedRoute {
 	return getNormalizedSavedRoute(value) !== null;
+}
+
+function getNormalizedSavedRouteVersion(
+	value: unknown,
+): SavedRouteVersion | null {
+	const candidate = decodeOrNull(RawSavedRouteVersionSchema, value);
+	if (
+		!candidate ||
+		candidate.versionId.length === 0 ||
+		candidate.routeId.length === 0
+	) {
+		return null;
+	}
+
+	const capturedAt = normalizeDateString(candidate.capturedAt);
+	const savedRoute = getNormalizedSavedRoute(candidate.savedRoute);
+
+	return capturedAt && savedRoute && savedRoute.id === candidate.routeId
+		? {
+				versionId: candidate.versionId,
+				routeId: candidate.routeId,
+				capturedAt,
+				savedRoute,
+			}
+		: null;
+}
+
+export function isSavedRouteVersion(
+	value: unknown,
+): value is SavedRouteVersion {
+	return getNormalizedSavedRouteVersion(value) !== null;
 }
 
 export function parseSavedRoutes(rawValue: string | null): SavedRoute[] {
@@ -240,6 +292,18 @@ export function normalizeSavedRoutes(values: unknown[]): SavedRoute[] {
 		}
 
 		return [savedRoute];
+	});
+}
+
+export function normalizeSavedRouteVersions(
+	values: unknown[],
+): SavedRouteVersion[] {
+	return values.flatMap((entry) => {
+		const savedRouteVersion =
+			deserializeRemoteSavedRouteVersion(entry) ??
+			getNormalizedSavedRouteVersion(entry);
+
+		return savedRouteVersion ? [savedRouteVersion] : [];
 	});
 }
 
@@ -302,6 +366,55 @@ export function normalizeRemoteSavedRoutes(values: unknown[]): SavedRoute[] {
 	});
 }
 
+export function serializeSavedRouteVersionForRemote(
+	version: SavedRouteVersion,
+): RemoteSavedRouteVersionPayload {
+	const normalizedVersion = getNormalizedSavedRouteVersion(version);
+
+	if (!normalizedVersion) {
+		throw new Error("Saved route version payload is invalid.");
+	}
+
+	return {
+		versionId: normalizedVersion.versionId,
+		routeId: normalizedVersion.routeId,
+		capturedAt: normalizedVersion.capturedAt,
+		savedRoute: serializeSavedRouteForRemote(normalizedVersion.savedRoute),
+	};
+}
+
+export function deserializeRemoteSavedRouteVersion(
+	value: unknown,
+): SavedRouteVersion | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const versionId = value.versionId;
+	const routeId = value.routeId;
+	const capturedAt = normalizeDateString(value.capturedAt);
+	const savedRoute = deserializeRemoteSavedRoute(value.savedRoute);
+
+	if (
+		typeof versionId !== "string" ||
+		versionId.length === 0 ||
+		typeof routeId !== "string" ||
+		routeId.length === 0 ||
+		!capturedAt ||
+		!savedRoute ||
+		savedRoute.id !== routeId
+	) {
+		return null;
+	}
+
+	return {
+		versionId,
+		routeId,
+		capturedAt,
+		savedRoute,
+	};
+}
+
 function toStructuredCloneable(value: unknown): unknown {
 	if (Array.isArray(value)) {
 		return value.map((entry) => toStructuredCloneable(entry));
@@ -330,21 +443,34 @@ export function cloneSavedRoute(savedRoute: SavedRoute): SavedRoute {
 	};
 }
 
+export function cloneSavedRouteVersion(
+	version: SavedRouteVersion,
+): SavedRouteVersion {
+	return {
+		...version,
+		savedRoute: cloneSavedRoute(version.savedRoute),
+	};
+}
+
 export type BuildSavedRouteOptions = {
 	id?: string;
 	createdAt?: string;
 	cloneRoute?: boolean;
 };
 
+function createRouteId(prefix: string) {
+	return (
+		globalThis.crypto?.randomUUID?.() ??
+		`${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+	);
+}
+
 export function buildSavedRoute(
 	route: PlannedRoute,
 	options: BuildSavedRouteOptions = {},
 ): SavedRoute {
 	const routeId =
-		options.id && options.id.length > 0
-			? options.id
-			: (globalThis.crypto?.randomUUID?.() ??
-				`route-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+		options.id && options.id.length > 0 ? options.id : createRouteId("route");
 	const createdAtMs =
 		typeof options.createdAt === "string" ? Date.parse(options.createdAt) : NaN;
 	const createdAt = Number.isFinite(createdAtMs)
@@ -355,5 +481,28 @@ export function buildSavedRoute(
 		id: routeId,
 		createdAt,
 		route: options.cloneRoute === false ? route : cloneRoute(route),
+	};
+}
+
+export function buildSavedRouteVersion(
+	savedRoute: SavedRoute,
+	options: { versionId?: string; capturedAt?: string } = {},
+): SavedRouteVersion {
+	const capturedAtMs =
+		typeof options.capturedAt === "string"
+			? Date.parse(options.capturedAt)
+			: NaN;
+	const capturedAt = Number.isFinite(capturedAtMs)
+		? new Date(capturedAtMs).toISOString()
+		: new Date().toISOString();
+
+	return {
+		versionId:
+			options.versionId && options.versionId.length > 0
+				? options.versionId
+				: createRouteId("version"),
+		routeId: savedRoute.id,
+		capturedAt,
+		savedRoute: cloneSavedRoute(savedRoute),
 	};
 }

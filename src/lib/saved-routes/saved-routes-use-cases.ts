@@ -6,11 +6,15 @@ import type {
 import { dedupeSavedRoutesById } from "$lib/saved-routes/saved-routes-repository";
 import {
 	buildSavedRoute,
+	buildSavedRouteVersion,
 	cloneSavedRoute,
+	normalizeSavedRouteVersions,
 	normalizeRemoteSavedRoutes,
 	serializeSavedRouteForRemote,
 	type RemoteSavedRoutePayload,
+	type RemoteSavedRouteVersionPayload,
 	type SavedRoute,
+	type SavedRouteVersion,
 } from "$lib/saved-routes-core";
 import { Effect } from "effect";
 
@@ -19,6 +23,9 @@ export type SavedRoutesAuthStatus = "loading" | "signedOut" | "signedIn";
 export type SavedRoutesRemoteRepository = {
 	save: (savedRoute: RemoteSavedRoutePayload) => Promise<void>;
 	delete: (routeId: string) => Promise<void>;
+	listVersions?: (
+		routeId: string,
+	) => Promise<RemoteSavedRouteVersionPayload[] | unknown[]>;
 	mergeLocalRoutes: (routes: RemoteSavedRoutePayload[]) => Promise<{
 		inserted: number;
 		skipped: number;
@@ -328,6 +335,9 @@ export class SavedRoutesUseCases {
 				createdAt: existingRoute?.createdAt,
 				cloneRoute: false,
 			});
+			const routeChanged =
+				!!existingRoute &&
+				this.haveRoutePayloadsChanged(existingRoute, savedRoute);
 
 			state.savedRoutes = existingRoute
 				? state.savedRoutes.map((entry) =>
@@ -335,6 +345,12 @@ export class SavedRoutesUseCases {
 					)
 				: [savedRoute, ...state.savedRoutes];
 			state.syncError = null;
+			if (existingRoute && routeChanged) {
+				yield* this.persistRouteVersionEffect(
+					state,
+					buildSavedRouteVersion(existingRoute),
+				);
+			}
 			yield* this.persistRouteEffect(state, savedRoute);
 			yield* this.syncSavedRouteEffect(
 				state,
@@ -343,6 +359,64 @@ export class SavedRoutesUseCases {
 			);
 
 			return savedRoute;
+		});
+	}
+
+	listSavedRouteVersions(
+		state: SavedRoutesStateModel,
+		routeId: string,
+	): Effect.Effect<SavedRouteVersion[]> {
+		return Effect.gen({ self: this }, function* () {
+			yield* this.initSavedRoutes(state);
+			return yield* this.readRouteVersionsEffect(
+				this.getLocalScope(state),
+				routeId,
+			);
+		});
+	}
+
+	restoreLatestSavedRouteVersion(
+		state: SavedRoutesStateModel,
+		id: string,
+	): Effect.Effect<
+		| { restored: true; savedRoute: SavedRoute }
+		| { restored: false; reason: "not_found" | "no_version" }
+	> {
+		return Effect.gen({ self: this }, function* () {
+			yield* this.initSavedRoutes(state);
+
+			const currentRoute = state.savedRoutes.find((route) => route.id === id);
+			if (!currentRoute) {
+				return { restored: false, reason: "not_found" } as const;
+			}
+
+			const scope = this.getLocalScope(state);
+			yield* this.refreshRemoteRouteVersionsEffect(state, id);
+			const versions = yield* this.readRouteVersionsEffect(scope, id);
+			const latestVersion = versions[0];
+
+			if (!latestVersion) {
+				return { restored: false, reason: "no_version" } as const;
+			}
+
+			const restoredRoute: SavedRoute = {
+				...currentRoute,
+				route: latestVersion.savedRoute.route,
+			};
+			const currentVersion = buildSavedRouteVersion(currentRoute);
+
+			state.savedRoutes = state.savedRoutes.map((entry) =>
+				entry.id === id ? restoredRoute : entry,
+			);
+			state.syncError = null;
+			yield* this.persistRouteVersionEffect(state, currentVersion);
+			yield* this.persistRouteEffect(state, restoredRoute);
+			yield* this.syncSavedRouteEffect(state, restoredRoute, "soon");
+
+			return {
+				restored: true,
+				savedRoute: cloneSavedRoute(restoredRoute),
+			} as const;
 		});
 	}
 
@@ -428,6 +502,16 @@ export class SavedRoutesUseCases {
 		}).pipe(Effect.catch(() => Effect.succeed([])));
 	}
 
+	private readRouteVersionsEffect(
+		scope: SavedRouteScope,
+		routeId: string,
+	): Effect.Effect<SavedRouteVersion[]> {
+		return Effect.tryPromise({
+			try: () => this.repository.readRouteVersions(scope, routeId),
+			catch: (cause) => cause,
+		}).pipe(Effect.catch(() => Effect.succeed([])));
+	}
+
 	private persistRoutesEffect(
 		state: SavedRoutesStateModel,
 		scope: SavedRouteScope,
@@ -472,6 +556,92 @@ export class SavedRoutesUseCases {
 		);
 	}
 
+	private persistRouteVersionEffect(
+		state: SavedRoutesStateModel,
+		version: SavedRouteVersion,
+	): Effect.Effect<void> {
+		const scope = this.getLocalScope(state);
+		return Effect.tryPromise({
+			try: () => this.repository.addRouteVersion(scope, version),
+			catch: (cause) => cause,
+		}).pipe(
+			Effect.andThen(() =>
+				Effect.sync(() => {
+					state.localSaveError = null;
+				}),
+			),
+			Effect.catch((error) =>
+				Effect.sync(() => {
+					state.localSaveError = this.getLocalSaveErrorMessage(error);
+				}),
+			),
+		);
+	}
+
+	private refreshRemoteRouteVersionsEffect(
+		state: SavedRoutesStateModel,
+		routeId: string,
+	): Effect.Effect<void> {
+		return Effect.gen({ self: this }, function* () {
+			if (
+				state.authStatus !== "signedIn" ||
+				!state.authUserId ||
+				!this.remoteRepository?.listVersions
+			) {
+				return;
+			}
+
+			const userId = state.authUserId;
+			const sessionVersion = this.remoteSessionVersion;
+			const remoteRepository = this.remoteRepository;
+			const versions = yield* Effect.tryPromise({
+				try: () =>
+					remoteRepository.listVersions?.(routeId) ?? Promise.resolve([]),
+				catch: (cause) => cause,
+			}).pipe(
+				Effect.catch((error) =>
+					Effect.sync(() => {
+						if (this.isCurrentRemoteSession(state, userId, sessionVersion)) {
+							state.syncError =
+								error instanceof Error
+									? `Could not load previous versions: ${error.message}`
+									: "Could not load previous versions.";
+						}
+						return null;
+					}),
+				),
+			);
+
+			if (
+				!versions ||
+				!this.isCurrentRemoteSession(state, userId, sessionVersion)
+			) {
+				return;
+			}
+
+			const normalizedVersions = normalizeSavedRouteVersions(versions);
+			const localVersions = yield* this.readRouteVersionsEffect(
+				{ kind: "user", userId },
+				routeId,
+			);
+			const mergedVersionsById = new Map(
+				localVersions.map((version) => [version.versionId, version]),
+			);
+			for (const version of normalizedVersions) {
+				mergedVersionsById.set(version.versionId, version);
+			}
+			yield* Effect.tryPromise({
+				try: () =>
+					this.repository.replaceRouteVersions(
+						{ kind: "user", userId },
+						routeId,
+						[...mergedVersionsById.values()],
+					),
+				catch: (cause) => cause,
+			}).pipe(Effect.catch(() => Effect.void));
+		});
+	}
+
 	private deleteLocalRouteEffect(
 		state: SavedRoutesStateModel,
 		routeId: string,
@@ -491,6 +661,13 @@ export class SavedRoutesUseCases {
 					state.localSaveError = this.getLocalSaveErrorMessage(error);
 				}),
 			),
+		);
+	}
+
+	private haveRoutePayloadsChanged(left: SavedRoute, right: SavedRoute) {
+		return (
+			serializeSavedRouteForRemote(left).routeJson !==
+			serializeSavedRouteForRemote(right).routeJson
 		);
 	}
 

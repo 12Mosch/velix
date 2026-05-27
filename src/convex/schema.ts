@@ -19,6 +19,16 @@ export default defineSchema({
 	})
 		.index("by_user_createdAt", ["userId", "createdAtMs"])
 		.index("by_user_routeId", ["userId", "routeId"]),
+	savedRouteVersions: defineTable({
+		userId: v.string(),
+		routeId: v.string(),
+		versionId: v.string(),
+		capturedAtMs: v.number(),
+		createdAtMs: v.number(),
+		routeJson: v.string(),
+	})
+		.index("by_user_route_capturedAt", ["userId", "routeId", "capturedAtMs"])
+		.index("by_user_route_version", ["userId", "routeId", "versionId"]),
 	sharedRoutes: defineTable({
 		shareToken: v.string(),
 		ownerUserId: v.string(),

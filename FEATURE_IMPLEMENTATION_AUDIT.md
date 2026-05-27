@@ -349,7 +349,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | --- | --- | --- |
 | Duplicate route | Full | Saved routes can be duplicated explicitly from the saved-routes page; the duplicate receives a new ID and keeps the original route payload. |
 | Compare changes | Missing | No diff/compare. |
-| Restore previous version | Missing | No versions. |
+| Restore previous version | Full | Saved-route updates capture the prior route payload as a restorable version, retain the 10 newest previous versions per route, and the My routes page restores the latest previous version while making the pre-restore route recoverable. |
 | Show change history | Missing | No history. |
 
 ### 5.4 Personal library

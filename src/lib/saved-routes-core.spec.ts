@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
 	deserializeRemoteSavedRoute,
+	deserializeRemoteSavedRouteVersion,
+	normalizeSavedRouteVersions,
 	normalizePlannedRoute,
 	parseSavedRoutes,
+	serializeSavedRouteVersionForRemote,
 	serializeSavedRouteForRemote,
 	type SavedRoute,
+	type SavedRouteVersion,
 } from "$lib/saved-routes-core";
 import { calculateRouteQuality } from "$lib/route-planning";
 
@@ -392,5 +396,60 @@ describe("saved-routes-core", () => {
 				routeJson: JSON.stringify(baseRoute),
 			})?.id,
 		).toBe(" route-with-spaces ");
+	});
+
+	it("normalizes and serializes saved route versions", () => {
+		const savedRoute: SavedRoute = {
+			id: "route-1",
+			createdAt: "2026-04-19T09:30:00.000Z",
+			route: baseRoute,
+		};
+		const version: SavedRouteVersion = {
+			versionId: "version-1",
+			routeId: savedRoute.id,
+			capturedAt: "2026-04-20T09:30:00.000Z",
+			savedRoute,
+		};
+		const remoteVersion = serializeSavedRouteVersionForRemote(version);
+
+		expect(remoteVersion).toEqual({
+			versionId: "version-1",
+			routeId: "route-1",
+			capturedAt: "2026-04-20T09:30:00.000Z",
+			savedRoute: serializeSavedRouteForRemote(savedRoute),
+		});
+		expect(deserializeRemoteSavedRouteVersion(remoteVersion)).toEqual(version);
+		expect(normalizeSavedRouteVersions([version, remoteVersion])).toEqual([
+			version,
+			version,
+		]);
+	});
+
+	it("rejects saved route versions with mismatched route ids or invalid snapshots", () => {
+		const savedRoute: SavedRoute = {
+			id: "route-1",
+			createdAt: "2026-04-19T09:30:00.000Z",
+			route: baseRoute,
+		};
+
+		expect(
+			normalizeSavedRouteVersions([
+				{
+					versionId: "version-1",
+					routeId: "other-route",
+					capturedAt: "2026-04-20T09:30:00.000Z",
+					savedRoute,
+				},
+				{
+					versionId: "version-2",
+					routeId: savedRoute.id,
+					capturedAt: "2026-04-20T09:30:00.000Z",
+					savedRoute: {
+						...savedRoute,
+						route: { ...baseRoute, coordinates: [] },
+					},
+				},
+			]),
+		).toEqual([]);
 	});
 });
