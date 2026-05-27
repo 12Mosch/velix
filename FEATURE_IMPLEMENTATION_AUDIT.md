@@ -232,7 +232,7 @@ Route quality scoring evidence reviewed on 2026-05-26: `src/lib/route-planning/q
 | Feature | Status | Notes |
 | --- | --- | --- |
 | Sections by surface | Half | Surface details are fetched, summarized as mix, and rendered as selected-route map sections; no detailed section-by-section table exists. |
-| Sections by gradient | Missing | No gradient section analysis. |
+| Sections by gradient | Half | Route analysis shows the top notable contiguous non-flat gradient sections derived from the same bucketed route-elevation data as the map overlay; it does not expose a full all-sections table. |
 | Sections by road type | Half | Road class, road environment, road access, and bike-network details are persisted on `PlannedRoute` and used for quality scoring; no section-by-section road-type table exists. |
 | Sections with high interruption probability | Missing | No interruption probability analysis. |
 | Sections suitable for intervals | Missing | No interval suitability analysis. |
@@ -247,7 +247,7 @@ Route quality scoring evidence reviewed on 2026-05-26: `src/lib/route-planning/q
 | Interactive hover linking chart and map | Full | Pointer hover/scrub updates a highlighted map point. |
 | Climb detection | Full | Route coordinates with elevation are smoothed with a 3-point rolling window and analyzed for uphill runs of at least 500 m, 30 m gain, and 3% average grade. Short interruptions are tolerated up to 150 m distance or 10 m elevation loss, and adjacent climbs less than 300 m apart are merged when the combined segment still trends upward. |
 | Climb classification | Full | Climb score is `elevationGainMeters * averageGradePercent`; categories are HC (score >= 8000 and gain >= 500 m), Cat 1 (>= 4800 and >= 300 m), Cat 2 (>= 3200 and >= 200 m), Cat 3 (>= 1600 and >= 100 m), Cat 4 (>= 800 and >= 50 m), otherwise Uncategorized. |
-| Gradient by section | Missing | No gradient section display. |
+| Gradient by section | Full | Expanded route analysis lists notable climb/descent sections with direction, average grade, distance, elevation gain/loss, and route-position start distance, with neutral empty states when elevation or non-flat sections are unavailable. |
 | Descent analysis | Missing | No descent analysis. |
 | Highlight key climbs | Full | The top three categorized climbs by score are marked as key climbs; if fewer than three categorized climbs exist, the strongest uncategorized detected climbs fill the remaining key slots. Key climbs are distinguished in the climb list, profile bands, and map route overlay. |
 | Compare profiles of two routes | Missing | Only selected route profile is shown. |

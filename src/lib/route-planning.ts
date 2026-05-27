@@ -7,6 +7,7 @@ export {
 export { getSurfaceMix } from "./route-planning/surface";
 export {
 	calculateRouteGradientMetrics,
+	getRouteGradientSections,
 	getRouteElevationAnalysisPoints,
 	sampleElevationProfile,
 } from "./route-planning/elevation";

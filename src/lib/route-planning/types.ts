@@ -216,6 +216,16 @@ export type RouteGradientBucket =
 	| "up"
 	| "steep_up";
 
+export type RouteGradientSection = {
+	bucket: RouteGradientBucket;
+	startDistanceMeters: number;
+	endDistanceMeters: number;
+	distanceMeters: number;
+	elevationDeltaMeters: number;
+	averageGradePercent: number;
+	coordinates: RouteCoordinate[];
+};
+
 export type WindDirectionBucket =
 	| "headwind"
 	| "cross_headwind"

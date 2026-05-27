@@ -1691,6 +1691,44 @@ describe("+page.svelte", () => {
 		await expect.element(page.getByText(/^max \d+\.\d%$/)).toBeInTheDocument();
 	});
 
+	it("renders notable gradient sections in the route analysis panel", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn<typeof fetch>().mockImplementation((input) => {
+				const url =
+					typeof input === "string"
+						? input
+						: input instanceof URL
+							? input.pathname
+							: new URL(input.url).pathname;
+				return Promise.resolve(
+					new Response(
+						JSON.stringify(
+							url.startsWith("/api/route/suggest")
+								? suggestionPayload
+								: uncategorizedClimbRoutePayload,
+						),
+					),
+				);
+			}),
+		);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Start");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+		await page.getByRole("button", { name: "Analysis" }).click();
+
+		await expect
+			.element(page.getByText("Gradient sections"))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText("Climb", { exact: true }))
+			.toBeInTheDocument();
+		await expect.element(page.getByText(/^4\.\d%$/)).toBeInTheDocument();
+	});
+
 	it("renders uncategorized detected climbs in the route summary", async () => {
 		vi.stubGlobal(
 			"fetch",

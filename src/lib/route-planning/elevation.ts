@@ -3,7 +3,9 @@ import type {
 	ElevationProfilePoint,
 	PlannedRoute,
 	RouteCoordinate,
+	RouteGradientBucket,
 	RouteGradientMetrics,
+	RouteGradientSection,
 } from "./types";
 import { getCoordinateDistanceMeters } from "./geometry";
 
@@ -117,6 +119,21 @@ const climbDetectionThresholds = {
 } as const;
 
 const gradientAnalysisMinWindowMeters = 100;
+
+function classifyGradientBucket(
+	gradientPercent: number,
+): RouteGradientBucket | null {
+	if (!Number.isFinite(gradientPercent)) {
+		return null;
+	}
+	if (gradientPercent <= -6) return "steep_down";
+	if (gradientPercent <= -3) return "down";
+	if (gradientPercent < -1) return "mild_down";
+	if (gradientPercent <= 1) return "flat";
+	if (gradientPercent < 3) return "mild_up";
+	if (gradientPercent < 6) return "up";
+	return "steep_up";
+}
 
 export function smoothClimbPoints(
 	points: ClimbAnalysisPoint[],
@@ -233,4 +250,68 @@ export function calculateRouteGradientMetrics(
 		averageGradientPercent,
 		maximumGradientPercent,
 	};
+}
+
+export function getRouteGradientSections(
+	route: PlannedRoute,
+): RouteGradientSection[] {
+	const points = smoothClimbPoints(
+		getRouteElevationAnalysisPoints(route.coordinates).filter(
+			(point) =>
+				!!point.coordinate &&
+				Number.isFinite(point.distanceMeters) &&
+				Number.isFinite(point.elevationMeters),
+		),
+	);
+	const sections: RouteGradientSection[] = [];
+
+	for (let index = 1; index < points.length; index += 1) {
+		const previous = points[index - 1];
+		const current = points[index];
+
+		if (!previous?.coordinate || !current?.coordinate) {
+			continue;
+		}
+
+		const distanceMeters = current.distanceMeters - previous.distanceMeters;
+		const elevationDeltaMeters =
+			current.elevationMeters - previous.elevationMeters;
+
+		if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+			continue;
+		}
+
+		const averageGradePercent = (elevationDeltaMeters / distanceMeters) * 100;
+		const bucket = classifyGradientBucket(averageGradePercent);
+
+		if (!bucket) {
+			continue;
+		}
+
+		const previousSection = sections[sections.length - 1];
+
+		if (previousSection?.bucket === bucket) {
+			previousSection.endDistanceMeters = current.distanceMeters;
+			previousSection.distanceMeters += distanceMeters;
+			previousSection.elevationDeltaMeters += elevationDeltaMeters;
+			previousSection.averageGradePercent =
+				(previousSection.elevationDeltaMeters /
+					previousSection.distanceMeters) *
+				100;
+			previousSection.coordinates.push(current.coordinate);
+			continue;
+		}
+
+		sections.push({
+			bucket,
+			startDistanceMeters: previous.distanceMeters,
+			endDistanceMeters: current.distanceMeters,
+			distanceMeters,
+			elevationDeltaMeters,
+			averageGradePercent,
+			coordinates: [previous.coordinate, current.coordinate],
+		});
+	}
+
+	return sections;
 }
