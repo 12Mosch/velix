@@ -347,7 +347,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Duplicate route | Half | Opening a saved route and saving after edits creates another saved route, but no explicit duplicate action. |
+| Duplicate route | Full | Saved routes can be duplicated explicitly from the saved-routes page; the duplicate receives a new ID and keeps the original route payload. |
 | Compare changes | Missing | No diff/compare. |
 | Restore previous version | Missing | No versions. |
 | Show change history | Missing | No history. |
