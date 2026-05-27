@@ -36,6 +36,7 @@ export {
 	buildRouteGeoJson,
 	buildRouteGradientGeoJson,
 	buildRouteSurfaceGeoJson,
+	buildRouteTrafficStressGeoJson,
 	buildRouteWindGeoJson,
 	buildSpatialConstraintGeoJson,
 	mergeRouteBounds,
@@ -53,3 +54,8 @@ export {
 	getRouteQuality,
 	withRouteQuality,
 } from "./route-planning/quality";
+export {
+	routeHasTrafficStressOverlayFeatures,
+	TrafficStressBucketSchema,
+	type RouteTrafficStressBucket,
+} from "./route-planning/traffic-stress";

@@ -9,7 +9,14 @@
 		PlannerMapController,
 		PlannerOverlayController,
 	} from "$lib/route-planner/page/route-planner-page-controller.svelte";
-	import { Layers, LocateFixed, MountainSnow, Route, Wind } from "@lucide/svelte";
+	import {
+		Layers,
+		LocateFixed,
+		MountainSnow,
+		Route,
+		TrafficCone,
+		Wind,
+	} from "@lucide/svelte";
 
 	type Props = {
 		sidebar: ReturnType<typeof import("$lib/components/ui/sidebar/index.js").useSidebar>;
@@ -31,8 +38,14 @@
 	const availableBasemapOptions = $derived(map.availableBasemapOptions);
 	const canShowGradientOverlay = $derived(overlay.canShowGradientOverlay);
 	const canShowWindOverlay = $derived(overlay.canShowWindOverlay);
+	const canShowTrafficStressOverlay = $derived(
+		overlay.canShowTrafficStressOverlay,
+	);
 	const gradientOverlayEnabled = $derived(overlay.gradientOverlayEnabled);
 	const windOverlayEnabled = $derived(overlay.windOverlayEnabled);
+	const trafficStressOverlayEnabled = $derived(
+		overlay.trafficStressOverlayEnabled,
+	);
 	const isLocating = $derived(map.isLocating);
 	const routeUnavailableTooltip = $derived(
 		hasGeneratedRoute && routeNeedsRecalculation
@@ -54,6 +67,13 @@
 			? "Wind and conditions"
 			: hasGeneratedRoute
 				? "Wind data unavailable"
+				: "Generate a route first",
+	);
+	const trafficStressTooltip = $derived(
+		canShowTrafficStressOverlay
+			? "Traffic stress overlay"
+			: hasGeneratedRoute
+				? "Traffic stress data unavailable"
 				: "Generate a route first",
 	);
 </script>
@@ -154,6 +174,23 @@
 				onclick={() => (overlay.windOverlayEnabled = !windOverlayEnabled)}
 			>
 				<Wind class="size-4" />
+			</Button>
+		</ActionTooltip>
+		<ActionTooltip content={trafficStressTooltip} side="left">
+			<Button
+				variant="ghost"
+				size="icon"
+				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-red-300/70 data-[active=true]:bg-red-50/90 data-[active=true]:text-red-700"
+				type="button"
+				disabled={!canShowTrafficStressOverlay}
+				aria-label="Traffic stress overlay"
+				aria-pressed={trafficStressOverlayEnabled}
+				data-active={trafficStressOverlayEnabled}
+				onclick={() =>
+					(overlay.trafficStressOverlayEnabled =
+						!trafficStressOverlayEnabled)}
+			>
+				<TrafficCone class="size-4" />
 			</Button>
 		</ActionTooltip>
 	</Tooltip.Provider>

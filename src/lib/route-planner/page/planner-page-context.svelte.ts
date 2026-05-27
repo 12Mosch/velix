@@ -38,6 +38,7 @@ import {
 	buildRouteClimbGeoJson,
 	buildRouteGradientGeoJson,
 	buildRouteSurfaceGeoJson,
+	buildRouteTrafficStressGeoJson,
 	buildRouteWindGeoJson,
 	buildLockedSegmentGeoJson,
 	buildRouteAvoidanceGeoJson,
@@ -132,6 +133,7 @@ import {
 } from "$lib/route-planner/page/planner-state";
 import {
 	routeHasGradientOverlayFeatures,
+	routeHasTrafficStressOverlayFeatures,
 	routeHasWindOverlayFeatures,
 } from "$lib/route-planner/page/route-overlay-capabilities";
 import {
@@ -191,6 +193,7 @@ export function createPlannerPageContext() {
 	let routeAnalysisOpen = $state(false);
 	let gradientOverlayEnabled = $state(false);
 	let windOverlayEnabled = $state(false);
+	let trafficStressOverlayEnabled = $state(false);
 	let plannerMode = $state<PlannerMode>("point_to_point");
 	let startStop = $state<PlannerStop>(createPlannerStop());
 	let waypointStops = $state<PlannerStop[]>([]);
@@ -266,6 +269,10 @@ export function createPlannerPageContext() {
 		gradientGeoJson?: FeatureCollection;
 		windSignature?: string;
 		windGeoJson?: FeatureCollection;
+		trafficStressSignature?: string;
+		trafficStressGeoJson?: FeatureCollection;
+		trafficStressOverlayAvailableSignature?: string;
+		trafficStressOverlayAvailable?: boolean;
 	};
 
 	type SavedRouteEditMetadata = {
@@ -516,6 +523,25 @@ export function createPlannerPageContext() {
 		].join("||");
 	}
 
+	function getRouteDetailSignature(
+		details: PlannedRoute["roadClassDetails"],
+	): string {
+		return (
+			details
+				?.map((detail) => [detail.from, detail.to, detail.value].join(":"))
+				.join(";") ?? ""
+		);
+	}
+
+	function getRouteTrafficStressOverlaySignature(route: PlannedRoute): string {
+		return [
+			getRouteOverlaySignature(route),
+			getRouteDetailSignature(route.roadClassDetails),
+			getRouteDetailSignature(route.roadAccessDetails),
+			getRouteDetailSignature(route.bikeNetworkDetails),
+		].join("||");
+	}
+
 	function getCachedRouteOverlayGeoJson(
 		route: PlannedRoute,
 	): CachedRouteOverlayGeoJson {
@@ -621,6 +647,46 @@ export function createPlannerPageContext() {
 		return cached.windGeoJson;
 	}
 
+	function getCachedTrafficStressRouteGeoJson(
+		route: PlannedRoute,
+	): FeatureCollection {
+		const cached = getCachedRouteOverlayGeoJson(route);
+		const trafficStressSignature = getRouteTrafficStressOverlaySignature(route);
+
+		if (
+			cached.trafficStressGeoJson &&
+			cached.trafficStressSignature === trafficStressSignature
+		) {
+			return cached.trafficStressGeoJson;
+		}
+
+		cached.trafficStressGeoJson = buildRouteTrafficStressGeoJson(route);
+		cached.trafficStressSignature = trafficStressSignature;
+
+		return cached.trafficStressGeoJson;
+	}
+
+	function getCachedRouteTrafficStressOverlayAvailable(
+		route: PlannedRoute,
+	): boolean {
+		const cached = getCachedRouteOverlayGeoJson(route);
+		const trafficStressSignature = getRouteTrafficStressOverlaySignature(route);
+
+		if (
+			cached.trafficStressOverlayAvailableSignature ===
+				trafficStressSignature &&
+			typeof cached.trafficStressOverlayAvailable === "boolean"
+		) {
+			return cached.trafficStressOverlayAvailable;
+		}
+
+		cached.trafficStressOverlayAvailable =
+			routeHasTrafficStressOverlayFeatures(route);
+		cached.trafficStressOverlayAvailableSignature = trafficStressSignature;
+
+		return cached.trafficStressOverlayAvailable;
+	}
+
 	const selectedBasemap = $derived(
 		mapStylePreference.selectedBasemapId
 			? getBasemapById(mapStylePreference.selectedBasemapId)
@@ -698,6 +764,16 @@ export function createPlannerPageContext() {
 			? getCachedWindRouteGeoJson(activeRoute)
 			: null,
 	);
+	const canShowTrafficStressOverlay = $derived(
+		activeRoute
+			? getCachedRouteTrafficStressOverlayAvailable(activeRoute)
+			: false,
+	);
+	const activeRouteTrafficStressGeoJson = $derived(
+		activeRoute && trafficStressOverlayEnabled && canShowTrafficStressOverlay
+			? getCachedTrafficStressRouteGeoJson(activeRoute)
+			: null,
+	);
 	const activeWindSummary = $derived(
 		activeRoute ? getWindSummary(activeRoute) : null,
 	);
@@ -764,6 +840,10 @@ export function createPlannerPageContext() {
 
 			if (windOverlayEnabled && activeRouteWindGeoJson) {
 				features.push(...activeRouteWindGeoJson.features);
+			}
+
+			if (trafficStressOverlayEnabled && activeRouteTrafficStressGeoJson) {
+				features.push(...activeRouteTrafficStressGeoJson.features);
 			}
 
 			return {
@@ -944,6 +1024,12 @@ export function createPlannerPageContext() {
 	$effect(() => {
 		if (windOverlayEnabled && !canShowWindOverlay) {
 			windOverlayEnabled = false;
+		}
+	});
+
+	$effect(() => {
+		if (trafficStressOverlayEnabled && !canShowTrafficStressOverlay) {
+			trafficStressOverlayEnabled = false;
 		}
 	});
 
@@ -3120,6 +3206,12 @@ export function createPlannerPageContext() {
 		set windOverlayEnabled(value) {
 			windOverlayEnabled = value;
 		},
+		get trafficStressOverlayEnabled() {
+			return trafficStressOverlayEnabled;
+		},
+		set trafficStressOverlayEnabled(value) {
+			trafficStressOverlayEnabled = value;
+		},
 		get plannerMode() {
 			return plannerMode;
 		},
@@ -3359,6 +3451,12 @@ export function createPlannerPageContext() {
 		},
 		get canShowWindOverlay() {
 			return canShowWindOverlay;
+		},
+		get activeRouteTrafficStressGeoJson() {
+			return activeRouteTrafficStressGeoJson;
+		},
+		get canShowTrafficStressOverlay() {
+			return canShowTrafficStressOverlay;
 		},
 		get activeWindSummary() {
 			return activeWindSummary;
@@ -3727,10 +3825,13 @@ export function createPlannerPageContext() {
 	const overlays = createControllerSlice(controller, [
 		"gradientOverlayEnabled",
 		"windOverlayEnabled",
+		"trafficStressOverlayEnabled",
 		"activeRouteGradientGeoJson",
 		"canShowGradientOverlay",
 		"activeRouteWindGeoJson",
 		"canShowWindOverlay",
+		"activeRouteTrafficStressGeoJson",
+		"canShowTrafficStressOverlay",
 		"routeOverlays",
 		"constraintOverlay",
 		"avoidanceOverlay",
