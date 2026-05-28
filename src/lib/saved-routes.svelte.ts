@@ -17,6 +17,7 @@ import {
 	parseSavedRoutes,
 	SAVED_ROUTES_STORAGE_KEY,
 	type SavedRoute,
+	type SavedRouteVersion,
 } from "$lib/saved-routes-core";
 import { createBrowserStorage } from "$lib/storage/browser-storage";
 import { Effect } from "effect";
@@ -29,6 +30,7 @@ export {
 	parseSavedRoutes,
 	SAVED_ROUTES_STORAGE_KEY,
 	type SavedRoute,
+	type SavedRouteVersion,
 	type SavedRoutesAuthStatus,
 	SYNCED_MIGRATIONS_STORAGE_KEY,
 };
@@ -102,6 +104,18 @@ class SavedRoutesState {
 		return Effect.runPromise(savedRoutesUseCases.deleteSavedRoute(this, id));
 	}
 
+	listSavedRouteVersions(routeId: string): Promise<SavedRouteVersion[]> {
+		return Effect.runPromise(
+			savedRoutesUseCases.listSavedRouteVersions(this, routeId),
+		);
+	}
+
+	restoreLatestSavedRouteVersion(id: string) {
+		return Effect.runPromise(
+			savedRoutesUseCases.restoreLatestSavedRouteVersion(this, id),
+		);
+	}
+
 	resetSavedRoutesForTests(): Promise<void> {
 		return Effect.runPromise(savedRoutesUseCases.reset(this));
 	}
@@ -131,6 +145,14 @@ export function getSavedRouteById(id: string | null | undefined) {
 
 export function deleteSavedRoute(id: string) {
 	return savedRoutesState.deleteSavedRoute(id);
+}
+
+export function listSavedRouteVersions(routeId: string) {
+	return savedRoutesState.listSavedRouteVersions(routeId);
+}
+
+export function restoreLatestSavedRouteVersion(id: string) {
+	return savedRoutesState.restoreLatestSavedRouteVersion(id);
 }
 
 export function resetSavedRoutesForTests() {

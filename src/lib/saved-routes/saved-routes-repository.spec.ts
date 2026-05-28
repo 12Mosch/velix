@@ -7,6 +7,7 @@ import {
 	SYNCED_MIGRATIONS_STORAGE_KEY,
 } from "$lib/saved-routes/saved-routes-repository";
 import {
+	buildSavedRouteVersion,
 	buildSavedRoute,
 	SAVED_ROUTES_STORAGE_KEY,
 } from "$lib/saved-routes-core";
@@ -144,5 +145,107 @@ describe("saved routes repository", () => {
 			first,
 			second,
 		]);
+	});
+
+	it("stores route versions newest first, scoped by user, and prunes to ten", async () => {
+		const storage = createMemoryStorage();
+		const repository = createSavedRoutesRepository(storage);
+		const savedRoute = buildSavedRoute(route, {
+			id: "route-1",
+			createdAt: "2026-04-19T09:30:00.000Z",
+		});
+
+		for (let index = 0; index < 12; index += 1) {
+			await repository.addRouteVersion(
+				{ kind: "anonymous" },
+				buildSavedRouteVersion(
+					{
+						...savedRoute,
+						route: {
+							...savedRoute.route,
+							destinationLabel: `Version ${index}`,
+						},
+					},
+					{
+						versionId: `version-${index}`,
+						capturedAt: new Date(Date.UTC(2026, 3, 19, 9, index)).toISOString(),
+					},
+				),
+			);
+		}
+		await repository.addRouteVersion(
+			{ kind: "user", userId: "user_1" },
+			buildSavedRouteVersion(savedRoute, {
+				versionId: "user-version",
+				capturedAt: "2026-04-21T09:30:00.000Z",
+			}),
+		);
+
+		const anonymousVersions = await repository.readRouteVersions(
+			{ kind: "anonymous" },
+			savedRoute.id,
+		);
+
+		expect(anonymousVersions).toHaveLength(10);
+		expect(anonymousVersions.map((version) => version.versionId)).toEqual([
+			"version-11",
+			"version-10",
+			"version-9",
+			"version-8",
+			"version-7",
+			"version-6",
+			"version-5",
+			"version-4",
+			"version-3",
+			"version-2",
+		]);
+		expect(
+			await repository.readRouteVersions(
+				{ kind: "user", userId: "user_1" },
+				savedRoute.id,
+			),
+		).toHaveLength(1);
+	});
+
+	it("deletes route versions with their parent route", async () => {
+		const storage = createMemoryStorage();
+		const repository = createSavedRoutesRepository(storage);
+		const savedRoute = buildSavedRoute(route, { id: "route-1" });
+
+		await repository.upsertRoute({ kind: "anonymous" }, savedRoute);
+		await repository.addRouteVersion(
+			{ kind: "anonymous" },
+			buildSavedRouteVersion(savedRoute, { versionId: "version-1" }),
+		);
+		await repository.deleteRoute({ kind: "anonymous" }, savedRoute.id);
+
+		expect(
+			await repository.readRouteVersions({ kind: "anonymous" }, savedRoute.id),
+		).toEqual([]);
+	});
+
+	it("keeps replacement versions scoped to the requested route id", async () => {
+		const storage = createMemoryStorage();
+		const repository = createSavedRoutesRepository(storage);
+		const savedRoute = buildSavedRoute(route, { id: "route-1" });
+		const otherRoute = buildSavedRoute(route, { id: "route-2" });
+
+		await repository.replaceRouteVersions({ kind: "anonymous" }, "route-1", [
+			buildSavedRouteVersion(otherRoute, {
+				versionId: "version-from-other-route",
+			}),
+			buildSavedRouteVersion(savedRoute, {
+				versionId: "version-from-route-1",
+			}),
+		]);
+
+		expect(
+			(
+				await repository.readRouteVersions({ kind: "anonymous" }, "route-1")
+			).map((version) => version.routeId),
+		).toEqual(["route-1", "route-1"]);
+		expect(
+			await repository.readRouteVersions({ kind: "anonymous" }, "route-2"),
+		).toEqual([]);
 	});
 });

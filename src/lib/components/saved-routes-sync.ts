@@ -45,6 +45,11 @@ export function createSavedRoutesRemoteAdapter(
 		delete: async (routeId: string) => {
 			await client.mutation(api.savedRoutes.remove, { routeId });
 		},
+		listVersions: async (routeId: string) => {
+			return await client.query(api.savedRoutes.listVersionsForRoute, {
+				routeId,
+			});
+		},
 		mergeLocalRoutes: async (savedRoutes: RemoteSavedRoutePayload[]) => {
 			return await client.mutation(api.savedRoutes.mergeLocalRoutes, {
 				savedRoutes,

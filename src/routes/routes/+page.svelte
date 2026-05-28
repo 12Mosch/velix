@@ -8,6 +8,7 @@
 		MapPinned,
 		MountainSnow,
 		Route,
+		RotateCcw,
 		Search,
 		Trash2,
 		X,
@@ -35,6 +36,7 @@
 		addSavedRoute,
 		deleteSavedRoute,
 		initSavedRoutes,
+		restoreLatestSavedRouteVersion,
 		type SavedRoute,
 		savedRoutesState,
 	} from "$lib/saved-routes.svelte";
@@ -73,6 +75,8 @@
 	let shareError = $state<string | null>(null);
 	let pendingShareUrl = $state<string | null>(null);
 	let copiedShareRouteId = $state<string | null>(null);
+	let restoringRoutes = $state<Set<string>>(new Set());
+	let restoreMessages = $state<Record<string, string>>({});
 	const savedRouteSearchTextCache = new Map<
 		string,
 		SavedRouteSearchTextCacheEntry
@@ -314,6 +318,52 @@
 
 	async function handleDuplicateSavedRoute(route: PlannedRoute) {
 		await addSavedRoute(route);
+	}
+
+	function setRestoreMessage(routeId: string, message: string | null) {
+		const nextMessages = { ...restoreMessages };
+		if (message) {
+			nextMessages[routeId] = message;
+		} else {
+			delete nextMessages[routeId];
+		}
+		restoreMessages = nextMessages;
+	}
+
+	function setRestoringRoute(routeId: string, restoring: boolean) {
+		const nextRestoringRoutes = new Set(restoringRoutes);
+		if (restoring) {
+			nextRestoringRoutes.add(routeId);
+		} else {
+			nextRestoringRoutes.delete(routeId);
+		}
+		restoringRoutes = nextRestoringRoutes;
+	}
+
+	async function handleRestorePreviousVersion(savedRoute: SavedRoute) {
+		setRestoreMessage(savedRoute.id, null);
+		setRestoringRoute(savedRoute.id, true);
+
+		try {
+			const result = await restoreLatestSavedRouteVersion(savedRoute.id);
+			if (!result.restored) {
+				setRestoreMessage(
+					savedRoute.id,
+					result.reason === "no_version"
+						? "No previous version available."
+						: "Saved route was not found.",
+				);
+			}
+		} catch (error) {
+			setRestoreMessage(
+				savedRoute.id,
+				error instanceof Error
+					? `Could not restore route: ${error.message}`
+					: "Could not restore route.",
+			);
+		} finally {
+			setRestoringRoute(savedRoute.id, false);
+		}
 	}
 
 	function handleExportSavedRoute(route: PlannedRoute) {
@@ -697,6 +747,14 @@
 							</div>
 
 							<div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+								{#if restoreMessages[savedRoute.id]}
+									<p
+										class="basis-full rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-right text-xs text-muted-foreground"
+										role="status"
+									>
+										{restoreMessages[savedRoute.id]}
+									</p>
+								{/if}
 								<Button
 									variant="outline"
 									class="font-semibold"
@@ -718,6 +776,15 @@
 								>
 									<Copy class="size-3.5" />
 									Duplicate
+								</Button>
+								<Button
+									variant="outline"
+									class="gap-1 font-semibold"
+									disabled={restoringRoutes.has(savedRoute.id)}
+									onclick={() => handleRestorePreviousVersion(savedRoute)}
+								>
+									<RotateCcw class="size-3.5" />
+									{restoringRoutes.has(savedRoute.id) ? "Restoring..." : "Restore previous"}
 								</Button>
 								<Button
 									variant="outline"

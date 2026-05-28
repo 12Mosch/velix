@@ -512,4 +512,128 @@ describe("saved routes use cases", () => {
 		expect(state.pendingRemoteRouteIds).toEqual(new Set());
 		expect(state.syncError).toBe("Could not delete synced route: delete down");
 	});
+
+	it("creates a previous version for changed upserts but not identical upserts", async () => {
+		const savedRoute = await Effect.runPromise(
+			useCases.upsertSavedRoute(state, route, "route-1"),
+		);
+
+		await Effect.runPromise(
+			useCases.upsertSavedRoute(state, route, savedRoute.id),
+		);
+		expect(
+			await repository.readRouteVersions({ kind: "anonymous" }, savedRoute.id),
+		).toEqual([]);
+
+		await Effect.runPromise(
+			useCases.upsertSavedRoute(
+				state,
+				{ ...route, destinationLabel: "Garmisch-Partenkirchen" },
+				savedRoute.id,
+			),
+		);
+
+		const versions = await repository.readRouteVersions(
+			{ kind: "anonymous" },
+			savedRoute.id,
+		);
+		expect(versions).toHaveLength(1);
+		expect(versions[0]?.savedRoute.route.destinationLabel).toBe(
+			"Schliersee, Germany",
+		);
+	});
+
+	it("restores the latest previous version and makes the current route recoverable", async () => {
+		const original = await Effect.runPromise(
+			useCases.upsertSavedRoute(state, route, "route-1"),
+		);
+		await Effect.runPromise(
+			useCases.upsertSavedRoute(
+				state,
+				{ ...route, destinationLabel: "Garmisch-Partenkirchen" },
+				original.id,
+			),
+		);
+
+		const restored = await Effect.runPromise(
+			useCases.restoreLatestSavedRouteVersion(state, original.id),
+		);
+
+		expect(restored.restored).toBe(true);
+		expect(state.savedRoutes[0]?.id).toBe(original.id);
+		expect(state.savedRoutes[0]?.createdAt).toBe(original.createdAt);
+		expect(state.savedRoutes[0]?.route.destinationLabel).toBe(
+			"Schliersee, Germany",
+		);
+		const versions = await repository.readRouteVersions(
+			{ kind: "anonymous" },
+			original.id,
+		);
+		expect(versions[0]?.savedRoute.route.destinationLabel).toBe(
+			"Garmisch-Partenkirchen",
+		);
+	});
+
+	it("loads remote versions on demand before signed-in restore", async () => {
+		const save = vi.fn().mockResolvedValue(undefined);
+		const listVersions = vi.fn().mockResolvedValue([
+			{
+				versionId: "remote-version-1",
+				routeId: "route-1",
+				capturedAt: "2026-04-20T09:30:00.000Z",
+				savedRoute: serializeSavedRouteForRemote({
+					id: "route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route,
+				}),
+			},
+		]);
+
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
+			useCases.setRemoteRepository({
+				save,
+				delete: vi.fn(),
+				listVersions,
+				mergeLocalRoutes: vi.fn(),
+			}),
+		);
+		await Effect.runPromise(
+			useCases.applyRemoteSavedRoutes(state, "user_1", [
+				serializeSavedRouteForRemote({
+					id: "route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: { ...route, destinationLabel: "Current remote" },
+				}),
+			]),
+		);
+
+		await expect(
+			Effect.runPromise(
+				useCases.restoreLatestSavedRouteVersion(state, "route-1"),
+			),
+		).resolves.toMatchObject({ restored: true });
+
+		expect(listVersions).toHaveBeenCalledWith("route-1");
+		expect(state.savedRoutes[0]?.route.destinationLabel).toBe(
+			"Schliersee, Germany",
+		);
+
+		await flushPromises();
+		expect(save).toHaveBeenCalledWith(
+			serializeSavedRouteForRemote(state.savedRoutes[0]),
+		);
+	});
+
+	it("reports no version when restore history is empty", async () => {
+		const savedRoute = await Effect.runPromise(
+			useCases.createSavedRoute(state, route),
+		);
+
+		await expect(
+			Effect.runPromise(
+				useCases.restoreLatestSavedRouteVersion(state, savedRoute.id),
+			),
+		).resolves.toEqual({ restored: false, reason: "no_version" });
+	});
 });

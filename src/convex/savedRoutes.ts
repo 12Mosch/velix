@@ -9,6 +9,7 @@ import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-vali
 import {
 	normalizePlannedRoute,
 	type RemoteSavedRoutePayload,
+	type RemoteSavedRouteVersionPayload,
 } from "../lib/saved-routes-core";
 import {
 	assertRemoteRouteJsonSize,
@@ -25,6 +26,7 @@ import {
 } from "./savedRouteHelpers";
 
 const maxMergeRouteCount = 200;
+const maxSavedRouteVersions = 10;
 const maxConvexDocumentBytes = 1024 * 1024;
 const savedRouteSizeLimitMessage =
 	"Saved route is too large to sync. Maximum route payload size is 512 KiB.";
@@ -74,6 +76,95 @@ function remotePayloadFromRow(row: {
 		: null;
 }
 
+function createSavedRouteVersionId(routeId: string, capturedAtMs: number) {
+	return `${routeId}:${capturedAtMs}`;
+}
+
+function remoteVersionPayloadFromRow(row: {
+	routeId: string;
+	versionId: string;
+	capturedAtMs: number;
+	createdAtMs: number;
+	routeJson: string;
+}): RemoteSavedRouteVersionPayload {
+	return {
+		versionId: row.versionId,
+		routeId: row.routeId,
+		capturedAt: new Date(row.capturedAtMs).toISOString(),
+		savedRoute: {
+			id: row.routeId,
+			createdAt: new Date(row.createdAtMs).toISOString(),
+			routeJson: row.routeJson,
+		},
+	};
+}
+
+async function pruneSavedRouteVersions(
+	ctx: MutationCtx,
+	userId: string,
+	routeId: string,
+) {
+	const versions = await ctx.db
+		.query("savedRouteVersions")
+		.withIndex("by_user_route_capturedAt", (q) =>
+			q.eq("userId", userId).eq("routeId", routeId),
+		)
+		.order("desc")
+		.collect();
+
+	await Promise.all(
+		versions
+			.slice(maxSavedRouteVersions)
+			.map((version) => ctx.db.delete(version._id)),
+	);
+}
+
+function hasSavedRoutePayloadChanged(
+	existingRoute: {
+		routeJson?: string;
+		route?: unknown;
+	},
+	nextRoute: RemoteSavedRoutePayload,
+) {
+	const existingPayload = remotePayloadFromRow({
+		routeId: nextRoute.id,
+		createdAtMs: Date.parse(nextRoute.createdAt),
+		routeJson: existingRoute.routeJson,
+		route: existingRoute.route,
+	});
+
+	return existingPayload?.routeJson !== nextRoute.routeJson;
+}
+
+async function capturePreviousSavedRouteVersion(
+	ctx: MutationCtx,
+	userId: string,
+	existingRoute: {
+		routeId: string;
+		createdAtMs: number;
+		updatedAtMs: number;
+		routeJson?: string;
+		route?: unknown;
+	},
+) {
+	const existingPayload = remotePayloadFromRow(existingRoute);
+	if (!existingPayload) {
+		return;
+	}
+
+	const capturedAtMs = Date.now();
+	assertRemoteRouteJsonSize(existingPayload.routeJson, "saved");
+	await ctx.db.insert("savedRouteVersions", {
+		userId,
+		routeId: existingRoute.routeId,
+		versionId: createSavedRouteVersionId(existingRoute.routeId, capturedAtMs),
+		capturedAtMs,
+		createdAtMs: existingRoute.createdAtMs,
+		routeJson: existingPayload.routeJson,
+	});
+	await pruneSavedRouteVersions(ctx, userId, existingRoute.routeId);
+}
+
 export function listForCurrentUserHandler(
 	ctx: QueryCtx,
 	args: { paginationOpts: PaginationOptions },
@@ -104,6 +195,40 @@ export function listForCurrentUserHandler(
 				...result,
 				page,
 			} satisfies PaginationResult<RemoteSavedRoutePayload>;
+		}),
+	);
+}
+
+export function listVersionsForRouteHandler(
+	ctx: QueryCtx,
+	args: { routeId: string },
+) {
+	return runConvexEffect(
+		Effect.gen(function* () {
+			const userId = yield* getAuthenticatedUserIdEffect(
+				ctx,
+				() => new SavedRoutesAuthenticationError(),
+			);
+
+			if (args.routeId.trim().length === 0) {
+				return yield* Effect.fail(
+					new SavedRoutesValidationError("Saved route id is required."),
+				);
+			}
+
+			const versions = yield* tryConvexPromise(
+				() =>
+					ctx.db
+						.query("savedRouteVersions")
+						.withIndex("by_user_route_capturedAt", (q) =>
+							q.eq("userId", userId).eq("routeId", args.routeId),
+						)
+						.order("desc")
+						.take(maxSavedRouteVersions),
+				"Could not read saved route versions.",
+			);
+
+			return versions.map(remoteVersionPayloadFromRow);
 		}),
 	);
 }
@@ -161,6 +286,19 @@ export function upsertHandler(
 			);
 
 			if (existingRoute) {
+				if (hasSavedRoutePayloadChanged(existingRoute, savedRoute)) {
+					yield* tryConvexPromise(
+						() =>
+							capturePreviousSavedRouteVersion(ctx, userId, {
+								routeId: existingRoute.routeId,
+								createdAtMs: existingRoute.createdAtMs,
+								updatedAtMs: existingRoute.updatedAtMs,
+								routeJson: existingRoute.routeJson,
+								route: existingRoute.route,
+							}),
+						"Could not capture saved route version.",
+					);
+				}
 				yield* tryConvexPromise(
 					() => ctx.db.replace(existingRoute._id, row),
 					"Could not update saved route.",
@@ -211,6 +349,22 @@ export function removeHandler(ctx: MutationCtx, args: { routeId: string }) {
 				() => ctx.db.delete(existingRoute._id),
 				"Could not delete saved route.",
 			);
+			const versions = yield* tryConvexPromise(
+				() =>
+					ctx.db
+						.query("savedRouteVersions")
+						.withIndex("by_user_route_capturedAt", (q) =>
+							q.eq("userId", userId).eq("routeId", args.routeId),
+						)
+						.collect(),
+				"Could not read saved route versions.",
+			);
+			for (const version of versions) {
+				yield* tryConvexPromise(
+					() => ctx.db.delete(version._id),
+					"Could not delete saved route version.",
+				);
+			}
 			return { deleted: true };
 		}),
 	);
@@ -308,6 +462,13 @@ export const listForCurrentUser = query({
 		paginationOpts: paginationOptsValidator,
 	},
 	handler: listForCurrentUserHandler,
+});
+
+export const listVersionsForRoute = query({
+	args: {
+		routeId: v.string(),
+	},
+	handler: listVersionsForRouteHandler,
 });
 
 export const upsert = mutation({

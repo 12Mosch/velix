@@ -1,8 +1,10 @@
 import {
+	normalizeSavedRouteVersions,
 	normalizeSavedRoutes,
 	parseSavedRoutes,
 	SAVED_ROUTES_STORAGE_KEY,
 	type SavedRoute,
+	type SavedRouteVersion,
 } from "$lib/saved-routes-core";
 import type { BrowserStorage } from "$lib/storage/browser-storage";
 
@@ -11,9 +13,12 @@ export const SYNCED_MIGRATIONS_STORAGE_KEY =
 const SYNCED_ROUTES_STORAGE_KEY_PREFIX = "velix.savedRoutes.synced.";
 
 const SAVED_ROUTES_DB_NAME = "velix.savedRoutes";
-const SAVED_ROUTES_DB_VERSION = 1;
+const SAVED_ROUTES_DB_VERSION = 2;
 const SAVED_ROUTES_STORE_NAME = "routes";
+const SAVED_ROUTE_VERSIONS_STORE_NAME = "versions";
 const SAVED_ROUTES_SCOPE_INDEX = "scope";
+const SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX = "scopeRoute";
+export const SAVED_ROUTE_VERSION_LIMIT = 10;
 
 export type SavedRouteScope =
 	| { kind: "anonymous" }
@@ -25,6 +30,17 @@ export type SavedRouteIndexedDbRow = {
 	routeId: string;
 	createdAt: string;
 	savedRoute: SavedRoute;
+	updatedAtMs: number;
+};
+
+export type SavedRouteVersionIndexedDbRow = {
+	storageKey: string;
+	scope: "anonymous" | `user:${string}`;
+	routeId: string;
+	scopeRoute: ["anonymous" | `user:${string}`, string];
+	versionId: string;
+	capturedAt: string;
+	savedRouteVersion: SavedRouteVersion;
 	updatedAtMs: number;
 };
 
@@ -40,6 +56,23 @@ export type SavedRoutesRepository = {
 		savedRoute: SavedRoute,
 	) => Promise<void>;
 	deleteRoute: (scope: SavedRouteScope, routeId: string) => Promise<void>;
+	readRouteVersions: (
+		scope: SavedRouteScope,
+		routeId: string,
+	) => Promise<SavedRouteVersion[]>;
+	replaceRouteVersions: (
+		scope: SavedRouteScope,
+		routeId: string,
+		versions: SavedRouteVersion[],
+	) => Promise<void>;
+	addRouteVersion: (
+		scope: SavedRouteScope,
+		version: SavedRouteVersion,
+	) => Promise<void>;
+	deleteRouteVersions: (
+		scope: SavedRouteScope,
+		routeId: string,
+	) => Promise<void>;
 	readMergedUserIds: () => Set<string>;
 	writeMergedUserIds: (userIds: Set<string>) => void;
 	clear: () => Promise<void>;
@@ -75,9 +108,23 @@ function getSavedRouteStorageKey(scope: SavedRouteScope, routeId: string) {
 	return `${getSavedRouteScopeKey(scope)}:${routeId}`;
 }
 
+function getSavedRouteVersionStorageKey(
+	scope: SavedRouteScope,
+	routeId: string,
+	versionId: string,
+) {
+	return `${getSavedRouteStorageKey(scope, routeId)}:${versionId}`;
+}
+
 function sortSavedRoutes(savedRoutes: SavedRoute[]) {
 	return savedRoutes.toSorted(
 		(left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
+	);
+}
+
+function sortSavedRouteVersions(versions: SavedRouteVersion[]) {
+	return versions.toSorted(
+		(left, right) => Date.parse(right.capturedAt) - Date.parse(left.capturedAt),
 	);
 }
 
@@ -131,6 +178,28 @@ function normalizeRows(rows: SavedRouteIndexedDbRow[]) {
 	);
 }
 
+function normalizeVersionRows(rows: SavedRouteVersionIndexedDbRow[]) {
+	return sortSavedRouteVersions(
+		normalizeSavedRouteVersions(rows.map((row) => row.savedRouteVersion)),
+	);
+}
+
+function normalizeRouteScopedVersions(
+	routeId: string,
+	versions: SavedRouteVersion[],
+) {
+	return sortSavedRouteVersions(
+		versions.map((version) => ({
+			...version,
+			routeId,
+			savedRoute: {
+				...version.savedRoute,
+				id: routeId,
+			},
+		})),
+	).slice(0, SAVED_ROUTE_VERSION_LIMIT);
+}
+
 function toRow(
 	scope: SavedRouteScope,
 	savedRoute: SavedRoute,
@@ -141,6 +210,27 @@ function toRow(
 		routeId: savedRoute.id,
 		createdAt: savedRoute.createdAt,
 		savedRoute,
+		updatedAtMs: Date.now(),
+	};
+}
+
+function toVersionRow(
+	scope: SavedRouteScope,
+	version: SavedRouteVersion,
+): SavedRouteVersionIndexedDbRow {
+	const scopeKey = getSavedRouteScopeKey(scope);
+	return {
+		storageKey: getSavedRouteVersionStorageKey(
+			scope,
+			version.routeId,
+			version.versionId,
+		),
+		scope: scopeKey,
+		routeId: version.routeId,
+		scopeRoute: [scopeKey, version.routeId],
+		versionId: version.versionId,
+		capturedAt: version.capturedAt,
+		savedRouteVersion: version,
 		updatedAtMs: Date.now(),
 	};
 }
@@ -184,6 +274,27 @@ function openSavedRoutesDb() {
 
 			if (store && !store.indexNames.contains(SAVED_ROUTES_SCOPE_INDEX)) {
 				store.createIndex(SAVED_ROUTES_SCOPE_INDEX, "scope", { unique: false });
+			}
+
+			const versionStore = db.objectStoreNames.contains(
+				SAVED_ROUTE_VERSIONS_STORE_NAME,
+			)
+				? request.transaction?.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME)
+				: db.createObjectStore(SAVED_ROUTE_VERSIONS_STORE_NAME, {
+						keyPath: "storageKey",
+					});
+
+			if (
+				versionStore &&
+				!versionStore.indexNames.contains(
+					SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX,
+				)
+			) {
+				versionStore.createIndex(
+					SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX,
+					"scopeRoute",
+					{ unique: false },
+				);
 			}
 		};
 		request.onsuccess = () => resolve(request.result);
@@ -229,6 +340,53 @@ async function replaceScopeRows(
 	await done;
 }
 
+async function getVersionRowsForRoute(
+	db: IDBDatabase,
+	scope: SavedRouteScope,
+	routeId: string,
+) {
+	const transaction = db.transaction(
+		SAVED_ROUTE_VERSIONS_STORE_NAME,
+		"readonly",
+	);
+	const done = transactionDone(transaction);
+	const store = transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME);
+	const index = store.index(SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX);
+	const rows = await requestToPromise<SavedRouteVersionIndexedDbRow[]>(
+		index.getAll([getSavedRouteScopeKey(scope), routeId]),
+	);
+	await done;
+	return rows;
+}
+
+async function replaceVersionRowsForRoute(
+	db: IDBDatabase,
+	scope: SavedRouteScope,
+	routeId: string,
+	versions: SavedRouteVersion[],
+) {
+	const transaction = db.transaction(
+		SAVED_ROUTE_VERSIONS_STORE_NAME,
+		"readwrite",
+	);
+	const done = transactionDone(transaction);
+	const store = transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME);
+	const index = store.index(SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX);
+	const existingRows = await requestToPromise<SavedRouteVersionIndexedDbRow[]>(
+		index.getAll([getSavedRouteScopeKey(scope), routeId]),
+	);
+
+	for (const row of existingRows) {
+		store.delete(row.storageKey);
+	}
+
+	for (const version of normalizeRouteScopedVersions(routeId, versions)) {
+		store.put(toVersionRow(scope, version));
+	}
+
+	await done;
+}
+
 function createIndexedDbDriver(db: IDBDatabase) {
 	return {
 		async readRoutes(scope: SavedRouteScope) {
@@ -246,17 +404,60 @@ function createIndexedDbDriver(db: IDBDatabase) {
 			await done;
 		},
 		async deleteRoute(scope: SavedRouteScope, routeId: string) {
-			const transaction = db.transaction(SAVED_ROUTES_STORE_NAME, "readwrite");
+			const transaction = db.transaction(
+				[SAVED_ROUTES_STORE_NAME, SAVED_ROUTE_VERSIONS_STORE_NAME],
+				"readwrite",
+			);
 			const done = transactionDone(transaction);
 			transaction
 				.objectStore(SAVED_ROUTES_STORE_NAME)
 				.delete(getSavedRouteStorageKey(scope, routeId));
+			const versionStore = transaction.objectStore(
+				SAVED_ROUTE_VERSIONS_STORE_NAME,
+			);
+			const versionIndex = versionStore.index(
+				SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX,
+			);
+			const versionRows = await requestToPromise<
+				SavedRouteVersionIndexedDbRow[]
+			>(versionIndex.getAll([getSavedRouteScopeKey(scope), routeId]));
+			for (const row of versionRows) {
+				versionStore.delete(row.storageKey);
+			}
 			await done;
 		},
+		async readRouteVersions(scope: SavedRouteScope, routeId: string) {
+			return normalizeVersionRows(
+				await getVersionRowsForRoute(db, scope, routeId),
+			);
+		},
+		async replaceRouteVersions(
+			scope: SavedRouteScope,
+			routeId: string,
+			versions: SavedRouteVersion[],
+		) {
+			await replaceVersionRowsForRoute(db, scope, routeId, versions);
+		},
+		async addRouteVersion(scope: SavedRouteScope, version: SavedRouteVersion) {
+			const versions = normalizeVersionRows(
+				await getVersionRowsForRoute(db, scope, version.routeId),
+			);
+			await replaceVersionRowsForRoute(db, scope, version.routeId, [
+				version,
+				...versions.filter((entry) => entry.versionId !== version.versionId),
+			]);
+		},
+		async deleteRouteVersions(scope: SavedRouteScope, routeId: string) {
+			await replaceVersionRowsForRoute(db, scope, routeId, []);
+		},
 		async clear() {
-			const transaction = db.transaction(SAVED_ROUTES_STORE_NAME, "readwrite");
+			const transaction = db.transaction(
+				[SAVED_ROUTES_STORE_NAME, SAVED_ROUTE_VERSIONS_STORE_NAME],
+				"readwrite",
+			);
 			const done = transactionDone(transaction);
 			transaction.objectStore(SAVED_ROUTES_STORE_NAME).clear();
+			transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME).clear();
 			await done;
 		},
 	};
@@ -264,6 +465,7 @@ function createIndexedDbDriver(db: IDBDatabase) {
 
 function createMemoryDriver() {
 	const rows = new Map<string, SavedRouteIndexedDbRow>();
+	const versionRows = new Map<string, SavedRouteVersionIndexedDbRow>();
 
 	return {
 		async readRoutes(scope: SavedRouteScope) {
@@ -291,9 +493,53 @@ function createMemoryDriver() {
 		},
 		async deleteRoute(scope: SavedRouteScope, routeId: string) {
 			rows.delete(getSavedRouteStorageKey(scope, routeId));
+			for (const row of [...versionRows.values()]) {
+				if (
+					row.scope === getSavedRouteScopeKey(scope) &&
+					row.routeId === routeId
+				) {
+					versionRows.delete(row.storageKey);
+				}
+			}
+		},
+		async readRouteVersions(scope: SavedRouteScope, routeId: string) {
+			return normalizeVersionRows(
+				[...versionRows.values()].filter(
+					(row) =>
+						row.scope === getSavedRouteScopeKey(scope) &&
+						row.routeId === routeId,
+				),
+			);
+		},
+		async replaceRouteVersions(
+			scope: SavedRouteScope,
+			routeId: string,
+			versions: SavedRouteVersion[],
+		) {
+			const scopeKey = getSavedRouteScopeKey(scope);
+			for (const row of [...versionRows.values()]) {
+				if (row.scope === scopeKey && row.routeId === routeId) {
+					versionRows.delete(row.storageKey);
+				}
+			}
+			for (const version of normalizeRouteScopedVersions(routeId, versions)) {
+				const row = toVersionRow(scope, version);
+				versionRows.set(row.storageKey, row);
+			}
+		},
+		async addRouteVersion(scope: SavedRouteScope, version: SavedRouteVersion) {
+			const versions = await this.readRouteVersions(scope, version.routeId);
+			await this.replaceRouteVersions(scope, version.routeId, [
+				version,
+				...versions.filter((entry) => entry.versionId !== version.versionId),
+			]);
+		},
+		async deleteRouteVersions(scope: SavedRouteScope, routeId: string) {
+			await this.replaceRouteVersions(scope, routeId, []);
 		},
 		async clear() {
 			rows.clear();
+			versionRows.clear();
 		},
 	};
 }
@@ -402,6 +648,18 @@ export function createSavedRoutesRepository(
 		},
 		async deleteRoute(scope, routeId) {
 			await (await getDriver()).deleteRoute(scope, routeId);
+		},
+		async readRouteVersions(scope, routeId) {
+			return (await getDriver()).readRouteVersions(scope, routeId);
+		},
+		async replaceRouteVersions(scope, routeId, versions) {
+			await (await getDriver()).replaceRouteVersions(scope, routeId, versions);
+		},
+		async addRouteVersion(scope, version) {
+			await (await getDriver()).addRouteVersion(scope, version);
+		},
+		async deleteRouteVersions(scope, routeId) {
+			await (await getDriver()).deleteRouteVersions(scope, routeId);
 		},
 		readMergedUserIds() {
 			return readMergedUserIds(storage);
