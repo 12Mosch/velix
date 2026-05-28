@@ -4,6 +4,7 @@
 		Bookmark,
 		Clock3,
 		Copy,
+		History,
 		Link,
 		MapPinned,
 		MountainSnow,
@@ -36,8 +37,10 @@
 		addSavedRoute,
 		deleteSavedRoute,
 		initSavedRoutes,
+		listSavedRouteVersions,
 		restoreLatestSavedRouteVersion,
 		type SavedRoute,
+		type SavedRouteVersion,
 		savedRoutesState,
 	} from "$lib/saved-routes.svelte";
 	import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
@@ -77,6 +80,12 @@
 	let copiedShareRouteId = $state<string | null>(null);
 	let restoringRoutes = $state<Set<string>>(new Set());
 	let restoreMessages = $state<Record<string, string>>({});
+	let expandedHistoryRouteId = $state<string | null>(null);
+	let loadingHistoryRoutes = $state<Set<string>>(new Set());
+	let savedRouteVersionsByRouteId = $state<Record<string, SavedRouteVersion[]>>(
+		{},
+	);
+	let historyErrors = $state<Record<string, string>>({});
 	const savedRouteSearchTextCache = new Map<
 		string,
 		SavedRouteSearchTextCacheEntry
@@ -340,6 +349,61 @@
 		restoringRoutes = nextRestoringRoutes;
 	}
 
+	function setHistoryLoading(routeId: string, loading: boolean) {
+		const nextLoadingRoutes = new Set(loadingHistoryRoutes);
+		if (loading) {
+			nextLoadingRoutes.add(routeId);
+		} else {
+			nextLoadingRoutes.delete(routeId);
+		}
+		loadingHistoryRoutes = nextLoadingRoutes;
+	}
+
+	function setHistoryError(routeId: string, message: string | null) {
+		const nextErrors = { ...historyErrors };
+		if (message) {
+			nextErrors[routeId] = message;
+		} else {
+			delete nextErrors[routeId];
+		}
+		historyErrors = nextErrors;
+	}
+
+	function setSavedRouteVersions(
+		routeId: string,
+		versions: SavedRouteVersion[],
+	) {
+		savedRouteVersionsByRouteId = {
+			...savedRouteVersionsByRouteId,
+			[routeId]: versions.slice(0, 10),
+		};
+	}
+
+	async function handleToggleChangeHistory(savedRoute: SavedRoute) {
+		if (expandedHistoryRouteId === savedRoute.id) {
+			expandedHistoryRouteId = null;
+			return;
+		}
+
+		expandedHistoryRouteId = savedRoute.id;
+		setHistoryError(savedRoute.id, null);
+		setHistoryLoading(savedRoute.id, true);
+
+		try {
+			const versions = await listSavedRouteVersions(savedRoute.id);
+			setSavedRouteVersions(savedRoute.id, versions);
+		} catch (error) {
+			setHistoryError(
+				savedRoute.id,
+				error instanceof Error
+					? `Could not load change history: ${error.message}`
+					: "Could not load change history.",
+			);
+		} finally {
+			setHistoryLoading(savedRoute.id, false);
+		}
+	}
+
 	async function handleRestorePreviousVersion(savedRoute: SavedRoute) {
 		setRestoreMessage(savedRoute.id, null);
 		setRestoringRoute(savedRoute.id, true);
@@ -364,6 +428,17 @@
 		} finally {
 			setRestoringRoute(savedRoute.id, false);
 		}
+	}
+
+	function getHistoryRouteSummary(route: PlannedRoute): string {
+		const waypointSummary = formatWaypointSummary(route.waypoints);
+		return waypointSummary
+			? `${getRouteLegText(route)} ${waypointSummary}`
+			: getRouteLegText(route);
+	}
+
+	function getHistoryPanelId(savedRouteId: string): string {
+		return `history-${savedRouteId}`;
 	}
 
 	function handleExportSavedRoute(route: PlannedRoute) {
@@ -780,6 +855,16 @@
 								<Button
 									variant="outline"
 									class="gap-1 font-semibold"
+									aria-expanded={expandedHistoryRouteId === savedRoute.id}
+									aria-controls={getHistoryPanelId(savedRoute.id)}
+									onclick={() => handleToggleChangeHistory(savedRoute)}
+								>
+									<History class="size-3.5" />
+									Change history
+								</Button>
+								<Button
+									variant="outline"
+									class="gap-1 font-semibold"
 									disabled={restoringRoutes.has(savedRoute.id)}
 									onclick={() => handleRestorePreviousVersion(savedRoute)}
 								>
@@ -814,6 +899,87 @@
 								</Button>
 							</div>
 						</div>
+						{#if expandedHistoryRouteId === savedRoute.id}
+							<div
+								id={getHistoryPanelId(savedRoute.id)}
+								class="mt-4 border-t border-border pt-4"
+								role="region"
+								aria-label={`Change history for ${getRouteLegText(savedRoute.route)}`}
+							>
+								<div class="mb-3 flex items-center justify-between gap-3">
+									<h2 class="text-sm font-semibold text-foreground">
+										Change history
+									</h2>
+									<span class="text-xs text-muted-foreground">
+										Current plus up to 10 stored entries
+									</span>
+								</div>
+
+								{#if loadingHistoryRoutes.has(savedRoute.id)}
+									<p
+										class="rounded-md border border-border bg-secondary/30 px-3 py-2 text-sm text-muted-foreground"
+										role="status"
+									>
+										Loading change history...
+									</p>
+								{:else if historyErrors[savedRoute.id]}
+									<p
+										class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+										role="status"
+									>
+										{historyErrors[savedRoute.id]}
+									</p>
+								{:else}
+									<div class="space-y-2">
+										<div class="rounded-md border border-primary/25 bg-primary/5 p-3">
+											<div class="flex flex-wrap items-center justify-between gap-2">
+												<p class="text-sm font-semibold text-foreground">
+													Current version
+												</p>
+												<p class="text-xs text-muted-foreground">
+													Saved {formatSavedAt(savedRoute.createdAt)}
+												</p>
+											</div>
+											<p class="mt-1 text-sm text-muted-foreground">
+												{getHistoryRouteSummary(savedRoute.route)}
+											</p>
+											<div class="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+												<span>{formatDistance(savedRoute.route.distanceMeters)}</span>
+												<span>{Math.round(savedRoute.route.ascendMeters).toLocaleString()} m up</span>
+												<span>{getRouteDurationText(savedRoute.route)}</span>
+											</div>
+										</div>
+
+										{#if (savedRouteVersionsByRouteId[savedRoute.id] ?? []).length === 0}
+											<p class="rounded-md border border-border bg-secondary/30 px-3 py-2 text-sm text-muted-foreground">
+												No previous versions yet
+											</p>
+										{:else}
+											{#each savedRouteVersionsByRouteId[savedRoute.id] ?? [] as version}
+												<div class="rounded-md border border-border bg-background p-3">
+													<div class="flex flex-wrap items-center justify-between gap-2">
+														<p class="text-sm font-semibold text-foreground">
+															Previous version
+														</p>
+														<p class="text-xs text-muted-foreground">
+															Captured {formatSavedAt(version.capturedAt)}
+														</p>
+													</div>
+													<p class="mt-1 text-sm text-muted-foreground">
+														{getHistoryRouteSummary(version.savedRoute.route)}
+													</p>
+													<div class="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+														<span>{formatDistance(version.savedRoute.route.distanceMeters)}</span>
+														<span>{Math.round(version.savedRoute.route.ascendMeters).toLocaleString()} m up</span>
+														<span>{getRouteDurationText(version.savedRoute.route)}</span>
+													</div>
+												</div>
+											{/each}
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/if}
 					</div>
 					{/each}
 				</div>
