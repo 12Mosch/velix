@@ -625,6 +625,67 @@ describe("saved routes use cases", () => {
 		);
 	});
 
+	it("loads remote versions on demand before listing signed-in history", async () => {
+		const listVersions = vi.fn().mockResolvedValue([
+			{
+				versionId: "remote-version-1",
+				routeId: "route-1",
+				capturedAt: "2026-04-20T09:30:00.000Z",
+				savedRoute: serializeSavedRouteForRemote({
+					id: "route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route,
+				}),
+			},
+		]);
+
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
+			useCases.setRemoteRepository({
+				save: vi.fn(),
+				delete: vi.fn(),
+				listVersions,
+				mergeLocalRoutes: vi.fn(),
+			}),
+		);
+		await Effect.runPromise(
+			useCases.applyRemoteSavedRoutes(state, "user_1", [
+				serializeSavedRouteForRemote({
+					id: "route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: { ...route, destinationLabel: "Current remote" },
+				}),
+			]),
+		);
+		await repository.addRouteVersion(
+			{ kind: "user", userId: "user_1" },
+			{
+				versionId: "local-version-older",
+				routeId: "route-1",
+				capturedAt: "2026-04-19T09:30:00.000Z",
+				savedRoute: {
+					id: "route-1",
+					createdAt: "2026-04-19T09:30:00.000Z",
+					route: { ...route, destinationLabel: "Older local version" },
+				},
+			},
+		);
+
+		const versions = await Effect.runPromise(
+			useCases.listSavedRouteVersions(state, "route-1"),
+		);
+
+		expect(listVersions).toHaveBeenCalledWith("route-1");
+		expect(versions.map((version) => version.versionId)).toEqual([
+			"remote-version-1",
+			"local-version-older",
+		]);
+		expect(versions.map((version) => version.capturedAt)).toEqual([
+			"2026-04-20T09:30:00.000Z",
+			"2026-04-19T09:30:00.000Z",
+		]);
+	});
+
 	it("reports no version when restore history is empty", async () => {
 		const savedRoute = await Effect.runPromise(
 			useCases.createSavedRoute(state, route),

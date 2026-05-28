@@ -46,6 +46,20 @@ export type SavedRoutesStateModel = {
 	pendingRemoteRouteIds: Set<string>;
 };
 
+function sortSavedRouteVersionsNewestFirst(
+	versions: SavedRouteVersion[],
+): SavedRouteVersion[] {
+	return versions.toSorted((left, right) => {
+		const capturedAtDelta =
+			Date.parse(right.capturedAt) - Date.parse(left.capturedAt);
+		if (capturedAtDelta !== 0) {
+			return capturedAtDelta;
+		}
+
+		return right.versionId.localeCompare(left.versionId);
+	});
+}
+
 export class SavedRoutesUseCases {
 	private remoteRepository: SavedRoutesRemoteRepository | null = null;
 	private readonly inFlightMerges = new Map<string, Promise<void>>();
@@ -368,10 +382,12 @@ export class SavedRoutesUseCases {
 	): Effect.Effect<SavedRouteVersion[]> {
 		return Effect.gen({ self: this }, function* () {
 			yield* this.initSavedRoutes(state);
-			return yield* this.readRouteVersionsEffect(
+			yield* this.refreshRemoteRouteVersionsEffect(state, routeId);
+			const versions = yield* this.readRouteVersionsEffect(
 				this.getLocalScope(state),
 				routeId,
 			);
+			return sortSavedRouteVersionsNewestFirst(versions);
 		});
 	}
 
@@ -392,7 +408,9 @@ export class SavedRoutesUseCases {
 
 			const scope = this.getLocalScope(state);
 			yield* this.refreshRemoteRouteVersionsEffect(state, id);
-			const versions = yield* this.readRouteVersionsEffect(scope, id);
+			const versions = sortSavedRouteVersionsNewestFirst(
+				yield* this.readRouteVersionsEffect(scope, id),
+			);
 			const latestVersion = versions[0];
 
 			if (!latestVersion) {
@@ -630,12 +648,15 @@ export class SavedRoutesUseCases {
 			for (const version of normalizedVersions) {
 				mergedVersionsById.set(version.versionId, version);
 			}
+			const mergedVersions = sortSavedRouteVersionsNewestFirst([
+				...mergedVersionsById.values(),
+			]);
 			yield* Effect.tryPromise({
 				try: () =>
 					this.repository.replaceRouteVersions(
 						{ kind: "user", userId },
 						routeId,
-						[...mergedVersionsById.values()],
+						mergedVersions,
 					),
 				catch: (cause) => cause,
 			}).pipe(Effect.catch(() => Effect.void));

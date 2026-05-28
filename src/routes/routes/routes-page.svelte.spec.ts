@@ -363,6 +363,94 @@ describe("routes/+page.svelte", () => {
 		});
 	});
 
+	it("shows change history with the current route and a previous version", async () => {
+		await seedSavedRoutesForTests(savedRoutes);
+		await upsertSavedRoute(
+			{
+				...savedRoutes[0].route,
+				destinationLabel: "Garmisch-Partenkirchen, Germany",
+				distanceMeters: 70123,
+				durationMs: 12_600_000,
+				ascendMeters: 1040,
+			},
+			"saved-route-1",
+		);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Change history" }).click();
+		const history = page.getByRole("region", {
+			name: "Change history for to Garmisch-Partenkirchen, Germany",
+		});
+
+		await expect
+			.element(history.getByText("Current version"))
+			.toBeInTheDocument();
+		await expect
+			.element(history.getByText("Previous version"))
+			.toBeInTheDocument();
+		await expect
+			.element(history.getByText("Captured", { exact: false }))
+			.toBeInTheDocument();
+		await expect.element(history.getByText("70.1 km")).toBeInTheDocument();
+		await expect.element(history.getByText("1,040 m up")).toBeInTheDocument();
+		await expect.element(history.getByText("3:30 h")).toBeInTheDocument();
+		await expect
+			.element(history.getByText("to Schliersee, Germany", { exact: false }))
+			.toBeInTheDocument();
+		await expect.element(history.getByText("61.2 km")).toBeInTheDocument();
+		await expect.element(history.getByText("820 m up")).toBeInTheDocument();
+		await expect.element(history.getByText("2:45 h")).toBeInTheDocument();
+	});
+
+	it("shows an empty change history state when no previous versions exist", async () => {
+		await seedSavedRoutesForTests(savedRoutes);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Change history" }).click();
+
+		await expect
+			.element(page.getByText("No previous versions yet"))
+			.toBeInTheDocument();
+	});
+
+	it("loads remote route versions before showing signed-in change history", async () => {
+		const listVersions = vi.fn().mockResolvedValue([
+			{
+				versionId: "remote-version-1",
+				routeId: "saved-route-1",
+				capturedAt: "2026-04-20T09:30:00.000Z",
+				savedRoute: serializeSavedRouteForRemote(savedRoutes[0]),
+			},
+		]);
+		await savedRoutesState.setAuthUser("user_1");
+		savedRoutesState.setRemoteAdapter({
+			save: vi.fn(),
+			delete: vi.fn(),
+			listVersions,
+			mergeLocalRoutes: vi.fn(),
+		});
+		await savedRoutesState.applyRemoteRoutes("user_1", [
+			serializeSavedRouteForRemote({
+				...savedRoutes[0],
+				route: {
+					...savedRoutes[0].route,
+					destinationLabel: "Current remote",
+				},
+			}),
+		]);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Change history" }).click();
+
+		expect(listVersions).toHaveBeenCalledWith("saved-route-1");
+		await expect
+			.element(page.getByText("to Schliersee, Germany", { exact: false }))
+			.toBeInTheDocument();
+	});
+
 	it("shows a Share action on saved-route cards", async () => {
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,
