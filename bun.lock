@@ -16,6 +16,7 @@
       },
       "devDependencies": {
         "@biomejs/biome": "^2.4.15",
+        "@effect/language-service": "^0.86.2",
         "@fontsource-variable/inter": "^5.2.8",
         "@fontsource-variable/space-grotesk": "^5.2.10",
         "@internationalized/date": "^3.12.1",
@@ -67,6 +68,8 @@
     "@clerk/backend": ["@clerk/backend@3.4.8", "", { "dependencies": { "@clerk/shared": "^4.11.0", "standardwebhooks": "^1.0.0", "tslib": "2.8.1" } }, "sha512-Ce4a80q0UqPwXj/ULU6DcLeAhojm5aY9WOL53JPR8w6vDizL6RAM0nyV/JYtpgQP5V3rNOs00WxRMJO0UuvZ0Q=="],
 
     "@clerk/shared": ["@clerk/shared@4.11.0", "", { "dependencies": { "@tanstack/query-core": "^5.100.6", "dequal": "2.0.3", "glob-to-regexp": "0.4.1", "js-cookie": "3.0.5", "std-env": "^3.9.0" }, "peerDependencies": { "react": "^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0", "react-dom": "^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0" }, "optionalPeers": ["react", "react-dom"] }, "sha512-QnduIRldVe+16w+pU24si0TZjbToGCIJI8Hsd0jGNMaloLsjQGA6XLO455JGIN8FFzQYCPS0x+bugjlvM8PGYQ=="],
+
+    "@effect/language-service": ["@effect/language-service@0.86.2", "", { "bin": { "effect-language-service": "cli.js" } }, "sha512-SaPln+8srOqDJDUwNTDmP5e+IYpEDr9+1epGznnsLqu8xvo6VnxyWARdeLpqvZJlb0Pgy9ca7ppqvvdWbHPXAg=="],
 
     "@emnapi/core": ["@emnapi/core@1.10.0", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.1", "tslib": "^2.4.0" } }, "sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw=="],
 
