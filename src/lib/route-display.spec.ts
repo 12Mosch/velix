@@ -115,6 +115,18 @@ describe("route display helpers", () => {
 		).toBe("3:30 h");
 	});
 
+	it("formats workout targets by workout duration", () => {
+		expect(
+			formatRoundCourseTarget({
+				kind: "workout",
+				durationMs: 90 * 60_000,
+				distanceMeters: 33000,
+				estimatedSpeedMetersPerHour: 22000,
+				weightedIntensity: 0.7,
+			}),
+		).toBe("1:30 h");
+	});
+
 	it("formats ascent targets", () => {
 		expect(
 			formatRoundCourseTarget({

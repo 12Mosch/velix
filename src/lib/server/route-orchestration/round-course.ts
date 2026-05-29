@@ -22,6 +22,7 @@ import {
 	mapRouteBoundaryToGenerationError,
 } from "./route-normalization";
 import { searchRoundCourseCandidateRoutesEffect } from "./round-course-candidates";
+import { withRoundCourseTargetAdjustedDurationEffect } from "./round-course-target";
 import type {
 	RoundCourseRouteSearchInput,
 	RoundCourseRouteSearchResult,
@@ -90,32 +91,33 @@ export function searchRoundCourseRoutesEffect(
 				),
 			);
 
-			normalizedRoutes = dedupeRoutes(
-				routes.map((route, routeIndex) => {
-					const snappedWaypoints = snappedWaypointSets[routeIndex] ?? [];
+			const shapedRoutes = routes.map((route, routeIndex) => {
+				const snappedWaypoints = snappedWaypointSets[routeIndex] ?? [];
 
-					const shapedRoute = {
-						...route,
-						mode: "round_course" as const,
-						startLabel: input.start.label,
-						destinationLabel: input.start.label,
-						roundCourseTarget: input.target,
-						waypoints: input.waypoints.map(
-							(waypoint, waypointIndex): RouteWaypoint => ({
-								label: waypoint.label,
-								coordinate:
-									snappedWaypoints[waypointIndex + 1] ?? waypoint.point,
-							}),
-						),
-					};
+				const shapedRoute = {
+					...route,
+					mode: "round_course" as const,
+					startLabel: input.start.label,
+					destinationLabel: input.start.label,
+					roundCourseTarget: input.target,
+					waypoints: input.waypoints.map(
+						(waypoint, waypointIndex): RouteWaypoint => ({
+							label: waypoint.label,
+							coordinate: snappedWaypoints[waypointIndex + 1] ?? waypoint.point,
+						}),
+					),
+				};
 
-					return withProviderWarning(
-						shapedRoute,
-						"Manual shaping points make the round-course target best-effort.",
-						"Round-course target best effort",
-					);
-				}),
-			).map((route) => applyManualEditing(route, input.manualEditing));
+				return withProviderWarning(
+					shapedRoute,
+					"Manual shaping points make the round-course target best-effort.",
+					"Round-course target best effort",
+				);
+			});
+
+			normalizedRoutes = dedupeRoutes(shapedRoutes).map((route) =>
+				applyManualEditing(route, input.manualEditing),
+			);
 		}
 
 		if (normalizedRoutes.length === 0) {
@@ -127,7 +129,14 @@ export function searchRoundCourseRoutesEffect(
 			);
 		}
 
-		const routesWithWind = yield* attachWindAnalysisEffect(normalizedRoutes);
+		const targetAdjustedRoutes = yield* Effect.all(
+			normalizedRoutes.map((route) =>
+				withRoundCourseTargetAdjustedDurationEffect(route, input.target),
+			),
+		);
+		const routesWithWind = yield* attachWindAnalysisEffect(
+			targetAdjustedRoutes.map(({ route }) => route),
+		);
 		const routesWithWarnings = finalizeGeneratedRoutesWarnings(routesWithWind);
 
 		return candidateErrors

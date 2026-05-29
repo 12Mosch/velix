@@ -122,6 +122,18 @@ describe("route API schema helpers", () => {
 			start: "Munich",
 			requestedDistanceMeters: 50000,
 		});
+
+		expectDecodedPayload({
+			mode: "round_course",
+			start: "Munich",
+			target: {
+				kind: "workout",
+				durationMs: 3600000,
+				distanceMeters: 23000,
+				estimatedSpeedMetersPerHour: 23000,
+				weightedIntensity: 0.75,
+			},
+		});
 	});
 
 	it("accepts structured out-and-back payloads", () => {

@@ -44,6 +44,10 @@ export type PlannerFormState = {
 	roundCourseDistanceMetersInput: number | null;
 	roundCourseDurationInput: string;
 	roundCourseAscendMeters: string;
+	roundCourseWorkoutTarget: Extract<
+		RoundCourseTarget,
+		{ kind: "workout" }
+	> | null;
 	spatialConstraintKind: SpatialConstraintKind;
 	spatialConstraintEnforcement: SpatialConstraintEnforcement;
 	constraintCenterStop: PlannerStop;
@@ -151,6 +155,24 @@ export function getRoundCourseTarget(
 	return null;
 }
 
+function getRoundCourseUiTargetKind(
+	target: RoundCourseTarget | null,
+): RoundCourseTargetKind {
+	if (!target) {
+		return "distance";
+	}
+
+	return target.kind === "workout" ? "duration" : target.kind;
+}
+
+function getRoundCourseDurationInput(target: RoundCourseTarget | null): string {
+	if (target?.kind === "duration" || target?.kind === "workout") {
+		return formatRoundCourseDurationInput(target.durationMs);
+	}
+
+	return "";
+}
+
 export function parseRoundCourseDurationInput(value: string): number | null {
 	const trimmedValue = value.trim();
 
@@ -197,15 +219,18 @@ export function buildRoundCourseTargetRequest(
 		| "roundCourseDistanceMetersInput"
 		| "roundCourseDurationInput"
 		| "roundCourseAscendMeters"
+		| "roundCourseWorkoutTarget"
 	>,
 ): RoundCourseTarget {
 	if (form.roundCourseTargetKind === "duration") {
-		return {
-			kind: "duration",
-			durationMs:
-				parseRoundCourseDurationInput(form.roundCourseDurationInput) ??
-				Number.NaN,
-		};
+		return (
+			form.roundCourseWorkoutTarget ?? {
+				kind: "duration",
+				durationMs:
+					parseRoundCourseDurationInput(form.roundCourseDurationInput) ??
+					Number.NaN,
+			}
+		);
 	}
 
 	if (form.roundCourseTargetKind === "ascend") {
@@ -313,7 +338,7 @@ export function hydratePlannerStateFromRoute(
 					destination?.point,
 					destination?.point ? "suggestion" : "typed",
 				),
-				roundCourseTargetKind: roundCourseTarget?.kind ?? "distance",
+				roundCourseTargetKind: getRoundCourseUiTargetKind(roundCourseTarget),
 				roundCourseDistanceInput:
 					roundCourseTarget?.kind === "distance"
 						? formatDistanceInput(roundCourseTarget.distanceMeters)
@@ -323,13 +348,13 @@ export function hydratePlannerStateFromRoute(
 						? roundCourseTarget.distanceMeters
 						: null,
 				roundCourseDurationInput:
-					roundCourseTarget?.kind === "duration"
-						? formatRoundCourseDurationInput(roundCourseTarget.durationMs)
-						: "",
+					getRoundCourseDurationInput(roundCourseTarget),
 				roundCourseAscendMeters:
 					roundCourseTarget?.kind === "ascend"
 						? Math.round(roundCourseTarget.ascendMeters).toString()
 						: "",
+				roundCourseWorkoutTarget:
+					roundCourseTarget?.kind === "workout" ? roundCourseTarget : null,
 				...spatialConstraintDefaults,
 			},
 			avoidedRoads: cloneAvoidances(route.avoidances ?? []),
@@ -357,7 +382,7 @@ export function hydratePlannerStateFromRoute(
 					destination?.point,
 					destination?.point ? "suggestion" : "typed",
 				),
-				roundCourseTargetKind: roundCourseTarget?.kind ?? "distance",
+				roundCourseTargetKind: getRoundCourseUiTargetKind(roundCourseTarget),
 				roundCourseDistanceInput:
 					roundCourseTarget?.kind === "distance"
 						? formatDistanceInput(roundCourseTarget.distanceMeters)
@@ -367,13 +392,13 @@ export function hydratePlannerStateFromRoute(
 						? roundCourseTarget.distanceMeters
 						: null,
 				roundCourseDurationInput:
-					roundCourseTarget?.kind === "duration"
-						? formatRoundCourseDurationInput(roundCourseTarget.durationMs)
-						: "",
+					getRoundCourseDurationInput(roundCourseTarget),
 				roundCourseAscendMeters:
 					roundCourseTarget?.kind === "ascend"
 						? Math.round(roundCourseTarget.ascendMeters).toString()
 						: "",
+				roundCourseWorkoutTarget:
+					roundCourseTarget?.kind === "workout" ? roundCourseTarget : null,
 				spatialConstraintKind: "area",
 				spatialConstraintEnforcement: route.spatialConstraint.enforcement,
 				constraintCenterStop: createPlannerStop(
@@ -412,7 +437,7 @@ export function hydratePlannerStateFromRoute(
 				destination?.point,
 				destination?.point ? "suggestion" : "typed",
 			),
-			roundCourseTargetKind: roundCourseTarget?.kind ?? "distance",
+			roundCourseTargetKind: getRoundCourseUiTargetKind(roundCourseTarget),
 			roundCourseDistanceInput:
 				roundCourseTarget?.kind === "distance"
 					? formatDistanceInput(roundCourseTarget.distanceMeters)
@@ -421,14 +446,13 @@ export function hydratePlannerStateFromRoute(
 				roundCourseTarget?.kind === "distance"
 					? roundCourseTarget.distanceMeters
 					: null,
-			roundCourseDurationInput:
-				roundCourseTarget?.kind === "duration"
-					? formatRoundCourseDurationInput(roundCourseTarget.durationMs)
-					: "",
+			roundCourseDurationInput: getRoundCourseDurationInput(roundCourseTarget),
 			roundCourseAscendMeters:
 				roundCourseTarget?.kind === "ascend"
 					? Math.round(roundCourseTarget.ascendMeters).toString()
 					: "",
+			roundCourseWorkoutTarget:
+				roundCourseTarget?.kind === "workout" ? roundCourseTarget : null,
 			spatialConstraintKind: "corridor",
 			spatialConstraintEnforcement: route.spatialConstraint.enforcement,
 			constraintCenterStop: createPlannerStop(),
@@ -714,6 +738,7 @@ export function captureRouteEditSnapshot(
 		roundCourseDistanceMetersInput: form.roundCourseDistanceMetersInput,
 		roundCourseDurationInput: form.roundCourseDurationInput,
 		roundCourseAscendMeters: form.roundCourseAscendMeters,
+		roundCourseWorkoutTarget: form.roundCourseWorkoutTarget,
 		spatialConstraintKind: form.spatialConstraintKind,
 		spatialConstraintEnforcement: form.spatialConstraintEnforcement,
 		constraintCenterStop: clonePlannerStop(form.constraintCenterStop),
@@ -743,6 +768,7 @@ export function restoreRouteEditSnapshot(snapshot: RouteEditSnapshot): {
 			roundCourseDistanceMetersInput: snapshot.roundCourseDistanceMetersInput,
 			roundCourseDurationInput: snapshot.roundCourseDurationInput,
 			roundCourseAscendMeters: snapshot.roundCourseAscendMeters,
+			roundCourseWorkoutTarget: snapshot.roundCourseWorkoutTarget,
 			spatialConstraintKind: snapshot.spatialConstraintKind,
 			spatialConstraintEnforcement: snapshot.spatialConstraintEnforcement,
 			constraintCenterStop: clonePlannerStop(snapshot.constraintCenterStop),

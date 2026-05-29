@@ -45,6 +45,13 @@ const roundCourseTargetValidator = v.union(
 		kind: v.literal("ascend"),
 		ascendMeters: v.number(),
 	}),
+	v.object({
+		kind: v.literal("workout"),
+		durationMs: v.number(),
+		distanceMeters: v.number(),
+		estimatedSpeedMetersPerHour: v.number(),
+		weightedIntensity: v.number(),
+	}),
 );
 
 const spatialConstraintEnforcementValidator = v.union(

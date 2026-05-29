@@ -32,6 +32,7 @@ function createBaseFormState(): PlannerFormState {
 		roundCourseDistanceMetersInput: null,
 		roundCourseDurationInput: "",
 		roundCourseAscendMeters: "",
+		roundCourseWorkoutTarget: null,
 		...getDefaultSpatialConstraintState(),
 		fieldErrors: {},
 	};

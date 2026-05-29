@@ -425,7 +425,10 @@ function calculateRouteEfficiencyScore(
 
 	if (route.mode === "round_course") {
 		const target = route.roundCourseTarget;
-		if (target?.kind === "distance" && target.distanceMeters > 0) {
+		if (
+			(target?.kind === "distance" || target?.kind === "workout") &&
+			target.distanceMeters > 0
+		) {
 			const miss =
 				Math.abs(route.distanceMeters - target.distanceMeters) /
 				target.distanceMeters;

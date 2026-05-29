@@ -1,5 +1,6 @@
 import { env } from "$env/dynamic/public";
 import { api } from "../../../convex/_generated/api";
+import { Cause, Effect, Exit } from "effect";
 import type { FeatureCollection } from "geojson";
 import { getOptionalConvexClient } from "$lib/convex-client.svelte";
 import { getBasemapById } from "$lib/map/basemaps";
@@ -75,6 +76,7 @@ import {
 	type RouteRequestPayload,
 	type RouteWarning,
 	type RouteWindSegment,
+	type RoundCourseTarget,
 	type SpatialConstraintEnforcement,
 } from "$lib/route-planning";
 import {
@@ -97,7 +99,12 @@ import {
 	formatCoordinateLabel,
 	formatDuration,
 	formatExactDistance,
+	formatRoundCourseDurationInput,
 } from "$lib/route-planner/formatters";
+import {
+	estimateWorkoutTargetEffect,
+	parseWorkoutPlanEffect,
+} from "$lib/workout-plan";
 import type {
 	CurrentLocation,
 	MapClickSelection,
@@ -205,6 +212,12 @@ export function createPlannerPageContext() {
 	let roundCourseDistanceMetersInput = $state<number | null>(null);
 	let roundCourseDurationInput = $state("");
 	let roundCourseAscendMeters = $state("");
+	let roundCourseWorkoutTarget = $state<Extract<
+		RoundCourseTarget,
+		{ kind: "workout" }
+	> | null>(null);
+	let workoutPlanInput = $state("");
+	let workoutPlanError = $state<string | null>(null);
 	let spatialConstraintKind = $state<SpatialConstraintKind>("none");
 	let spatialConstraintEnforcement = $state<SpatialConstraintEnforcement>(
 		defaultSpatialConstraintEnforcement,
@@ -348,6 +361,7 @@ export function createPlannerPageContext() {
 			roundCourseDistanceMetersInput,
 			roundCourseDurationInput,
 			roundCourseAscendMeters,
+			roundCourseWorkoutTarget,
 			spatialConstraintKind,
 			spatialConstraintEnforcement,
 			constraintCenterStop,
@@ -380,6 +394,7 @@ export function createPlannerPageContext() {
 		roundCourseDistanceMetersInput = form.roundCourseDistanceMetersInput;
 		roundCourseDurationInput = form.roundCourseDurationInput;
 		roundCourseAscendMeters = form.roundCourseAscendMeters;
+		roundCourseWorkoutTarget = form.roundCourseWorkoutTarget;
 		spatialConstraintKind = form.spatialConstraintKind;
 		spatialConstraintEnforcement = form.spatialConstraintEnforcement;
 		constraintCenterStop = form.constraintCenterStop;
@@ -1779,6 +1794,9 @@ export function createPlannerPageContext() {
 		avoidedRoads = [];
 		if (nextMode === "round_course") {
 			roundCourseTargetKind = "distance";
+			roundCourseWorkoutTarget = null;
+			workoutPlanInput = "";
+			workoutPlanError = null;
 			if (spatialConstraintKind === "corridor") {
 				resetSpatialConstraintDefaults();
 				clearSpatialConstraintError();
@@ -1856,7 +1874,7 @@ export function createPlannerPageContext() {
 	}
 
 	function clearRoundCourseTargetError() {
-		if (!fieldErrors.roundCourseTarget) {
+		if (!fieldErrors.roundCourseTarget && !workoutPlanError) {
 			return;
 		}
 
@@ -1864,10 +1882,12 @@ export function createPlannerPageContext() {
 			...fieldErrors,
 			roundCourseTarget: undefined,
 		};
+		workoutPlanError = null;
 	}
 
 	function updateRoundCourseTargetKind(value: RoundCourseTargetKind) {
 		roundCourseTargetKind = value;
+		roundCourseWorkoutTarget = null;
 		clearRoundCourseTargetError();
 		markPlannerEdited();
 	}
@@ -1875,19 +1895,29 @@ export function createPlannerPageContext() {
 	function updateRoundCourseDistanceInput(value: string) {
 		roundCourseDistanceInput = value;
 		roundCourseDistanceMetersInput = parseDistanceInputToMeters(value);
+		roundCourseWorkoutTarget = null;
 		clearRoundCourseTargetError();
 		markPlannerEdited();
 	}
 
 	function updateRoundCourseDuration(value: string) {
 		roundCourseDurationInput = value;
+		roundCourseWorkoutTarget = null;
 		clearRoundCourseTargetError();
 		markPlannerEdited();
 	}
 
 	function updateRoundCourseAscend(value: string) {
 		roundCourseAscendMeters = value;
+		roundCourseWorkoutTarget = null;
 		clearRoundCourseTargetError();
+		markPlannerEdited();
+	}
+
+	function updateWorkoutPlanInput(value: string) {
+		workoutPlanInput = value;
+		roundCourseWorkoutTarget = null;
+		workoutPlanError = null;
 		markPlannerEdited();
 	}
 
@@ -2695,6 +2725,71 @@ export function createPlannerPageContext() {
 		return false;
 	}
 
+	function applyWorkoutPlanTarget(): boolean {
+		const exit = Effect.runSyncExit(
+			Effect.gen(function* () {
+				if (plannerMode !== "round_course" || !workoutPlanInput.trim()) {
+					roundCourseWorkoutTarget = null;
+					workoutPlanError = null;
+					return true;
+				}
+
+				const parsedWorkout = yield* parseWorkoutPlanEffect(workoutPlanInput);
+				if (parsedWorkout.errors.length > 0) {
+					const [firstError] = parsedWorkout.errors;
+					roundCourseWorkoutTarget = null;
+					workoutPlanError = `Line ${firstError.line}: ${firstError.message}`;
+					return false;
+				}
+
+				if (parsedWorkout.totalDurationMs < minRoundCourseDurationMs) {
+					roundCourseWorkoutTarget = null;
+					workoutPlanError =
+						"Workout must be at least 15 minutes for a round course.";
+					return false;
+				}
+
+				roundCourseTargetKind = "duration";
+				roundCourseDurationInput = formatRoundCourseDurationInput(
+					parsedWorkout.totalDurationMs,
+				);
+				const workoutEstimate = yield* estimateWorkoutTargetEffect(
+					parsedWorkout.expandedSteps,
+				);
+				roundCourseWorkoutTarget = {
+					kind: "workout",
+					durationMs: workoutEstimate.durationMs,
+					distanceMeters: workoutEstimate.distanceMeters,
+					estimatedSpeedMetersPerHour:
+						workoutEstimate.estimatedSpeedMetersPerHour,
+					weightedIntensity: workoutEstimate.weightedIntensity,
+				};
+				fieldErrors = {
+					...fieldErrors,
+					roundCourseTarget: undefined,
+				};
+				workoutPlanError = null;
+				return true;
+			}),
+		);
+
+		if (Exit.isSuccess(exit)) {
+			return exit.value;
+		}
+
+		const error = Cause.squash(exit.cause);
+		const message =
+			error instanceof Error
+				? error.message
+				: typeof error === "string"
+					? error
+					: "Unknown workout parse failure.";
+
+		roundCourseWorkoutTarget = null;
+		workoutPlanError = `Could not parse workout plan: ${message}`;
+		return false;
+	}
+
 	function applyManualEditingToRoutes(routes: PlannedRoute[]) {
 		const manualEditing = getPlannerManualEditingRequest(
 			activeRoute,
@@ -2947,6 +3042,10 @@ export function createPlannerPageContext() {
 		isActiveRouteSaved = false;
 		routeRequestError = null;
 		fieldErrors = {};
+
+		if (!applyWorkoutPlanTarget()) {
+			return;
+		}
 
 		if (!validateDistanceInputs()) {
 			return;
@@ -3263,6 +3362,12 @@ export function createPlannerPageContext() {
 		},
 		get roundCourseAscendMeters() {
 			return roundCourseAscendMeters;
+		},
+		get workoutPlanInput() {
+			return workoutPlanInput;
+		},
+		get workoutPlanError() {
+			return workoutPlanError;
 		},
 		get spatialConstraintKind() {
 			return spatialConstraintKind;
@@ -3630,6 +3735,7 @@ export function createPlannerPageContext() {
 		updateRoundCourseDistanceInput,
 		updateRoundCourseDuration,
 		updateRoundCourseAscend,
+		updateWorkoutPlanInput,
 		updateSpatialConstraintKind,
 		updateSpatialConstraintEnforcement,
 		setConstraintCenterStop,
@@ -3698,6 +3804,8 @@ export function createPlannerPageContext() {
 		"roundCourseDistanceMetersInput",
 		"roundCourseDurationInput",
 		"roundCourseAscendMeters",
+		"workoutPlanInput",
+		"workoutPlanError",
 		"spatialConstraintKind",
 		"spatialConstraintEnforcement",
 		"constraintCenterStop",
@@ -3725,6 +3833,7 @@ export function createPlannerPageContext() {
 		"updateRoundCourseDistanceInput",
 		"updateRoundCourseDuration",
 		"updateRoundCourseAscend",
+		"updateWorkoutPlanInput",
 		"updateSpatialConstraintKind",
 		"updateSpatialConstraintEnforcement",
 		"setConstraintCenterStop",

@@ -21,7 +21,10 @@ export type CurrentLocation = {
 
 export type RouteField = "startQuery" | "destinationQuery";
 export type PlannerMode = RouteMode;
-export type RoundCourseTargetKind = RoundCourseTarget["kind"];
+export type RoundCourseTargetKind = Exclude<
+	RoundCourseTarget["kind"],
+	"workout"
+>;
 
 export type CompletionTarget =
 	| { kind: "startQuery" }
@@ -90,6 +93,10 @@ export type RouteEditSnapshot = {
 	roundCourseDistanceMetersInput: number | null;
 	roundCourseDurationInput: string;
 	roundCourseAscendMeters: string;
+	roundCourseWorkoutTarget: Extract<
+		RoundCourseTarget,
+		{ kind: "workout" }
+	> | null;
 	spatialConstraintKind: SpatialConstraintKind;
 	spatialConstraintEnforcement: SpatialConstraintEnforcement;
 	constraintCenterStop: PlannerStop;

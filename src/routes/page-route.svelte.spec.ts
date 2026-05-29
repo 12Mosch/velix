@@ -3715,6 +3715,106 @@ describe("+page.svelte", () => {
 		});
 	});
 
+	it("uses workout plan duration for round-course requests", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			if (String(input).startsWith("/api/route/suggest")) {
+				return Promise.resolve(new Response(JSON.stringify(suggestionPayload)));
+			}
+
+			return Promise.resolve(
+				new Response(
+					JSON.stringify({
+						routes: [
+							{
+								...successfulRoundCourseRoute,
+								roundCourseTarget: {
+									kind: "workout",
+									durationMs: 20 * 60 * 1000,
+									distanceMeters: 7_800,
+									estimatedSpeedMetersPerHour: 23_400,
+									weightedIntensity: 0.76,
+								},
+								durationMs: 20 * 60 * 1000,
+							},
+						],
+						selectedRouteIndex: 0,
+					}),
+				),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page
+			.getByRole("textbox", { name: "Workout plan" })
+			.fill("10m Z2 HR\n2x\n  5m 90% FTP 90rpm");
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter(
+						(call) => String(call[0]) === "/api/route",
+					).length,
+			)
+			.toBe(1);
+		expect(
+			JSON.parse(
+				String(
+					fetchMock.mock.calls.find(
+						(call) => String(call[0]) === "/api/route",
+					)?.[1]?.body,
+				),
+			),
+		).toMatchObject({
+			mode: "round_course",
+			target: {
+				kind: "workout",
+				durationMs: 1200000,
+			},
+		});
+		const workoutTarget = JSON.parse(
+			String(
+				fetchMock.mock.calls.find(
+					(call) => String(call[0]) === "/api/route",
+				)?.[1]?.body,
+			),
+		).target;
+		expect(workoutTarget.distanceMeters).toBeGreaterThan(7000);
+		expect(workoutTarget.estimatedSpeedMetersPerHour).toBeGreaterThan(22000);
+		await expect.element(page.getByText("3 intervals")).toBeInTheDocument();
+	});
+
+	it("blocks round-course generation when workout text is invalid", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(JSON.stringify(successfulRoundCoursePayload)),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("button", { name: /Round course/i }).click();
+		await page.getByRole("textbox", { name: "Workout plan" }).fill("5m tempo");
+		await page
+			.getByRole("textbox", { name: "Start" })
+			.fill("Marienplatz Munich");
+		await page.getByRole("button", { name: "Generate Round Course" }).click();
+
+		await expect
+			.element(page.getByText('Line 1: Unsupported workout target "tempo".'))
+			.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(0);
+	});
+
 	it("submits an ascent-based round-course payload", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			if (String(input).startsWith("/api/route/suggest")) {
