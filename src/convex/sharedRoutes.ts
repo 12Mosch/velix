@@ -77,13 +77,15 @@ export async function createHandler(
 				);
 			}
 
-			try {
-				assertRemoteRouteJsonSize(savedRoute.routeJson, "shared");
-			} catch (error) {
-				return yield* Effect.fail(
-					new SharedRouteValidationError((error as Error).message),
-				);
-			}
+			yield* Effect.try({
+				try: () => assertRemoteRouteJsonSize(savedRoute.routeJson, "shared"),
+				catch: (error) =>
+					new SharedRouteValidationError(
+						error instanceof Error
+							? error.message
+							: "Shared route payload is invalid.",
+					),
+			});
 
 			let sourceRouteId: string | undefined;
 			if (args.sourceRouteId) {

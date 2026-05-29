@@ -251,13 +251,15 @@ export function upsertHandler(
 				);
 			}
 
-			try {
-				assertRemoteRouteJsonSize(savedRoute.routeJson, "saved");
-			} catch (error) {
-				return yield* Effect.fail(
-					new SavedRoutesValidationError((error as Error).message),
-				);
-			}
+			yield* Effect.try({
+				try: () => assertRemoteRouteJsonSize(savedRoute.routeJson, "saved"),
+				catch: (error) =>
+					new SavedRoutesValidationError(
+						error instanceof Error
+							? error.message
+							: "Saved route payload is invalid.",
+					),
+			});
 
 			const now = Date.now();
 			const row = {
