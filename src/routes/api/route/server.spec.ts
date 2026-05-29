@@ -2195,6 +2195,70 @@ describe("POST /api/route", () => {
 		]);
 	});
 
+	it("uses workout target distance and adjusted duration for round-course candidates", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					hits: [
+						{
+							name: "Marienplatz",
+							city: "Munich",
+							country: "Germany",
+							point: {
+								lat: 48.1374,
+								lng: 11.5755,
+							},
+						},
+					],
+				}),
+			),
+		);
+
+		for (const distance of [45000, 59000, 75000, 58500, 60000, 61500]) {
+			fetchMock.mockResolvedValueOnce(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance,
+					time: 9990000,
+					ascend: 600,
+				}),
+			);
+		}
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Marienplatz Munich",
+					},
+					target: {
+						kind: "workout",
+						durationMs: 2 * 60 * 60 * 1000,
+						distanceMeters: 60000,
+						estimatedSpeedMetersPerHour: 30000,
+						weightedIntensity: 0.9,
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getRoundTripRequestedDistances(fetchMock).slice(0, 3)).toEqual([
+			45000, 60000, 75000,
+		]);
+		const payload = (await response.json()) as RouteApiSuccess;
+		expect(payload.routes[0]?.durationMs).toBe(7326000);
+		expect(payload.routes[0]?.durationMs).not.toBe(9990000);
+		expect(payload.routes[0]?.roundCourseTarget).toEqual({
+			kind: "workout",
+			durationMs: 7200000,
+			distanceMeters: 60000,
+			estimatedSpeedMetersPerHour: 30000,
+			weightedIntensity: 0.9,
+		});
+	});
+
 	it("runs a third adaptive duration search round only when the first two rounds miss badly", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			new Response(

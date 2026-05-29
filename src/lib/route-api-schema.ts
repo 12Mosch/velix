@@ -68,6 +68,13 @@ export const RoundCourseTargetSchema = Schema.Union([
 		kind: Schema.Literal("ascend"),
 		ascendMeters: Schema.Finite,
 	}),
+	Schema.Struct({
+		kind: Schema.Literal("workout"),
+		durationMs: Schema.Finite,
+		distanceMeters: Schema.Finite,
+		estimatedSpeedMetersPerHour: Schema.Finite,
+		weightedIntensity: Schema.Finite,
+	}),
 ]);
 
 export const RouteSpatialConstraintInputSchema = Schema.Union([

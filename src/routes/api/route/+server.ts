@@ -440,7 +440,14 @@ function normalizeManualEditingInput(
 }
 
 function getRoundCourseTargetError(rawTarget: unknown): string {
-	if (isRecord(rawTarget) && rawTarget.kind === "duration") {
+	if (
+		isRecord(rawTarget) &&
+		(rawTarget.kind === "duration" || rawTarget.kind === "workout")
+	) {
+		if (rawTarget.kind === "workout") {
+			return "Enter a workout plan.";
+		}
+
 		return "Enter a target time.";
 	}
 
@@ -845,6 +852,11 @@ function handleRoundCourseEffect(context: RouteModeContext) {
 				roundCourseTarget.distanceMeters < minRoundCourseDistanceMeters) ||
 			(roundCourseTarget.kind === "duration" &&
 				roundCourseTarget.durationMs < minRoundCourseDurationMs) ||
+			(roundCourseTarget.kind === "workout" &&
+				(roundCourseTarget.durationMs < minRoundCourseDurationMs ||
+					roundCourseTarget.distanceMeters <= 0 ||
+					roundCourseTarget.estimatedSpeedMetersPerHour <= 0 ||
+					roundCourseTarget.weightedIntensity <= 0)) ||
 			(roundCourseTarget.kind === "ascend" &&
 				roundCourseTarget.ascendMeters < minRoundCourseAscendMeters)
 		) {

@@ -71,6 +71,10 @@ export function formatRoundCourseTarget(
 		return formatDuration(target.durationMs);
 	}
 
+	if (target.kind === "workout") {
+		return formatDuration(target.durationMs);
+	}
+
 	return `${Math.round(target.ascendMeters).toLocaleString()} m up`;
 }
 

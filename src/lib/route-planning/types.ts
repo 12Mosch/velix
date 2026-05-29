@@ -125,6 +125,13 @@ export type RoundCourseTarget =
 	| {
 			kind: "ascend";
 			ascendMeters: number;
+	  }
+	| {
+			kind: "workout";
+			durationMs: number;
+			distanceMeters: number;
+			estimatedSpeedMetersPerHour: number;
+			weightedIntensity: number;
 	  };
 
 export type RoundCourseRouteRequestPayload = {

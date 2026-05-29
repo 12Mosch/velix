@@ -19,8 +19,9 @@
 		plannerModeOptions,
 		startCompletionTarget,
 	} from "$lib/route-planner/constants";
-	import { formatDistanceInputAttribute } from "$lib/route-planner/formatters";
+	import { formatDistanceInputAttribute, formatDuration } from "$lib/route-planner/formatters";
 	import { getDistanceUnitLabel } from "$lib/unit-settings.svelte";
+	import { parseWorkoutPlan } from "$lib/workout-plan";
 	import type { SpatialConstraintEnforcement } from "$lib/route-planning";
 	import type { RoundCourseTargetKind, SpatialConstraintKind } from "$lib/route-planner/types";
 	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerMapController, PlannerRoutesController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
@@ -46,6 +47,8 @@
 		roundCourseDistanceInput: form.roundCourseDistanceInput,
 		roundCourseDurationInput: form.roundCourseDurationInput,
 		roundCourseAscendMeters: form.roundCourseAscendMeters,
+		workoutPlanInput: form.workoutPlanInput,
+		workoutPlanError: form.workoutPlanError,
 		spatialConstraintKind: form.spatialConstraintKind,
 		spatialConstraintEnforcement: form.spatialConstraintEnforcement,
 		constraintCenterStop: form.constraintCenterStop,
@@ -62,6 +65,17 @@
 		activeWarnings: analysis.activeWarnings,
 		primaryActiveWarning: analysis.primaryActiveWarning,
 	}));
+	const workoutPlanPreview = $derived.by(() => {
+		const input = builderView.workoutPlanInput.trim();
+		if (!input) {
+			return null;
+		}
+
+		const parsed = parseWorkoutPlan(input);
+		return parsed.errors.length === 0 && parsed.totalDurationMs > 0
+			? parsed
+			: null;
+	});
 </script>
 
 			<div
@@ -132,6 +146,46 @@
 						</PlannerStopInput>
 
 						{#if builderView.isRoundCourseMode}
+							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+								<label
+									for="workout-plan"
+									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
+								>
+									Workout plan
+								</label>
+								<textarea
+									id="workout-plan"
+									value={builderView.workoutPlanInput}
+									placeholder={`10m Z2 HR\n4x\n  5m 90% FTP 90rpm\n  2m Z2\n10m Z2 HR`}
+									class="min-h-24 w-full resize-y rounded-md border-none bg-background px-3 py-2 text-sm leading-5 shadow-sm outline-none placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-primary/50"
+									aria-invalid={builderView.workoutPlanError ? "true" : undefined}
+									oninput={(event) =>
+										form.updateWorkoutPlanInput(
+											(event.currentTarget as HTMLTextAreaElement).value,
+										)}
+								></textarea>
+								{#if workoutPlanPreview}
+									<div class="flex flex-wrap gap-1.5">
+										<Badge
+											variant="secondary"
+											class="h-5 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold text-primary"
+										>
+											{formatDuration(workoutPlanPreview.totalDurationMs)}
+										</Badge>
+										<Badge
+											variant="outline"
+											class="h-5 border-border/50 bg-background px-2 text-[10px] font-medium"
+										>
+											{workoutPlanPreview.expandedStepCount} intervals
+										</Badge>
+									</div>
+								{/if}
+								{#if builderView.workoutPlanError}
+									<p class="text-xs font-medium text-destructive">
+										{builderView.workoutPlanError}
+									</p>
+								{/if}
+							</div>
 							{#if builderView.roundCourseTargetKind === "distance"}
 								<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
 									<div class="space-y-2">

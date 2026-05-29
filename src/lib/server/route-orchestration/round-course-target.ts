@@ -1,4 +1,7 @@
+import { Effect } from "effect";
+
 import type { PlannedRoute, RoundCourseTarget } from "$lib/route-planning";
+import { neutralWorkoutSpeedMetersPerHour } from "$lib/workout-plan";
 
 import {
 	ascendTargetMetersPerKm,
@@ -28,7 +31,51 @@ export function estimateRoundCourseDistanceMeters(
 		);
 	}
 
+	if (target.kind === "workout") {
+		return target.distanceMeters;
+	}
+
 	return (target.ascendMeters / ascendTargetMetersPerKm) * 1000;
+}
+
+export function getWorkoutAdjustedDurationMs(
+	route: PlannedRoute,
+	target: RoundCourseTarget,
+): number {
+	if (target.kind !== "workout") {
+		return route.durationMs;
+	}
+
+	if (
+		!Number.isFinite(target.estimatedSpeedMetersPerHour) ||
+		target.estimatedSpeedMetersPerHour <= 0
+	) {
+		return route.durationMs;
+	}
+
+	return Math.round(
+		(route.durationMs * neutralWorkoutSpeedMetersPerHour) /
+			target.estimatedSpeedMetersPerHour,
+	);
+}
+
+export function withRoundCourseTargetAdjustedDuration(
+	route: PlannedRoute,
+	target: RoundCourseTarget,
+): { route: PlannedRoute; adjustedDurationMs: number } {
+	return {
+		route,
+		adjustedDurationMs: getWorkoutAdjustedDurationMs(route, target),
+	};
+}
+
+export function withRoundCourseTargetAdjustedDurationEffect(
+	route: PlannedRoute,
+	target: RoundCourseTarget,
+): Effect.Effect<{ route: PlannedRoute; adjustedDurationMs: number }> {
+	return Effect.sync(() =>
+		withRoundCourseTargetAdjustedDuration(route, target),
+	);
 }
 
 export function getRoundCourseTargetRelativeError(
@@ -37,6 +84,14 @@ export function getRoundCourseTargetRelativeError(
 ): number {
 	if (target.kind === "duration") {
 		return Math.abs(route.durationMs - target.durationMs) / target.durationMs;
+	}
+
+	if (target.kind === "workout") {
+		return (
+			Math.abs(
+				getWorkoutAdjustedDurationMs(route, target) - target.durationMs,
+			) / target.durationMs
+		);
 	}
 
 	if (target.kind === "ascend") {
@@ -59,6 +114,10 @@ export function getRoundCourseTargetValue(
 		return route.durationMs;
 	}
 
+	if (target.kind === "workout") {
+		return getWorkoutAdjustedDurationMs(route, target);
+	}
+
 	if (target.kind === "ascend") {
 		return route.ascendMeters;
 	}
@@ -70,6 +129,10 @@ export function getRoundCourseRequestedTargetValue(
 	target: RoundCourseTarget,
 ): number {
 	if (target.kind === "duration") {
+		return target.durationMs;
+	}
+
+	if (target.kind === "workout") {
 		return target.durationMs;
 	}
 
@@ -117,13 +180,15 @@ export function compareCandidateRoutes(
 		return requestedDistanceErrorDifference;
 	}
 
+	const leftDurationValue = getRoundCourseTargetValue(left.route, target);
+	const rightDurationValue = getRoundCourseTargetValue(right.route, target);
 	const leftDurationError =
-		target.kind === "duration"
-			? Math.abs(left.route.durationMs - target.durationMs)
+		target.kind === "duration" || target.kind === "workout"
+			? Math.abs(leftDurationValue - target.durationMs)
 			: left.route.durationMs;
 	const rightDurationError =
-		target.kind === "duration"
-			? Math.abs(right.route.durationMs - target.durationMs)
+		target.kind === "duration" || target.kind === "workout"
+			? Math.abs(rightDurationValue - target.durationMs)
 			: right.route.durationMs;
 	const durationErrorDifference = leftDurationError - rightDurationError;
 
@@ -254,8 +319,8 @@ export function buildRoundCourseMissWarning(
 		return null;
 	}
 
-	if (target.kind === "duration") {
-		return `Requested ${formatDurationWarning(target.durationMs)}, but the closest round course came out to ${formatDurationWarning(route.durationMs)}.`;
+	if (target.kind === "duration" || target.kind === "workout") {
+		return `Requested ${formatDurationWarning(target.durationMs)}, but the closest round course came out to ${formatDurationWarning(getRoundCourseTargetValue(route, target))}.`;
 	}
 
 	return `Requested ${Math.round(target.ascendMeters).toLocaleString()} m up, but the closest round course came out to ${Math.round(route.ascendMeters).toLocaleString()} m up.`;
