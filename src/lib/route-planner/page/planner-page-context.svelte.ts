@@ -1,6 +1,6 @@
 import { env } from "$env/dynamic/public";
 import { api } from "../../../convex/_generated/api";
-import { Cause, Effect, Exit } from "effect";
+import { Cause, Effect, Exit, Option } from "effect";
 import type { FeatureCollection } from "geojson";
 import { getOptionalConvexClient } from "$lib/convex-client.svelte";
 import { getBasemapById } from "$lib/map/basemaps";
@@ -572,7 +572,7 @@ export function createPlannerPageContext() {
 
 		const nextCached: CachedRouteOverlayGeoJson = {
 			signature,
-			baseGeoJson: buildRouteGeoJson(route),
+			baseGeoJson: Effect.runSync(buildRouteGeoJson(route)),
 			climbGeoJsonBySignature: new Map(),
 		};
 		routeOverlayGeoJsonCache.set(route, nextCached);
@@ -589,7 +589,7 @@ export function createPlannerPageContext() {
 	): FeatureCollection {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.surfaceGeoJson ??= buildRouteSurfaceGeoJson(route);
+		cached.surfaceGeoJson ??= Effect.runSync(buildRouteSurfaceGeoJson(route));
 
 		return cached.surfaceGeoJson;
 	}
@@ -607,7 +607,7 @@ export function createPlannerPageContext() {
 			return cachedClimbGeoJson;
 		}
 
-		const climbGeoJson = buildRouteClimbGeoJson(route, climbs);
+		const climbGeoJson = Effect.runSync(buildRouteClimbGeoJson(route, climbs));
 		cached.climbGeoJsonBySignature.set(climbSignature, climbGeoJson);
 
 		return climbGeoJson;
@@ -618,7 +618,7 @@ export function createPlannerPageContext() {
 	): FeatureCollection {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.gradientGeoJson ??= buildRouteGradientGeoJson(route);
+		cached.gradientGeoJson ??= Effect.runSync(buildRouteGradientGeoJson(route));
 
 		return cached.gradientGeoJson;
 	}
@@ -638,7 +638,9 @@ export function createPlannerPageContext() {
 	): RouteGradientMetrics {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.gradientMetrics ??= calculateRouteGradientMetrics(route);
+		cached.gradientMetrics ??= Effect.runSync(
+			calculateRouteGradientMetrics(route),
+		);
 
 		return cached.gradientMetrics;
 	}
@@ -648,7 +650,7 @@ export function createPlannerPageContext() {
 	): RouteGradientSection[] {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.gradientSections ??= getRouteGradientSections(route);
+		cached.gradientSections ??= Effect.runSync(getRouteGradientSections(route));
 
 		return cached.gradientSections;
 	}
@@ -656,7 +658,7 @@ export function createPlannerPageContext() {
 	function getCachedRouteQuality(route: PlannedRoute): RouteQualityAnalysis {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.routeQuality ??= getRouteQuality(route);
+		cached.routeQuality ??= Effect.runSync(getRouteQuality(route));
 
 		return cached.routeQuality;
 	}
@@ -669,7 +671,7 @@ export function createPlannerPageContext() {
 			return cached.windGeoJson;
 		}
 
-		cached.windGeoJson = buildRouteWindGeoJson(route);
+		cached.windGeoJson = Effect.runSync(buildRouteWindGeoJson(route));
 		cached.windSignature = windSignature;
 
 		return cached.windGeoJson;
@@ -688,7 +690,9 @@ export function createPlannerPageContext() {
 			return cached.trafficStressGeoJson;
 		}
 
-		cached.trafficStressGeoJson = buildRouteTrafficStressGeoJson(route);
+		cached.trafficStressGeoJson = Effect.runSync(
+			buildRouteTrafficStressGeoJson(route),
+		);
 		cached.trafficStressSignature = trafficStressSignature;
 
 		return cached.trafficStressGeoJson;
@@ -762,8 +766,13 @@ export function createPlannerPageContext() {
 	const activeRoundCourseTarget = $derived(getRoundCourseTarget(activeRoute));
 	const activeRouteClimbs = $derived<RouteClimb[]>(
 		activeRoute
-			? analyzeRouteClimbs(
-					getRouteElevationAnalysisPoints(activeRoute.coordinates),
+			? Effect.runSync(
+					Effect.gen(function* () {
+						const points = yield* getRouteElevationAnalysisPoints(
+							activeRoute.coordinates,
+						);
+						return yield* analyzeRouteClimbs(points);
+					}),
 				)
 			: [],
 	);
@@ -815,7 +824,9 @@ export function createPlannerPageContext() {
 			: null,
 	);
 	const activeWindSummary = $derived(
-		activeRoute ? getWindSummary(activeRoute) : null,
+		activeRoute
+			? Option.getOrElse(getWindSummary(activeRoute), () => null)
+			: null,
 	);
 	const strongestWindSegments = $derived(
 		activeRoute?.windAnalysis
@@ -899,11 +910,15 @@ export function createPlannerPageContext() {
 	);
 	const constraintOverlay = $derived(
 		activeRoute?.spatialConstraint
-			? buildSpatialConstraintGeoJson(activeRoute.spatialConstraint)
+			? Effect.runSync(
+					buildSpatialConstraintGeoJson(activeRoute.spatialConstraint),
+				)
 			: null,
 	);
 	const avoidanceOverlay = $derived(
-		avoidedRoads.length > 0 ? buildRouteAvoidanceGeoJson(avoidedRoads) : null,
+		avoidedRoads.length > 0
+			? Effect.runSync(buildRouteAvoidanceGeoJson(avoidedRoads))
+			: null,
 	);
 	const activeRouteSegmentCount = $derived(
 		activeRoute ? getRouteSegmentCount(activeRoute) : 0,
@@ -913,19 +928,25 @@ export function createPlannerPageContext() {
 	);
 	const lockedSegmentOverlay = $derived(
 		activeRoute && sanitizedLockedSegmentIndexes.length > 0
-			? buildLockedSegmentGeoJson(activeRoute, sanitizedLockedSegmentIndexes)
+			? Effect.runSync(
+					buildLockedSegmentGeoJson(activeRoute, sanitizedLockedSegmentIndexes),
+				)
 			: null,
 	);
-	const combinedRouteBounds = $derived(mergeRouteBounds(routeAlternatives));
-	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
+	const combinedRouteBounds = $derived(
+		Option.getOrElse(mergeRouteBounds(routeAlternatives), () => null),
+	);
+	const surfaceMix = $derived(
+		activeRoute ? Effect.runSync(getSurfaceMix(activeRoute)) : [],
+	);
 	const activeWarnings = $derived(
-		activeRoute ? getRouteWarnings(activeRoute) : [],
+		activeRoute ? Effect.runSync(getRouteWarnings(activeRoute)) : [],
 	);
 	const activeReadinessWarnings = $derived(
-		activeRoute ? getReadinessWarnings(activeRoute) : [],
+		activeRoute ? Effect.runSync(getReadinessWarnings(activeRoute)) : [],
 	);
 	const activeProviderWarnings = $derived(
-		activeRoute ? getProviderWarnings(activeRoute) : [],
+		activeRoute ? Effect.runSync(getProviderWarnings(activeRoute)) : [],
 	);
 	const primaryActiveWarning = $derived(
 		activeReadinessWarnings[0] ?? activeProviderWarnings[0] ?? null,
@@ -940,7 +961,9 @@ export function createPlannerPageContext() {
 			: null,
 	);
 	const elevationSamples = $derived(
-		activeRoute ? sampleElevationProfile(activeRoute.coordinates) : [],
+		activeRoute
+			? Effect.runSync(sampleElevationProfile(activeRoute.coordinates))
+			: [],
 	);
 	const chartH = $derived(routeAnalysisOpen ? 72 : 44);
 	const elevMin = $derived(
@@ -2396,15 +2419,17 @@ export function createPlannerPageContext() {
 	}
 
 	function getSelectedSegmentIndex(selection: MapClickSelection) {
-		if (!activeRoute || !selection.selectedSegment) {
+		const selectedSegment = selection.selectedSegment;
+		if (!activeRoute || !selectedSegment) {
 			return null;
 		}
 
-		return (
+		return Option.getOrElse(
 			getRouteLegIndexForCoordinateSegment(
 				activeRoute,
-				selection.selectedSegment.coordinateSegmentIndex,
-			) ?? selection.selectedSegment.segmentIndex
+				selectedSegment.coordinateSegmentIndex,
+			),
+			() => selectedSegment.segmentIndex,
 		);
 	}
 
@@ -2565,10 +2590,12 @@ export function createPlannerPageContext() {
 			);
 
 		if (hasCompleteOrderedStops) {
-			return getWaypointInsertionIndex(
-				[startStop, ...waypointStops, destinationStop],
-				point,
-				activeRoute,
+			return Effect.runSync(
+				getWaypointInsertionIndex(
+					[startStop, ...waypointStops, destinationStop],
+					point,
+					activeRoute,
+				),
 			);
 		}
 
@@ -2970,11 +2997,13 @@ export function createPlannerPageContext() {
 			return;
 		}
 
-		const routeLegIndex =
+		const routeLegIndex = Option.getOrElse(
 			getRouteLegIndexForCoordinateSegment(
 				activeRoute,
 				detail.coordinateSegmentIndex,
-			) ?? detail.segmentIndex;
+			),
+			() => detail.segmentIndex,
+		);
 
 		if (sanitizedLockedSegmentIndexes.includes(routeLegIndex)) {
 			return;

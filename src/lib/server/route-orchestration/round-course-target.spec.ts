@@ -68,7 +68,7 @@ describe("round-course workout target duration", () => {
 		).toBe(5_400_000);
 	});
 
-	it("returns the workout-adjusted duration without replacing route duration", () => {
+	it("returns a route with the workout-adjusted duration", () => {
 		const route = buildRoute({ durationMs: 8_100_000 });
 		const adjusted = withRoundCourseTargetAdjustedDuration(
 			route,
@@ -77,8 +77,9 @@ describe("round-course workout target duration", () => {
 			}),
 		);
 
-		expect(adjusted.route).toBe(route);
-		expect(adjusted.route.durationMs).toBe(8_100_000);
+		expect(adjusted.route).not.toBe(route);
+		expect(route.durationMs).toBe(8_100_000);
+		expect(adjusted.route.durationMs).toBe(5_400_000);
 		expect(adjusted.adjustedDurationMs).toBe(5_400_000);
 	});
 

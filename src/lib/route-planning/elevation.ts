@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+
 import type {
 	ClimbAnalysisPoint,
 	ElevationProfilePoint,
@@ -9,7 +11,7 @@ import type {
 } from "./types";
 import { getCoordinateDistanceMeters } from "./geometry";
 
-export function sampleElevationProfile(
+function sampleElevationProfileSync(
 	coordinates: RouteCoordinate[],
 	targetSamples = 40,
 ): ElevationProfilePoint[] {
@@ -73,7 +75,16 @@ export function sampleElevationProfile(
 	});
 }
 
-export function getRouteElevationAnalysisPoints(
+export function sampleElevationProfile(
+	coordinates: RouteCoordinate[],
+	targetSamples = 40,
+): Effect.Effect<ElevationProfilePoint[]> {
+	return Effect.sync(() =>
+		sampleElevationProfileSync(coordinates, targetSamples),
+	);
+}
+
+function getRouteElevationAnalysisPointsSync(
 	coordinates: RouteCoordinate[],
 ): ClimbAnalysisPoint[] {
 	let totalDistanceMeters = 0;
@@ -105,6 +116,12 @@ export function getRouteElevationAnalysisPoints(
 	}
 
 	return points;
+}
+
+export function getRouteElevationAnalysisPoints(
+	coordinates: RouteCoordinate[],
+): Effect.Effect<ClimbAnalysisPoint[]> {
+	return Effect.sync(() => getRouteElevationAnalysisPointsSync(coordinates));
 }
 
 const climbDetectionThresholds = {
@@ -171,7 +188,7 @@ export function smoothClimbPoints(
 	});
 }
 
-export function calculateRouteGradientMetrics(
+function calculateRouteGradientMetricsSync(
 	route: PlannedRoute,
 ): RouteGradientMetrics {
 	const averageGradientPercent =
@@ -179,7 +196,7 @@ export function calculateRouteGradientMetrics(
 			? (Math.max(0, route.ascendMeters) / route.distanceMeters) * 100
 			: null;
 
-	const validPoints = getRouteElevationAnalysisPoints(route.coordinates)
+	const validPoints = getRouteElevationAnalysisPointsSync(route.coordinates)
 		.filter(
 			(point) =>
 				Number.isFinite(point.distanceMeters) &&
@@ -252,11 +269,17 @@ export function calculateRouteGradientMetrics(
 	};
 }
 
-export function getRouteGradientSections(
+export function calculateRouteGradientMetrics(
+	route: PlannedRoute,
+): Effect.Effect<RouteGradientMetrics> {
+	return Effect.sync(() => calculateRouteGradientMetricsSync(route));
+}
+
+function getRouteGradientSectionsSync(
 	route: PlannedRoute,
 ): RouteGradientSection[] {
 	const points = smoothClimbPoints(
-		getRouteElevationAnalysisPoints(route.coordinates).filter(
+		getRouteElevationAnalysisPointsSync(route.coordinates).filter(
 			(point) =>
 				!!point.coordinate &&
 				Number.isFinite(point.distanceMeters) &&
@@ -314,4 +337,10 @@ export function getRouteGradientSections(
 	}
 
 	return sections;
+}
+
+export function getRouteGradientSections(
+	route: PlannedRoute,
+): Effect.Effect<RouteGradientSection[]> {
+	return Effect.sync(() => getRouteGradientSectionsSync(route));
 }

@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -165,7 +166,7 @@ describe("saved-routes-core", () => {
 	it("saves and restores route quality", () => {
 		const route = {
 			...baseRoute,
-			routeQuality: calculateRouteQuality(baseRoute),
+			routeQuality: Effect.runSync(calculateRouteQuality(baseRoute)),
 		};
 		const savedRoute: SavedRoute = {
 			id: "quality-route",

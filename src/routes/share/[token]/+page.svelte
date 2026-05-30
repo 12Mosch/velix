@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
+	import { Effect } from "effect";
 	import { onMount } from "svelte";
 	import { api } from "../../../convex/_generated/api";
 	import MapView from "$lib/components/map-view.svelte";
@@ -24,6 +25,7 @@
 		buildRouteSurfaceGeoJson,
 		getRouteElevationAnalysisPoints,
 		type PlannedRoute,
+		type RouteClimb,
 		type RouteMapOverlay,
 	} from "$lib/route-planning";
 	import { addSavedRoute } from "$lib/saved-routes.svelte";
@@ -54,7 +56,16 @@
 	);
 	const route = $derived(savedRoute?.route ?? null);
 	const routeClimbs = $derived(
-		route ? analyzeRouteClimbs(getRouteElevationAnalysisPoints(route.coordinates)) : [],
+		route
+			? Effect.runSync(
+					Effect.gen(function* () {
+						const points = yield* getRouteElevationAnalysisPoints(
+							route.coordinates,
+						);
+						return yield* analyzeRouteClimbs(points);
+					}),
+				)
+			: [],
 	);
 	const routeOverlays = $derived<RouteMapOverlay[]>(
 		buildSharedRouteOverlays(route, routeClimbs),
@@ -71,13 +82,17 @@
 
 	function buildSharedRouteOverlays(
 		route: PlannedRoute | null,
-		routeClimbs: ReturnType<typeof analyzeRouteClimbs>,
+		routeClimbs: RouteClimb[],
 	): RouteMapOverlay[] {
 		if (!route) {
 			return [];
 		}
 
-		const baseGeoJson = buildRouteGeoJson(route);
+		const baseGeoJson = Effect.runSync(buildRouteGeoJson(route));
+		const surfaceGeoJson = Effect.runSync(buildRouteSurfaceGeoJson(route));
+		const climbGeoJson = Effect.runSync(
+			buildRouteClimbGeoJson(route, routeClimbs),
+		);
 
 		return [
 			{
@@ -86,8 +101,8 @@
 					...baseGeoJson,
 					features: [
 						...baseGeoJson.features,
-						...buildRouteSurfaceGeoJson(route).features,
-						...buildRouteClimbGeoJson(route, routeClimbs).features,
+						...surfaceGeoJson.features,
+						...climbGeoJson.features,
 					],
 				},
 				bounds: route.bounds,

@@ -77,6 +77,6 @@ export function searchPointToPointRoutesEffect(
 
 		const routesWithWind = yield* attachWindAnalysisEffect(normalizedRoutes);
 
-		return finalizeGeneratedRoutesWarnings(routesWithWind);
+		return yield* finalizeGeneratedRoutesWarnings(routesWithWind);
 	});
 }

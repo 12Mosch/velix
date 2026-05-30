@@ -63,9 +63,10 @@ export function withRoundCourseTargetAdjustedDuration(
 	route: PlannedRoute,
 	target: RoundCourseTarget,
 ): { route: PlannedRoute; adjustedDurationMs: number } {
+	const adjustedDurationMs = getWorkoutAdjustedDurationMs(route, target);
 	return {
-		route,
-		adjustedDurationMs: getWorkoutAdjustedDurationMs(route, target),
+		route: { ...route, durationMs: adjustedDurationMs },
+		adjustedDurationMs,
 	};
 }
 

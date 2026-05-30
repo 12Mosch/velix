@@ -20,7 +20,6 @@ import {
 } from "./route-normalization";
 import type { OutAndBackRouteSearchInput } from "./types";
 import { attachWindAnalysisEffect } from "./wind-analysis";
-import { finalizeGeneratedRoutesWarnings } from "./warnings";
 
 export function searchOutAndBackRoutesEffect(
 	input: OutAndBackRouteSearchInput,
@@ -85,6 +84,6 @@ export function searchOutAndBackRoutesEffect(
 
 		const routesWithWind = yield* attachWindAnalysisEffect(normalizedRoutes);
 
-		return finalizeGeneratedRoutesWarnings(routesWithWind);
+		return routesWithWind;
 	});
 }

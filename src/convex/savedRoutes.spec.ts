@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	calculateRouteQuality,
@@ -59,7 +60,7 @@ const baseRoute: PlannedRoute = {
 };
 const route: PlannedRoute = {
 	...baseRoute,
-	routeQuality: calculateRouteQuality(baseRoute),
+	routeQuality: Effect.runSync(calculateRouteQuality(baseRoute)),
 };
 const remoteSavedRoute = serializeSavedRouteForRemote({
 	id: "saved-route-1",

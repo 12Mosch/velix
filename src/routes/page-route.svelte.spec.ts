@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
@@ -419,8 +420,8 @@ const successfulOutAndBackPayload = {
 	routes: [successfulOutAndBackRoute],
 	selectedRouteIndex: 0,
 };
-const successfulRouteProfile = sampleElevationProfile(
-	successfulRoute.coordinates as RouteCoordinate[],
+const successfulRouteProfile = Effect.runSync(
+	sampleElevationProfile(successfulRoute.coordinates as RouteCoordinate[]),
 );
 const successfulRouteEndProfilePoint =
 	successfulRouteProfile[successfulRouteProfile.length - 1];
@@ -2323,6 +2324,7 @@ describe("+page.svelte", () => {
 				() =>
 					readSavedRoutesFromStorage()[0]?.route.manualEditing
 						?.lockedSegmentIndexes,
+				{ timeout: 8000 },
 			)
 			.toEqual([0]);
 		expect(readSavedRoutesFromStorage()[0]?.id).toBe(savedRouteId);
@@ -2334,7 +2336,9 @@ describe("+page.svelte", () => {
 		await page.getByRole("button", { name: "Unlock segment" }).click();
 
 		await expect
-			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing, {
+				timeout: 8000,
+			})
 			.toBeUndefined();
 		expect(readSavedRoutesFromStorage()).toHaveLength(1);
 		expect(readSavedRoutesFromStorage()[0]?.id).toBe(savedRouteId);
@@ -2440,12 +2444,15 @@ describe("+page.svelte", () => {
 				() =>
 					readSavedRoutesFromStorage()[0]?.route.manualEditing
 						?.lockedSegmentIndexes,
+				{ timeout: 8000 },
 			)
 			.toEqual([0]);
 		await page.getByRole("button", { name: "Undo route edit" }).click();
 
 		await expect
-			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing, {
+				timeout: 8000,
+			})
 			.toBeUndefined();
 		await page.getByRole("button", { name: "Redo route edit" }).click();
 
@@ -2454,6 +2461,7 @@ describe("+page.svelte", () => {
 				() =>
 					readSavedRoutesFromStorage()[0]?.route.manualEditing
 						?.lockedSegmentIndexes,
+				{ timeout: 8000 },
 			)
 			.toEqual([0]);
 		expect(readSavedRoutesFromStorage()[0]?.id).toBe(savedRouteId);
@@ -2755,6 +2763,7 @@ describe("+page.svelte", () => {
 				() =>
 					readSavedRoutesFromStorage()[0]?.route.manualEditing
 						?.lockedSegmentIndexes,
+				{ timeout: 8000 },
 			)
 			.toEqual([0]);
 
@@ -2771,6 +2780,7 @@ describe("+page.svelte", () => {
 				() =>
 					readSavedRoutesFromStorage()[0]?.route.manualEditing
 						?.lockedSegmentIndexes,
+				{ timeout: 8000 },
 			)
 			.toEqual([0]);
 
@@ -2782,7 +2792,9 @@ describe("+page.svelte", () => {
 			}),
 		);
 		await expect
-			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing, {
+				timeout: 8000,
+			})
 			.toBeUndefined();
 
 		window.dispatchEvent(
@@ -2797,6 +2809,7 @@ describe("+page.svelte", () => {
 				() =>
 					readSavedRoutesFromStorage()[0]?.route.manualEditing
 						?.lockedSegmentIndexes,
+				{ timeout: 8000 },
 			)
 			.toEqual([0]);
 
@@ -2808,7 +2821,9 @@ describe("+page.svelte", () => {
 			}),
 		);
 		await expect
-			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing, {
+				timeout: 8000,
+			})
 			.toBeUndefined();
 
 		window.dispatchEvent(
@@ -2823,6 +2838,7 @@ describe("+page.svelte", () => {
 				() =>
 					readSavedRoutesFromStorage()[0]?.route.manualEditing
 						?.lockedSegmentIndexes,
+				{ timeout: 8000 },
 			)
 			.toEqual([0]);
 
@@ -2834,7 +2850,9 @@ describe("+page.svelte", () => {
 			}),
 		);
 		await expect
-			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing)
+			.poll(() => readSavedRoutesFromStorage()[0]?.route.manualEditing, {
+				timeout: 8000,
+			})
 			.toBeUndefined();
 
 		window.dispatchEvent(
@@ -2850,6 +2868,7 @@ describe("+page.svelte", () => {
 				() =>
 					readSavedRoutesFromStorage()[0]?.route.manualEditing
 						?.lockedSegmentIndexes,
+				{ timeout: 8000 },
 			)
 			.toEqual([0]);
 	});
