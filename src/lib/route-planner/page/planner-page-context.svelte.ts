@@ -1,10 +1,14 @@
 import { env } from "$env/dynamic/public";
 import { api } from "../../../convex/_generated/api";
-import { Cause, Effect, Exit, Option } from "effect";
+import { Cause, Data, Effect, Exit, Option } from "effect";
 import type { FeatureCollection } from "geojson";
 import { getOptionalConvexClient } from "$lib/convex-client.svelte";
 import { getBasemapById } from "$lib/map/basemaps";
-import { parseRouteGpx, RouteGpxImportError } from "$lib/route-gpx-import";
+import {
+	parseRouteGpxEffect,
+	RouteGpxImportError,
+	type RouteGpxParseEffectError,
+} from "$lib/route-gpx-import";
 import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
 import {
 	basemapOptions,
@@ -20,19 +24,22 @@ import {
 	unitPreference,
 } from "$lib/unit-settings.svelte";
 import {
-	deleteSavedRoute,
-	getSavedRouteById,
+	deleteSavedRouteEffect,
+	getSavedRouteByIdEffect,
 	initSavedRoutes,
 	isPlannedRoute,
 	savedRoutesState,
 	type SavedRoute,
-	upsertSavedRoute,
+	upsertSavedRouteEffect,
 } from "$lib/saved-routes.svelte";
-import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
+import {
+	cloneRoute,
+	serializeSavedRouteForRemote,
+} from "$lib/saved-routes-core";
 import {
 	buildShareUrl,
-	copyTextToClipboard,
-	generateShareToken,
+	copyTextToClipboardEffect,
+	generateShareTokenEffect,
 } from "$lib/shared-routes";
 import {
 	buildRouteGeoJson,
@@ -172,6 +179,48 @@ function createControllerSlice<
 
 	return slice as Pick<T, K[number]>;
 }
+
+class PlannerGeolocationError extends Data.TaggedError(
+	"PlannerGeolocationError",
+)<{
+	readonly cause: unknown;
+}> {}
+
+class PlannerReverseGeocodeError extends Data.TaggedError(
+	"PlannerReverseGeocodeError",
+)<{
+	readonly point: [number, number];
+	readonly cause: unknown;
+}> {}
+
+class PlannerRouteRequestError extends Data.TaggedError(
+	"PlannerRouteRequestError",
+)<{
+	readonly cause: unknown;
+}> {}
+
+class PlannerRouteResponseError extends Data.TaggedError(
+	"PlannerRouteResponseError",
+)<{
+	readonly message: string;
+}> {}
+
+class PlannerSavedRouteError extends Data.TaggedError(
+	"PlannerSavedRouteError",
+)<{
+	readonly operation: "upsert" | "delete" | "read";
+	readonly cause: unknown;
+}> {}
+
+class PlannerShareError extends Data.TaggedError("PlannerShareError")<{
+	readonly cause: unknown;
+}> {}
+
+class PlannerGpxFileReadError extends Data.TaggedError(
+	"PlannerGpxFileReadError",
+)<{
+	readonly cause: unknown;
+}> {}
 
 export function createPlannerPageContext() {
 	let directionsOpen = $state(false);
@@ -1221,19 +1270,31 @@ export function createPlannerPageContext() {
 		return "Current location is unavailable. Check browser location permissions.";
 	}
 
-	function getCurrentPosition(): Promise<GeolocationPosition> {
-		if (typeof navigator === "undefined" || !navigator.geolocation) {
-			return Promise.reject(new Error("Geolocation is not supported."));
-		}
+	const getCurrentPositionEffect = Effect.fn("getCurrentPositionEffect")(
+		function* () {
+			if (typeof navigator === "undefined" || !navigator.geolocation) {
+				return yield* new PlannerGeolocationError({
+					cause: new Error("Geolocation is not supported."),
+				});
+			}
 
-		return new Promise((resolve, reject) => {
-			navigator.geolocation.getCurrentPosition(resolve, reject, {
-				enableHighAccuracy: true,
-				timeout: 10000,
-				maximumAge: 30000,
+			return yield* Effect.callback<
+				GeolocationPosition,
+				PlannerGeolocationError
+			>((resume) => {
+				navigator.geolocation.getCurrentPosition(
+					(position) => resume(Effect.succeed(position)),
+					(cause) =>
+						resume(Effect.fail(new PlannerGeolocationError({ cause }))),
+					{
+						enableHighAccuracy: true,
+						timeout: 10000,
+						maximumAge: 30000,
+					},
+				);
 			});
-		});
-	}
+		},
+	);
 
 	function getCurrentLocationStop(
 		point: [number, number],
@@ -1242,73 +1303,105 @@ export function createPlannerPageContext() {
 		return createPlannerStop(label, point, "currentLocation");
 	}
 
-	async function resolveCurrentLocationLabel(point: [number, number]) {
-		if (!clientFetch) {
-			return "Current location";
-		}
+	const reverseGeocodeLabelEffect = Effect.fn("reverseGeocodeLabelEffect")(
+		function* (point: [number, number], fallbackLabel: string) {
+			if (!clientFetch) {
+				return fallbackLabel;
+			}
+			const fetchRoute = clientFetch;
 
-		try {
-			const response = await clientFetch(
-				`/api/route/reverse?lat=${encodeURIComponent(String(point[1]))}&lng=${encodeURIComponent(String(point[0]))}`,
-			);
+			const response = yield* Effect.tryPromise({
+				try: () =>
+					fetchRoute(
+						`/api/route/reverse?lat=${encodeURIComponent(String(point[1]))}&lng=${encodeURIComponent(String(point[0]))}`,
+					),
+				catch: (cause) => new PlannerReverseGeocodeError({ point, cause }),
+			});
 
 			if (!response.ok) {
-				throw new Error(
-					`Reverse geocoding failed with status ${response.status}`,
-				);
+				return yield* new PlannerReverseGeocodeError({
+					point,
+					cause: new Error(
+						`Reverse geocoding failed with status ${response.status}`,
+					),
+				});
 			}
 
-			const payload =
-				(await response.json()) as Partial<ReverseGeocodeApiSuccess>;
+			const payload = yield* Effect.tryPromise({
+				try: () =>
+					response.json() as Promise<Partial<ReverseGeocodeApiSuccess>>,
+				catch: (cause) => new PlannerReverseGeocodeError({ point, cause }),
+			});
+
 			return typeof payload.label === "string" &&
 				payload.label.trim().length > 0
 				? payload.label
-				: "Current location";
-		} catch (error) {
-			console.error("Failed to reverse geocode current location", error);
-			return "Current location";
-		}
+				: fallbackLabel;
+		},
+	);
+
+	function resolveCurrentLocationLabelEffect(point: [number, number]) {
+		return reverseGeocodeLabelEffect(point, "Current location").pipe(
+			Effect.catchTag("PlannerReverseGeocodeError", (error) =>
+				Effect.sync(() => {
+					console.error(
+						"Failed to reverse geocode current location",
+						error.cause,
+					);
+					return "Current location";
+				}),
+			),
+		);
 	}
 
-	async function locateCurrentPosition(): Promise<CurrentLocation | null> {
-		if (isLocating) {
-			return null;
-		}
+	const locateCurrentPositionEffect = Effect.fn("locateCurrentPositionEffect")(
+		function* () {
+			if (isLocating) {
+				return null;
+			}
 
-		isLocating = true;
-		currentLocationError = null;
+			isLocating = true;
+			currentLocationError = null;
 
-		try {
-			const position = await getCurrentPosition();
-			const point: [number, number] = [
-				position.coords.longitude,
-				position.coords.latitude,
-			];
-			const nextLocation: CurrentLocation = {
-				point,
-				accuracyMeters:
-					typeof position.coords.accuracy === "number" &&
-					Number.isFinite(position.coords.accuracy)
-						? position.coords.accuracy
-						: undefined,
-			};
+			return yield* Effect.gen(function* () {
+				const position = yield* getCurrentPositionEffect();
+				const point: [number, number] = [
+					position.coords.longitude,
+					position.coords.latitude,
+				];
+				const nextLocation: CurrentLocation = {
+					point,
+					accuracyMeters:
+						typeof position.coords.accuracy === "number" &&
+						Number.isFinite(position.coords.accuracy)
+							? position.coords.accuracy
+							: undefined,
+				};
 
-			currentLocation = nextLocation;
-			currentLocationFocusKey += 1;
-			return nextLocation;
-		} catch (error) {
-			console.error("Failed to get current location", error);
-			currentLocationError = getCurrentLocationUnavailableMessage();
-			return null;
-		} finally {
-			isLocating = false;
-		}
-	}
+				currentLocation = nextLocation;
+				currentLocationFocusKey += 1;
+				return nextLocation;
+			}).pipe(
+				Effect.catchTag("PlannerGeolocationError", (error) =>
+					Effect.sync(() => {
+						console.error("Failed to get current location", error.cause);
+						currentLocationError = getCurrentLocationUnavailableMessage();
+						return null;
+					}),
+				),
+				Effect.ensuring(
+					Effect.sync(() => {
+						isLocating = false;
+					}),
+				),
+			);
+		},
+	);
 
 	async function showCurrentLocationOnMap() {
 		closeCompletionMenu();
 		closeMapClickMenu();
-		await locateCurrentPosition();
+		await Effect.runPromise(locateCurrentPositionEffect());
 	}
 
 	function recenterActiveRoute() {
@@ -1574,45 +1667,61 @@ export function createPlannerPageContext() {
 		};
 	}
 
+	const saveActiveRouteDraftEffect = Effect.fn("saveActiveRouteDraftEffect")(
+		function* (
+			options: {
+				force?: boolean;
+				source?: "autosave" | "explicit" | "share";
+			} = {},
+		) {
+			cancelAutosaveTimer();
+			if (routeNeedsRecalculation) {
+				return null;
+			}
+
+			const routeId = plannerDraftRouteId ?? activeSavedRouteId;
+
+			if (
+				!options.force &&
+				options.source === "autosave" &&
+				routeId === lastAutosavedRouteId &&
+				routeSaveRevision === lastAutosavedRevision
+			) {
+				return null;
+			}
+
+			const activeRouteForSaving = getActiveRouteForSaving();
+
+			if (!activeRouteForSaving) {
+				return null;
+			}
+			const routeForSaving = cloneRoute(activeRouteForSaving);
+
+			const savedRoute = yield* upsertSavedRouteEffect(
+				routeForSaving,
+				plannerDraftRouteId ?? activeSavedRouteId ?? undefined,
+				{ source: options.source },
+			).pipe(
+				Effect.mapError(
+					(cause) => new PlannerSavedRouteError({ operation: "upsert", cause }),
+				),
+			);
+			plannerDraftRouteId = savedRoute.id;
+			activeSavedRouteId = savedRoute.id;
+			isActiveRouteSaved = true;
+			lastAutosavedRouteId = savedRoute.id;
+			lastAutosavedRevision = routeSaveRevision;
+			return savedRoute;
+		},
+	);
+
 	async function saveActiveRouteDraft(
 		options: {
 			force?: boolean;
 			source?: "autosave" | "explicit" | "share";
 		} = {},
 	) {
-		cancelAutosaveTimer();
-		if (routeNeedsRecalculation) {
-			return null;
-		}
-
-		const routeId = plannerDraftRouteId ?? activeSavedRouteId;
-
-		if (
-			!options.force &&
-			options.source === "autosave" &&
-			routeId === lastAutosavedRouteId &&
-			routeSaveRevision === lastAutosavedRevision
-		) {
-			return null;
-		}
-
-		const routeForSaving = getActiveRouteForSaving();
-
-		if (!routeForSaving) {
-			return null;
-		}
-
-		const savedRoute = await upsertSavedRoute(
-			routeForSaving,
-			plannerDraftRouteId ?? activeSavedRouteId ?? undefined,
-			{ source: options.source },
-		);
-		plannerDraftRouteId = savedRoute.id;
-		activeSavedRouteId = savedRoute.id;
-		isActiveRouteSaved = true;
-		lastAutosavedRouteId = savedRoute.id;
-		lastAutosavedRevision = routeSaveRevision;
-		return savedRoute;
+		return await Effect.runPromise(saveActiveRouteDraftEffect(options));
 	}
 
 	function scheduleActiveRouteAutosave() {
@@ -1839,7 +1948,9 @@ export function createPlannerPageContext() {
 		markPlannerEdited();
 	}
 
-	async function restoreSavedRouteFromLocation(location: Location) {
+	const restoreSavedRouteFromLocationEffect = Effect.fn(
+		"restoreSavedRouteFromLocationEffect",
+	)(function* (location: Location) {
 		const savedRouteId = new URLSearchParams(location.search).get("savedRoute");
 
 		if (!savedRouteId) {
@@ -1847,7 +1958,11 @@ export function createPlannerPageContext() {
 		}
 
 		fitInitialSavedRouteBounds = true;
-		const savedRoute = await getSavedRouteById(savedRouteId);
+		const savedRoute = yield* getSavedRouteByIdEffect(savedRouteId).pipe(
+			Effect.mapError(
+				(cause) => new PlannerSavedRouteError({ operation: "read", cause }),
+			),
+		);
 
 		if (!savedRoute) {
 			pendingSavedRouteId = savedRouteId;
@@ -1855,14 +1970,24 @@ export function createPlannerPageContext() {
 		}
 
 		restoreSavedRoute(savedRoute);
+	});
+
+	async function restoreSavedRouteFromLocation(location: Location) {
+		await Effect.runPromise(restoreSavedRouteFromLocationEffect(location));
 	}
 
-	async function restorePendingSavedRoute() {
+	const restorePendingSavedRouteEffect = Effect.fn(
+		"restorePendingSavedRouteEffect",
+	)(function* () {
 		if (!pendingSavedRouteId) {
 			return;
 		}
 
-		const savedRoute = await getSavedRouteById(pendingSavedRouteId);
+		const savedRoute = yield* getSavedRouteByIdEffect(pendingSavedRouteId).pipe(
+			Effect.mapError(
+				(cause) => new PlannerSavedRouteError({ operation: "read", cause }),
+			),
+		);
 
 		if (!savedRoute) {
 			return;
@@ -1870,6 +1995,10 @@ export function createPlannerPageContext() {
 
 		restoreSavedRoute(savedRoute);
 		pendingSavedRouteId = null;
+	});
+
+	async function restorePendingSavedRoute() {
+		await Effect.runPromise(restorePendingSavedRouteEffect());
 	}
 
 	function restoreSavedRoute(savedRoute: SavedRoute) {
@@ -2615,32 +2744,22 @@ export function createPlannerPageContext() {
 		return sanitizedLockedSegmentIndexes.includes(segmentIndex);
 	}
 
+	function resolveMapStopLabelEffect(point: [number, number]) {
+		return reverseGeocodeLabelEffect(point, formatCoordinateLabel(point)).pipe(
+			Effect.catchTag("PlannerReverseGeocodeError", (error) =>
+				Effect.sync(() => {
+					console.error(
+						"Failed to reverse geocode clicked map point",
+						error.cause,
+					);
+					return formatCoordinateLabel(point);
+				}),
+			),
+		);
+	}
+
 	async function resolveMapStopLabel(point: [number, number]) {
-		if (!clientFetch) {
-			return formatCoordinateLabel(point);
-		}
-
-		try {
-			const response = await clientFetch(
-				`/api/route/reverse?lat=${encodeURIComponent(String(point[1]))}&lng=${encodeURIComponent(String(point[0]))}`,
-			);
-
-			if (!response.ok) {
-				throw new Error(
-					`Reverse geocoding failed with status ${response.status}`,
-				);
-			}
-
-			const payload =
-				(await response.json()) as Partial<ReverseGeocodeApiSuccess>;
-			return typeof payload.label === "string" &&
-				payload.label.trim().length > 0
-				? payload.label
-				: formatCoordinateLabel(point);
-		} catch (error) {
-			console.error("Failed to reverse geocode clicked map point", error);
-			return formatCoordinateLabel(point);
-		}
+		return await Effect.runPromise(resolveMapStopLabelEffect(point));
 	}
 
 	async function applyMapPointAsStop(
@@ -2829,33 +2948,56 @@ export function createPlannerPageContext() {
 		}));
 	}
 
-	async function requestRouteCalculation(
+	const requestRouteCalculationEffect = Effect.fn(
+		"requestRouteCalculationEffect",
+	)(function* (
 		routeRequest: RouteRequestPayload & {
 			manualEditing?: ManualRouteEditingState;
 		},
 	) {
 		if (!clientFetch) {
-			throw new Error(
-				"Route requests are only available after the page has mounted.",
-			);
+			return yield* new PlannerRouteRequestError({
+				cause: new Error(
+					"Route requests are only available after the page has mounted.",
+				),
+			});
 		}
+		const fetchRoute = clientFetch;
 
-		const response = await clientFetch("/api/route", {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
-			},
-			body: JSON.stringify(routeRequest),
+		const response = yield* Effect.tryPromise({
+			try: () =>
+				fetchRoute("/api/route", {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+					},
+					body: JSON.stringify(routeRequest),
+				}),
+			catch: (cause) => new PlannerRouteRequestError({ cause }),
 		});
 
 		if (!response.ok) {
-			const errorPayload = (await response.json()) as RouteApiError;
+			const errorPayload = yield* Effect.tryPromise({
+				try: () => response.json() as Promise<RouteApiError>,
+				catch: (cause) => new PlannerRouteRequestError({ cause }),
+			});
 			fieldErrors = errorPayload.fieldErrors ?? {};
 			routeRequestError = errorPayload.error;
 			return null;
 		}
 
-		return (await response.json()) as RouteApiSuccess;
+		return yield* Effect.tryPromise({
+			try: () => response.json() as Promise<RouteApiSuccess>,
+			catch: (cause) => new PlannerRouteRequestError({ cause }),
+		});
+	});
+
+	async function requestRouteCalculation(
+		routeRequest: RouteRequestPayload & {
+			manualEditing?: ManualRouteEditingState;
+		},
+	) {
+		return await Effect.runPromise(requestRouteCalculationEffect(routeRequest));
 	}
 
 	function isLockedStopIndex(stopIndex: number) {
@@ -2903,7 +3045,37 @@ export function createPlannerPageContext() {
 		}
 	}
 
-	async function rerouteAfterManualEdit(): Promise<boolean> {
+	const applyRouteCalculationPayloadEffect = Effect.fn(
+		"applyRouteCalculationPayloadEffect",
+	)(function* (payload: RouteApiSuccess, resetHistory: boolean) {
+		const nextRoutes = applyManualEditingToRoutes(payload.routes ?? []);
+		const nextSelectedRoute =
+			nextRoutes[payload.selectedRouteIndex] ?? nextRoutes[0] ?? null;
+
+		if (!nextSelectedRoute) {
+			return yield* new PlannerRouteResponseError({
+				message: "Route API returned no routes.",
+			});
+		}
+
+		setRouteAlternativesState(nextRoutes, payload.selectedRouteIndex);
+		lastGeneratedRouteCount = nextRoutes.length;
+		syncStopsFromRoute(nextSelectedRoute);
+		routeNeedsRecalculation = false;
+		routeRequestError = null;
+		routeExportError = null;
+		activeProfileIndex = null;
+		chartScrubPointerId = null;
+		if (resetHistory) {
+			clearRouteEditHistory();
+		}
+		bumpRouteSaveRevision();
+		scheduleActiveRouteAutosave();
+	});
+
+	const rerouteAfterManualEditEffect = Effect.fn(
+		"rerouteAfterManualEditEffect",
+	)(function* () {
 		if (isRouting) {
 			return false;
 		}
@@ -2918,8 +3090,8 @@ export function createPlannerPageContext() {
 		fieldErrors = {};
 		routeExportError = null;
 
-		try {
-			const payload = await requestRouteCalculation(
+		return yield* Effect.gen(function* () {
+			const payload = yield* requestRouteCalculationEffect(
 				buildPlannerCurrentRouteRequest(
 					getPlannerFormState(),
 					getPlannerManualEditingRequest(activeRoute, lockedSegmentIndexes),
@@ -2931,30 +3103,35 @@ export function createPlannerPageContext() {
 				return false;
 			}
 
-			const nextRoutes = applyManualEditingToRoutes(payload.routes ?? []);
-			const nextSelectedRoute =
-				nextRoutes[payload.selectedRouteIndex] ?? nextRoutes[0] ?? null;
-
-			if (!nextSelectedRoute) {
-				throw new Error("Route API returned no routes.");
-			}
-
-			setRouteAlternativesState(nextRoutes, payload.selectedRouteIndex);
-			lastGeneratedRouteCount = nextRoutes.length;
-			syncStopsFromRoute(nextSelectedRoute);
-			routeNeedsRecalculation = false;
-			activeProfileIndex = null;
-			chartScrubPointerId = null;
-			bumpRouteSaveRevision();
-			scheduleActiveRouteAutosave();
+			yield* applyRouteCalculationPayloadEffect(payload, false);
 			return true;
-		} catch (error) {
-			console.error("Failed to reroute manual edit", error);
-			routeRequestError = "The manual route edit could not be recalculated.";
-			return false;
-		} finally {
-			isRouting = false;
-		}
+		}).pipe(
+			Effect.catchTags({
+				PlannerRouteRequestError: (error) =>
+					Effect.sync(() => {
+						console.error("Failed to reroute manual edit", error.cause);
+						routeRequestError =
+							"The manual route edit could not be recalculated.";
+						return false;
+					}),
+				PlannerRouteResponseError: (error) =>
+					Effect.sync(() => {
+						console.error("Failed to reroute manual edit", error.message);
+						routeRequestError =
+							"The manual route edit could not be recalculated.";
+						return false;
+					}),
+			}),
+			Effect.ensuring(
+				Effect.sync(() => {
+					isRouting = false;
+				}),
+			),
+		);
+	});
+
+	async function rerouteAfterManualEdit(): Promise<boolean> {
+		return await Effect.runPromise(rerouteAfterManualEditEffect());
 	}
 
 	async function handleRouteStopDragEnd(detail: RouteStopDragEnd) {
@@ -3039,126 +3216,173 @@ export function createPlannerPageContext() {
 		);
 	}
 
-	async function useCurrentLocationAsStop(field: RouteField) {
+	const useCurrentLocationAsStopEffect = Effect.fn(
+		"useCurrentLocationAsStopEffect",
+	)(function* (field: RouteField) {
 		closeCompletionMenu();
 		closeMapClickMenu();
-		const location = await locateCurrentPosition();
+		const location = yield* locateCurrentPositionEffect();
 
 		if (!location) {
 			return;
 		}
 
-		const label = await resolveCurrentLocationLabel(location.point);
+		const label = yield* resolveCurrentLocationLabelEffect(location.point);
 		setFieldStop(field, getCurrentLocationStop(location.point, label));
+	});
+
+	async function useCurrentLocationAsStop(field: RouteField) {
+		await Effect.runPromise(useCurrentLocationAsStopEffect(field));
 	}
 
-	async function handleGenerateRoute(event: SubmitEvent) {
-		event.preventDefault();
-
-		if (isRouting) {
-			return;
-		}
-
-		if (!clientFetch) {
-			routeRequestError =
-				"Route requests are only available after the page has mounted.";
-			return;
-		}
-
-		closeCompletionMenu();
-		pendingSavedRouteId = null;
-		activeSavedRouteId = null;
-		isActiveRouteSaved = false;
-		routeRequestError = null;
-		fieldErrors = {};
-
-		if (!applyWorkoutPlanTarget()) {
-			return;
-		}
-
-		if (!validateDistanceInputs()) {
-			return;
-		}
-
-		isRouting = true;
-
-		try {
-			const payload = await requestRouteCalculation(
-				buildPlannerCurrentRouteRequest(
-					getPlannerFormState(),
-					getPlannerManualEditingRequest(activeRoute, lockedSegmentIndexes),
-					getPlannerAvoidanceRequest(avoidedRoads),
-				),
-			);
-
-			if (!payload) {
+	const handleGenerateRouteEffect = Effect.fn("handleGenerateRouteEffect")(
+		function* () {
+			if (isRouting) {
 				return;
 			}
 
-			const nextRoutes = applyManualEditingToRoutes(payload.routes ?? []);
-			const nextSelectedRoute =
-				nextRoutes[payload.selectedRouteIndex] ?? nextRoutes[0] ?? null;
-
-			if (!nextSelectedRoute) {
-				throw new Error("Route API returned no routes.");
+			if (!clientFetch) {
+				routeRequestError =
+					"Route requests are only available after the page has mounted.";
+				return;
 			}
 
-			setRouteAlternativesState(nextRoutes, payload.selectedRouteIndex);
-			lastGeneratedRouteCount = nextRoutes.length;
-			syncStopsFromRoute(nextSelectedRoute);
+			closeCompletionMenu();
+			pendingSavedRouteId = null;
 			activeSavedRouteId = null;
 			isActiveRouteSaved = false;
-			routeNeedsRecalculation = false;
 			routeRequestError = null;
-			routeExportError = null;
-			activeProfileIndex = null;
-			chartScrubPointerId = null;
-			clearRouteEditHistory();
-			bumpRouteSaveRevision();
-			scheduleActiveRouteAutosave();
-		} catch (error) {
-			console.error("Failed to generate route", error);
-			routeRequestError =
-				plannerMode === "round_course"
-					? "The round-course request failed before we heard back from GraphHopper."
-					: plannerMode === "out_and_back"
-						? "The out-and-back request failed before we heard back from GraphHopper."
-						: "The route request failed before we heard back from GraphHopper.";
-		} finally {
-			isRouting = false;
-		}
+			fieldErrors = {};
+
+			if (!applyWorkoutPlanTarget()) {
+				return;
+			}
+
+			if (!validateDistanceInputs()) {
+				return;
+			}
+
+			isRouting = true;
+
+			return yield* Effect.gen(function* () {
+				const payload = yield* requestRouteCalculationEffect(
+					buildPlannerCurrentRouteRequest(
+						getPlannerFormState(),
+						getPlannerManualEditingRequest(activeRoute, lockedSegmentIndexes),
+						getPlannerAvoidanceRequest(avoidedRoads),
+					),
+				);
+
+				if (!payload) {
+					return;
+				}
+
+				yield* applyRouteCalculationPayloadEffect(payload, true);
+				activeSavedRouteId = null;
+				isActiveRouteSaved = false;
+			}).pipe(
+				Effect.catchTags({
+					PlannerRouteRequestError: (error) =>
+						Effect.sync(() => {
+							console.error("Failed to generate route", error.cause);
+							routeRequestError =
+								plannerMode === "round_course"
+									? "The round-course request failed before we heard back from GraphHopper."
+									: plannerMode === "out_and_back"
+										? "The out-and-back request failed before we heard back from GraphHopper."
+										: "The route request failed before we heard back from GraphHopper.";
+						}),
+					PlannerRouteResponseError: (error) =>
+						Effect.sync(() => {
+							console.error("Failed to generate route", error.message);
+							routeRequestError =
+								plannerMode === "round_course"
+									? "The round-course request failed before we heard back from GraphHopper."
+									: plannerMode === "out_and_back"
+										? "The out-and-back request failed before we heard back from GraphHopper."
+										: "The route request failed before we heard back from GraphHopper.";
+						}),
+				}),
+				Effect.ensuring(
+					Effect.sync(() => {
+						isRouting = false;
+					}),
+				),
+			);
+		},
+	);
+
+	async function handleGenerateRoute(event: SubmitEvent) {
+		event.preventDefault();
+		await Effect.runPromise(handleGenerateRouteEffect());
 	}
+
+	const handleSaveDraftEffect = Effect.fn("handleSaveDraftEffect")(
+		function* () {
+			if (!activeRoute || routeNeedsRecalculation) {
+				return;
+			}
+
+			if (isActiveRouteSaved && activeSavedRouteId) {
+				const deletedRouteId = activeSavedRouteId;
+				cancelAutosaveTimer();
+				yield* deleteSavedRouteEffect(deletedRouteId).pipe(
+					Effect.mapError(
+						(cause) =>
+							new PlannerSavedRouteError({ operation: "delete", cause }),
+					),
+				);
+				if (plannerDraftRouteId === deletedRouteId) {
+					plannerDraftRouteId = null;
+				}
+				activeSavedRouteId = null;
+				isActiveRouteSaved = false;
+				return;
+			}
+
+			const savedRoute = yield* saveActiveRouteDraftEffect({
+				force: true,
+				source: "explicit",
+			});
+			if (!savedRoute) {
+				return;
+			}
+			plannerDraftRouteId = savedRoute.id;
+			activeSavedRouteId = savedRoute.id;
+			isActiveRouteSaved = true;
+		},
+	);
 
 	async function handleSaveDraft() {
-		if (!activeRoute || routeNeedsRecalculation) {
-			return;
-		}
-
-		if (isActiveRouteSaved && activeSavedRouteId) {
-			const deletedRouteId = activeSavedRouteId;
-			cancelAutosaveTimer();
-			await deleteSavedRoute(deletedRouteId);
-			if (plannerDraftRouteId === deletedRouteId) {
-				plannerDraftRouteId = null;
-			}
-			activeSavedRouteId = null;
-			isActiveRouteSaved = false;
-			return;
-		}
-
-		const savedRoute = await saveActiveRouteDraft({
-			force: true,
-			source: "explicit",
-		});
-		if (!savedRoute) {
-			return;
-		}
-		plannerDraftRouteId = savedRoute.id;
-		activeSavedRouteId = savedRoute.id;
-		isActiveRouteSaved = true;
+		await Effect.runPromise(handleSaveDraftEffect());
 	}
 
-	async function handleShareActiveRoute() {
+	const createSharedRouteEffect = Effect.fn("createSharedRouteEffect")(
+		function* (savedRoute: SavedRoute) {
+			if (!convexClient) {
+				return yield* new PlannerShareError({
+					cause: new Error("Convex client is unavailable."),
+				});
+			}
+
+			const shareToken = yield* generateShareTokenEffect().pipe(
+				Effect.mapError((cause) => new PlannerShareError({ cause })),
+			);
+			return yield* Effect.tryPromise({
+				try: () =>
+					convexClient.mutation(api.sharedRoutes.create, {
+						shareToken,
+						sourceRouteId: savedRoute.id,
+						savedRoute: serializeSavedRouteForRemote(savedRoute),
+					}),
+				catch: (cause) => new PlannerShareError({ cause }),
+			});
+		},
+	);
+
+	const handleShareActiveRouteEffect = Effect.fn(
+		"handleShareActiveRouteEffect",
+	)(function* () {
 		if (!activeRoute || routeNeedsRecalculation) {
 			return;
 		}
@@ -3188,8 +3412,8 @@ export function createPlannerPageContext() {
 
 		isSharingRoute = true;
 
-		try {
-			const savedRoute = await saveActiveRouteDraft({
+		return yield* Effect.gen(function* () {
+			const savedRoute = yield* saveActiveRouteDraftEffect({
 				force: true,
 				source: "share",
 			});
@@ -3204,17 +3428,12 @@ export function createPlannerPageContext() {
 			setRouteShareUrl(savedRouteKey, null);
 			setRouteShareCopied(savedRouteKey, false);
 
-			const shareToken = generateShareToken();
-			const result = await convexClient.mutation(api.sharedRoutes.create, {
-				shareToken,
-				sourceRouteId: savedRoute.id,
-				savedRoute: serializeSavedRouteForRemote(savedRoute),
-			});
+			const result = yield* createSharedRouteEffect(savedRoute);
 			const shareUrl = buildShareUrl(
 				browserWindow?.location.origin ?? globalThis.location.origin,
 				result.shareToken,
 			);
-			const copied = await copyTextToClipboard(shareUrl);
+			const copied = yield* copyTextToClipboardEffect(shareUrl);
 
 			if (!copied) {
 				setRouteShareUrl(savedRouteKey, shareUrl);
@@ -3227,16 +3446,39 @@ export function createPlannerPageContext() {
 
 			setRouteShareUrl(savedRouteKey, null);
 			setRouteShareCopied(savedRouteKey, true);
-		} catch (error) {
-			setRouteShareError(
-				shareErrorKey,
-				error instanceof Error
-					? `Could not share route: ${error.message}`
-					: "Could not share route.",
-			);
-		} finally {
-			isSharingRoute = false;
-		}
+		}).pipe(
+			Effect.catchTags({
+				PlannerSavedRouteError: (error) =>
+					Effect.sync(() => {
+						const cause = Cause.squash(Cause.fail(error.cause));
+						setRouteShareError(
+							shareErrorKey,
+							cause instanceof Error
+								? `Could not share route: ${cause.message}`
+								: "Could not share route.",
+						);
+					}),
+				PlannerShareError: (error) =>
+					Effect.sync(() => {
+						const cause = Cause.squash(Cause.fail(error.cause));
+						setRouteShareError(
+							shareErrorKey,
+							cause instanceof Error
+								? `Could not share route: ${cause.message}`
+								: "Could not share route.",
+						);
+					}),
+			}),
+			Effect.ensuring(
+				Effect.sync(() => {
+					isSharingRoute = false;
+				}),
+			),
+		);
+	});
+
+	async function handleShareActiveRoute() {
+		await Effect.runPromise(handleShareActiveRouteEffect());
 	}
 
 	function handleExportGpx() {
@@ -3286,8 +3528,18 @@ export function createPlannerPageContext() {
 		}
 	}
 
-	async function handleGpxImportSelection(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
+	const readFileTextEffect = Effect.fn("readFileTextEffect")(function* (
+		file: File,
+	) {
+		return yield* Effect.tryPromise({
+			try: () => file.text(),
+			catch: (cause) => new PlannerGpxFileReadError({ cause }),
+		});
+	});
+
+	const handleGpxImportSelectionEffect = Effect.fn(
+		"handleGpxImportSelectionEffect",
+	)(function* (input: HTMLInputElement) {
 		const selectedFile = input.files?.[0];
 
 		if (!selectedFile) {
@@ -3297,10 +3549,14 @@ export function createPlannerPageContext() {
 		isImportingGpx = true;
 		routeImportError = null;
 
-		try {
-			const importedRoute = parseRouteGpx(await selectedFile.text(), {
-				filename: selectedFile.name,
-			});
+		return yield* Effect.gen(function* () {
+			const importedRoute = yield* readFileTextEffect(selectedFile).pipe(
+				Effect.flatMap((text) =>
+					parseRouteGpxEffect(text, {
+						filename: selectedFile.name,
+					}),
+				),
+			);
 
 			closeCompletionMenu();
 			closeMapClickMenu();
@@ -3319,17 +3575,36 @@ export function createPlannerPageContext() {
 			clearRouteEditHistory();
 			bumpRouteSaveRevision();
 			scheduleActiveRouteAutosave();
-		} catch (error) {
-			console.error("Failed to import GPX", error);
-			routeImportError =
-				error instanceof RouteGpxImportError
-					? error.message
-					: "Could not import the selected GPX file.";
-		} finally {
-			isImportingGpx = false;
-			input.value = "";
-		}
+		}).pipe(
+			Effect.catchTags({
+				PlannerGpxFileReadError: (error) =>
+					Effect.sync(() => {
+						console.error("Failed to read GPX file", error.cause);
+						routeImportError = "Could not import the selected GPX file.";
+					}),
+				RouteGpxParseEffectError: (error: RouteGpxParseEffectError) =>
+					Effect.sync(() => {
+						console.error("Failed to import GPX", error.cause);
+						routeImportError =
+							error.cause instanceof RouteGpxImportError
+								? error.cause.message
+								: "Could not import the selected GPX file.";
+					}),
+			}),
+			Effect.ensuring(
+				Effect.sync(() => {
+					isImportingGpx = false;
+					input.value = "";
+				}),
+			),
+		);
+	});
+
+	async function handleGpxImportSelection(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		await Effect.runPromise(handleGpxImportSelectionEffect(input));
 	}
+
 	const controller = {
 		mount,
 		destroy,

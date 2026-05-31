@@ -94,6 +94,10 @@ class SavedRoutesState {
 		return Effect.runPromise(savedRoutesUseCases.createSavedRoute(this, route));
 	}
 
+	addSavedRouteEffect(route: PlannedRoute) {
+		return savedRoutesUseCases.createSavedRoute(this, route);
+	}
+
 	upsertSavedRoute(
 		route: PlannedRoute,
 		id?: string,
@@ -104,12 +108,28 @@ class SavedRoutesState {
 		);
 	}
 
+	upsertSavedRouteEffect(
+		route: PlannedRoute,
+		id?: string,
+		options?: { source?: "autosave" | "explicit" | "share" },
+	) {
+		return savedRoutesUseCases.upsertSavedRoute(this, route, id, options);
+	}
+
 	getSavedRouteById(id: string | null | undefined): Promise<SavedRoute | null> {
 		return Effect.runPromise(savedRoutesUseCases.getSavedRouteById(this, id));
 	}
 
+	getSavedRouteByIdEffect(id: string | null | undefined) {
+		return savedRoutesUseCases.getSavedRouteById(this, id);
+	}
+
 	deleteSavedRoute(id: string): Promise<boolean> {
 		return Effect.runPromise(savedRoutesUseCases.deleteSavedRoute(this, id));
+	}
+
+	deleteSavedRouteEffect(id: string) {
+		return savedRoutesUseCases.deleteSavedRoute(this, id);
 	}
 
 	listSavedRouteVersions(routeId: string): Promise<SavedRouteVersion[]> {
@@ -122,6 +142,10 @@ class SavedRoutesState {
 		return Effect.runPromise(
 			savedRoutesUseCases.restoreLatestSavedRouteVersion(this, id),
 		);
+	}
+
+	restoreLatestSavedRouteVersionEffect(id: string) {
+		return savedRoutesUseCases.restoreLatestSavedRouteVersion(this, id);
 	}
 
 	resetSavedRoutesForTests(): Promise<void> {
@@ -139,6 +163,10 @@ export function addSavedRoute(route: PlannedRoute) {
 	return savedRoutesState.addSavedRoute(route);
 }
 
+export function addSavedRouteEffect(route: PlannedRoute) {
+	return savedRoutesState.addSavedRouteEffect(route);
+}
+
 export function upsertSavedRoute(
 	route: PlannedRoute,
 	id?: string,
@@ -147,12 +175,28 @@ export function upsertSavedRoute(
 	return savedRoutesState.upsertSavedRoute(route, id, options);
 }
 
+export function upsertSavedRouteEffect(
+	route: PlannedRoute,
+	id?: string,
+	options?: { source?: "autosave" | "explicit" | "share" },
+) {
+	return savedRoutesState.upsertSavedRouteEffect(route, id, options);
+}
+
 export function getSavedRouteById(id: string | null | undefined) {
 	return savedRoutesState.getSavedRouteById(id);
 }
 
+export function getSavedRouteByIdEffect(id: string | null | undefined) {
+	return savedRoutesState.getSavedRouteByIdEffect(id);
+}
+
 export function deleteSavedRoute(id: string) {
 	return savedRoutesState.deleteSavedRoute(id);
+}
+
+export function deleteSavedRouteEffect(id: string) {
+	return savedRoutesState.deleteSavedRouteEffect(id);
 }
 
 export function listSavedRouteVersions(routeId: string) {

@@ -3,6 +3,7 @@ import type {
 	PlannedRoute,
 	RouteCoordinate,
 } from "$lib/route-planning";
+import { Data, Effect } from "effect";
 
 type ParsedGpxPoint = {
 	coordinate: RouteCoordinate;
@@ -28,6 +29,12 @@ export class RouteGpxImportError extends Error {
 		this.code = code;
 	}
 }
+
+export class RouteGpxParseEffectError extends Data.TaggedError(
+	"RouteGpxParseEffectError",
+)<{
+	readonly cause: unknown;
+}> {}
 
 const maxRoutePoints = 5;
 const loopClosureThresholdMeters = 50;
@@ -576,3 +583,13 @@ export function parseRouteGpx(
 		bikeNetworkDetails: [],
 	};
 }
+
+export const parseRouteGpxEffect = Effect.fn("parseRouteGpxEffect")(function* (
+	gpx: string,
+	options: ParseRouteGpxOptions = {},
+) {
+	return yield* Effect.try({
+		try: () => parseRouteGpx(gpx, options),
+		catch: (cause) => new RouteGpxParseEffectError({ cause }),
+	});
+});
