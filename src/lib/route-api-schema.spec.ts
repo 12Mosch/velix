@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -318,7 +318,7 @@ describe("route API schema helpers", () => {
 		const route = buildValidRoute();
 		const decoded = Schema.decodeUnknownSync(PlannedRouteSchema)({
 			...route,
-			routeQuality: calculateRouteQuality(route),
+			routeQuality: Effect.runSync(calculateRouteQuality(route)),
 		});
 
 		expect(decoded.routeQuality?.version).toBe(1);

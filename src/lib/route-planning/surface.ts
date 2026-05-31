@@ -1,3 +1,5 @@
+import { Array as EffectArray, Effect, Result, pipe } from "effect";
+
 import type {
 	PlannedRoute,
 	RouteCoordinate,
@@ -109,45 +111,46 @@ export type RouteSurfaceFeature = {
 	geometry: { type: "LineString"; coordinates: RouteCoordinate[] };
 };
 
-export function buildRouteSurfaceFeatures(
+function buildRouteSurfaceFeaturesSync(
 	route: PlannedRoute,
 	details: RouteDetailInterval[],
 	classify: (
 		value: string,
 	) => keyof typeof smoothnessSurfaceFallback | "coarse" | null,
 ): RouteSurfaceFeature[] {
-	return details.flatMap((detail) => {
-		const bucket = classify(detail.value);
+	return pipe(
+		details,
+		EffectArray.filterMap((detail) => {
+			const bucket = classify(detail.value);
 
-		if (!bucket) {
-			return [];
-		}
+			if (!bucket) {
+				return Result.failVoid;
+			}
 
-		const from = Math.trunc(detail.from);
-		const to = Math.trunc(detail.to);
+			const from = Math.trunc(detail.from);
+			const to = Math.trunc(detail.to);
 
-		if (
-			from < 0 ||
-			to < 0 ||
-			to <= from ||
-			from !== detail.from ||
-			to !== detail.to ||
-			to >= route.coordinates.length
-		) {
-			return [];
-		}
+			if (
+				from < 0 ||
+				to < 0 ||
+				to <= from ||
+				from !== detail.from ||
+				to !== detail.to ||
+				to >= route.coordinates.length
+			) {
+				return Result.failVoid;
+			}
 
-		const coordinates = route.coordinates.slice(
-			from,
-			to + 1,
-		) as RouteCoordinate[];
+			const coordinates = route.coordinates.slice(
+				from,
+				to + 1,
+			) as RouteCoordinate[];
 
-		if (coordinates.length < 2) {
-			return [];
-		}
+			if (coordinates.length < 2) {
+				return Result.failVoid;
+			}
 
-		return [
-			{
+			return Result.succeed({
 				type: "Feature",
 				properties: {
 					kind: "surface",
@@ -157,12 +160,24 @@ export function buildRouteSurfaceFeatures(
 					type: "LineString",
 					coordinates,
 				},
-			},
-		];
-	});
+			});
+		}),
+	);
 }
 
-export function getSurfaceMix(route: PlannedRoute) {
+export function buildRouteSurfaceFeatures(
+	route: PlannedRoute,
+	details: RouteDetailInterval[],
+	classify: (
+		value: string,
+	) => keyof typeof smoothnessSurfaceFallback | "coarse" | null,
+): Effect.Effect<RouteSurfaceFeature[]> {
+	return Effect.succeed(
+		buildRouteSurfaceFeaturesSync(route, details, classify),
+	);
+}
+
+function getSurfaceMixSync(route: PlannedRoute) {
 	const totals = {
 		smooth: 0,
 		mixed: 0,
@@ -237,6 +252,12 @@ export function getSurfaceMix(route: PlannedRoute) {
 	].filter((item) => item.pct > 0);
 }
 
+export function getSurfaceMix(
+	route: PlannedRoute,
+): Effect.Effect<ReturnType<typeof getSurfaceMixSync>> {
+	return Effect.succeed(getSurfaceMixSync(route));
+}
+
 function getDetailIntervalDistanceMeters(
 	route: PlannedRoute,
 	detail: RouteDetailInterval,
@@ -257,7 +278,7 @@ function getDetailIntervalDistanceMeters(
 	return distanceMeters;
 }
 
-export function getSurfaceDistanceTotals(route: PlannedRoute): {
+function getSurfaceDistanceTotalsSync(route: PlannedRoute): {
 	smooth: number;
 	mixed: number;
 	coarse: number;
@@ -291,4 +312,10 @@ export function getSurfaceDistanceTotals(route: PlannedRoute): {
 		...totals,
 		total: totals.smooth + totals.mixed + totals.coarse,
 	};
+}
+
+export function getSurfaceDistanceTotals(
+	route: PlannedRoute,
+): Effect.Effect<ReturnType<typeof getSurfaceDistanceTotalsSync>> {
+	return Effect.succeed(getSurfaceDistanceTotalsSync(route));
 }

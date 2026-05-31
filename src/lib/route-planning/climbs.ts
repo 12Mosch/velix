@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+
 import type { ClimbAnalysisPoint, ClimbCategory, RouteClimb } from "./types";
 import { smoothClimbPoints } from "./elevation";
 
@@ -148,7 +150,7 @@ function markKeyClimbs(climbs: RouteClimb[]): RouteClimb[] {
 	}));
 }
 
-export function analyzeRouteClimbs(points: ClimbAnalysisPoint[]): RouteClimb[] {
+function analyzeRouteClimbsSync(points: ClimbAnalysisPoint[]): RouteClimb[] {
 	const validPoints = points
 		.filter(
 			(point) =>
@@ -229,4 +231,10 @@ export function analyzeRouteClimbs(points: ClimbAnalysisPoint[]): RouteClimb[] {
 	}
 
 	return markKeyClimbs(mergeAdjacentClimbs(smoothedPoints, climbs));
+}
+
+export function analyzeRouteClimbs(
+	points: ClimbAnalysisPoint[],
+): Effect.Effect<RouteClimb[]> {
+	return Effect.succeed(analyzeRouteClimbsSync(points));
 }

@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { getCoordinateDistanceMeters } from "./geometry";
 import { normalizeDetailValue } from "./surface";
@@ -106,7 +106,7 @@ export type RouteTrafficStressSegment = {
 	bucket: RouteTrafficStressBucket;
 };
 
-export function getRouteTrafficStressSegments(
+function getRouteTrafficStressSegmentsSync(
 	route: PlannedRoute,
 ): RouteTrafficStressSegment[] {
 	const segments: RouteTrafficStressSegment[] = [];
@@ -180,8 +180,14 @@ export function getRouteTrafficStressSegments(
 	return segments;
 }
 
+export function getRouteTrafficStressSegments(
+	route: PlannedRoute,
+): Effect.Effect<RouteTrafficStressSegment[]> {
+	return Effect.sync(() => getRouteTrafficStressSegmentsSync(route));
+}
+
 export function routeHasTrafficStressOverlayFeatures(
 	route: PlannedRoute,
-): boolean {
-	return getRouteTrafficStressSegments(route).length > 0;
+): Effect.Effect<boolean> {
+	return Effect.sync(() => getRouteTrafficStressSegmentsSync(route).length > 0);
 }

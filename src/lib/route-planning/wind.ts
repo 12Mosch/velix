@@ -1,3 +1,5 @@
+import { Option } from "effect";
+
 import type {
 	PlannedRoute,
 	RouteWindSummary,
@@ -45,12 +47,14 @@ export function calculateWindComponents(options: {
 	};
 }
 
-export function getWindSummary(route: PlannedRoute): RouteWindSummary | null {
+export function getWindSummary(
+	route: PlannedRoute,
+): Option.Option<RouteWindSummary> {
 	if (!route.windAnalysis) {
-		return null;
+		return Option.none();
 	}
 
-	return {
+	return Option.some({
 		forecastTime: route.windAnalysis.forecastTime,
 		averageHeadwindKmh: route.windAnalysis.averageHeadwindKmh,
 		averageTailwindKmh: route.windAnalysis.averageTailwindKmh,
@@ -59,5 +63,5 @@ export function getWindSummary(route: PlannedRoute): RouteWindSummary | null {
 		headwindDistanceMeters: route.windAnalysis.headwindDistanceMeters,
 		tailwindDistanceMeters: route.windAnalysis.tailwindDistanceMeters,
 		crosswindDistanceMeters: route.windAnalysis.crosswindDistanceMeters,
-	};
+	});
 }

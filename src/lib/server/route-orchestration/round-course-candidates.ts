@@ -257,15 +257,15 @@ export function searchRoundCourseCandidateRoutesEffect(
 			compareCandidateRoutes(left, right, target),
 		);
 
-		return {
-			routes: rankedCandidates.slice(0, desiredCount).map((candidate) => {
+		const routes = yield* Effect.all(
+			rankedCandidates.slice(0, desiredCount).map((candidate) => {
 				const missWarning = buildRoundCourseMissWarning(
 					candidate.route,
 					target,
 				);
 
 				if (!missWarning) {
-					return candidate.route;
+					return Effect.succeed(candidate.route);
 				}
 
 				return withProviderWarning(
@@ -274,6 +274,10 @@ export function searchRoundCourseCandidateRoutesEffect(
 					"Round-course target best effort",
 				);
 			}),
+		);
+
+		return {
+			routes,
 			candidateErrors: candidateFailures.map(
 				serializeRoundCourseCandidateFailure,
 			),

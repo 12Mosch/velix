@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+
 import { analyzeRouteClimbs } from "./climbs";
 import {
 	calculateRouteGradientMetrics,
@@ -21,6 +23,8 @@ import type {
 	RouteQualityBand,
 	RouteQualityFlag,
 	RouteQualitySubscore,
+	RouteGradientMetrics,
+	RouteClimb,
 } from "./types";
 
 const weights = {
@@ -367,12 +371,11 @@ function calculateWindScore(route: PlannedRoute): RouteQualitySubscore {
 	);
 }
 
-function calculateGradientScore(route: PlannedRoute): RouteQualitySubscore {
-	const metrics = calculateRouteGradientMetrics(route);
-	const climbs = analyzeRouteClimbs(
-		getRouteElevationAnalysisPoints(route.coordinates),
-	);
-
+function calculateGradientScore(
+	route: PlannedRoute,
+	metrics: RouteGradientMetrics,
+	climbs: RouteClimb[],
+): RouteQualitySubscore {
 	if (
 		metrics.averageGradientPercent === null &&
 		metrics.maximumGradientPercent === null
@@ -665,6 +668,7 @@ function calculateSafetyScore(
 	route: PlannedRoute,
 	trafficStressScore: RouteQualitySubscore,
 	windScore: RouteQualitySubscore,
+	gradientMetrics: RouteGradientMetrics,
 ): RouteQualitySubscore {
 	const environment = getDetailTotals(
 		route,
@@ -684,7 +688,6 @@ function calculateSafetyScore(
 			? clampScore(100 - envPenalty)
 			: null;
 	const windSafety = windScore.score;
-	const gradientMetrics = calculateRouteGradientMetrics(route);
 	const descentSafety =
 		gradientMetrics.maximumGradientPercent === null
 			? null
@@ -799,63 +802,88 @@ function getFlags(
 
 export function calculateRouteQuality(
 	route: PlannedRoute,
-): RouteQualityAnalysis {
-	const surface = calculateSurfaceScore(route);
-	const trafficStress = calculateTrafficStressScore(route);
-	const flow = calculateFlowScore(route);
-	const windExposure = calculateWindScore(route);
-	const gradientSuitability = calculateGradientScore(route);
-	const routeEfficiency = calculateRouteEfficiencyScore(route);
-	const safety = calculateSafetyScore(route, trafficStress, windExposure);
-	const roadQuality = calculateRoadQualityScore(route, surface);
-	const urbanExposure = calculateUrbanExposureScore(route);
-	const interruptionRisk = calculateInterruptionRiskScore(route);
-	const subscores = {
-		surface,
-		trafficStress,
-		flow,
-		safety,
-		roadQuality,
-		urbanExposure,
-		interruptionRisk,
-		windExposure,
-		gradientSuitability,
-		routeEfficiency,
-	};
-	const available = Object.values(subscores).filter(
-		(score) => score.score !== null,
-	);
-	const totalWeight = available.reduce((sum, score) => sum + score.weight, 0);
-	const overallScore =
-		totalWeight > 0
-			? clampScore(
-					available.reduce(
-						(sum, score) => sum + (score.score ?? 0) * score.weight,
-						0,
-					) / totalWeight,
-				)
-			: null;
-	const analysisWithoutFlags = {
-		version: 1 as const,
-		overallScore,
-		band: getQualityBand(overallScore),
-		confidence: getConfidence(route),
-		subscores,
-	};
+): Effect.Effect<RouteQualityAnalysis> {
+	return Effect.gen(function* () {
+		const surface = calculateSurfaceScore(route);
+		const trafficStress = calculateTrafficStressScore(route);
+		const flow = calculateFlowScore(route);
+		const windExposure = calculateWindScore(route);
+		const gradientMetrics = yield* calculateRouteGradientMetrics(route);
+		const elevationPoints = yield* getRouteElevationAnalysisPoints(
+			route.coordinates,
+		);
+		const climbs = yield* analyzeRouteClimbs(elevationPoints);
+		const gradientSuitability = calculateGradientScore(
+			route,
+			gradientMetrics,
+			climbs,
+		);
+		const routeEfficiency = calculateRouteEfficiencyScore(route);
+		const safety = calculateSafetyScore(
+			route,
+			trafficStress,
+			windExposure,
+			gradientMetrics,
+		);
+		const roadQuality = calculateRoadQualityScore(route, surface);
+		const urbanExposure = calculateUrbanExposureScore(route);
+		const interruptionRisk = calculateInterruptionRiskScore(route);
+		const subscores = {
+			surface,
+			trafficStress,
+			flow,
+			safety,
+			roadQuality,
+			urbanExposure,
+			interruptionRisk,
+			windExposure,
+			gradientSuitability,
+			routeEfficiency,
+		};
+		const available = Object.values(subscores).filter(
+			(score) => score.score !== null,
+		);
+		const totalWeight = available.reduce((sum, score) => sum + score.weight, 0);
+		const overallScore =
+			totalWeight > 0
+				? clampScore(
+						available.reduce(
+							(sum, score) => sum + (score.score ?? 0) * score.weight,
+							0,
+						) / totalWeight,
+					)
+				: null;
+		const analysisWithoutFlags = {
+			version: 1 as const,
+			overallScore,
+			band: getQualityBand(overallScore),
+			confidence: getConfidence(route),
+			subscores,
+		};
 
-	return {
-		...analysisWithoutFlags,
-		flags: getFlags(analysisWithoutFlags),
-	};
+		return {
+			...analysisWithoutFlags,
+			flags: getFlags(analysisWithoutFlags),
+		};
+	});
 }
 
-export function getRouteQuality(route: PlannedRoute): RouteQualityAnalysis {
-	return route.routeQuality ?? calculateRouteQuality(route);
+export function getRouteQuality(
+	route: PlannedRoute,
+): Effect.Effect<RouteQualityAnalysis> {
+	return route.routeQuality
+		? Effect.succeed(route.routeQuality)
+		: calculateRouteQuality(route);
 }
 
-export function withRouteQuality(route: PlannedRoute): PlannedRoute {
-	return {
-		...route,
-		routeQuality: calculateRouteQuality(route),
-	};
+export function withRouteQuality(
+	route: PlannedRoute,
+): Effect.Effect<PlannedRoute> {
+	return Effect.gen(function* () {
+		const routeQuality = yield* getRouteQuality(route);
+		return {
+			...route,
+			routeQuality,
+		};
+	});
 }

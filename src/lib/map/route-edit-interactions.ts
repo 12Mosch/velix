@@ -1,4 +1,5 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
+import { Option } from "effect";
 
 import type {
 	PlannedRoute,
@@ -335,9 +336,9 @@ export function createRouteEditInteractions(
 					plannedRoute,
 					coordinateSegmentIndex,
 				)
-			: null;
+			: Option.none<number>();
 
-		if (plannedRouteLegIndex !== null) return plannedRouteLegIndex;
+		if (Option.isSome(plannedRouteLegIndex)) return plannedRouteLegIndex.value;
 		if (segmentCount <= 1 || coordinates.length < 2) return 0;
 
 		return Math.min(
