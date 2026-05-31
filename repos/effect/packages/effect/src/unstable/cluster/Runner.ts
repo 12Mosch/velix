@@ -25,13 +25,13 @@
  *
  * @since 4.0.0
  */
-import * as Equal from "../../Equal.ts"
-import * as Hash from "../../Hash.ts"
-import { NodeInspectSymbol } from "../../Inspectable.ts"
-import * as Schema from "../../Schema.ts"
-import { RunnerAddress } from "./RunnerAddress.ts"
+import * as Equal from "../../Equal.ts";
+import * as Hash from "../../Hash.ts";
+import { NodeInspectSymbol } from "../../Inspectable.ts";
+import * as Schema from "../../Schema.ts";
+import { RunnerAddress } from "./RunnerAddress.ts";
 
-const TypeId = "~effect/cluster/Runner"
+const TypeId = "~effect/cluster/Runner";
 
 /**
  * A cluster runner that can host entities.
@@ -45,73 +45,75 @@ const TypeId = "~effect/cluster/Runner"
  * @since 4.0.0
  */
 export class Runner extends Schema.Class<Runner>(TypeId)({
-  address: RunnerAddress,
-  groups: Schema.Array(Schema.String),
-  weight: Schema.Number
+	address: RunnerAddress,
+	groups: Schema.Array(Schema.String),
+	weight: Schema.Number,
 }) {
-  /**
-   * Formatter for rendering runner values consistently.
-   *
-   * @since 4.0.0
-   */
-  static format = Schema.toFormatter(this)
+	/**
+	 * Formatter for rendering runner values consistently.
+	 *
+	 * @since 4.0.0
+	 */
+	static format = Schema.toFormatter(this);
 
-  /**
-   * Marks this value as a cluster runner for runtime guards.
-   *
-   * @since 4.0.0
-   */
-  readonly [TypeId] = TypeId
+	/**
+	 * Marks this value as a cluster runner for runtime guards.
+	 *
+	 * @since 4.0.0
+	 */
+	readonly [TypeId] = TypeId;
 
-  /**
-   * Decodes a runner from its JSON string representation.
-   *
-   * @since 4.0.0
-   */
-  static readonly decodeSync = Schema.decodeSync(Schema.fromJsonString(Runner))
+	/**
+	 * Decodes a runner from its JSON string representation.
+	 *
+	 * @since 4.0.0
+	 */
+	static readonly decodeSync = Schema.decodeSync(Schema.fromJsonString(Runner));
 
-  /**
-   * Encodes a runner to its JSON string representation.
-   *
-   * @since 4.0.0
-   */
-  static readonly encodeSync = Schema.encodeSync(Schema.fromJsonString(Runner))
+	/**
+	 * Encodes a runner to its JSON string representation.
+	 *
+	 * @since 4.0.0
+	 */
+	static readonly encodeSync = Schema.encodeSync(Schema.fromJsonString(Runner));
 
-  /**
-   * Formats this runner as a string.
-   *
-   * @since 4.0.0
-   */
-  override toString(): string {
-    return Runner.format(this)
-  }
+	/**
+	 * Formats this runner as a string.
+	 *
+	 * @since 4.0.0
+	 */
+	override toString(): string {
+		return Runner.format(this);
+	}
 
-  /**
-   * Formats this runner for Node.js inspection.
-   *
-   * @since 4.0.0
-   */
-  [NodeInspectSymbol](): string {
-    return this.toString()
-  }
+	/**
+	 * Formats this runner for Node.js inspection.
+	 *
+	 * @since 4.0.0
+	 */
+	[NodeInspectSymbol](): string {
+		return this.toString();
+	}
 
-  /**
-   * Compares runners by address and shard-assignment weight.
-   *
-   * @since 4.0.0
-   */
-  [Equal.symbol](that: Runner): boolean {
-    return this.address[Equal.symbol](that.address) && this.weight === that.weight
-  }
+	/**
+	 * Compares runners by address and shard-assignment weight.
+	 *
+	 * @since 4.0.0
+	 */
+	[Equal.symbol](that: Runner): boolean {
+		return (
+			this.address[Equal.symbol](that.address) && this.weight === that.weight
+		);
+	}
 
-  /**
-   * Computes a structural hash from the runner address and shard-assignment weight.
-   *
-   * @since 4.0.0
-   */
-  [Hash.symbol](): number {
-    return Hash.string(`${this.address.toString()}:${this.weight}`)
-  }
+	/**
+	 * Computes a structural hash from the runner address and shard-assignment weight.
+	 *
+	 * @since 4.0.0
+	 */
+	[Hash.symbol](): number {
+		return Hash.string(`${this.address.toString()}:${this.weight}`);
+	}
 }
 
 /**
@@ -122,7 +124,7 @@ export class Runner extends Schema.Class<Runner>(TypeId)({
  * @since 4.0.0
  */
 export const make = (props: {
-  readonly address: RunnerAddress
-  readonly groups: ReadonlyArray<string>
-  readonly weight: number
-}): Runner => new Runner(props, { disableChecks: true })
+	readonly address: RunnerAddress;
+	readonly groups: ReadonlyArray<string>;
+	readonly weight: number;
+}): Runner => new Runner(props, { disableChecks: true });

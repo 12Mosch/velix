@@ -24,15 +24,15 @@
  *
  * @since 4.0.0
  */
-import * as Predicate from "../../Predicate.ts"
-import * as PrimaryKey from "../../PrimaryKey.ts"
-import type { ReadonlyRecord } from "../../Record.ts"
-import * as Schema from "../../Schema.ts"
-import * as Transformation from "../../SchemaTransformation.ts"
-import * as Headers from "../http/Headers.ts"
-import type * as Rpc from "../rpc/Rpc.ts"
-import { EntityAddress } from "./EntityAddress.ts"
-import { type Snowflake, SnowflakeFromBigInt } from "./Snowflake.ts"
+import * as Predicate from "../../Predicate.ts";
+import * as PrimaryKey from "../../PrimaryKey.ts";
+import type { ReadonlyRecord } from "../../Record.ts";
+import * as Schema from "../../Schema.ts";
+import * as Transformation from "../../SchemaTransformation.ts";
+import * as Headers from "../http/Headers.ts";
+import type * as Rpc from "../rpc/Rpc.ts";
+import { EntityAddress } from "./EntityAddress.ts";
+import { type Snowflake, SnowflakeFromBigInt } from "./Snowflake.ts";
 
 /**
  * Type identifier used to mark runtime cluster envelope values.
@@ -40,7 +40,7 @@ import { type Snowflake, SnowflakeFromBigInt } from "./Snowflake.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export const TypeId = "~effect/cluster/Envelope"
+export const TypeId = "~effect/cluster/Envelope";
 
 /**
  * Union of cluster envelopes exchanged for an RPC request.
@@ -53,7 +53,7 @@ export const TypeId = "~effect/cluster/Envelope"
  * @category models
  * @since 4.0.0
  */
-export type Envelope<R extends Rpc.Any> = Request<R> | AckChunk | Interrupt
+export type Envelope<R extends Rpc.Any> = Request<R> | AckChunk | Interrupt;
 
 /**
  * JSON-serializable form of a cluster envelope.
@@ -61,7 +61,10 @@ export type Envelope<R extends Rpc.Any> = Request<R> | AckChunk | Interrupt
  * @category models
  * @since 4.0.0
  */
-export type Encoded = PartialRequestEncoded | AckChunkEncoded | InterruptEncoded
+export type Encoded =
+	| PartialRequestEncoded
+	| AckChunkEncoded
+	| InterruptEncoded;
 
 /**
  * Helper types associated with cluster envelopes.
@@ -69,13 +72,13 @@ export type Encoded = PartialRequestEncoded | AckChunkEncoded | InterruptEncoded
  * @since 4.0.0
  */
 export declare namespace Envelope {
-  /**
-   * Envelope type for any RPC protocol.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export type Any = Envelope<any>
+	/**
+	 * Envelope type for any RPC protocol.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export type Any = Envelope<any>;
 }
 
 /**
@@ -90,16 +93,16 @@ export declare namespace Envelope {
  * @since 4.0.0
  */
 export interface Request<in out Rpc extends Rpc.Any> {
-  readonly [TypeId]: typeof TypeId
-  readonly _tag: "Request"
-  readonly requestId: Snowflake
-  readonly address: EntityAddress
-  readonly tag: Rpc.Tag<Rpc>
-  readonly payload: Rpc.Payload<Rpc>
-  readonly headers: Headers.Headers
-  readonly traceId?: string
-  readonly spanId?: string
-  readonly sampled?: boolean
+	readonly [TypeId]: typeof TypeId;
+	readonly _tag: "Request";
+	readonly requestId: Snowflake;
+	readonly address: EntityAddress;
+	readonly tag: Rpc.Tag<Rpc>;
+	readonly payload: Rpc.Payload<Rpc>;
+	readonly headers: Headers.Headers;
+	readonly traceId?: string;
+	readonly spanId?: string;
+	readonly sampled?: boolean;
 }
 
 /**
@@ -113,17 +116,19 @@ export interface Request<in out Rpc extends Rpc.Any> {
  * @category models
  * @since 4.0.0
  */
-export class PartialRequest extends Schema.Opaque<PartialRequest>()(Schema.Struct({
-  _tag: Schema.tag("Request"),
-  requestId: SnowflakeFromBigInt,
-  address: EntityAddress,
-  tag: Schema.String,
-  payload: Schema.Any,
-  headers: Headers.HeadersSchema,
-  traceId: Schema.optional(Schema.String),
-  spanId: Schema.optional(Schema.String),
-  sampled: Schema.optional(Schema.Boolean)
-})) {}
+export class PartialRequest extends Schema.Opaque<PartialRequest>()(
+	Schema.Struct({
+		_tag: Schema.tag("Request"),
+		requestId: SnowflakeFromBigInt,
+		address: EntityAddress,
+		tag: Schema.String,
+		payload: Schema.Any,
+		headers: Headers.HeadersSchema,
+		traceId: Schema.optional(Schema.String),
+		spanId: Schema.optional(Schema.String),
+		sampled: Schema.optional(Schema.Boolean),
+	}),
+) {}
 
 /**
  * Serialized JSON shape of a request envelope.
@@ -137,22 +142,22 @@ export class PartialRequest extends Schema.Opaque<PartialRequest>()(Schema.Struc
  * @since 4.0.0
  */
 export interface PartialRequestEncoded {
-  readonly _tag: "Request"
-  readonly requestId: string
-  readonly address: {
-    readonly shardId: {
-      readonly group: string
-      readonly id: number
-    }
-    readonly entityType: string
-    readonly entityId: string
-  }
-  readonly tag: string
-  readonly payload: unknown
-  readonly headers: ReadonlyRecord<string, string>
-  readonly traceId?: string
-  readonly spanId?: string
-  readonly sampled?: boolean
+	readonly _tag: "Request";
+	readonly requestId: string;
+	readonly address: {
+		readonly shardId: {
+			readonly group: string;
+			readonly id: number;
+		};
+		readonly entityType: string;
+		readonly entityId: string;
+	};
+	readonly tag: string;
+	readonly payload: unknown;
+	readonly headers: ReadonlyRecord<string, string>;
+	readonly traceId?: string;
+	readonly spanId?: string;
+	readonly sampled?: boolean;
 }
 
 /**
@@ -165,31 +170,33 @@ export interface PartialRequestEncoded {
  * @category models
  * @since 4.0.0
  */
-export class AckChunk extends Schema.Class<AckChunk>("effect/cluster/Envelope/AckChunk")({
-  _tag: Schema.tag("AckChunk"),
-  id: SnowflakeFromBigInt,
-  address: EntityAddress,
-  requestId: SnowflakeFromBigInt,
-  replyId: SnowflakeFromBigInt
+export class AckChunk extends Schema.Class<AckChunk>(
+	"effect/cluster/Envelope/AckChunk",
+)({
+	_tag: Schema.tag("AckChunk"),
+	id: SnowflakeFromBigInt,
+	address: EntityAddress,
+	requestId: SnowflakeFromBigInt,
+	replyId: SnowflakeFromBigInt,
 }) {
-  /**
-   * Marks this value as a cluster envelope for runtime guards.
-   *
-   * @since 4.0.0
-   */
-  readonly [TypeId] = TypeId
+	/**
+	 * Marks this value as a cluster envelope for runtime guards.
+	 *
+	 * @since 4.0.0
+	 */
+	readonly [TypeId] = TypeId;
 
-  /**
-   * Returns a copy of this acknowledgement associated with the supplied request id.
-   *
-   * @since 4.0.0
-   */
-  withRequestId(requestId: Snowflake): AckChunk {
-    return new AckChunk({
-      ...this,
-      requestId
-    })
-  }
+	/**
+	 * Returns a copy of this acknowledgement associated with the supplied request id.
+	 *
+	 * @since 4.0.0
+	 */
+	withRequestId(requestId: Snowflake): AckChunk {
+		return new AckChunk({
+			...this,
+			requestId,
+		});
+	}
 }
 
 /**
@@ -199,18 +206,18 @@ export class AckChunk extends Schema.Class<AckChunk>("effect/cluster/Envelope/Ac
  * @since 4.0.0
  */
 export interface AckChunkEncoded {
-  readonly _tag: "AckChunk"
-  readonly id: string
-  readonly address: {
-    readonly shardId: {
-      readonly group: string
-      readonly id: number
-    }
-    readonly entityType: string
-    readonly entityId: string
-  }
-  readonly requestId: string
-  readonly replyId: string
+	readonly _tag: "AckChunk";
+	readonly id: string;
+	readonly address: {
+		readonly shardId: {
+			readonly group: string;
+			readonly id: number;
+		};
+		readonly entityType: string;
+		readonly entityId: string;
+	};
+	readonly requestId: string;
+	readonly replyId: string;
 }
 
 /**
@@ -219,30 +226,32 @@ export interface AckChunkEncoded {
  * @category models
  * @since 4.0.0
  */
-export class Interrupt extends Schema.Class<Interrupt>("effect/cluster/Envelope/Interrupt")({
-  _tag: Schema.tag("Interrupt"),
-  id: SnowflakeFromBigInt,
-  address: EntityAddress,
-  requestId: SnowflakeFromBigInt
+export class Interrupt extends Schema.Class<Interrupt>(
+	"effect/cluster/Envelope/Interrupt",
+)({
+	_tag: Schema.tag("Interrupt"),
+	id: SnowflakeFromBigInt,
+	address: EntityAddress,
+	requestId: SnowflakeFromBigInt,
 }) {
-  /**
-   * Marks this value as a cluster envelope for runtime guards.
-   *
-   * @since 4.0.0
-   */
-  readonly [TypeId] = TypeId
+	/**
+	 * Marks this value as a cluster envelope for runtime guards.
+	 *
+	 * @since 4.0.0
+	 */
+	readonly [TypeId] = TypeId;
 
-  /**
-   * Returns a copy of this interrupt associated with the supplied request id.
-   *
-   * @since 4.0.0
-   */
-  withRequestId(requestId: Snowflake): Interrupt {
-    return new Interrupt({
-      ...this,
-      requestId
-    })
-  }
+	/**
+	 * Returns a copy of this interrupt associated with the supplied request id.
+	 *
+	 * @since 4.0.0
+	 */
+	withRequestId(requestId: Snowflake): Interrupt {
+		return new Interrupt({
+			...this,
+			requestId,
+		});
+	}
 }
 
 /**
@@ -252,17 +261,17 @@ export class Interrupt extends Schema.Class<Interrupt>("effect/cluster/Envelope/
  * @since 4.0.0
  */
 export interface InterruptEncoded {
-  readonly _tag: "Interrupt"
-  readonly id: string
-  readonly address: {
-    readonly shardId: {
-      readonly group: string
-      readonly id: number
-    }
-    readonly entityType: string
-    readonly entityId: string
-  }
-  readonly requestId: string
+	readonly _tag: "Interrupt";
+	readonly id: string;
+	readonly address: {
+		readonly shardId: {
+			readonly group: string;
+			readonly id: number;
+		};
+		readonly entityType: string;
+		readonly entityId: string;
+	};
+	readonly requestId: string;
 }
 
 /**
@@ -276,12 +285,8 @@ export interface InterruptEncoded {
  * @since 4.0.0
  */
 export const Partial: Schema.Union<
-  readonly [
-    typeof PartialRequest,
-    typeof AckChunk,
-    typeof Interrupt
-  ]
-> = Schema.Union([PartialRequest, AckChunk, Interrupt])
+	readonly [typeof PartialRequest, typeof AckChunk, typeof Interrupt]
+> = Schema.Union([PartialRequest, AckChunk, Interrupt]);
 
 /**
  * Decoded value type produced by the `Partial` envelope schema.
@@ -289,7 +294,7 @@ export const Partial: Schema.Union<
  * @category schemas
  * @since 4.0.0
  */
-export type Partial = typeof Partial.Type
+export type Partial = typeof Partial.Type;
 
 /**
  * JSON codec for partial cluster envelopes.
@@ -298,9 +303,9 @@ export type Partial = typeof Partial.Type
  * @since 4.0.0
  */
 export const PartialJson: Schema.Codec<
-  AckChunk | Interrupt | PartialRequest,
-  Encoded
-> = Schema.toCodecJson(Partial) as any
+	AckChunk | Interrupt | PartialRequest,
+	Encoded
+> = Schema.toCodecJson(Partial) as any;
 
 /**
  * Mutable array schema for JSON-encoded partial cluster envelopes.
@@ -309,8 +314,8 @@ export const PartialJson: Schema.Codec<
  * @since 4.0.0
  */
 export const PartialArray: Schema.mutable<
-  Schema.$Array<Schema.Codec<AckChunk | Interrupt | PartialRequest, Encoded>>
-> = Schema.mutable(Schema.Array(PartialJson))
+	Schema.$Array<Schema.Codec<AckChunk | Interrupt | PartialRequest, Encoded>>
+> = Schema.mutable(Schema.Array(PartialJson));
 
 /**
  * Helper types associated with request envelopes.
@@ -318,13 +323,13 @@ export const PartialArray: Schema.mutable<
  * @since 4.0.0
  */
 export declare namespace Request {
-  /**
-   * Request envelope type for any RPC protocol.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export type Any = Request<any>
+	/**
+	 * Request envelope type for any RPC protocol.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export type Any = Request<any>;
 }
 
 /**
@@ -337,7 +342,8 @@ export declare namespace Request {
  * @category refinements
  * @since 4.0.0
  */
-export const isEnvelope = (u: unknown): u is Envelope<any> => Predicate.hasProperty(u, TypeId)
+export const isEnvelope = (u: unknown): u is Envelope<any> =>
+	Predicate.hasProperty(u, TypeId);
 
 /**
  * Constructs a runtime request envelope and attaches the envelope type identifier.
@@ -349,33 +355,31 @@ export const isEnvelope = (u: unknown): u is Envelope<any> => Predicate.hasPrope
  * @category constructors
  * @since 4.0.0
  */
-export const makeRequest = <Rpc extends Rpc.Any>(
-  options: {
-    readonly requestId: Snowflake
-    readonly address: EntityAddress
-    readonly tag: Rpc.Tag<Rpc>
-    readonly payload: Rpc.Payload<Rpc>
-    readonly headers: Headers.Headers
-    readonly traceId?: string | undefined
-    readonly spanId?: string | undefined
-    readonly sampled?: boolean | undefined
-  }
-): Request<Rpc> => ({
-  [TypeId]: TypeId,
-  _tag: "Request",
-  requestId: options.requestId,
-  tag: options.tag,
-  address: options.address,
-  payload: options.payload,
-  headers: options.headers,
-  ...(options.traceId !== undefined ?
-    {
-      traceId: options.traceId!,
-      spanId: options.spanId!,
-      sampled: options.sampled!
-    } :
-    {})
-})
+export const makeRequest = <Rpc extends Rpc.Any>(options: {
+	readonly requestId: Snowflake;
+	readonly address: EntityAddress;
+	readonly tag: Rpc.Tag<Rpc>;
+	readonly payload: Rpc.Payload<Rpc>;
+	readonly headers: Headers.Headers;
+	readonly traceId?: string | undefined;
+	readonly spanId?: string | undefined;
+	readonly sampled?: boolean | undefined;
+}): Request<Rpc> => ({
+	[TypeId]: TypeId,
+	_tag: "Request",
+	requestId: options.requestId,
+	tag: options.tag,
+	address: options.address,
+	payload: options.payload,
+	headers: options.headers,
+	...(options.traceId !== undefined
+		? {
+				traceId: options.traceId!,
+				spanId: options.spanId!,
+				sampled: options.sampled!,
+			}
+		: {}),
+});
 
 /**
  * Schema declaration that recognizes runtime `Envelope` values by their type
@@ -385,8 +389,8 @@ export const makeRequest = <Rpc extends Rpc.Any>(
  * @since 4.0.0
  */
 export const Envelope = Schema.declare(isEnvelope, {
-  identifier: "Envelope"
-})
+	identifier: "Envelope",
+});
 
 /**
  * Schema declaration that recognizes runtime request envelopes.
@@ -395,9 +399,9 @@ export const Envelope = Schema.declare(isEnvelope, {
  * @since 4.0.0
  */
 export const Request = Schema.declare(
-  (u): u is Request.Any => isEnvelope(u) && u._tag === "Request",
-  { identifier: "Request" }
-)
+	(u): u is Request.Any => isEnvelope(u) && u._tag === "Request",
+	{ identifier: "Request" },
+);
 
 /**
  * Transformation that decodes plain request data with `makeRequest` and encodes
@@ -406,13 +410,11 @@ export const Request = Schema.declare(
  * @category serialization / deserialization
  * @since 4.0.0
  */
-export const RequestTransform: Transformation.Transformation<
-  Request.Any,
-  any
-> = Transformation.transform({
-  decode: (u: any) => makeRequest(u),
-  encode: (u) => u as any
-})
+export const RequestTransform: Transformation.Transformation<Request.Any, any> =
+	Transformation.transform({
+		decode: (u: any) => makeRequest(u),
+		encode: (u) => u as any,
+	});
 
 /**
  * Returns the storage primary key for a request envelope whose payload has a
@@ -421,16 +423,21 @@ export const RequestTransform: Transformation.Transformation<
  * @category primary key
  * @since 4.0.0
  */
-export const primaryKey = <R extends Rpc.Any>(envelope: Envelope<R>): string | null => {
-  if (envelope._tag !== "Request" || !PrimaryKey.isPrimaryKey(envelope.payload)) {
-    return null
-  }
-  return primaryKeyByAddress({
-    address: envelope.address,
-    tag: envelope.tag,
-    id: PrimaryKey.value(envelope.payload)
-  })
-}
+export const primaryKey = <R extends Rpc.Any>(
+	envelope: Envelope<R>,
+): string | null => {
+	if (
+		envelope._tag !== "Request" ||
+		!PrimaryKey.isPrimaryKey(envelope.payload)
+	) {
+		return null;
+	}
+	return primaryKeyByAddress({
+		address: envelope.address,
+		tag: envelope.tag,
+		id: PrimaryKey.value(envelope.payload),
+	});
+};
 
 /**
  * Builds a storage primary-key string from an entity address, RPC tag, and
@@ -440,9 +447,9 @@ export const primaryKey = <R extends Rpc.Any>(envelope: Envelope<R>): string | n
  * @since 4.0.0
  */
 export const primaryKeyByAddress = (options: {
-  readonly address: EntityAddress
-  readonly tag: string
-  readonly id: string
+	readonly address: EntityAddress;
+	readonly tag: string;
+	readonly id: string;
 }): string =>
-  // hash the entity address to save space?
-  `${options.address.entityType}/${options.address.entityId}/${options.tag}/${options.id}`
+	// hash the entity address to save space?
+	`${options.address.entityType}/${options.address.entityId}/${options.tag}/${options.id}`;

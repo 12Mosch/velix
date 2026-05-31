@@ -18,12 +18,12 @@
  *
  * @since 4.0.0
  */
-import type { NonEmptyReadonlyArray } from "../../Array.ts"
-import type { Branded } from "../../Brand.ts"
-import * as Schema from "../../Schema.ts"
-import type { Headers } from "../http/Headers.ts"
-import type * as Rpc from "./Rpc.ts"
-import type { RpcClientError } from "./RpcClientError.ts"
+import type { NonEmptyReadonlyArray } from "../../Array.ts";
+import type { Branded } from "../../Brand.ts";
+import * as Schema from "../../Schema.ts";
+import type { Headers } from "../http/Headers.ts";
+import type * as Rpc from "./Rpc.ts";
+import type { RpcClientError } from "./RpcClientError.ts";
 
 /**
  * Decoded messages that can be sent from an RPC client to a server.
@@ -31,7 +31,7 @@ import type { RpcClientError } from "./RpcClientError.ts"
  * @category request
  * @since 4.0.0
  */
-export type FromClient<A extends Rpc.Any> = Request<A> | Ack | Interrupt | Eof
+export type FromClient<A extends Rpc.Any> = Request<A> | Ack | Interrupt | Eof;
 
 /**
  * Transport-encoded messages that can be sent from an RPC client to a server.
@@ -39,7 +39,12 @@ export type FromClient<A extends Rpc.Any> = Request<A> | Ack | Interrupt | Eof
  * @category request
  * @since 4.0.0
  */
-export type FromClientEncoded = RequestEncoded | AckEncoded | InterruptEncoded | Ping | Eof
+export type FromClientEncoded =
+	| RequestEncoded
+	| AckEncoded
+	| InterruptEncoded
+	| Ping
+	| Eof;
 
 /**
  * A branded request identifier used to correlate RPC requests, responses,
@@ -48,7 +53,7 @@ export type FromClientEncoded = RequestEncoded | AckEncoded | InterruptEncoded |
  * @category request
  * @since 4.0.0
  */
-export type RequestId = Branded<bigint, "~effect/rpc/RpcMessage/RequestId">
+export type RequestId = Branded<bigint, "~effect/rpc/RpcMessage/RequestId">;
 
 /**
  * Converts a bigint or string request id into the branded `RequestId` type.
@@ -57,7 +62,7 @@ export type RequestId = Branded<bigint, "~effect/rpc/RpcMessage/RequestId">
  * @since 4.0.0
  */
 export const RequestId = (id: bigint | string): RequestId =>
-  typeof id === "bigint" ? id as RequestId : BigInt(id) as RequestId
+	typeof id === "bigint" ? (id as RequestId) : (BigInt(id) as RequestId);
 
 /**
  * The transport-encoded RPC request envelope, including the string request id,
@@ -67,14 +72,14 @@ export const RequestId = (id: bigint | string): RequestId =>
  * @since 4.0.0
  */
 export interface RequestEncoded {
-  readonly _tag: "Request"
-  readonly id: string
-  readonly tag: string
-  readonly payload: unknown
-  readonly headers: ReadonlyArray<[string, string]>
-  readonly traceId?: string
-  readonly spanId?: string
-  readonly sampled?: boolean
+	readonly _tag: "Request";
+	readonly id: string;
+	readonly tag: string;
+	readonly payload: unknown;
+	readonly headers: ReadonlyArray<[string, string]>;
+	readonly traceId?: string;
+	readonly spanId?: string;
+	readonly sampled?: boolean;
 }
 
 /**
@@ -85,14 +90,14 @@ export interface RequestEncoded {
  * @since 4.0.0
  */
 export interface Request<A extends Rpc.Any> {
-  readonly _tag: "Request"
-  readonly id: RequestId
-  readonly tag: Rpc.Tag<A>
-  readonly payload: Rpc.Payload<A>
-  readonly headers: Headers
-  readonly traceId?: string
-  readonly spanId?: string
-  readonly sampled?: boolean
+	readonly _tag: "Request";
+	readonly id: RequestId;
+	readonly tag: Rpc.Tag<A>;
+	readonly payload: Rpc.Payload<A>;
+	readonly headers: Headers;
+	readonly traceId?: string;
+	readonly spanId?: string;
+	readonly sampled?: boolean;
 }
 
 /**
@@ -102,8 +107,8 @@ export interface Request<A extends Rpc.Any> {
  * @since 4.0.0
  */
 export interface Ack {
-  readonly _tag: "Ack"
-  readonly requestId: RequestId
+	readonly _tag: "Ack";
+	readonly requestId: RequestId;
 }
 
 /**
@@ -114,9 +119,9 @@ export interface Ack {
  * @since 4.0.0
  */
 export interface Interrupt {
-  readonly _tag: "Interrupt"
-  readonly requestId: RequestId
-  readonly interruptors: ReadonlyArray<number>
+	readonly _tag: "Interrupt";
+	readonly requestId: RequestId;
+	readonly interruptors: ReadonlyArray<number>;
 }
 
 /**
@@ -126,8 +131,8 @@ export interface Interrupt {
  * @since 4.0.0
  */
 export interface AckEncoded {
-  readonly _tag: "Ack"
-  readonly requestId: string
+	readonly _tag: "Ack";
+	readonly requestId: string;
 }
 
 /**
@@ -137,8 +142,8 @@ export interface AckEncoded {
  * @since 4.0.0
  */
 export interface InterruptEncoded {
-  readonly _tag: "Interrupt"
-  readonly requestId: string
+	readonly _tag: "Interrupt";
+	readonly requestId: string;
 }
 
 /**
@@ -149,7 +154,7 @@ export interface InterruptEncoded {
  * @since 4.0.0
  */
 export interface Eof {
-  readonly _tag: "Eof"
+	readonly _tag: "Eof";
 }
 
 /**
@@ -160,7 +165,7 @@ export interface Eof {
  * @since 4.0.0
  */
 export interface Ping {
-  readonly _tag: "Ping"
+	readonly _tag: "Ping";
 }
 
 /**
@@ -169,7 +174,7 @@ export interface Ping {
  * @category request
  * @since 4.0.0
  */
-export const constEof: Eof = { _tag: "Eof" }
+export const constEof: Eof = { _tag: "Eof" };
 
 /**
  * The reusable `Ping` message value.
@@ -177,7 +182,7 @@ export const constEof: Eof = { _tag: "Eof" }
  * @category request
  * @since 4.0.0
  */
-export const constPing: Ping = { _tag: "Ping" }
+export const constPing: Ping = { _tag: "Ping" };
 
 /**
  * Decoded messages that can be sent from an RPC server to a client.
@@ -186,10 +191,10 @@ export const constPing: Ping = { _tag: "Ping" }
  * @since 4.0.0
  */
 export type FromServer<A extends Rpc.Any> =
-  | ResponseChunk<A>
-  | ResponseExit<A>
-  | ResponseDefect
-  | ClientEnd
+	| ResponseChunk<A>
+	| ResponseExit<A>
+	| ResponseDefect
+	| ClientEnd;
 
 /**
  * Transport-encoded messages that can be sent from an RPC server to a client.
@@ -198,11 +203,11 @@ export type FromServer<A extends Rpc.Any> =
  * @since 4.0.0
  */
 export type FromServerEncoded =
-  | ResponseChunkEncoded
-  | ResponseExitEncoded
-  | ResponseDefectEncoded
-  | Pong
-  | ClientProtocolError
+	| ResponseChunkEncoded
+	| ResponseExitEncoded
+	| ResponseDefectEncoded
+	| Pong
+	| ClientProtocolError;
 
 /**
  * The brand identifier used by the `ResponseId` type.
@@ -210,7 +215,7 @@ export type FromServerEncoded =
  * @category response
  * @since 4.0.0
  */
-export const ResponseIdTypeId = "~effect//rpc/RpcServer/ResponseId"
+export const ResponseIdTypeId = "~effect//rpc/RpcServer/ResponseId";
 
 /**
  * The literal type of the `ResponseId` brand identifier.
@@ -218,7 +223,7 @@ export const ResponseIdTypeId = "~effect//rpc/RpcServer/ResponseId"
  * @category response
  * @since 4.0.0
  */
-export type ResponseIdTypeId = typeof ResponseIdTypeId
+export type ResponseIdTypeId = typeof ResponseIdTypeId;
 
 /**
  * A branded numeric identifier for server responses.
@@ -226,7 +231,7 @@ export type ResponseIdTypeId = typeof ResponseIdTypeId
  * @category response
  * @since 4.0.0
  */
-export type ResponseId = Branded<number, ResponseIdTypeId>
+export type ResponseId = Branded<number, ResponseIdTypeId>;
 
 /**
  * The transport-encoded response message containing a non-empty batch of stream
@@ -236,9 +241,9 @@ export type ResponseId = Branded<number, ResponseIdTypeId>
  * @since 4.0.0
  */
 export interface ResponseChunkEncoded {
-  readonly _tag: "Chunk"
-  readonly requestId: string
-  readonly values: NonEmptyReadonlyArray<unknown>
+	readonly _tag: "Chunk";
+	readonly requestId: string;
+	readonly values: NonEmptyReadonlyArray<unknown>;
 }
 
 /**
@@ -249,10 +254,10 @@ export interface ResponseChunkEncoded {
  * @since 4.0.0
  */
 export interface ResponseChunk<A extends Rpc.Any> {
-  readonly _tag: "Chunk"
-  readonly clientId: number
-  readonly requestId: RequestId
-  readonly values: NonEmptyReadonlyArray<Rpc.SuccessChunk<A>>
+	readonly _tag: "Chunk";
+	readonly clientId: number;
+	readonly requestId: RequestId;
+	readonly values: NonEmptyReadonlyArray<Rpc.SuccessChunk<A>>;
 }
 
 /**
@@ -262,24 +267,28 @@ export interface ResponseChunk<A extends Rpc.Any> {
  * @category response
  * @since 4.0.0
  */
-export type ExitEncoded<A, E> = {
-  readonly _tag: "Success"
-  readonly value: A
-} | {
-  readonly _tag: "Failure"
-  readonly cause: ReadonlyArray<
-    {
-      readonly _tag: "Fail"
-      readonly error: E
-    } | {
-      readonly _tag: "Die"
-      readonly defect: unknown
-    } | {
-      readonly _tag: "Interrupt"
-      readonly fiberId: number | undefined
-    }
-  >
-}
+export type ExitEncoded<A, E> =
+	| {
+			readonly _tag: "Success";
+			readonly value: A;
+	  }
+	| {
+			readonly _tag: "Failure";
+			readonly cause: ReadonlyArray<
+				| {
+						readonly _tag: "Fail";
+						readonly error: E;
+				  }
+				| {
+						readonly _tag: "Die";
+						readonly defect: unknown;
+				  }
+				| {
+						readonly _tag: "Interrupt";
+						readonly fiberId: number | undefined;
+				  }
+			>;
+	  };
 
 /**
  * The transport-encoded terminal response for a request, carrying the encoded
@@ -289,9 +298,9 @@ export type ExitEncoded<A, E> = {
  * @since 4.0.0
  */
 export interface ResponseExitEncoded {
-  readonly _tag: "Exit"
-  readonly requestId: string
-  readonly exit: ExitEncoded<unknown, unknown>
+	readonly _tag: "Exit";
+	readonly requestId: string;
+	readonly exit: ExitEncoded<unknown, unknown>;
 }
 
 /**
@@ -302,8 +311,8 @@ export interface ResponseExitEncoded {
  * @since 4.0.0
  */
 export interface ClientProtocolError {
-  readonly _tag: "ClientProtocolError"
-  readonly error: RpcClientError
+	readonly _tag: "ClientProtocolError";
+	readonly error: RpcClientError;
 }
 
 /**
@@ -314,10 +323,10 @@ export interface ClientProtocolError {
  * @since 4.0.0
  */
 export interface ResponseExit<A extends Rpc.Any> {
-  readonly _tag: "Exit"
-  readonly clientId: number
-  readonly requestId: RequestId
-  readonly exit: Rpc.Exit<A>
+	readonly _tag: "Exit";
+	readonly clientId: number;
+	readonly requestId: RequestId;
+	readonly exit: Rpc.Exit<A>;
 }
 
 /**
@@ -328,11 +337,11 @@ export interface ResponseExit<A extends Rpc.Any> {
  * @since 4.0.0
  */
 export interface ResponseDefectEncoded {
-  readonly _tag: "Defect"
-  readonly defect: unknown
+	readonly _tag: "Defect";
+	readonly defect: unknown;
 }
 
-const encodeDefect = Schema.encodeSync(Schema.Defect)
+const encodeDefect = Schema.encodeSync(Schema.Defect);
 
 /**
  * Creates an encoded terminal response for a request whose exit is a defect
@@ -342,19 +351,21 @@ const encodeDefect = Schema.encodeSync(Schema.Defect)
  * @since 4.0.0
  */
 export const ResponseExitDieEncoded = (options: {
-  readonly requestId: RequestId
-  readonly defect: unknown
+	readonly requestId: RequestId;
+	readonly defect: unknown;
 }): ResponseExitEncoded => ({
-  _tag: "Exit",
-  requestId: options.requestId.toString(),
-  exit: {
-    _tag: "Failure",
-    cause: [{
-      _tag: "Die",
-      defect: encodeDefect(options.defect)
-    }]
-  }
-})
+	_tag: "Exit",
+	requestId: options.requestId.toString(),
+	exit: {
+		_tag: "Failure",
+		cause: [
+			{
+				_tag: "Die",
+				defect: encodeDefect(options.defect),
+			},
+		],
+	},
+});
 
 /**
  * Creates a transport-encoded defect response by encoding the input with
@@ -363,10 +374,12 @@ export const ResponseExitDieEncoded = (options: {
  * @category response
  * @since 4.0.0
  */
-export const ResponseDefectEncoded = (input: unknown): ResponseDefectEncoded => ({
-  _tag: "Defect",
-  defect: encodeDefect(input)
-})
+export const ResponseDefectEncoded = (
+	input: unknown,
+): ResponseDefectEncoded => ({
+	_tag: "Defect",
+	defect: encodeDefect(input),
+});
 
 /**
  * The decoded server defect message for a client connection.
@@ -375,9 +388,9 @@ export const ResponseDefectEncoded = (input: unknown): ResponseDefectEncoded => 
  * @since 4.0.0
  */
 export interface ResponseDefect {
-  readonly _tag: "Defect"
-  readonly clientId: number
-  readonly defect: unknown
+	readonly _tag: "Defect";
+	readonly clientId: number;
+	readonly defect: unknown;
 }
 
 /**
@@ -387,8 +400,8 @@ export interface ResponseDefect {
  * @since 4.0.0
  */
 export interface ClientEnd {
-  readonly _tag: "ClientEnd"
-  readonly clientId: number
+	readonly _tag: "ClientEnd";
+	readonly clientId: number;
 }
 
 /**
@@ -398,7 +411,7 @@ export interface ClientEnd {
  * @since 4.0.0
  */
 export interface Pong {
-  readonly _tag: "Pong"
+	readonly _tag: "Pong";
 }
 
 /**
@@ -407,4 +420,4 @@ export interface Pong {
  * @category response
  * @since 4.0.0
  */
-export const constPong: Pong = { _tag: "Pong" }
+export const constPong: Pong = { _tag: "Pong" };

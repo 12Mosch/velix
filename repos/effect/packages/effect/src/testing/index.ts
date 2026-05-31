@@ -15,7 +15,7 @@
  *
  * @since 3.10.0
  */
-export * as FastCheck from "./FastCheck.ts"
+export * as FastCheck from "./FastCheck.ts";
 
 /**
  * The `TestClock` module provides a controllable implementation of the Effect
@@ -44,7 +44,7 @@ export * as FastCheck from "./FastCheck.ts"
  *
  * @since 2.0.0
  */
-export * as TestClock from "./TestClock.ts"
+export * as TestClock from "./TestClock.ts";
 
 /**
  * The `TestConsole` module provides a test implementation of the `Console`
@@ -59,7 +59,7 @@ export * as TestClock from "./TestClock.ts"
  *
  * @since 4.0.0
  */
-export * as TestConsole from "./TestConsole.ts"
+export * as TestConsole from "./TestConsole.ts";
 
 /**
  * Testing utilities for asserting Schema decoding, encoding, make, and
@@ -129,4 +129,4 @@ export * as TestConsole from "./TestConsole.ts"
  *
  * @since 4.0.0
  */
-export * as TestSchema from "./TestSchema.ts"
+export * as TestSchema from "./TestSchema.ts";

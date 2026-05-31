@@ -27,7 +27,7 @@
  *
  * @since 4.0.0
  */
-export * as Activity from "./Activity.ts"
+export * as Activity from "./Activity.ts";
 
 /**
  * Durable workflow clocks provide workflow-safe timers and sleep operations.
@@ -46,7 +46,7 @@ export * as Activity from "./Activity.ts"
  *
  * @since 4.0.0
  */
-export * as DurableClock from "./DurableClock.ts"
+export * as DurableClock from "./DurableClock.ts";
 
 /**
  * Durable deferreds are named workflow wait points whose result is stored by
@@ -71,7 +71,7 @@ export * as DurableClock from "./DurableClock.ts"
  *
  * @since 4.0.0
  */
-export * as DurableDeferred from "./DurableDeferred.ts"
+export * as DurableDeferred from "./DurableDeferred.ts";
 
 /**
  * Durable queues bridge workflow executions with persisted background workers.
@@ -92,7 +92,7 @@ export * as DurableDeferred from "./DurableDeferred.ts"
  *
  * @since 4.0.0
  */
-export * as DurableQueue from "./DurableQueue.ts"
+export * as DurableQueue from "./DurableQueue.ts";
 
 /**
  * The `Workflow` module defines typed durable workflow descriptions and the
@@ -118,7 +118,7 @@ export * as DurableQueue from "./DurableQueue.ts"
  *
  * @since 4.0.0
  */
-export * as Workflow from "./Workflow.ts"
+export * as Workflow from "./Workflow.ts";
 
 /**
  * Workflow engine service definitions and the default in-memory engine used to
@@ -143,7 +143,7 @@ export * as Workflow from "./Workflow.ts"
  *
  * @since 4.0.0
  */
-export * as WorkflowEngine from "./WorkflowEngine.ts"
+export * as WorkflowEngine from "./WorkflowEngine.ts";
 
 /**
  * The `WorkflowProxy` module derives transport contracts from durable
@@ -172,7 +172,7 @@ export * as WorkflowEngine from "./WorkflowEngine.ts"
  *
  * @since 4.0.0
  */
-export * as WorkflowProxy from "./WorkflowProxy.ts"
+export * as WorkflowProxy from "./WorkflowProxy.ts";
 
 /**
  * The `WorkflowProxyServer` module provides server-side layers for exposing
@@ -202,4 +202,4 @@ export * as WorkflowProxy from "./WorkflowProxy.ts"
  *
  * @since 4.0.0
  */
-export * as WorkflowProxyServer from "./WorkflowProxyServer.ts"
+export * as WorkflowProxyServer from "./WorkflowProxyServer.ts";

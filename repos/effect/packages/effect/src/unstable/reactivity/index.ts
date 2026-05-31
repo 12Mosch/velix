@@ -27,7 +27,7 @@
  *
  * @since 4.0.0
  */
-export * as AsyncResult from "./AsyncResult.ts"
+export * as AsyncResult from "./AsyncResult.ts";
 
 /**
  * The `Atom` module defines reactive values and the helpers for constructing,
@@ -55,7 +55,7 @@ export * as AsyncResult from "./AsyncResult.ts"
  *
  * @since 4.0.0
  */
-export * as Atom from "./Atom.ts"
+export * as Atom from "./Atom.ts";
 
 /**
  * The `AtomHttpApi` module adapts typed `HttpApi` clients to the unstable atom
@@ -87,7 +87,7 @@ export * as Atom from "./Atom.ts"
  *
  * @since 4.0.0
  */
-export * as AtomHttpApi from "./AtomHttpApi.ts"
+export * as AtomHttpApi from "./AtomHttpApi.ts";
 
 /**
  * Mutable reactive references for local, in-memory state that should be read,
@@ -109,7 +109,7 @@ export * as AtomHttpApi from "./AtomHttpApi.ts"
  *
  * @since 4.0.0
  */
-export * as AtomRef from "./AtomRef.ts"
+export * as AtomRef from "./AtomRef.ts";
 
 /**
  * The `AtomRegistry` module provides the runtime cache used by reactivity
@@ -133,7 +133,7 @@ export * as AtomRef from "./AtomRef.ts"
  *
  * @since 4.0.0
  */
-export * as AtomRegistry from "./AtomRegistry.ts"
+export * as AtomRegistry from "./AtomRegistry.ts";
 
 /**
  * The `AtomRpc` module connects typed RPC clients to the atom reactivity
@@ -160,7 +160,7 @@ export * as AtomRegistry from "./AtomRegistry.ts"
  *
  * @since 4.0.0
  */
-export * as AtomRpc from "./AtomRpc.ts"
+export * as AtomRpc from "./AtomRpc.ts";
 
 /**
  * Utilities for moving serializable reactivity state between atom registries.
@@ -182,7 +182,7 @@ export * as AtomRpc from "./AtomRpc.ts"
  *
  * @since 4.0.0
  */
-export * as Hydration from "./Hydration.ts"
+export * as Hydration from "./Hydration.ts";
 
 /**
  * The `Reactivity` module provides an in-memory service for connecting writes to
@@ -208,4 +208,4 @@ export * as Hydration from "./Hydration.ts"
  *
  * @since 4.0.0
  */
-export * as Reactivity from "./Reactivity.ts"
+export * as Reactivity from "./Reactivity.ts";

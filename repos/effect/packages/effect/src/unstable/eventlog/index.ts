@@ -23,7 +23,7 @@
  *
  * @since 4.0.0
  */
-export * as Event from "./Event.ts"
+export * as Event from "./Event.ts";
 
 /**
  * Defines typed groups of event-log event definitions.
@@ -43,7 +43,7 @@ export * as Event from "./Event.ts"
  *
  * @since 4.0.0
  */
-export * as EventGroup from "./EventGroup.ts"
+export * as EventGroup from "./EventGroup.ts";
 
 /**
  * Low-level storage and replay primitives for the unstable event-log system.
@@ -64,7 +64,7 @@ export * as EventGroup from "./EventGroup.ts"
  *
  * @since 4.0.0
  */
-export * as EventJournal from "./EventJournal.ts"
+export * as EventJournal from "./EventJournal.ts";
 
 /**
  * Typed event-log runtime for appending domain events to an `EventJournal` and
@@ -85,7 +85,7 @@ export * as EventJournal from "./EventJournal.ts"
  *
  * @since 4.0.0
  */
-export * as EventLog from "./EventLog.ts"
+export * as EventLog from "./EventLog.ts";
 
 /**
  * Event-log encryption primitives for encrypted remote replication.
@@ -110,7 +110,7 @@ export * as EventLog from "./EventLog.ts"
  *
  * @since 4.0.0
  */
-export * as EventLogEncryption from "./EventLogEncryption.ts"
+export * as EventLogEncryption from "./EventLogEncryption.ts";
 
 /**
  * Defines the wire messages used by event-log remotes to authenticate clients,
@@ -129,7 +129,7 @@ export * as EventLogEncryption from "./EventLogEncryption.ts"
  *
  * @since 4.0.0
  */
-export * as EventLogMessage from "./EventLogMessage.ts"
+export * as EventLogMessage from "./EventLogMessage.ts";
 
 /**
  * Client-side remote replica support for writing event-log entries and
@@ -153,7 +153,7 @@ export * as EventLogMessage from "./EventLogMessage.ts"
  *
  * @since 4.0.0
  */
-export * as EventLogRemote from "./EventLogRemote.ts"
+export * as EventLogRemote from "./EventLogRemote.ts";
 
 /**
  * Server-side RPC handlers for accepting remote event-log writes and streaming
@@ -174,7 +174,7 @@ export * as EventLogRemote from "./EventLogRemote.ts"
  *
  * @since 4.0.0
  */
-export * as EventLogServer from "./EventLogServer.ts"
+export * as EventLogServer from "./EventLogServer.ts";
 
 /**
  * Server-side RPC layers and storage contracts for encrypted event-log
@@ -199,7 +199,7 @@ export * as EventLogServer from "./EventLogServer.ts"
  *
  * @since 4.0.0
  */
-export * as EventLogServerEncrypted from "./EventLogServerEncrypted.ts"
+export * as EventLogServerEncrypted from "./EventLogServerEncrypted.ts";
 
 /**
  * Server implementation for event logs whose entries are persisted and streamed
@@ -220,7 +220,7 @@ export * as EventLogServerEncrypted from "./EventLogServerEncrypted.ts"
  *
  * @since 4.0.0
  */
-export * as EventLogServerUnencrypted from "./EventLogServerUnencrypted.ts"
+export * as EventLogServerUnencrypted from "./EventLogServerUnencrypted.ts";
 
 /**
  * Utilities for authenticating event log sessions with short-lived challenges
@@ -243,7 +243,7 @@ export * as EventLogServerUnencrypted from "./EventLogServerUnencrypted.ts"
  *
  * @since 4.0.0
  */
-export * as EventLogSessionAuth from "./EventLogSessionAuth.ts"
+export * as EventLogSessionAuth from "./EventLogSessionAuth.ts";
 
 /**
  * SQL-backed persistence for the unstable event-log journal.
@@ -266,7 +266,7 @@ export * as EventLogSessionAuth from "./EventLogSessionAuth.ts"
  *
  * @since 4.0.0
  */
-export * as SqlEventJournal from "./SqlEventJournal.ts"
+export * as SqlEventJournal from "./SqlEventJournal.ts";
 
 /**
  * SQL-backed storage for encrypted event-log servers.
@@ -289,7 +289,7 @@ export * as SqlEventJournal from "./SqlEventJournal.ts"
  *
  * @since 4.0.0
  */
-export * as SqlEventLogServerEncrypted from "./SqlEventLogServerEncrypted.ts"
+export * as SqlEventLogServerEncrypted from "./SqlEventLogServerEncrypted.ts";
 
 /**
  * SQL-backed storage for an unencrypted event-log server.
@@ -312,4 +312,4 @@ export * as SqlEventLogServerEncrypted from "./SqlEventLogServerEncrypted.ts"
  *
  * @since 4.0.0
  */
-export * as SqlEventLogServerUnencrypted from "./SqlEventLogServerUnencrypted.ts"
+export * as SqlEventLogServerUnencrypted from "./SqlEventLogServerUnencrypted.ts";

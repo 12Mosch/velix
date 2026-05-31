@@ -10,59 +10,65 @@
  *
  * @since 4.0.0
  */
-import type * as Context from "./Context.ts"
-import * as internalEffect from "./internal/effect.ts"
-import * as references from "./internal/references.ts"
-import type { Logger } from "./Logger.ts"
-import type { LogLevel, Severity } from "./LogLevel.ts"
-import type { ReadonlyRecord } from "./Record.ts"
-import { MaxOpsBeforeYield, PreventSchedulerYield } from "./Scheduler.ts"
-import { CurrentTraceLevel, DisablePropagation, MinimumTraceLevel, type SpanLink, Tracer } from "./Tracer.ts"
+import type * as Context from "./Context.ts";
+import * as internalEffect from "./internal/effect.ts";
+import * as references from "./internal/references.ts";
+import type { Logger } from "./Logger.ts";
+import type { LogLevel, Severity } from "./LogLevel.ts";
+import type { ReadonlyRecord } from "./Record.ts";
+import { MaxOpsBeforeYield, PreventSchedulerYield } from "./Scheduler.ts";
+import {
+	CurrentTraceLevel,
+	DisablePropagation,
+	MinimumTraceLevel,
+	type SpanLink,
+	Tracer,
+} from "./Tracer.ts";
 
 export {
-  /**
-   * Reference for the current trace level used for dynamic trace filtering.
-   *
-   * @category references
-   * @since 4.0.0
-   */
-  CurrentTraceLevel,
-  /**
-   * Reference used to disable trace propagation in the current context.
-   *
-   * @category references
-   * @since 4.0.0
-   */
-  DisablePropagation,
-  /**
-   * Reference controlling the maximum operation budget before a fiber yields to the scheduler.
-   *
-   * @category references
-   * @since 4.0.0
-   */
-  MaxOpsBeforeYield,
-  /**
-   * Reference setting the minimum trace level threshold for span sampling.
-   *
-   * @category references
-   * @since 4.0.0
-   */
-  MinimumTraceLevel,
-  /**
-   * Reference controlling whether the runtime bypasses scheduler yield checks.
-   *
-   * @category references
-   * @since 4.0.0
-   */
-  PreventSchedulerYield,
-  /**
-   * Reference for the active tracer service used to create spans.
-   *
-   * @category references
-   * @since 4.0.0
-   */
-  Tracer
-}
+	/**
+	 * Reference for the current trace level used for dynamic trace filtering.
+	 *
+	 * @category references
+	 * @since 4.0.0
+	 */
+	CurrentTraceLevel,
+	/**
+	 * Reference used to disable trace propagation in the current context.
+	 *
+	 * @category references
+	 * @since 4.0.0
+	 */
+	DisablePropagation,
+	/**
+	 * Reference controlling the maximum operation budget before a fiber yields to the scheduler.
+	 *
+	 * @category references
+	 * @since 4.0.0
+	 */
+	MaxOpsBeforeYield,
+	/**
+	 * Reference setting the minimum trace level threshold for span sampling.
+	 *
+	 * @category references
+	 * @since 4.0.0
+	 */
+	MinimumTraceLevel,
+	/**
+	 * Reference controlling whether the runtime bypasses scheduler yield checks.
+	 *
+	 * @category references
+	 * @since 4.0.0
+	 */
+	PreventSchedulerYield,
+	/**
+	 * Reference for the active tracer service used to create spans.
+	 *
+	 * @category references
+	 * @since 4.0.0
+	 */
+	Tracer,
+};
 
 /**
  * Reference for controlling the current concurrency limit. Can be set to "unbounded"
@@ -103,7 +109,8 @@ export {
  * @category references
  * @since 4.0.0
  */
-export const CurrentConcurrency: Context.Reference<number | "unbounded"> = references.CurrentConcurrency
+export const CurrentConcurrency: Context.Reference<number | "unbounded"> =
+	references.CurrentConcurrency;
 
 /**
  * Reference for managing log annotations that are automatically added to all log entries.
@@ -160,8 +167,9 @@ export const CurrentConcurrency: Context.Reference<number | "unbounded"> = refer
  * @category references
  * @since 4.0.0
  */
-export const CurrentLogAnnotations: Context.Reference<ReadonlyRecord<string, unknown>> =
-  references.CurrentLogAnnotations
+export const CurrentLogAnnotations: Context.Reference<
+	ReadonlyRecord<string, unknown>
+> = references.CurrentLogAnnotations;
 
 /**
  * Reference for the current log severity used by `Effect.log` when no explicit
@@ -209,7 +217,8 @@ export const CurrentLogAnnotations: Context.Reference<ReadonlyRecord<string, unk
  * @category references
  * @since 4.0.0
  */
-export const CurrentLogLevel: Context.Reference<Severity> = references.CurrentLogLevel
+export const CurrentLogLevel: Context.Reference<Severity> =
+	references.CurrentLogLevel;
 
 /**
  * Reference for managing log spans that track the duration and hierarchy of operations.
@@ -271,8 +280,9 @@ export const CurrentLogLevel: Context.Reference<Severity> = references.CurrentLo
  * @category references
  * @since 4.0.0
  */
-export const CurrentLogSpans: Context.Reference<ReadonlyArray<[label: string, timestamp: number]>> =
-  references.CurrentLogSpans
+export const CurrentLogSpans: Context.Reference<
+	ReadonlyArray<[label: string, timestamp: number]>
+> = references.CurrentLogSpans;
 
 /**
  * Reference containing the current captured stack-frame chain for the running
@@ -287,7 +297,8 @@ export const CurrentLogSpans: Context.Reference<ReadonlyArray<[label: string, ti
  * @category references
  * @since 4.0.0
  */
-export const CurrentStackFrame: Context.Reference<StackFrame | undefined> = references.CurrentStackFrame
+export const CurrentStackFrame: Context.Reference<StackFrame | undefined> =
+	references.CurrentStackFrame;
 
 /**
  * Reference for setting the minimum log level threshold. Log entries below this
@@ -339,7 +350,8 @@ export const CurrentStackFrame: Context.Reference<StackFrame | undefined> = refe
  * @category references
  * @since 4.0.0
  */
-export const MinimumLogLevel: Context.Reference<LogLevel> = references.MinimumLogLevel
+export const MinimumLogLevel: Context.Reference<LogLevel> =
+	references.MinimumLogLevel;
 
 /**
  * Reference for controlling whether tracing is enabled globally. When set to false,
@@ -386,7 +398,8 @@ export const MinimumLogLevel: Context.Reference<LogLevel> = references.MinimumLo
  * @category references
  * @since 4.0.0
  */
-export const TracerEnabled: Context.Reference<boolean> = references.TracerEnabled
+export const TracerEnabled: Context.Reference<boolean> =
+	references.TracerEnabled;
 
 /**
  * Reference for managing span annotations that are automatically added to all new spans.
@@ -439,8 +452,9 @@ export const TracerEnabled: Context.Reference<boolean> = references.TracerEnable
  * @category references
  * @since 4.0.0
  */
-export const TracerSpanAnnotations: Context.Reference<ReadonlyRecord<string, unknown>> =
-  references.TracerSpanAnnotations
+export const TracerSpanAnnotations: Context.Reference<
+	ReadonlyRecord<string, unknown>
+> = references.TracerSpanAnnotations;
 
 /**
  * Reference for managing span links that are automatically added to all new spans.
@@ -503,7 +517,8 @@ export const TracerSpanAnnotations: Context.Reference<ReadonlyRecord<string, unk
  * @category references
  * @since 4.0.0
  */
-export const TracerSpanLinks: Context.Reference<ReadonlyArray<SpanLink>> = references.TracerSpanLinks
+export const TracerSpanLinks: Context.Reference<ReadonlyArray<SpanLink>> =
+	references.TracerSpanLinks;
 
 /**
  * Reference for controlling whether trace timing is enabled globally. When set
@@ -547,7 +562,8 @@ export const TracerSpanLinks: Context.Reference<ReadonlyArray<SpanLink>> = refer
  * @category references
  * @since 4.0.0
  */
-export const TracerTimingEnabled: Context.Reference<boolean> = references.TracerTimingEnabled
+export const TracerTimingEnabled: Context.Reference<boolean> =
+	references.TracerTimingEnabled;
 
 /**
  * The log level for unhandled errors. This reference allows you to set the log
@@ -556,7 +572,8 @@ export const TracerTimingEnabled: Context.Reference<boolean> = references.Tracer
  * @category references
  * @since 4.0.0
  */
-export const UnhandledLogLevel: Context.Reference<Severity | undefined> = references.UnhandledLogLevel
+export const UnhandledLogLevel: Context.Reference<Severity | undefined> =
+	references.UnhandledLogLevel;
 
 /**
  * A captured stack-frame node used to describe the traced execution path.
@@ -570,9 +587,9 @@ export const UnhandledLogLevel: Context.Reference<Severity | undefined> = refere
  * @since 4.0.0
  */
 export interface StackFrame {
-  readonly name: string
-  readonly stack: () => string | undefined
-  readonly parent: StackFrame | undefined
+	readonly name: string;
+	readonly stack: () => string | undefined;
+	readonly parent: StackFrame | undefined;
 }
 
 /**
@@ -587,7 +604,9 @@ export interface StackFrame {
  * @category references
  * @since 4.0.0
  */
-export const CurrentLoggers: Context.Reference<ReadonlySet<Logger<unknown, any>>> = internalEffect.CurrentLoggers
+export const CurrentLoggers: Context.Reference<
+	ReadonlySet<Logger<unknown, any>>
+> = internalEffect.CurrentLoggers;
 
 /**
  * Reference controlling whether the default console logger writes to stderr.
@@ -600,40 +619,41 @@ export const CurrentLoggers: Context.Reference<ReadonlySet<Logger<unknown, any>>
  * @category references
  * @since 4.0.0
  */
-export const LogToStderr: Context.Reference<boolean> = internalEffect.LogToStderr
+export const LogToStderr: Context.Reference<boolean> =
+	internalEffect.LogToStderr;
 
 export {
-  /**
-   * Reference for the current scheduler implementation used by the Effect runtime.
-   * Controls how Effects are scheduled and executed.
-   *
-   * **Example** (Providing a custom scheduler)
-   *
-   * ```ts
-   * import { Effect, References, Scheduler } from "effect"
-   *
-   * const customScheduling = Effect.gen(function*() {
-   *   // Get current scheduler (default is MixedScheduler)
-   *   const current = yield* References.Scheduler
-   *   console.log(current) // MixedScheduler instance
-   *
-   *   // Use a custom scheduler
-   *   yield* Effect.provideService(
-   *     Effect.gen(function*() {
-   *       const scheduler = yield* References.Scheduler
-   *       console.log(scheduler) // Custom scheduler instance
-   *
-   *       // Effects will use the custom scheduler in this context
-   *       yield* Effect.log("Using custom scheduler")
-   *     }),
-   *     References.Scheduler,
-   *     new Scheduler.MixedScheduler()
-   *   )
-   * })
-   * ```
-   *
-   * @category references
-   * @since 4.0.0
-   */
-  Scheduler
-} from "./Scheduler.ts"
+	/**
+	 * Reference for the current scheduler implementation used by the Effect runtime.
+	 * Controls how Effects are scheduled and executed.
+	 *
+	 * **Example** (Providing a custom scheduler)
+	 *
+	 * ```ts
+	 * import { Effect, References, Scheduler } from "effect"
+	 *
+	 * const customScheduling = Effect.gen(function*() {
+	 *   // Get current scheduler (default is MixedScheduler)
+	 *   const current = yield* References.Scheduler
+	 *   console.log(current) // MixedScheduler instance
+	 *
+	 *   // Use a custom scheduler
+	 *   yield* Effect.provideService(
+	 *     Effect.gen(function*() {
+	 *       const scheduler = yield* References.Scheduler
+	 *       console.log(scheduler) // Custom scheduler instance
+	 *
+	 *       // Effects will use the custom scheduler in this context
+	 *       yield* Effect.log("Using custom scheduler")
+	 *     }),
+	 *     References.Scheduler,
+	 *     new Scheduler.MixedScheduler()
+	 *   )
+	 * })
+	 * ```
+	 *
+	 * @category references
+	 * @since 4.0.0
+	 */
+	Scheduler,
+} from "./Scheduler.ts";

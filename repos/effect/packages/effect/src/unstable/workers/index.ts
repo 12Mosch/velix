@@ -23,7 +23,7 @@
  *
  * @since 4.0.0
  */
-export * as Transferable from "./Transferable.ts"
+export * as Transferable from "./Transferable.ts";
 
 /**
  * Client-side worker primitives shared by browser, Node, and Bun platform
@@ -52,7 +52,7 @@ export * as Transferable from "./Transferable.ts"
  *
  * @since 4.0.0
  */
-export * as Worker from "./Worker.ts"
+export * as Worker from "./Worker.ts";
 
 /**
  * Typed error definitions for the unstable worker APIs.
@@ -76,7 +76,7 @@ export * as Worker from "./Worker.ts"
  *
  * @since 4.0.0
  */
-export * as WorkerError from "./WorkerError.ts"
+export * as WorkerError from "./WorkerError.ts";
 
 /**
  * Server-side worker runner primitives shared by the browser, Node, and Bun
@@ -102,4 +102,4 @@ export * as WorkerError from "./WorkerError.ts"
  *
  * @since 4.0.0
  */
-export * as WorkerRunner from "./WorkerRunner.ts"
+export * as WorkerRunner from "./WorkerRunner.ts";

@@ -35,7 +35,7 @@
  *
  * @since 4.0.0
  */
-export * as ClusterCron from "./ClusterCron.ts"
+export * as ClusterCron from "./ClusterCron.ts";
 
 /**
  * The `ClusterError` module defines the typed error values used by the
@@ -61,7 +61,7 @@ export * as ClusterCron from "./ClusterCron.ts"
  *
  * @since 4.0.0
  */
-export * as ClusterError from "./ClusterError.ts"
+export * as ClusterError from "./ClusterError.ts";
 
 /**
  * The `ClusterMetrics` module defines the standard metrics emitted by the
@@ -88,7 +88,7 @@ export * as ClusterError from "./ClusterError.ts"
  *
  * @since 4.0.0
  */
-export * as ClusterMetrics from "./ClusterMetrics.ts"
+export * as ClusterMetrics from "./ClusterMetrics.ts";
 
 /**
  * The `ClusterSchema` module defines the schema annotations used by Effect
@@ -119,7 +119,7 @@ export * as ClusterMetrics from "./ClusterMetrics.ts"
  *
  * @since 4.0.0
  */
-export * as ClusterSchema from "./ClusterSchema.ts"
+export * as ClusterSchema from "./ClusterSchema.ts";
 
 /**
  * The cluster workflow engine runs durable workflows on top of cluster sharding
@@ -145,7 +145,7 @@ export * as ClusterSchema from "./ClusterSchema.ts"
  *
  * @since 4.0.0
  */
-export * as ClusterWorkflowEngine from "./ClusterWorkflowEngine.ts"
+export * as ClusterWorkflowEngine from "./ClusterWorkflowEngine.ts";
 
 /**
  * The `DeliverAt` module defines the protocol used by cluster message payloads
@@ -172,7 +172,7 @@ export * as ClusterWorkflowEngine from "./ClusterWorkflowEngine.ts"
  *
  * @since 4.0.0
  */
-export * as DeliverAt from "./DeliverAt.ts"
+export * as DeliverAt from "./DeliverAt.ts";
 
 /**
  * The `Entity` module defines sharded, addressable actors for Effect Cluster.
@@ -209,7 +209,7 @@ export * as DeliverAt from "./DeliverAt.ts"
  *
  * @since 4.0.0
  */
-export * as Entity from "./Entity.ts"
+export * as Entity from "./Entity.ts";
 
 /**
  * The `EntityAddress` module defines the value used to locate an entity within
@@ -232,7 +232,7 @@ export * as Entity from "./Entity.ts"
  *
  * @since 4.0.0
  */
-export * as EntityAddress from "./EntityAddress.ts"
+export * as EntityAddress from "./EntityAddress.ts";
 
 /**
  * The `EntityId` module provides a branded string identifier for addressing a
@@ -246,7 +246,7 @@ export * as EntityAddress from "./EntityAddress.ts"
  *
  * @since 4.0.0
  */
-export * as EntityId from "./EntityId.ts"
+export * as EntityId from "./EntityId.ts";
 
 /**
  * The `EntityProxy` module derives external RPC and HTTP API surfaces from a
@@ -273,7 +273,7 @@ export * as EntityId from "./EntityId.ts"
  *
  * @since 4.0.0
  */
-export * as EntityProxy from "./EntityProxy.ts"
+export * as EntityProxy from "./EntityProxy.ts";
 
 /**
  * The `EntityProxyServer` module provides server-side layers for exposing
@@ -299,7 +299,7 @@ export * as EntityProxy from "./EntityProxy.ts"
  *
  * @since 4.0.0
  */
-export * as EntityProxyServer from "./EntityProxyServer.ts"
+export * as EntityProxyServer from "./EntityProxyServer.ts";
 
 /**
  * The `EntityResource` module provides helpers for acquiring resources inside a
@@ -327,7 +327,7 @@ export * as EntityProxyServer from "./EntityProxyServer.ts"
  *
  * @since 4.0.0
  */
-export * as EntityResource from "./EntityResource.ts"
+export * as EntityResource from "./EntityResource.ts";
 
 /**
  * The `EntityType` module defines the branded string used to identify a kind of
@@ -350,7 +350,7 @@ export * as EntityResource from "./EntityResource.ts"
  *
  * @since 4.0.0
  */
-export * as EntityType from "./EntityType.ts"
+export * as EntityType from "./EntityType.ts";
 
 /**
  * The `Envelope` module defines the transport messages exchanged by Effect
@@ -378,7 +378,7 @@ export * as EntityType from "./EntityType.ts"
  *
  * @since 4.0.0
  */
-export * as Envelope from "./Envelope.ts"
+export * as Envelope from "./Envelope.ts";
 
 /**
  * The `HttpRunner` module wires cluster runner RPCs to HTTP transports. It
@@ -406,7 +406,7 @@ export * as Envelope from "./Envelope.ts"
  *
  * @since 4.0.0
  */
-export * as HttpRunner from "./HttpRunner.ts"
+export * as HttpRunner from "./HttpRunner.ts";
 
 /**
  * The `K8sHttpClient` module provides an HTTP client service for talking to the
@@ -429,7 +429,7 @@ export * as HttpRunner from "./HttpRunner.ts"
  *
  * @since 4.0.0
  */
-export * as K8sHttpClient from "./K8sHttpClient.ts"
+export * as K8sHttpClient from "./K8sHttpClient.ts";
 
 /**
  * The `MachineId` module provides the branded integer identifier used to
@@ -449,7 +449,7 @@ export * as K8sHttpClient from "./K8sHttpClient.ts"
  *
  * @since 4.0.0
  */
-export * as MachineId from "./MachineId.ts"
+export * as MachineId from "./MachineId.ts";
 
 /**
  * The cluster `Message` module defines the in-memory shapes used while moving
@@ -478,7 +478,7 @@ export * as MachineId from "./MachineId.ts"
  *
  * @since 4.0.0
  */
-export * as Message from "./Message.ts"
+export * as Message from "./Message.ts";
 
 /**
  * The `MessageStorage` module defines the persistence boundary used by Effect
@@ -507,7 +507,7 @@ export * as Message from "./Message.ts"
  *
  * @since 4.0.0
  */
-export * as MessageStorage from "./MessageStorage.ts"
+export * as MessageStorage from "./MessageStorage.ts";
 
 /**
  * The `Reply` module models responses produced by clustered RPC execution. A
@@ -533,7 +533,7 @@ export * as MessageStorage from "./MessageStorage.ts"
  *
  * @since 4.0.0
  */
-export * as Reply from "./Reply.ts"
+export * as Reply from "./Reply.ts";
 
 /**
  * The `Runner` module defines the membership record used by the unstable
@@ -562,7 +562,7 @@ export * as Reply from "./Reply.ts"
  *
  * @since 4.0.0
  */
-export * as Runner from "./Runner.ts"
+export * as Runner from "./Runner.ts";
 
 /**
  * The `RunnerAddress` module defines the network identity used to locate a
@@ -583,7 +583,7 @@ export * as Runner from "./Runner.ts"
  *
  * @since 4.0.0
  */
-export * as RunnerAddress from "./RunnerAddress.ts"
+export * as RunnerAddress from "./RunnerAddress.ts";
 
 /**
  * The `RunnerHealth` module defines the health-check service used by cluster
@@ -608,7 +608,7 @@ export * as RunnerAddress from "./RunnerAddress.ts"
  *
  * @since 4.0.0
  */
-export * as RunnerHealth from "./RunnerHealth.ts"
+export * as RunnerHealth from "./RunnerHealth.ts";
 
 /**
  * The `Runners` module defines the service used by the unstable cluster runtime
@@ -643,7 +643,7 @@ export * as RunnerHealth from "./RunnerHealth.ts"
  *
  * @since 4.0.0
  */
-export * as Runners from "./Runners.ts"
+export * as Runners from "./Runners.ts";
 
 /**
  * The `RunnerServer` module provides the transport-agnostic server side of the
@@ -672,7 +672,7 @@ export * as Runners from "./Runners.ts"
  *
  * @since 4.0.0
  */
-export * as RunnerServer from "./RunnerServer.ts"
+export * as RunnerServer from "./RunnerServer.ts";
 
 /**
  * The `RunnerStorage` module defines the persistence boundary used by clustered
@@ -700,7 +700,7 @@ export * as RunnerServer from "./RunnerServer.ts"
  *
  * @since 4.0.0
  */
-export * as RunnerStorage from "./RunnerStorage.ts"
+export * as RunnerStorage from "./RunnerStorage.ts";
 
 /**
  * The `ShardId` module models the address of a shard inside an Effect Cluster
@@ -728,7 +728,7 @@ export * as RunnerStorage from "./RunnerStorage.ts"
  *
  * @since 4.0.0
  */
-export * as ShardId from "./ShardId.ts"
+export * as ShardId from "./ShardId.ts";
 
 /**
  * The `Sharding` module coordinates cluster-wide placement and delivery for
@@ -755,7 +755,7 @@ export * as ShardId from "./ShardId.ts"
  *
  * @since 4.0.0
  */
-export * as Sharding from "./Sharding.ts"
+export * as Sharding from "./Sharding.ts";
 
 /**
  * The `ShardingConfig` module defines the configuration used by a cluster
@@ -775,7 +775,7 @@ export * as Sharding from "./Sharding.ts"
  *
  * @since 4.0.0
  */
-export * as ShardingConfig from "./ShardingConfig.ts"
+export * as ShardingConfig from "./ShardingConfig.ts";
 
 /**
  * The `ShardingRegistrationEvent` module defines the events emitted by
@@ -794,7 +794,7 @@ export * as ShardingConfig from "./ShardingConfig.ts"
  *
  * @since 4.0.0
  */
-export * as ShardingRegistrationEvent from "./ShardingRegistrationEvent.ts"
+export * as ShardingRegistrationEvent from "./ShardingRegistrationEvent.ts";
 
 /**
  * The `SingleRunner` module provides a ready-to-use layer for running the
@@ -821,7 +821,7 @@ export * as ShardingRegistrationEvent from "./ShardingRegistrationEvent.ts"
  *
  * @since 4.0.0
  */
-export * as SingleRunner from "./SingleRunner.ts"
+export * as SingleRunner from "./SingleRunner.ts";
 
 /**
  * The `Singleton` module provides a small helper for registering effects that
@@ -837,7 +837,7 @@ export * as SingleRunner from "./SingleRunner.ts"
  *
  * @since 4.0.0
  */
-export * as Singleton from "./Singleton.ts"
+export * as Singleton from "./Singleton.ts";
 
 /**
  * The `SingletonAddress` module defines the address used by cluster sharding to
@@ -856,7 +856,7 @@ export * as Singleton from "./Singleton.ts"
  *
  * @since 4.0.0
  */
-export * as SingletonAddress from "./SingletonAddress.ts"
+export * as SingletonAddress from "./SingletonAddress.ts";
 
 /**
  * The `Snowflake` module provides compact, sortable identifiers for cluster
@@ -879,7 +879,7 @@ export * as SingletonAddress from "./SingletonAddress.ts"
  *
  * @since 4.0.0
  */
-export * as Snowflake from "./Snowflake.ts"
+export * as Snowflake from "./Snowflake.ts";
 
 /**
  * The `SocketRunner` module wires cluster runner RPCs to socket transports. It
@@ -905,7 +905,7 @@ export * as Snowflake from "./Snowflake.ts"
  *
  * @since 4.0.0
  */
-export * as SocketRunner from "./SocketRunner.ts"
+export * as SocketRunner from "./SocketRunner.ts";
 
 /**
  * SQL-backed message storage for the unstable cluster runtime.
@@ -926,7 +926,7 @@ export * as SocketRunner from "./SocketRunner.ts"
  *
  * @since 4.0.0
  */
-export * as SqlMessageStorage from "./SqlMessageStorage.ts"
+export * as SqlMessageStorage from "./SqlMessageStorage.ts";
 
 /**
  * SQL-backed storage for Effect Cluster runner metadata and shard ownership.
@@ -960,7 +960,7 @@ export * as SqlMessageStorage from "./SqlMessageStorage.ts"
  *
  * @since 4.0.0
  */
-export * as SqlRunnerStorage from "./SqlRunnerStorage.ts"
+export * as SqlRunnerStorage from "./SqlRunnerStorage.ts";
 
 /**
  * The `TestRunner` module provides a lightweight in-memory cluster layer for
@@ -982,4 +982,4 @@ export * as SqlRunnerStorage from "./SqlRunnerStorage.ts"
  *
  * @since 4.0.0
  */
-export * as TestRunner from "./TestRunner.ts"
+export * as TestRunner from "./TestRunner.ts";

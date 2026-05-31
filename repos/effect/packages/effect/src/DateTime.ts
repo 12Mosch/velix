@@ -50,22 +50,22 @@
  *
  * @since 3.6.0
  */
-import type { IllegalArgumentError } from "./Cause.ts"
-import * as Context from "./Context.ts"
-import type * as Duration from "./Duration.ts"
-import * as Effect from "./Effect.ts"
-import type * as Equ from "./Equivalence.ts"
-import { dual, flow, type LazyArg } from "./Function.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import * as Internal from "./internal/dateTime.ts"
-import { provideService } from "./internal/effect.ts"
-import * as Layer from "./Layer.ts"
-import type * as Option from "./Option.ts"
-import type * as order from "./Order.ts"
-import type { Pipeable } from "./Pipeable.ts"
+import type { IllegalArgumentError } from "./Cause.ts";
+import * as Context from "./Context.ts";
+import type * as Duration from "./Duration.ts";
+import * as Effect from "./Effect.ts";
+import type * as Equ from "./Equivalence.ts";
+import { dual, flow, type LazyArg } from "./Function.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import * as Internal from "./internal/dateTime.ts";
+import { provideService } from "./internal/effect.ts";
+import * as Layer from "./Layer.ts";
+import type * as Option from "./Option.ts";
+import type * as order from "./Order.ts";
+import type { Pipeable } from "./Pipeable.ts";
 
-const TypeId = Internal.TypeId
-const TimeZoneTypeId = Internal.TimeZoneTypeId
+const TypeId = Internal.TypeId;
+const TimeZoneTypeId = Internal.TimeZoneTypeId;
 
 /**
  * A `DateTime` represents a point in time. It can optionally have a time zone
@@ -74,7 +74,7 @@ const TimeZoneTypeId = Internal.TimeZoneTypeId
  * @category models
  * @since 3.6.0
  */
-export type DateTime = Utc | Zoned
+export type DateTime = Utc | Zoned;
 
 /**
  * Represents a `DateTime` stored as an absolute UTC instant with no associated
@@ -88,9 +88,9 @@ export type DateTime = Utc | Zoned
  * @since 3.6.0
  */
 export interface Utc extends DateTime.Proto {
-  readonly _tag: "Utc"
-  readonly epochMilliseconds: number
-  partsUtc: DateTime.PartsWithWeekday | undefined
+	readonly _tag: "Utc";
+	readonly epochMilliseconds: number;
+	partsUtc: DateTime.PartsWithWeekday | undefined;
 }
 
 /**
@@ -106,12 +106,12 @@ export interface Utc extends DateTime.Proto {
  * @since 3.6.0
  */
 export interface Zoned extends DateTime.Proto {
-  readonly _tag: "Zoned"
-  readonly epochMilliseconds: number
-  readonly zone: TimeZone
-  adjustedEpochMilliseconds: number | undefined
-  partsAdjusted: DateTime.PartsWithWeekday | undefined
-  partsUtc: DateTime.PartsWithWeekday | undefined
+	readonly _tag: "Zoned";
+	readonly epochMilliseconds: number;
+	readonly zone: TimeZone;
+	adjustedEpochMilliseconds: number | undefined;
+	partsAdjusted: DateTime.PartsWithWeekday | undefined;
+	partsUtc: DateTime.PartsWithWeekday | undefined;
 }
 
 /**
@@ -121,187 +121,196 @@ export interface Zoned extends DateTime.Proto {
  * @since 3.6.0
  */
 export declare namespace DateTime {
-  /**
-   * Input accepted by `DateTime.make`, `DateTime.makeUnsafe`, and the zoned
-   * constructors.
-   *
-   * **Details**
-   *
-   * Includes existing `DateTime` values, partial date parts, epoch-millisecond
-   * objects, epoch milliseconds, JavaScript `Date` instances, and parseable date
-   * strings.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export type Input = DateTime | Partial<Parts> | Instant | InstantWithZone | Date | number | string
+	/**
+	 * Input accepted by `DateTime.make`, `DateTime.makeUnsafe`, and the zoned
+	 * constructors.
+	 *
+	 * **Details**
+	 *
+	 * Includes existing `DateTime` values, partial date parts, epoch-millisecond
+	 * objects, epoch milliseconds, JavaScript `Date` instances, and parseable date
+	 * strings.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export type Input =
+		| DateTime
+		| Partial<Parts>
+		| Instant
+		| InstantWithZone
+		| Date
+		| number
+		| string;
 
-  /**
-   * Type-level helper used by constructors to preserve a zoned input.
-   *
-   * **Details**
-   *
-   * When the input type is `DateTime.Zoned`, the result type is
-   * `DateTime.Zoned`; otherwise the result type is `DateTime.Utc`.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export type PreserveZone<A extends DateTime.Input> = A extends Zoned ? Zoned : Utc
+	/**
+	 * Type-level helper used by constructors to preserve a zoned input.
+	 *
+	 * **Details**
+	 *
+	 * When the input type is `DateTime.Zoned`, the result type is
+	 * `DateTime.Zoned`; otherwise the result type is `DateTime.Utc`.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export type PreserveZone<A extends DateTime.Input> = A extends Zoned
+		? Zoned
+		: Utc;
 
-  /**
-   * Date and time unit name accepted by `DateTime` rounding and arithmetic
-   * APIs.
-   *
-   * **Details**
-   *
-   * Includes both singular units, such as `"day"`, and plural units, such as
-   * `"days"`.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export type Unit = UnitSingular | UnitPlural
+	/**
+	 * Date and time unit name accepted by `DateTime` rounding and arithmetic
+	 * APIs.
+	 *
+	 * **Details**
+	 *
+	 * Includes both singular units, such as `"day"`, and plural units, such as
+	 * `"days"`.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export type Unit = UnitSingular | UnitPlural;
 
-  /**
-   * Singular date and time unit names used by rounding APIs such as
-   * `DateTime.startOf`, `DateTime.endOf`, and `DateTime.nearest`.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export type UnitSingular =
-    | "millisecond"
-    | "second"
-    | "minute"
-    | "hour"
-    | "day"
-    | "week"
-    | "month"
-    | "year"
+	/**
+	 * Singular date and time unit names used by rounding APIs such as
+	 * `DateTime.startOf`, `DateTime.endOf`, and `DateTime.nearest`.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export type UnitSingular =
+		| "millisecond"
+		| "second"
+		| "minute"
+		| "hour"
+		| "day"
+		| "week"
+		| "month"
+		| "year";
 
-  /**
-   * Plural date and time unit names used by `DateTime.PartsForMath` for
-   * amount-based arithmetic.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export type UnitPlural =
-    | "milliseconds"
-    | "seconds"
-    | "minutes"
-    | "hours"
-    | "days"
-    | "weeks"
-    | "months"
-    | "years"
+	/**
+	 * Plural date and time unit names used by `DateTime.PartsForMath` for
+	 * amount-based arithmetic.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export type UnitPlural =
+		| "milliseconds"
+		| "seconds"
+		| "minutes"
+		| "hours"
+		| "days"
+		| "weeks"
+		| "months"
+		| "years";
 
-  /**
-   * Calendar and time components of a `DateTime`, including the weekday.
-   *
-   * **Details**
-   *
-   * `month` is one-based (`1` for January through `12` for December), and
-   * `weekDay` follows JavaScript `Date#getUTCDay` numbering (`0` for Sunday
-   * through `6` for Saturday).
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export interface PartsWithWeekday {
-    readonly millisecond: number
-    readonly second: number
-    readonly minute: number
-    readonly hour: number
-    readonly day: number
-    readonly weekDay: number
-    readonly month: number
-    readonly year: number
-  }
+	/**
+	 * Calendar and time components of a `DateTime`, including the weekday.
+	 *
+	 * **Details**
+	 *
+	 * `month` is one-based (`1` for January through `12` for December), and
+	 * `weekDay` follows JavaScript `Date#getUTCDay` numbering (`0` for Sunday
+	 * through `6` for Saturday).
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export interface PartsWithWeekday {
+		readonly millisecond: number;
+		readonly second: number;
+		readonly minute: number;
+		readonly hour: number;
+		readonly day: number;
+		readonly weekDay: number;
+		readonly month: number;
+		readonly year: number;
+	}
 
-  /**
-   * Calendar and time components of a `DateTime`, without weekday information.
-   *
-   * **Details**
-   *
-   * `month` is one-based (`1` for January through `12` for December).
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export interface Parts {
-    readonly millisecond: number
-    readonly second: number
-    readonly minute: number
-    readonly hour: number
-    readonly day: number
-    readonly month: number
-    readonly year: number
-  }
+	/**
+	 * Calendar and time components of a `DateTime`, without weekday information.
+	 *
+	 * **Details**
+	 *
+	 * `month` is one-based (`1` for January through `12` for December).
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export interface Parts {
+		readonly millisecond: number;
+		readonly second: number;
+		readonly minute: number;
+		readonly hour: number;
+		readonly day: number;
+		readonly month: number;
+		readonly year: number;
+	}
 
-  /**
-   * Plural amount fields accepted by `DateTime.add` and `DateTime.subtract`.
-   *
-   * **Details**
-   *
-   * Each field represents the number of units to add or subtract for that part.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export interface PartsForMath {
-    readonly milliseconds: number
-    readonly seconds: number
-    readonly minutes: number
-    readonly hours: number
-    readonly days: number
-    readonly weeks: number
-    readonly months: number
-    readonly years: number
-  }
+	/**
+	 * Plural amount fields accepted by `DateTime.add` and `DateTime.subtract`.
+	 *
+	 * **Details**
+	 *
+	 * Each field represents the number of units to add or subtract for that part.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export interface PartsForMath {
+		readonly milliseconds: number;
+		readonly seconds: number;
+		readonly minutes: number;
+		readonly hours: number;
+		readonly days: number;
+		readonly weeks: number;
+		readonly months: number;
+		readonly years: number;
+	}
 
-  /**
-   * Object input representing an absolute instant as milliseconds since the Unix
-   * epoch.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface Instant {
-    readonly epochMilliseconds: number
-  }
+	/**
+	 * Object input representing an absolute instant as milliseconds since the Unix
+	 * epoch.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface Instant {
+		readonly epochMilliseconds: number;
+	}
 
-  /**
-   * Object input representing an absolute instant plus a time zone identifier.
-   *
-   * **Details**
-   *
-   * `DateTime.makeZoned` and `DateTime.makeZonedUnsafe` use `timeZoneId` when
-   * no explicit `timeZone` option is supplied.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface InstantWithZone {
-    readonly timeZoneId: string
-    readonly epochMilliseconds: number
-  }
+	/**
+	 * Object input representing an absolute instant plus a time zone identifier.
+	 *
+	 * **Details**
+	 *
+	 * `DateTime.makeZoned` and `DateTime.makeZonedUnsafe` use `timeZoneId` when
+	 * no explicit `timeZone` option is supplied.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface InstantWithZone {
+		readonly timeZoneId: string;
+		readonly epochMilliseconds: number;
+	}
 
-  /**
-   * Shared protocol implemented by all `DateTime` values.
-   *
-   * **Details**
-   *
-   * Provides the `DateTime` type identifier along with pipe and inspection
-   * support.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export interface Proto extends Pipeable, Inspectable {
-    readonly [TypeId]: typeof TypeId
-  }
+	/**
+	 * Shared protocol implemented by all `DateTime` values.
+	 *
+	 * **Details**
+	 *
+	 * Provides the `DateTime` type identifier along with pipe and inspection
+	 * support.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export interface Proto extends Pipeable, Inspectable {
+		readonly [TypeId]: typeof TypeId;
+	}
 }
 
 /**
@@ -314,7 +323,7 @@ export declare namespace DateTime {
  * @category models
  * @since 3.6.0
  */
-export type TimeZone = TimeZone.Offset | TimeZone.Named
+export type TimeZone = TimeZone.Offset | TimeZone.Named;
 
 /**
  * Companion namespace containing the public variant and protocol types for
@@ -323,53 +332,53 @@ export type TimeZone = TimeZone.Offset | TimeZone.Named
  * @since 3.6.0
  */
 export declare namespace TimeZone {
-  /**
-   * Shared protocol implemented by all `TimeZone` values.
-   *
-   * **Details**
-   *
-   * Provides the `TimeZone` type identifier and inspection support.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export interface Proto extends Inspectable {
-    readonly [TimeZoneTypeId]: typeof TimeZoneTypeId
-  }
+	/**
+	 * Shared protocol implemented by all `TimeZone` values.
+	 *
+	 * **Details**
+	 *
+	 * Provides the `TimeZone` type identifier and inspection support.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export interface Proto extends Inspectable {
+		readonly [TimeZoneTypeId]: typeof TimeZoneTypeId;
+	}
 
-  /**
-   * Fixed-offset time zone.
-   *
-   * **Details**
-   *
-   * The `offset` is measured in milliseconds from UTC. Positive offsets are
-   * ahead of UTC, and negative offsets are behind UTC.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export interface Offset extends Proto {
-    readonly _tag: "Offset"
-    readonly offset: number
-  }
+	/**
+	 * Fixed-offset time zone.
+	 *
+	 * **Details**
+	 *
+	 * The `offset` is measured in milliseconds from UTC. Positive offsets are
+	 * ahead of UTC, and negative offsets are behind UTC.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export interface Offset extends Proto {
+		readonly _tag: "Offset";
+		readonly offset: number;
+	}
 
-  /**
-   * Named IANA time zone.
-   *
-   * **Details**
-   *
-   * The `id` field contains the resolved time zone identifier, such as
-   * `"Europe/London"` or `"America/New_York"`.
-   *
-   * @category models
-   * @since 3.6.0
-   */
-  export interface Named extends Proto {
-    readonly _tag: "Named"
-    readonly id: string
-    /** @internal */
-    readonly format: Intl.DateTimeFormat
-  }
+	/**
+	 * Named IANA time zone.
+	 *
+	 * **Details**
+	 *
+	 * The `id` field contains the resolved time zone identifier, such as
+	 * `"Europe/London"` or `"America/New_York"`.
+	 *
+	 * @category models
+	 * @since 3.6.0
+	 */
+	export interface Named extends Proto {
+		readonly _tag: "Named";
+		readonly id: string;
+		/** @internal */
+		readonly format: Intl.DateTimeFormat;
+	}
 }
 
 /**
@@ -435,7 +444,7 @@ export declare namespace TimeZone {
  * @category models
  * @since 3.18.0
  */
-export type Disambiguation = "compatible" | "earlier" | "later" | "reject"
+export type Disambiguation = "compatible" | "earlier" | "later" | "reject";
 
 // =============================================================================
 // guards
@@ -447,7 +456,7 @@ export type Disambiguation = "compatible" | "earlier" | "later" | "reject"
  * @category guards
  * @since 3.6.0
  */
-export const isDateTime: (u: unknown) => u is DateTime = Internal.isDateTime
+export const isDateTime: (u: unknown) => u is DateTime = Internal.isDateTime;
 
 /**
  * Checks if a value is a `TimeZone`.
@@ -455,7 +464,7 @@ export const isDateTime: (u: unknown) => u is DateTime = Internal.isDateTime
  * @category guards
  * @since 3.6.0
  */
-export const isTimeZone: (u: unknown) => u is TimeZone = Internal.isTimeZone
+export const isTimeZone: (u: unknown) => u is TimeZone = Internal.isTimeZone;
 
 /**
  * Checks if a value is an offset-based `TimeZone`.
@@ -463,7 +472,8 @@ export const isTimeZone: (u: unknown) => u is TimeZone = Internal.isTimeZone
  * @category guards
  * @since 3.6.0
  */
-export const isTimeZoneOffset: (u: unknown) => u is TimeZone.Offset = Internal.isTimeZoneOffset
+export const isTimeZoneOffset: (u: unknown) => u is TimeZone.Offset =
+	Internal.isTimeZoneOffset;
 
 /**
  * Checks if a value is a named `TimeZone` (IANA time zone).
@@ -471,7 +481,8 @@ export const isTimeZoneOffset: (u: unknown) => u is TimeZone.Offset = Internal.i
  * @category guards
  * @since 3.6.0
  */
-export const isTimeZoneNamed: (u: unknown) => u is TimeZone.Named = Internal.isTimeZoneNamed
+export const isTimeZoneNamed: (u: unknown) => u is TimeZone.Named =
+	Internal.isTimeZoneNamed;
 
 /**
  * Checks if a `DateTime` is a UTC `DateTime` (no time zone information).
@@ -479,7 +490,7 @@ export const isTimeZoneNamed: (u: unknown) => u is TimeZone.Named = Internal.isT
  * @category guards
  * @since 3.6.0
  */
-export const isUtc: (self: DateTime) => self is Utc = Internal.isUtc
+export const isUtc: (self: DateTime) => self is Utc = Internal.isUtc;
 
 /**
  * Checks if a `DateTime` is a zoned `DateTime` (has time zone information).
@@ -487,7 +498,7 @@ export const isUtc: (self: DateTime) => self is Utc = Internal.isUtc
  * @category guards
  * @since 3.6.0
  */
-export const isZoned: (self: DateTime) => self is Zoned = Internal.isZoned
+export const isZoned: (self: DateTime) => self is Zoned = Internal.isZoned;
 
 // =============================================================================
 // instances
@@ -517,7 +528,7 @@ export const isZoned: (self: DateTime) => self is Zoned = Internal.isZoned
  * @category instances
  * @since 3.6.0
  */
-export const Equivalence: Equ.Equivalence<DateTime> = Internal.Equivalence
+export const Equivalence: Equ.Equivalence<DateTime> = Internal.Equivalence;
 
 /**
  * An `Order` for comparing and sorting `DateTime` values.
@@ -545,7 +556,7 @@ export const Equivalence: Equ.Equivalence<DateTime> = Internal.Equivalence
  * @category instances
  * @since 3.6.0
  */
-export const Order: order.Order<DateTime> = Internal.Order
+export const Order: order.Order<DateTime> = Internal.Order;
 
 /**
  * Clamp a `DateTime` between a minimum and maximum value.
@@ -573,14 +584,15 @@ export const Order: order.Order<DateTime> = Internal.Order
  * @since 3.6.0
  */
 export const clamp: {
-  <Min extends DateTime, Max extends DateTime>(
-    options: { readonly minimum: Min; readonly maximum: Max }
-  ): <A extends DateTime>(self: A) => A | Min | Max
-  <A extends DateTime, Min extends DateTime, Max extends DateTime>(
-    self: A,
-    options: { readonly minimum: Min; readonly maximum: Max }
-  ): A | Min | Max
-} = Internal.clamp
+	<Min extends DateTime, Max extends DateTime>(options: {
+		readonly minimum: Min;
+		readonly maximum: Max;
+	}): <A extends DateTime>(self: A) => A | Min | Max;
+	<A extends DateTime, Min extends DateTime, Max extends DateTime>(
+		self: A,
+		options: { readonly minimum: Min; readonly maximum: Max },
+	): A | Min | Max;
+} = Internal.clamp;
 
 // =============================================================================
 // constructors
@@ -607,7 +619,7 @@ export const clamp: {
  * @category constructors
  * @since 4.0.0
  */
-export const fromDateUnsafe: (date: Date) => Utc = Internal.fromDateUnsafe
+export const fromDateUnsafe: (date: Date) => Utc = Internal.fromDateUnsafe;
 
 /**
  * Create a `DateTime` from supported input values.
@@ -641,7 +653,9 @@ export const fromDateUnsafe: (date: Date) => Utc = Internal.fromDateUnsafe
  * @category constructors
  * @since 4.0.0
  */
-export const makeUnsafe: <A extends DateTime.Input>(input: A) => DateTime.PreserveZone<A> = Internal.makeUnsafe
+export const makeUnsafe: <A extends DateTime.Input>(
+	input: A,
+) => DateTime.PreserveZone<A> = Internal.makeUnsafe;
 
 /**
  * Create a `DateTime.Zoned` using `DateTime.makeUnsafe` and a time zone.
@@ -674,11 +688,14 @@ export const makeUnsafe: <A extends DateTime.Input>(input: A) => DateTime.Preser
  * @category constructors
  * @since 4.0.0
  */
-export const makeZonedUnsafe: (input: DateTime.Input, options?: {
-  readonly timeZone?: number | string | TimeZone | undefined
-  readonly adjustForTimeZone?: boolean | undefined
-  readonly disambiguation?: Disambiguation | undefined
-}) => Zoned = Internal.makeZonedUnsafe
+export const makeZonedUnsafe: (
+	input: DateTime.Input,
+	options?: {
+		readonly timeZone?: number | string | TimeZone | undefined;
+		readonly adjustForTimeZone?: boolean | undefined;
+		readonly disambiguation?: Disambiguation | undefined;
+	},
+) => Zoned = Internal.makeZonedUnsafe;
 
 /**
  * Creates a `DateTime.Zoned` from an input and a time zone.
@@ -720,13 +737,13 @@ export const makeZonedUnsafe: (input: DateTime.Input, options?: {
  * @since 3.6.0
  */
 export const makeZoned: (
-  input: DateTime.Input,
-  options?: {
-    readonly timeZone?: number | string | TimeZone | undefined
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }
-) => Option.Option<Zoned> = Internal.makeZoned
+	input: DateTime.Input,
+	options?: {
+		readonly timeZone?: number | string | TimeZone | undefined;
+		readonly adjustForTimeZone?: boolean | undefined;
+		readonly disambiguation?: Disambiguation | undefined;
+	},
+) => Option.Option<Zoned> = Internal.makeZoned;
 
 /**
  * Creates a `DateTime` from supported input values.
@@ -767,7 +784,9 @@ export const makeZoned: (
  * @category constructors
  * @since 3.6.0
  */
-export const make: <A extends DateTime.Input>(input: A) => Option.Option<DateTime.PreserveZone<A>> = Internal.make
+export const make: <A extends DateTime.Input>(
+	input: A,
+) => Option.Option<DateTime.PreserveZone<A>> = Internal.make;
 
 /**
  * Parses an ISO zoned date-time string into a `DateTime.Zoned`.
@@ -799,7 +818,8 @@ export const make: <A extends DateTime.Input>(input: A) => Option.Option<DateTim
  * @category constructors
  * @since 3.6.0
  */
-export const makeZonedFromString: (input: string) => Option.Option<Zoned> = Internal.makeZonedFromString
+export const makeZonedFromString: (input: string) => Option.Option<Zoned> =
+	Internal.makeZonedFromString;
 
 /**
  * Get the current time using the `Clock` service and convert it to a `DateTime`.
@@ -818,7 +838,7 @@ export const makeZonedFromString: (input: string) => Option.Option<Zoned> = Inte
  * @category constructors
  * @since 3.6.0
  */
-export const now: Effect.Effect<Utc> = Internal.now
+export const now: Effect.Effect<Utc> = Internal.now;
 
 /**
  * Gets the current time from the `Clock` service and returns it as a
@@ -837,7 +857,7 @@ export const now: Effect.Effect<Utc> = Internal.now
  * @category constructors
  * @since 3.14.0
  */
-export const nowAsDate: Effect.Effect<Date> = Internal.nowAsDate
+export const nowAsDate: Effect.Effect<Date> = Internal.nowAsDate;
 
 /**
  * Get the current time using `Date.now`.
@@ -859,7 +879,7 @@ export const nowAsDate: Effect.Effect<Date> = Internal.nowAsDate
  * @category constructors
  * @since 4.0.0
  */
-export const nowUnsafe: LazyArg<Utc> = Internal.nowUnsafe
+export const nowUnsafe: LazyArg<Utc> = Internal.nowUnsafe;
 
 // =============================================================================
 // time zones
@@ -884,7 +904,7 @@ export const nowUnsafe: LazyArg<Utc> = Internal.nowUnsafe
  * @category time zones
  * @since 3.13.0
  */
-export const toUtc: (self: DateTime) => Utc = Internal.toUtc
+export const toUtc: (self: DateTime) => Utc = Internal.toUtc;
 
 /**
  * Set the time zone of a `DateTime`, returning a new `DateTime.Zoned`.
@@ -907,15 +927,22 @@ export const toUtc: (self: DateTime) => Utc = Internal.toUtc
  * @since 3.6.0
  */
 export const setZone: {
-  (zone: TimeZone, options?: {
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }): (self: DateTime) => Zoned
-  (self: DateTime, zone: TimeZone, options?: {
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }): Zoned
-} = Internal.setZone
+	(
+		zone: TimeZone,
+		options?: {
+			readonly adjustForTimeZone?: boolean | undefined;
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): (self: DateTime) => Zoned;
+	(
+		self: DateTime,
+		zone: TimeZone,
+		options?: {
+			readonly adjustForTimeZone?: boolean | undefined;
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): Zoned;
+} = Internal.setZone;
 
 /**
  * Add a fixed offset time zone to a `DateTime`.
@@ -941,15 +968,22 @@ export const setZone: {
  * @since 3.6.0
  */
 export const setZoneOffset: {
-  (offset: number, options?: {
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }): (self: DateTime) => Zoned
-  (self: DateTime, offset: number, options?: {
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }): Zoned
-} = Internal.setZoneOffset
+	(
+		offset: number,
+		options?: {
+			readonly adjustForTimeZone?: boolean | undefined;
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): (self: DateTime) => Zoned;
+	(
+		self: DateTime,
+		offset: number,
+		options?: {
+			readonly adjustForTimeZone?: boolean | undefined;
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): Zoned;
+} = Internal.setZoneOffset;
 
 /**
  * Attempt to create a named time zone from a IANA time zone identifier.
@@ -976,7 +1010,8 @@ export const setZoneOffset: {
  * @category time zones
  * @since 4.0.0
  */
-export const zoneMakeNamedUnsafe: (zoneId: string) => TimeZone.Named = Internal.zoneMakeNamedUnsafe
+export const zoneMakeNamedUnsafe: (zoneId: string) => TimeZone.Named =
+	Internal.zoneMakeNamedUnsafe;
 
 /**
  * Create a fixed offset time zone.
@@ -1002,7 +1037,8 @@ export const zoneMakeNamedUnsafe: (zoneId: string) => TimeZone.Named = Internal.
  * @category time zones
  * @since 3.6.0
  */
-export const zoneMakeOffset: (offset: number) => TimeZone.Offset = Internal.zoneMakeOffset
+export const zoneMakeOffset: (offset: number) => TimeZone.Offset =
+	Internal.zoneMakeOffset;
 
 /**
  * Create a named time zone from a IANA time zone identifier.
@@ -1026,7 +1062,8 @@ export const zoneMakeOffset: (offset: number) => TimeZone.Offset = Internal.zone
  * @category time zones
  * @since 3.6.0
  */
-export const zoneMakeNamed: (zoneId: string) => Option.Option<TimeZone.Named> = Internal.zoneMakeNamed
+export const zoneMakeNamed: (zoneId: string) => Option.Option<TimeZone.Named> =
+	Internal.zoneMakeNamed;
 
 /**
  * Create a named time zone from a IANA time zone identifier.
@@ -1050,8 +1087,10 @@ export const zoneMakeNamed: (zoneId: string) => Option.Option<TimeZone.Named> = 
  * @category time zones
  * @since 3.6.0
  */
-export const zoneMakeNamedEffect: (zoneId: string) => Effect.Effect<TimeZone.Named, IllegalArgumentError> =
-  Internal.zoneMakeNamedEffect
+export const zoneMakeNamedEffect: (
+	zoneId: string,
+) => Effect.Effect<TimeZone.Named, IllegalArgumentError> =
+	Internal.zoneMakeNamedEffect;
 
 /**
  * Create a named time zone from the system's local time zone.
@@ -1073,7 +1112,7 @@ export const zoneMakeNamedEffect: (zoneId: string) => Effect.Effect<TimeZone.Nam
  * @category time zones
  * @since 3.6.0
  */
-export const zoneMakeLocal: () => TimeZone.Named = Internal.zoneMakeLocal
+export const zoneMakeLocal: () => TimeZone.Named = Internal.zoneMakeLocal;
 
 /**
  * Try to parse a `TimeZone` from a string.
@@ -1099,7 +1138,8 @@ export const zoneMakeLocal: () => TimeZone.Named = Internal.zoneMakeLocal
  * @category time zones
  * @since 3.6.0
  */
-export const zoneFromString: (zone: string) => Option.Option<TimeZone> = Internal.zoneFromString
+export const zoneFromString: (zone: string) => Option.Option<TimeZone> =
+	Internal.zoneFromString;
 
 /**
  * Format a `TimeZone` as a string.
@@ -1119,7 +1159,7 @@ export const zoneFromString: (zone: string) => Option.Option<TimeZone> = Interna
  * @category time zones
  * @since 3.6.0
  */
-export const zoneToString: (self: TimeZone) => string = Internal.zoneToString
+export const zoneToString: (self: TimeZone) => string = Internal.zoneToString;
 
 /**
  * Set the time zone of a `DateTime` from an IANA time zone identifier. If the
@@ -1141,15 +1181,22 @@ export const zoneToString: (self: TimeZone) => string = Internal.zoneToString
  * @since 3.6.0
  */
 export const setZoneNamed: {
-  (zoneId: string, options?: {
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }): (self: DateTime) => Option.Option<Zoned>
-  (self: DateTime, zoneId: string, options?: {
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }): Option.Option<Zoned>
-} = Internal.setZoneNamed
+	(
+		zoneId: string,
+		options?: {
+			readonly adjustForTimeZone?: boolean | undefined;
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): (self: DateTime) => Option.Option<Zoned>;
+	(
+		self: DateTime,
+		zoneId: string,
+		options?: {
+			readonly adjustForTimeZone?: boolean | undefined;
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): Option.Option<Zoned>;
+} = Internal.setZoneNamed;
 
 /**
  * Set the time zone of a `DateTime` from an IANA time zone identifier. If the
@@ -1171,15 +1218,22 @@ export const setZoneNamed: {
  * @since 4.0.0
  */
 export const setZoneNamedUnsafe: {
-  (zoneId: string, options?: {
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }): (self: DateTime) => Zoned
-  (self: DateTime, zoneId: string, options?: {
-    readonly adjustForTimeZone?: boolean | undefined
-    readonly disambiguation?: Disambiguation | undefined
-  }): Zoned
-} = Internal.setZoneNamedUnsafe
+	(
+		zoneId: string,
+		options?: {
+			readonly adjustForTimeZone?: boolean | undefined;
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): (self: DateTime) => Zoned;
+	(
+		self: DateTime,
+		zoneId: string,
+		options?: {
+			readonly adjustForTimeZone?: boolean | undefined;
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): Zoned;
+} = Internal.setZoneNamedUnsafe;
 
 // =============================================================================
 // comparisons
@@ -1213,9 +1267,9 @@ export const setZoneNamedUnsafe: {
  * @since 3.6.0
  */
 export const distance: {
-  (other: DateTime): (self: DateTime) => Duration.Duration
-  (self: DateTime, other: DateTime): Duration.Duration
-} = Internal.distance
+	(other: DateTime): (self: DateTime) => Duration.Duration;
+	(self: DateTime, other: DateTime): Duration.Duration;
+} = Internal.distance;
 
 /**
  * Returns the earlier of two `DateTime` values.
@@ -1236,9 +1290,14 @@ export const distance: {
  * @since 3.6.0
  */
 export const min: {
-  <That extends DateTime>(that: That): <Self extends DateTime>(self: Self) => Self | That
-  <Self extends DateTime, That extends DateTime>(self: Self, that: That): Self | That
-} = Internal.min
+	<That extends DateTime>(
+		that: That,
+	): <Self extends DateTime>(self: Self) => Self | That;
+	<Self extends DateTime, That extends DateTime>(
+		self: Self,
+		that: That,
+	): Self | That;
+} = Internal.min;
 
 /**
  * Returns the later of two `DateTime` values.
@@ -1259,9 +1318,14 @@ export const min: {
  * @since 3.6.0
  */
 export const max: {
-  <That extends DateTime>(that: That): <Self extends DateTime>(self: Self) => Self | That
-  <Self extends DateTime, That extends DateTime>(self: Self, that: That): Self | That
-} = Internal.max
+	<That extends DateTime>(
+		that: That,
+	): <Self extends DateTime>(self: Self) => Self | That;
+	<Self extends DateTime, That extends DateTime>(
+		self: Self,
+		that: That,
+	): Self | That;
+} = Internal.max;
 
 /**
  * Checks if the first `DateTime` is after the second `DateTime`.
@@ -1282,9 +1346,9 @@ export const max: {
  * @since 4.0.0
  */
 export const isGreaterThan: {
-  (that: DateTime): (self: DateTime) => boolean
-  (self: DateTime, that: DateTime): boolean
-} = Internal.isGreaterThan
+	(that: DateTime): (self: DateTime) => boolean;
+	(self: DateTime, that: DateTime): boolean;
+} = Internal.isGreaterThan;
 
 /**
  * Checks if the first `DateTime` is after or equal to the second `DateTime`.
@@ -1307,9 +1371,9 @@ export const isGreaterThan: {
  * @since 4.0.0
  */
 export const isGreaterThanOrEqualTo: {
-  (that: DateTime): (self: DateTime) => boolean
-  (self: DateTime, that: DateTime): boolean
-} = Internal.isGreaterThanOrEqualTo
+	(that: DateTime): (self: DateTime) => boolean;
+	(self: DateTime, that: DateTime): boolean;
+} = Internal.isGreaterThanOrEqualTo;
 
 /**
  * Checks if the first `DateTime` is before the second `DateTime`.
@@ -1330,9 +1394,9 @@ export const isGreaterThanOrEqualTo: {
  * @since 4.0.0
  */
 export const isLessThan: {
-  (that: DateTime): (self: DateTime) => boolean
-  (self: DateTime, that: DateTime): boolean
-} = Internal.isLessThan
+	(that: DateTime): (self: DateTime) => boolean;
+	(self: DateTime, that: DateTime): boolean;
+} = Internal.isLessThan;
 
 /**
  * Checks if the first `DateTime` is before or equal to the second `DateTime`.
@@ -1355,9 +1419,9 @@ export const isLessThan: {
  * @since 4.0.0
  */
 export const isLessThanOrEqualTo: {
-  (that: DateTime): (self: DateTime) => boolean
-  (self: DateTime, that: DateTime): boolean
-} = Internal.isLessThanOrEqualTo
+	(that: DateTime): (self: DateTime) => boolean;
+	(self: DateTime, that: DateTime): boolean;
+} = Internal.isLessThanOrEqualTo;
 
 /**
  * Checks if a `DateTime` is between two other `DateTime` values (inclusive).
@@ -1378,9 +1442,12 @@ export const isLessThanOrEqualTo: {
  * @since 3.6.0
  */
 export const between: {
-  (options: { minimum: DateTime; maximum: DateTime }): (self: DateTime) => boolean
-  (self: DateTime, options: { minimum: DateTime; maximum: DateTime }): boolean
-} = Internal.between
+	(options: {
+		minimum: DateTime;
+		maximum: DateTime;
+	}): (self: DateTime) => boolean;
+	(self: DateTime, options: { minimum: DateTime; maximum: DateTime }): boolean;
+} = Internal.between;
 
 /**
  * Checks if a `DateTime` is in the future compared to the current time.
@@ -1404,7 +1471,8 @@ export const between: {
  * @category comparisons
  * @since 3.6.0
  */
-export const isFuture: (self: DateTime) => Effect.Effect<boolean> = Internal.isFuture
+export const isFuture: (self: DateTime) => Effect.Effect<boolean> =
+	Internal.isFuture;
 
 /**
  * Checks if a `DateTime` is in the future compared to the current time.
@@ -1428,7 +1496,8 @@ export const isFuture: (self: DateTime) => Effect.Effect<boolean> = Internal.isF
  * @category comparisons
  * @since 4.0.0
  */
-export const isFutureUnsafe: (self: DateTime) => boolean = Internal.isFutureUnsafe
+export const isFutureUnsafe: (self: DateTime) => boolean =
+	Internal.isFutureUnsafe;
 
 /**
  * Checks if a `DateTime` is in the past compared to the current time.
@@ -1452,7 +1521,8 @@ export const isFutureUnsafe: (self: DateTime) => boolean = Internal.isFutureUnsa
  * @category comparisons
  * @since 3.6.0
  */
-export const isPast: (self: DateTime) => Effect.Effect<boolean> = Internal.isPast
+export const isPast: (self: DateTime) => Effect.Effect<boolean> =
+	Internal.isPast;
 
 /**
  * Checks if a `DateTime` is in the past compared to the current time.
@@ -1476,7 +1546,7 @@ export const isPast: (self: DateTime) => Effect.Effect<boolean> = Internal.isPas
  * @category comparisons
  * @since 4.0.0
  */
-export const isPastUnsafe: (self: DateTime) => boolean = Internal.isPastUnsafe
+export const isPastUnsafe: (self: DateTime) => boolean = Internal.isPastUnsafe;
 
 // =============================================================================
 // conversions
@@ -1505,7 +1575,7 @@ export const isPastUnsafe: (self: DateTime) => boolean = Internal.isPastUnsafe
  * @category converting
  * @since 3.6.0
  */
-export const toDateUtc: (self: DateTime) => Date = Internal.toDateUtc
+export const toDateUtc: (self: DateTime) => Date = Internal.toDateUtc;
 
 /**
  * Convert a `DateTime` to a `Date`, applying the time zone first.
@@ -1532,7 +1602,7 @@ export const toDateUtc: (self: DateTime) => Date = Internal.toDateUtc
  * @category converting
  * @since 3.6.0
  */
-export const toDate: (self: DateTime) => Date = Internal.toDate
+export const toDate: (self: DateTime) => Date = Internal.toDate;
 
 /**
  * Calculate the time zone offset of a `DateTime.Zoned` in milliseconds.
@@ -1558,7 +1628,7 @@ export const toDate: (self: DateTime) => Date = Internal.toDate
  * @category converting
  * @since 3.6.0
  */
-export const zonedOffset: (self: Zoned) => number = Internal.zonedOffset
+export const zonedOffset: (self: Zoned) => number = Internal.zonedOffset;
 
 /**
  * Format the time zone offset of a `DateTime.Zoned` as an ISO string.
@@ -1583,7 +1653,7 @@ export const zonedOffset: (self: Zoned) => number = Internal.zonedOffset
  * @category converting
  * @since 3.6.0
  */
-export const zonedOffsetIso: (self: Zoned) => string = Internal.zonedOffsetIso
+export const zonedOffsetIso: (self: Zoned) => string = Internal.zonedOffsetIso;
 
 /**
  * Get the milliseconds since the Unix epoch of a `DateTime`.
@@ -1606,7 +1676,7 @@ export const zonedOffsetIso: (self: Zoned) => string = Internal.zonedOffsetIso
  * @category converting
  * @since 3.6.0
  */
-export const toEpochMillis: (self: DateTime) => number = Internal.toEpochMillis
+export const toEpochMillis: (self: DateTime) => number = Internal.toEpochMillis;
 
 /**
  * Remove the time aspect of a `DateTime`, first adjusting for the time
@@ -1630,7 +1700,7 @@ export const toEpochMillis: (self: DateTime) => number = Internal.toEpochMillis
  * @category converting
  * @since 3.6.0
  */
-export const removeTime: (self: DateTime) => Utc = Internal.removeTime
+export const removeTime: (self: DateTime) => Utc = Internal.removeTime;
 
 // =============================================================================
 // parts
@@ -1667,7 +1737,8 @@ export const removeTime: (self: DateTime) => Utc = Internal.removeTime
  * @category parts
  * @since 3.6.0
  */
-export const toParts: (self: DateTime) => DateTime.PartsWithWeekday = Internal.toParts
+export const toParts: (self: DateTime) => DateTime.PartsWithWeekday =
+	Internal.toParts;
 
 /**
  * Get the different parts of a `DateTime` as an object.
@@ -1693,7 +1764,8 @@ export const toParts: (self: DateTime) => DateTime.PartsWithWeekday = Internal.t
  * @category parts
  * @since 3.6.0
  */
-export const toPartsUtc: (self: DateTime) => DateTime.PartsWithWeekday = Internal.toPartsUtc
+export const toPartsUtc: (self: DateTime) => DateTime.PartsWithWeekday =
+	Internal.toPartsUtc;
 
 /**
  * Get a part of a `DateTime` as a number.
@@ -1716,9 +1788,9 @@ export const toPartsUtc: (self: DateTime) => DateTime.PartsWithWeekday = Interna
  * @since 3.6.0
  */
 export const getPartUtc: {
-  (part: keyof DateTime.PartsWithWeekday): (self: DateTime) => number
-  (self: DateTime, part: keyof DateTime.PartsWithWeekday): number
-} = Internal.getPartUtc
+	(part: keyof DateTime.PartsWithWeekday): (self: DateTime) => number;
+	(self: DateTime, part: keyof DateTime.PartsWithWeekday): number;
+} = Internal.getPartUtc;
 
 /**
  * Get a part of a `DateTime` as a number.
@@ -1743,9 +1815,9 @@ export const getPartUtc: {
  * @since 3.6.0
  */
 export const getPart: {
-  (part: keyof DateTime.PartsWithWeekday): (self: DateTime) => number
-  (self: DateTime, part: keyof DateTime.PartsWithWeekday): number
-} = Internal.getPart
+	(part: keyof DateTime.PartsWithWeekday): (self: DateTime) => number;
+	(self: DateTime, part: keyof DateTime.PartsWithWeekday): number;
+} = Internal.getPart;
 
 /**
  * Set the different parts of a `DateTime` as an object.
@@ -1773,9 +1845,11 @@ export const getPart: {
  * @since 3.6.0
  */
 export const setParts: {
-  (parts: Partial<DateTime.PartsWithWeekday>): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(self: A, parts: Partial<DateTime.PartsWithWeekday>): A
-} = Internal.setParts
+	(
+		parts: Partial<DateTime.PartsWithWeekday>,
+	): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(self: A, parts: Partial<DateTime.PartsWithWeekday>): A;
+} = Internal.setParts;
 
 /**
  * Set the different parts of a `DateTime` as an object.
@@ -1802,9 +1876,11 @@ export const setParts: {
  * @since 3.6.0
  */
 export const setPartsUtc: {
-  (parts: Partial<DateTime.PartsWithWeekday>): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(self: A, parts: Partial<DateTime.PartsWithWeekday>): A
-} = Internal.setPartsUtc
+	(
+		parts: Partial<DateTime.PartsWithWeekday>,
+	): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(self: A, parts: Partial<DateTime.PartsWithWeekday>): A;
+} = Internal.setPartsUtc;
 
 // =============================================================================
 // current time zone
@@ -1839,9 +1915,10 @@ export const setPartsUtc: {
  * @category current time zone
  * @since 3.11.0
  */
-export class CurrentTimeZone extends Context.Service<CurrentTimeZone, TimeZone>()(
-  "effect/DateTime/CurrentTimeZone"
-) {}
+export class CurrentTimeZone extends Context.Service<
+	CurrentTimeZone,
+	TimeZone
+>()("effect/DateTime/CurrentTimeZone") {}
 
 /**
  * Set the time zone of a `DateTime` to the current time zone, which is
@@ -1863,8 +1940,10 @@ export class CurrentTimeZone extends Context.Service<CurrentTimeZone, TimeZone>(
  * @category current time zone
  * @since 3.6.0
  */
-export const setZoneCurrent = (self: DateTime): Effect.Effect<Zoned, never, CurrentTimeZone> =>
-  Effect.map(CurrentTimeZone, (zone) => setZone(self, zone))
+export const setZoneCurrent = (
+	self: DateTime,
+): Effect.Effect<Zoned, never, CurrentTimeZone> =>
+	Effect.map(CurrentTimeZone, (zone) => setZone(self, zone));
 
 /**
  * Provide the `CurrentTimeZone` to an effect.
@@ -1885,9 +1964,16 @@ export const setZoneCurrent = (self: DateTime): Effect.Effect<Zoned, never, Curr
  * @since 3.6.0
  */
 export const withCurrentZone: {
-  (value: TimeZone): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, CurrentTimeZone>>
-  <A, E, R>(self: Effect.Effect<A, E, R>, value: TimeZone): Effect.Effect<A, E, Exclude<R, CurrentTimeZone>>
-} = provideService(CurrentTimeZone)
+	(
+		value: TimeZone,
+	): <A, E, R>(
+		self: Effect.Effect<A, E, R>,
+	) => Effect.Effect<A, E, Exclude<R, CurrentTimeZone>>;
+	<A, E, R>(
+		self: Effect.Effect<A, E, R>,
+		value: TimeZone,
+	): Effect.Effect<A, E, Exclude<R, CurrentTimeZone>>;
+} = provideService(CurrentTimeZone);
 
 /**
  * Provide the `CurrentTimeZone` to an effect, using the system's local time
@@ -1908,9 +1994,13 @@ export const withCurrentZone: {
  * @since 3.6.0
  */
 export const withCurrentZoneLocal = <A, E, R>(
-  effect: Effect.Effect<A, E, R>
+	effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E, Exclude<R, CurrentTimeZone>> =>
-  Effect.provideServiceEffect(effect, CurrentTimeZone, Effect.sync(zoneMakeLocal))
+	Effect.provideServiceEffect(
+		effect,
+		CurrentTimeZone,
+		Effect.sync(zoneMakeLocal),
+	);
 
 /**
  * Provide the `CurrentTimeZone` to an effect, using a offset.
@@ -1930,15 +2020,23 @@ export const withCurrentZoneLocal = <A, E, R>(
  * @since 3.6.0
  */
 export const withCurrentZoneOffset: {
-  (offset: number): <A, E, R>(
-    effect: Effect.Effect<A, E, R>
-  ) => Effect.Effect<A, E, Exclude<R, CurrentTimeZone>>
-  <A, E, R>(effect: Effect.Effect<A, E, R>, offset: number): Effect.Effect<A, E, Exclude<R, CurrentTimeZone>>
+	(
+		offset: number,
+	): <A, E, R>(
+		effect: Effect.Effect<A, E, R>,
+	) => Effect.Effect<A, E, Exclude<R, CurrentTimeZone>>;
+	<A, E, R>(
+		effect: Effect.Effect<A, E, R>,
+		offset: number,
+	): Effect.Effect<A, E, Exclude<R, CurrentTimeZone>>;
 } = dual(
-  2,
-  <A, E, R>(effect: Effect.Effect<A, E, R>, offset: number): Effect.Effect<A, E, Exclude<R, CurrentTimeZone>> =>
-    Effect.provideService(effect, CurrentTimeZone, zoneMakeOffset(offset))
-)
+	2,
+	<A, E, R>(
+		effect: Effect.Effect<A, E, R>,
+		offset: number,
+	): Effect.Effect<A, E, Exclude<R, CurrentTimeZone>> =>
+		Effect.provideService(effect, CurrentTimeZone, zoneMakeOffset(offset)),
+);
 
 /**
  * Provide the `CurrentTimeZone` to an effect using an IANA time zone
@@ -1963,21 +2061,27 @@ export const withCurrentZoneOffset: {
  * @since 3.6.0
  */
 export const withCurrentZoneNamed: {
-  (zone: string): <A, E, R>(
-    effect: Effect.Effect<A, E, R>
-  ) => Effect.Effect<A, E | IllegalArgumentError, Exclude<R, CurrentTimeZone>>
-  <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    zone: string
-  ): Effect.Effect<A, E | IllegalArgumentError, Exclude<R, CurrentTimeZone>>
+	(
+		zone: string,
+	): <A, E, R>(
+		effect: Effect.Effect<A, E, R>,
+	) => Effect.Effect<A, E | IllegalArgumentError, Exclude<R, CurrentTimeZone>>;
+	<A, E, R>(
+		effect: Effect.Effect<A, E, R>,
+		zone: string,
+	): Effect.Effect<A, E | IllegalArgumentError, Exclude<R, CurrentTimeZone>>;
 } = dual(
-  2,
-  <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    zone: string
-  ): Effect.Effect<A, E | IllegalArgumentError, Exclude<R, CurrentTimeZone>> =>
-    Effect.provideServiceEffect(effect, CurrentTimeZone, zoneMakeNamedEffect(zone))
-)
+	2,
+	<A, E, R>(
+		effect: Effect.Effect<A, E, R>,
+		zone: string,
+	): Effect.Effect<A, E | IllegalArgumentError, Exclude<R, CurrentTimeZone>> =>
+		Effect.provideServiceEffect(
+			effect,
+			CurrentTimeZone,
+			zoneMakeNamedEffect(zone),
+		),
+);
 
 /**
  * Get the current time as a `DateTime.Zoned`, using the `CurrentTimeZone`.
@@ -1996,7 +2100,8 @@ export const withCurrentZoneNamed: {
  * @category current time zone
  * @since 3.6.0
  */
-export const nowInCurrentZone: Effect.Effect<Zoned, never, CurrentTimeZone> = Effect.flatMap(now, setZoneCurrent)
+export const nowInCurrentZone: Effect.Effect<Zoned, never, CurrentTimeZone> =
+	Effect.flatMap(now, setZoneCurrent);
 
 // =============================================================================
 // mapping
@@ -2031,20 +2136,20 @@ export const nowInCurrentZone: Effect.Effect<Zoned, never, CurrentTimeZone> = Ef
  * @since 3.6.0
  */
 export const mutate: {
-  (
-    f: (date: Date) => void,
-    options?: {
-      readonly disambiguation?: Disambiguation | undefined
-    }
-  ): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(
-    self: A,
-    f: (date: Date) => void,
-    options?: {
-      readonly disambiguation?: Disambiguation | undefined
-    }
-  ): A
-} = Internal.mutate
+	(
+		f: (date: Date) => void,
+		options?: {
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(
+		self: A,
+		f: (date: Date) => void,
+		options?: {
+			readonly disambiguation?: Disambiguation | undefined;
+		},
+	): A;
+} = Internal.mutate;
 
 /**
  * Modify a `DateTime` by applying a function to a cloned UTC `Date` instance.
@@ -2069,9 +2174,9 @@ export const mutate: {
  * @since 3.6.0
  */
 export const mutateUtc: {
-  (f: (date: Date) => void): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(self: A, f: (date: Date) => void): A
-} = Internal.mutateUtc
+	(f: (date: Date) => void): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(self: A, f: (date: Date) => void): A;
+} = Internal.mutateUtc;
 
 /**
  * Transform a `DateTime` by applying a function to the number of milliseconds
@@ -2092,9 +2197,9 @@ export const mutateUtc: {
  * @since 3.6.0
  */
 export const mapEpochMillis: {
-  (f: (millis: number) => number): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(self: A, f: (millis: number) => number): A
-} = Internal.mapEpochMillis
+	(f: (millis: number) => number): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(self: A, f: (millis: number) => number): A;
+} = Internal.mapEpochMillis;
 
 /**
  * Applies a function to a JavaScript `Date` representing the `DateTime` and
@@ -2121,9 +2226,9 @@ export const mapEpochMillis: {
  * @since 3.6.0
  */
 export const withDate: {
-  <A>(f: (date: Date) => A): (self: DateTime) => A
-  <A>(self: DateTime, f: (date: Date) => A): A
-} = Internal.withDate
+	<A>(f: (date: Date) => A): (self: DateTime) => A;
+	<A>(self: DateTime, f: (date: Date) => A): A;
+} = Internal.withDate;
 
 /**
  * Applies a function to a JavaScript `Date` representing the `DateTime`'s UTC
@@ -2149,9 +2254,9 @@ export const withDate: {
  * @since 3.6.0
  */
 export const withDateUtc: {
-  <A>(f: (date: Date) => A): (self: DateTime) => A
-  <A>(self: DateTime, f: (date: Date) => A): A
-} = Internal.withDateUtc
+	<A>(f: (date: Date) => A): (self: DateTime) => A;
+	<A>(self: DateTime, f: (date: Date) => A): A;
+} = Internal.withDateUtc;
 
 /**
  * Pattern match on a `DateTime` to handle `Utc` and `Zoned` cases differently.
@@ -2184,15 +2289,18 @@ export const withDateUtc: {
  * @since 3.6.0
  */
 export const match: {
-  <A, B>(options: {
-    readonly onUtc: (_: Utc) => A
-    readonly onZoned: (_: Zoned) => B
-  }): (self: DateTime) => A | B
-  <A, B>(self: DateTime, options: {
-    readonly onUtc: (_: Utc) => A
-    readonly onZoned: (_: Zoned) => B
-  }): A | B
-} = Internal.match
+	<A, B>(options: {
+		readonly onUtc: (_: Utc) => A;
+		readonly onZoned: (_: Zoned) => B;
+	}): (self: DateTime) => A | B;
+	<A, B>(
+		self: DateTime,
+		options: {
+			readonly onUtc: (_: Utc) => A;
+			readonly onZoned: (_: Zoned) => B;
+		},
+	): A | B;
+} = Internal.match;
 
 // =============================================================================
 // math
@@ -2216,9 +2324,9 @@ export const match: {
  * @since 3.6.0
  */
 export const addDuration: {
-  (duration: Duration.Input): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(self: A, duration: Duration.Input): A
-} = Internal.addDuration
+	(duration: Duration.Input): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(self: A, duration: Duration.Input): A;
+} = Internal.addDuration;
 
 /**
  * Subtract the given `Duration` from a `DateTime`.
@@ -2238,9 +2346,9 @@ export const addDuration: {
  * @since 3.6.0
  */
 export const subtractDuration: {
-  (duration: Duration.Input): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(self: A, duration: Duration.Input): A
-} = Internal.subtractDuration
+	(duration: Duration.Input): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(self: A, duration: Duration.Input): A;
+} = Internal.subtractDuration;
 
 /**
  * Add the given `amount` of `unit`'s to a `DateTime`.
@@ -2265,9 +2373,9 @@ export const subtractDuration: {
  * @since 3.6.0
  */
 export const add: {
-  (parts: Partial<DateTime.PartsForMath>): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(self: A, parts: Partial<DateTime.PartsForMath>): A
-} = Internal.add
+	(parts: Partial<DateTime.PartsForMath>): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(self: A, parts: Partial<DateTime.PartsForMath>): A;
+} = Internal.add;
 
 /**
  * Subtract the given `amount` of `unit`'s from a `DateTime`.
@@ -2287,9 +2395,9 @@ export const add: {
  * @since 3.6.0
  */
 export const subtract: {
-  (parts: Partial<DateTime.PartsForMath>): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(self: A, parts: Partial<DateTime.PartsForMath>): A
-} = Internal.subtract
+	(parts: Partial<DateTime.PartsForMath>): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(self: A, parts: Partial<DateTime.PartsForMath>): A;
+} = Internal.subtract;
 
 /**
  * Converts a `DateTime` to the start of the given `part`.
@@ -2315,16 +2423,16 @@ export const subtract: {
  * @since 3.6.0
  */
 export const startOf: {
-  (
-    part: DateTime.UnitSingular,
-    options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined }
-  ): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(
-    self: A,
-    part: DateTime.UnitSingular,
-    options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined }
-  ): A
-} = Internal.startOf
+	(
+		part: DateTime.UnitSingular,
+		options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined },
+	): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(
+		self: A,
+		part: DateTime.UnitSingular,
+		options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined },
+	): A;
+} = Internal.startOf;
 
 /**
  * Converts a `DateTime` to the end of the given `part`.
@@ -2350,16 +2458,16 @@ export const startOf: {
  * @since 3.6.0
  */
 export const endOf: {
-  (
-    part: DateTime.UnitSingular,
-    options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined }
-  ): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(
-    self: A,
-    part: DateTime.UnitSingular,
-    options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined }
-  ): A
-} = Internal.endOf
+	(
+		part: DateTime.UnitSingular,
+		options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined },
+	): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(
+		self: A,
+		part: DateTime.UnitSingular,
+		options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined },
+	): A;
+} = Internal.endOf;
 
 /**
  * Converts a `DateTime` to the nearest given `part`.
@@ -2385,16 +2493,16 @@ export const endOf: {
  * @since 3.6.0
  */
 export const nearest: {
-  (
-    part: DateTime.UnitSingular,
-    options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined }
-  ): <A extends DateTime>(self: A) => A
-  <A extends DateTime>(
-    self: A,
-    part: DateTime.UnitSingular,
-    options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined }
-  ): A
-} = Internal.nearest
+	(
+		part: DateTime.UnitSingular,
+		options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined },
+	): <A extends DateTime>(self: A) => A;
+	<A extends DateTime>(
+		self: A,
+		part: DateTime.UnitSingular,
+		options?: { readonly weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined },
+	): A;
+} = Internal.nearest;
 
 // =============================================================================
 // formatting
@@ -2434,22 +2542,22 @@ export const nearest: {
  * @since 3.6.0
  */
 export const format: {
-  (
-    options?:
-      | Intl.DateTimeFormatOptions & {
-        readonly locale?: string | undefined
-      }
-      | undefined
-  ): (self: DateTime) => string
-  (
-    self: DateTime,
-    options?:
-      | Intl.DateTimeFormatOptions & {
-        readonly locale?: string | undefined
-      }
-      | undefined
-  ): string
-} = Internal.format
+	(
+		options?:
+			| (Intl.DateTimeFormatOptions & {
+					readonly locale?: string | undefined;
+			  })
+			| undefined,
+	): (self: DateTime) => string;
+	(
+		self: DateTime,
+		options?:
+			| (Intl.DateTimeFormatOptions & {
+					readonly locale?: string | undefined;
+			  })
+			| undefined,
+	): string;
+} = Internal.format;
 
 /**
  * Format a `DateTime` as a string using the `DateTimeFormat` API.
@@ -2481,22 +2589,22 @@ export const format: {
  * @since 3.6.0
  */
 export const formatLocal: {
-  (
-    options?:
-      | Intl.DateTimeFormatOptions & {
-        readonly locale?: string | undefined
-      }
-      | undefined
-  ): (self: DateTime) => string
-  (
-    self: DateTime,
-    options?:
-      | Intl.DateTimeFormatOptions & {
-        readonly locale?: string | undefined
-      }
-      | undefined
-  ): string
-} = Internal.formatLocal
+	(
+		options?:
+			| (Intl.DateTimeFormatOptions & {
+					readonly locale?: string | undefined;
+			  })
+			| undefined,
+	): (self: DateTime) => string;
+	(
+		self: DateTime,
+		options?:
+			| (Intl.DateTimeFormatOptions & {
+					readonly locale?: string | undefined;
+			  })
+			| undefined,
+	): string;
+} = Internal.formatLocal;
 
 /**
  * Format a `DateTime` as a string using the `DateTimeFormat` API.
@@ -2531,22 +2639,22 @@ export const formatLocal: {
  * @since 3.6.0
  */
 export const formatUtc: {
-  (
-    options?:
-      | Intl.DateTimeFormatOptions & {
-        readonly locale?: string | undefined
-      }
-      | undefined
-  ): (self: DateTime) => string
-  (
-    self: DateTime,
-    options?:
-      | Intl.DateTimeFormatOptions & {
-        readonly locale?: string | undefined
-      }
-      | undefined
-  ): string
-} = Internal.formatUtc
+	(
+		options?:
+			| (Intl.DateTimeFormatOptions & {
+					readonly locale?: string | undefined;
+			  })
+			| undefined,
+	): (self: DateTime) => string;
+	(
+		self: DateTime,
+		options?:
+			| (Intl.DateTimeFormatOptions & {
+					readonly locale?: string | undefined;
+			  })
+			| undefined,
+	): string;
+} = Internal.formatUtc;
 
 /**
  * Format a `DateTime` as a string using the `DateTimeFormat` API.
@@ -2576,9 +2684,9 @@ export const formatUtc: {
  * @since 3.6.0
  */
 export const formatIntl: {
-  (format: Intl.DateTimeFormat): (self: DateTime) => string
-  (self: DateTime, format: Intl.DateTimeFormat): string
-} = Internal.formatIntl
+	(format: Intl.DateTimeFormat): (self: DateTime) => string;
+	(self: DateTime, format: Intl.DateTimeFormat): string;
+} = Internal.formatIntl;
 
 /**
  * Format a `DateTime` as a UTC ISO string.
@@ -2604,7 +2712,7 @@ export const formatIntl: {
  * @category formatting
  * @since 3.6.0
  */
-export const formatIso: (self: DateTime) => string = Internal.formatIso
+export const formatIso: (self: DateTime) => string = Internal.formatIso;
 
 /**
  * Format a `DateTime` as a time zone adjusted ISO date string.
@@ -2630,7 +2738,7 @@ export const formatIso: (self: DateTime) => string = Internal.formatIso
  * @category formatting
  * @since 3.6.0
  */
-export const formatIsoDate: (self: DateTime) => string = Internal.formatIsoDate
+export const formatIsoDate: (self: DateTime) => string = Internal.formatIsoDate;
 
 /**
  * Format a `DateTime` as a UTC ISO date string.
@@ -2656,7 +2764,8 @@ export const formatIsoDate: (self: DateTime) => string = Internal.formatIsoDate
  * @category formatting
  * @since 3.6.0
  */
-export const formatIsoDateUtc: (self: DateTime) => string = Internal.formatIsoDateUtc
+export const formatIsoDateUtc: (self: DateTime) => string =
+	Internal.formatIsoDateUtc;
 
 /**
  * Format a `DateTime.Zoned` as an ISO string with an offset.
@@ -2683,7 +2792,8 @@ export const formatIsoDateUtc: (self: DateTime) => string = Internal.formatIsoDa
  * @category formatting
  * @since 3.6.0
  */
-export const formatIsoOffset: (self: DateTime) => string = Internal.formatIsoOffset
+export const formatIsoOffset: (self: DateTime) => string =
+	Internal.formatIsoOffset;
 
 /**
  * Format a `DateTime.Zoned` as a string.
@@ -2715,7 +2825,7 @@ export const formatIsoOffset: (self: DateTime) => string = Internal.formatIsoOff
  * @category formatting
  * @since 3.6.0
  */
-export const formatIsoZoned: (self: Zoned) => string = Internal.formatIsoZoned
+export const formatIsoZoned: (self: Zoned) => string = Internal.formatIsoZoned;
 
 /**
  * Create a Layer from the given time zone.
@@ -2744,9 +2854,9 @@ export const formatIsoZoned: (self: Zoned) => string = Internal.formatIsoZoned
  * @category current time zone
  * @since 3.6.0
  */
-export const layerCurrentZone: (resource: NoInfer<TimeZone>) => Layer.Layer<CurrentTimeZone> = Layer.succeed(
-  CurrentTimeZone
-)
+export const layerCurrentZone: (
+	resource: NoInfer<TimeZone>,
+) => Layer.Layer<CurrentTimeZone> = Layer.succeed(CurrentTimeZone);
 
 /**
  * Create a Layer from the given time zone offset.
@@ -2774,8 +2884,10 @@ export const layerCurrentZone: (resource: NoInfer<TimeZone>) => Layer.Layer<Curr
  * @category current time zone
  * @since 3.6.0
  */
-export const layerCurrentZoneOffset = (offset: number): Layer.Layer<CurrentTimeZone> =>
-  Layer.succeed(CurrentTimeZone)(Internal.zoneMakeOffset(offset))
+export const layerCurrentZoneOffset = (
+	offset: number,
+): Layer.Layer<CurrentTimeZone> =>
+	Layer.succeed(CurrentTimeZone)(Internal.zoneMakeOffset(offset));
 
 /**
  * Create a Layer from the given IANA time zone identifier.
@@ -2803,10 +2915,12 @@ export const layerCurrentZoneOffset = (offset: number): Layer.Layer<CurrentTimeZ
  * @category current time zone
  * @since 3.6.0
  */
-export const layerCurrentZoneNamed: (zoneId: string) => Layer.Layer<
-  CurrentTimeZone,
-  IllegalArgumentError
-> = flow(Internal.zoneMakeNamedEffect, Layer.effect(CurrentTimeZone))
+export const layerCurrentZoneNamed: (
+	zoneId: string,
+) => Layer.Layer<CurrentTimeZone, IllegalArgumentError> = flow(
+	Internal.zoneMakeNamedEffect,
+	Layer.effect(CurrentTimeZone),
+);
 
 /**
  * Create a Layer from the system's local time zone.
@@ -2833,4 +2947,5 @@ export const layerCurrentZoneNamed: (zoneId: string) => Layer.Layer<
  * @category current time zone
  * @since 3.6.0
  */
-export const layerCurrentZoneLocal: Layer.Layer<CurrentTimeZone> = Layer.sync(CurrentTimeZone)(zoneMakeLocal)
+export const layerCurrentZoneLocal: Layer.Layer<CurrentTimeZone> =
+	Layer.sync(CurrentTimeZone)(zoneMakeLocal);

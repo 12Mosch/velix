@@ -4,20 +4,20 @@
  *
  * @since 4.0.0
  */
-import * as Effect from "./Effect.ts"
-import { dual } from "./Function.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import { NodeInspectSymbol, toJson } from "./Inspectable.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { pipeArguments } from "./Pipeable.ts"
-import { hasProperty } from "./Predicate.ts"
-import type * as Scope from "./Scope.ts"
-import * as Stream from "./Stream.ts"
-import * as TxPubSub from "./TxPubSub.ts"
-import * as TxQueue from "./TxQueue.ts"
-import * as TxRef from "./TxRef.ts"
+import * as Effect from "./Effect.ts";
+import { dual } from "./Function.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import { NodeInspectSymbol, toJson } from "./Inspectable.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { pipeArguments } from "./Pipeable.ts";
+import { hasProperty } from "./Predicate.ts";
+import type * as Scope from "./Scope.ts";
+import * as Stream from "./Stream.ts";
+import * as TxPubSub from "./TxPubSub.ts";
+import * as TxQueue from "./TxQueue.ts";
+import * as TxRef from "./TxRef.ts";
 
-const TypeId = "~effect/transactions/TxSubscriptionRef"
+const TypeId = "~effect/transactions/TxSubscriptionRef";
 
 /**
  * A TxSubscriptionRef is a transactional reference that allows subscribing to all
@@ -50,27 +50,30 @@ const TypeId = "~effect/transactions/TxSubscriptionRef"
  * @since 4.0.0
  */
 export interface TxSubscriptionRef<in out A> extends Inspectable, Pipeable {
-  readonly [TypeId]: typeof TypeId
-  /** @internal */
-  readonly ref: TxRef.TxRef<A>
-  /** @internal */
-  readonly pubsub: TxPubSub.TxPubSub<A>
+	readonly [TypeId]: typeof TypeId;
+	/** @internal */
+	readonly ref: TxRef.TxRef<A>;
+	/** @internal */
+	readonly pubsub: TxPubSub.TxPubSub<A>;
 }
 
-const TxSubscriptionRefProto: Omit<TxSubscriptionRef<any>, typeof TypeId | "ref" | "pubsub"> = {
-  [NodeInspectSymbol](this: TxSubscriptionRef<unknown>) {
-    return toJson(this)
-  },
-  toJSON(this: TxSubscriptionRef<unknown>) {
-    return { _id: "TxSubscriptionRef" }
-  },
-  toString() {
-    return "TxSubscriptionRef"
-  },
-  pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+const TxSubscriptionRefProto: Omit<
+	TxSubscriptionRef<any>,
+	typeof TypeId | "ref" | "pubsub"
+> = {
+	[NodeInspectSymbol](this: TxSubscriptionRef<unknown>) {
+		return toJson(this);
+	},
+	toJSON(this: TxSubscriptionRef<unknown>) {
+		return { _id: "TxSubscriptionRef" };
+	},
+	toString() {
+		return "TxSubscriptionRef";
+	},
+	pipe() {
+		return pipeArguments(this, arguments);
+	},
+};
 
 // =============================================================================
 // Constructors
@@ -95,15 +98,15 @@ const TxSubscriptionRefProto: Omit<TxSubscriptionRef<any>, typeof TypeId | "ref"
  * @since 3.10.0
  */
 export const make = <A>(value: A): Effect.Effect<TxSubscriptionRef<A>> =>
-  Effect.gen(function*() {
-    const ref = yield* TxRef.make(value)
-    const pubsub = yield* TxPubSub.unbounded<A>()
-    const self = Object.create(TxSubscriptionRefProto)
-    self[TypeId] = TypeId
-    self.ref = ref
-    self.pubsub = pubsub
-    return self
-  }).pipe(Effect.tx)
+	Effect.gen(function* () {
+		const ref = yield* TxRef.make(value);
+		const pubsub = yield* TxPubSub.unbounded<A>();
+		const self = Object.create(TxSubscriptionRefProto);
+		self[TypeId] = TypeId;
+		self.ref = ref;
+		self.pubsub = pubsub;
+		return self;
+	}).pipe(Effect.tx);
 
 // =============================================================================
 // Getters
@@ -127,7 +130,8 @@ export const make = <A>(value: A): Effect.Effect<TxSubscriptionRef<A>> =>
  * @category getters
  * @since 3.10.0
  */
-export const get = <A>(self: TxSubscriptionRef<A>): Effect.Effect<A> => TxRef.get(self.ref)
+export const get = <A>(self: TxSubscriptionRef<A>): Effect.Effect<A> =>
+	TxRef.get(self.ref);
 
 // =============================================================================
 // Mutations
@@ -154,27 +158,27 @@ export const get = <A>(self: TxSubscriptionRef<A>): Effect.Effect<A> => TxRef.ge
  * @since 3.10.0
  */
 export const modify: {
-  <A, B>(
-    f: (current: A) => [returnValue: B, newValue: A]
-  ): (self: TxSubscriptionRef<A>) => Effect.Effect<B>
-  <A, B>(
-    self: TxSubscriptionRef<A>,
-    f: (current: A) => [returnValue: B, newValue: A]
-  ): Effect.Effect<B>
+	<A, B>(
+		f: (current: A) => [returnValue: B, newValue: A],
+	): (self: TxSubscriptionRef<A>) => Effect.Effect<B>;
+	<A, B>(
+		self: TxSubscriptionRef<A>,
+		f: (current: A) => [returnValue: B, newValue: A],
+	): Effect.Effect<B>;
 } = dual(
-  2,
-  <A, B>(
-    self: TxSubscriptionRef<A>,
-    f: (current: A) => [returnValue: B, newValue: A]
-  ): Effect.Effect<B> =>
-    Effect.gen(function*() {
-      const current = yield* TxRef.get(self.ref)
-      const [returnValue, newValue] = f(current)
-      yield* TxRef.set(self.ref, newValue)
-      yield* TxPubSub.publish(self.pubsub, newValue)
-      return returnValue
-    }).pipe(Effect.tx)
-)
+	2,
+	<A, B>(
+		self: TxSubscriptionRef<A>,
+		f: (current: A) => [returnValue: B, newValue: A],
+	): Effect.Effect<B> =>
+		Effect.gen(function* () {
+			const current = yield* TxRef.get(self.ref);
+			const [returnValue, newValue] = f(current);
+			yield* TxRef.set(self.ref, newValue);
+			yield* TxPubSub.publish(self.pubsub, newValue);
+			return returnValue;
+		}).pipe(Effect.tx),
+);
 
 /**
  * Sets the value of the TxSubscriptionRef and publishes the new value to all subscribers.
@@ -195,12 +199,13 @@ export const modify: {
  * @since 3.10.0
  */
 export const set: {
-  <A>(value: A): (self: TxSubscriptionRef<A>) => Effect.Effect<void>
-  <A>(self: TxSubscriptionRef<A>, value: A): Effect.Effect<void>
+	<A>(value: A): (self: TxSubscriptionRef<A>) => Effect.Effect<void>;
+	<A>(self: TxSubscriptionRef<A>, value: A): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxSubscriptionRef<A>, value: A): Effect.Effect<void> => modify(self, () => [void 0, value])
-)
+	2,
+	<A>(self: TxSubscriptionRef<A>, value: A): Effect.Effect<void> =>
+		modify(self, () => [void 0, value]),
+);
 
 /**
  * Updates the value of the TxSubscriptionRef using a function and publishes the new
@@ -222,13 +227,15 @@ export const set: {
  * @since 3.10.0
  */
 export const update: {
-  <A>(f: (current: A) => A): (self: TxSubscriptionRef<A>) => Effect.Effect<void>
-  <A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<void>
+	<A>(
+		f: (current: A) => A,
+	): (self: TxSubscriptionRef<A>) => Effect.Effect<void>;
+	<A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<void> =>
-    modify(self, (current) => [void 0, f(current)])
-)
+	2,
+	<A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<void> =>
+		modify(self, (current) => [void 0, f(current)]),
+);
 
 /**
  * Gets the current value and sets a new value atomically. Publishes the new value
@@ -251,12 +258,13 @@ export const update: {
  * @since 3.10.0
  */
 export const getAndSet: {
-  <A>(value: A): (self: TxSubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: TxSubscriptionRef<A>, value: A): Effect.Effect<A>
+	<A>(value: A): (self: TxSubscriptionRef<A>) => Effect.Effect<A>;
+	<A>(self: TxSubscriptionRef<A>, value: A): Effect.Effect<A>;
 } = dual(
-  2,
-  <A>(self: TxSubscriptionRef<A>, value: A): Effect.Effect<A> => modify(self, (current) => [current, value])
-)
+	2,
+	<A>(self: TxSubscriptionRef<A>, value: A): Effect.Effect<A> =>
+		modify(self, (current) => [current, value]),
+);
 
 /**
  * Gets the current value and updates it using a function atomically. Publishes
@@ -279,13 +287,13 @@ export const getAndSet: {
  * @since 3.10.0
  */
 export const getAndUpdate: {
-  <A>(f: (current: A) => A): (self: TxSubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<A>
+	<A>(f: (current: A) => A): (self: TxSubscriptionRef<A>) => Effect.Effect<A>;
+	<A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<A>;
 } = dual(
-  2,
-  <A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<A> =>
-    modify(self, (current) => [current, f(current)])
-)
+	2,
+	<A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<A> =>
+		modify(self, (current) => [current, f(current)]),
+);
 
 /**
  * Updates the value using a function and returns the new value. Publishes the
@@ -307,16 +315,16 @@ export const getAndUpdate: {
  * @since 3.10.0
  */
 export const updateAndGet: {
-  <A>(f: (current: A) => A): (self: TxSubscriptionRef<A>) => Effect.Effect<A>
-  <A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<A>
+	<A>(f: (current: A) => A): (self: TxSubscriptionRef<A>) => Effect.Effect<A>;
+	<A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<A>;
 } = dual(
-  2,
-  <A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<A> =>
-    modify(self, (current) => {
-      const newValue = f(current)
-      return [newValue, newValue]
-    })
-)
+	2,
+	<A>(self: TxSubscriptionRef<A>, f: (current: A) => A): Effect.Effect<A> =>
+		modify(self, (current) => {
+			const newValue = f(current);
+			return [newValue, newValue];
+		}),
+);
 
 // =============================================================================
 // Subscriptions
@@ -352,19 +360,19 @@ export const updateAndGet: {
  * @since 3.10.0
  */
 export const changes = <A>(
-  self: TxSubscriptionRef<A>
+	self: TxSubscriptionRef<A>,
 ): Effect.Effect<TxQueue.TxQueue<A>, never, Scope.Scope> =>
-  Effect.acquireRelease(
-    Effect.tx(
-      Effect.gen(function*() {
-        const sub = yield* TxPubSub.acquireSubscriber(self.pubsub)
-        const current = yield* TxRef.get(self.ref)
-        yield* TxQueue.offer(sub, current)
-        return sub
-      })
-    ),
-    (queue) => Effect.tx(TxPubSub.releaseSubscriber(self.pubsub, queue))
-  )
+	Effect.acquireRelease(
+		Effect.tx(
+			Effect.gen(function* () {
+				const sub = yield* TxPubSub.acquireSubscriber(self.pubsub);
+				const current = yield* TxRef.get(self.ref);
+				yield* TxQueue.offer(sub, current);
+				return sub;
+			}),
+		),
+		(queue) => Effect.tx(TxPubSub.releaseSubscriber(self.pubsub, queue)),
+	);
 
 /**
  * Returns a Stream of all changes to the TxSubscriptionRef, starting with the
@@ -390,13 +398,14 @@ export const changes = <A>(
  * @category subscriptions
  * @since 3.10.0
  */
-export const changesStream = <A>(self: TxSubscriptionRef<A>): Stream.Stream<A, never, never> =>
-  Stream.unwrap(
-    Effect.map(
-      changes(self),
-      (sub) => Stream.fromEffectRepeat(Effect.tx(TxQueue.take(sub)))
-    )
-  )
+export const changesStream = <A>(
+	self: TxSubscriptionRef<A>,
+): Stream.Stream<A, never, never> =>
+	Stream.unwrap(
+		Effect.map(changes(self), (sub) =>
+			Stream.fromEffectRepeat(Effect.tx(TxQueue.take(sub))),
+		),
+	);
 
 // =============================================================================
 // Guards
@@ -420,4 +429,6 @@ export const changesStream = <A>(self: TxSubscriptionRef<A>): Stream.Stream<A, n
  * @category guards
  * @since 4.0.0
  */
-export const isTxSubscriptionRef = (u: unknown): u is TxSubscriptionRef<unknown> => hasProperty(u, TypeId)
+export const isTxSubscriptionRef = (
+	u: unknown,
+): u is TxSubscriptionRef<unknown> => hasProperty(u, TypeId);

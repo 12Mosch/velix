@@ -19,30 +19,30 @@
  *
  * @since 4.0.0
  */
-import * as Uuid from "uuid"
-import type { Brand } from "../../Brand.ts"
-import * as DateTime from "../../DateTime.ts"
-import * as Effect from "../../Effect.ts"
-import * as Option from "../../Option.ts"
-import * as Predicate from "../../Predicate.ts"
-import * as Schema from "../../Schema.ts"
-import * as Getter from "../../SchemaGetter.ts"
-import * as Transformation from "../../SchemaTransformation.ts"
-import * as VariantSchema from "./VariantSchema.ts"
+import * as Uuid from "uuid";
+import type { Brand } from "../../Brand.ts";
+import * as DateTime from "../../DateTime.ts";
+import * as Effect from "../../Effect.ts";
+import * as Option from "../../Option.ts";
+import * as Predicate from "../../Predicate.ts";
+import * as Schema from "../../Schema.ts";
+import * as Getter from "../../SchemaGetter.ts";
+import * as Transformation from "../../SchemaTransformation.ts";
+import * as VariantSchema from "./VariantSchema.ts";
 
 const {
-  Class,
-  Field,
-  FieldExcept,
-  FieldOnly,
-  Struct,
-  Union,
-  extract,
-  fieldEvolve
+	Class,
+	Field,
+	FieldExcept,
+	FieldOnly,
+	Struct,
+	Union,
+	extract,
+	fieldEvolve,
 } = VariantSchema.make({
-  variants: ["select", "insert", "update", "json", "jsonCreate", "jsonUpdate"],
-  defaultVariant: "select"
-})
+	variants: ["select", "insert", "update", "json", "jsonCreate", "jsonUpdate"],
+	defaultVariant: "select",
+});
 
 /**
  * Base shape of a variant model schema, including its fields and the generated
@@ -52,13 +52,13 @@ const {
  * @since 4.0.0
  */
 export type Any = Schema.Top & {
-  readonly fields: Schema.Struct.Fields
-  readonly insert: Schema.Top
-  readonly update: Schema.Top
-  readonly json: Schema.Top
-  readonly jsonCreate: Schema.Top
-  readonly jsonUpdate: Schema.Top
-}
+	readonly fields: Schema.Struct.Fields;
+	readonly insert: Schema.Top;
+	readonly update: Schema.Top;
+	readonly json: Schema.Top;
+	readonly jsonCreate: Schema.Top;
+	readonly jsonUpdate: Schema.Top;
+};
 
 /**
  * Database-facing variant names generated for model schemas.
@@ -66,7 +66,7 @@ export type Any = Schema.Top & {
  * @category models
  * @since 4.0.0
  */
-export type VariantsDatabase = "select" | "insert" | "update"
+export type VariantsDatabase = "select" | "insert" | "update";
 
 /**
  * JSON API-facing variant names generated for model schemas.
@@ -74,106 +74,106 @@ export type VariantsDatabase = "select" | "insert" | "update"
  * @category models
  * @since 4.0.0
  */
-export type VariantsJson = "json" | "jsonCreate" | "jsonUpdate"
+export type VariantsJson = "json" | "jsonCreate" | "jsonUpdate";
 
 export {
-  /**
-   * A base class used for creating domain model schemas with common database and
-   * JSON API variants.
-   *
-   * **Example** (Defining a variant model class)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { Model } from "effect/unstable/schema"
-   *
-   * export const GroupId = Schema.Number.pipe(Schema.brand("GroupId"))
-   *
-   * export class Group extends Model.Class<Group>("Group")({
-   *   id: Model.GeneratedByDb(GroupId),
-   *   name: Schema.String,
-   *   createdAt: Model.DateTimeInsertFromDate,
-   *   updatedAt: Model.DateTimeUpdateFromDate
-   * }) {}
-   *
-   * // schema used for selects
-   * Group
-   *
-   * // schema used for inserts
-   * Group.insert
-   *
-   * // schema used for updates
-   * Group.update
-   *
-   * // schema used for json api
-   * Group.json
-   * Group.jsonCreate
-   * Group.jsonUpdate
-   *
-   * // you can also turn them into classes
-   * class GroupJson extends Schema.Class<GroupJson>("GroupJson")(Group.json) {
-   *   get upperName() {
-   *     return this.name.toUpperCase()
-   *   }
-   * }
-   * ```
-   *
-   * @category constructors
-   * @since 4.0.0
-   */
-  Class,
-  /**
-   * Extracts a generated variant schema from a model or variant struct.
-   *
-   * @category extraction
-   * @since 4.0.0
-   */
-  extract,
-  /**
-   * Creates a variant field from schemas keyed by variant name.
-   *
-   * @category fields
-   * @since 4.0.0
-   */
-  Field,
-  /**
-   * Transforms schemas inside a variant field or plain schema by variant name.
-   *
-   * @category fields
-   * @since 4.0.0
-   */
-  fieldEvolve,
-  /**
-   * Creates a variant field that applies a schema to every variant except the
-   * supplied keys.
-   *
-   * @category fields
-   * @since 4.0.0
-   */
-  FieldExcept,
-  /**
-   * Creates a variant field that applies a schema only to the supplied variants.
-   *
-   * @category fields
-   * @since 4.0.0
-   */
-  FieldOnly,
-  /**
-   * Creates a variant struct from model field definitions.
-   *
-   * @category constructors
-   * @since 4.0.0
-   */
-  Struct,
-  /**
-   * Creates a union over the default and generated variant schemas of multiple
-   * variant structs.
-   *
-   * @category constructors
-   * @since 4.0.0
-   */
-  Union
-}
+	/**
+	 * A base class used for creating domain model schemas with common database and
+	 * JSON API variants.
+	 *
+	 * **Example** (Defining a variant model class)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { Model } from "effect/unstable/schema"
+	 *
+	 * export const GroupId = Schema.Number.pipe(Schema.brand("GroupId"))
+	 *
+	 * export class Group extends Model.Class<Group>("Group")({
+	 *   id: Model.GeneratedByDb(GroupId),
+	 *   name: Schema.String,
+	 *   createdAt: Model.DateTimeInsertFromDate,
+	 *   updatedAt: Model.DateTimeUpdateFromDate
+	 * }) {}
+	 *
+	 * // schema used for selects
+	 * Group
+	 *
+	 * // schema used for inserts
+	 * Group.insert
+	 *
+	 * // schema used for updates
+	 * Group.update
+	 *
+	 * // schema used for json api
+	 * Group.json
+	 * Group.jsonCreate
+	 * Group.jsonUpdate
+	 *
+	 * // you can also turn them into classes
+	 * class GroupJson extends Schema.Class<GroupJson>("GroupJson")(Group.json) {
+	 *   get upperName() {
+	 *     return this.name.toUpperCase()
+	 *   }
+	 * }
+	 * ```
+	 *
+	 * @category constructors
+	 * @since 4.0.0
+	 */
+	Class,
+	/**
+	 * Extracts a generated variant schema from a model or variant struct.
+	 *
+	 * @category extraction
+	 * @since 4.0.0
+	 */
+	extract,
+	/**
+	 * Creates a variant field from schemas keyed by variant name.
+	 *
+	 * @category fields
+	 * @since 4.0.0
+	 */
+	Field,
+	/**
+	 * Transforms schemas inside a variant field or plain schema by variant name.
+	 *
+	 * @category fields
+	 * @since 4.0.0
+	 */
+	fieldEvolve,
+	/**
+	 * Creates a variant field that applies a schema to every variant except the
+	 * supplied keys.
+	 *
+	 * @category fields
+	 * @since 4.0.0
+	 */
+	FieldExcept,
+	/**
+	 * Creates a variant field that applies a schema only to the supplied variants.
+	 *
+	 * @category fields
+	 * @since 4.0.0
+	 */
+	FieldOnly,
+	/**
+	 * Creates a variant struct from model field definitions.
+	 *
+	 * @category constructors
+	 * @since 4.0.0
+	 */
+	Struct,
+	/**
+	 * Creates a union over the default and generated variant schemas of multiple
+	 * variant structs.
+	 *
+	 * @category constructors
+	 * @since 4.0.0
+	 */
+	Union,
+};
 
 /**
  * Returns the variant field definitions stored on a model or variant struct.
@@ -181,8 +181,9 @@ export {
  * @category fields
  * @since 4.0.0
  */
-export const fields: <A extends VariantSchema.Struct<any>>(self: A) => A[typeof VariantSchema.TypeId] =
-  VariantSchema.fields
+export const fields: <A extends VariantSchema.Struct<any>>(
+	self: A,
+) => A[typeof VariantSchema.TypeId] = VariantSchema.fields;
 
 /**
  * Marks a value as an explicit override for fields that otherwise use an
@@ -191,7 +192,8 @@ export const fields: <A extends VariantSchema.Struct<any>>(self: A) => A[typeof 
  * @category overrideable
  * @since 4.0.0
  */
-export const Override: <A>(value: A) => A & Brand<"Override"> = VariantSchema.Override
+export const Override: <A>(value: A) => A & Brand<"Override"> =
+	VariantSchema.Override;
 
 /**
  * Variant field type for a database-generated column that is present in select,
@@ -200,12 +202,11 @@ export const Override: <A>(value: A) => A & Brand<"Override"> = VariantSchema.Ov
  * @category generated
  * @since 4.0.0
  */
-export interface GeneratedByDb<S extends Schema.Top> extends
-  VariantSchema.Field<{
-    readonly select: S
-    readonly json: S
-  }>
-{}
+export interface GeneratedByDb<S extends Schema.Top>
+	extends VariantSchema.Field<{
+		readonly select: S;
+		readonly json: S;
+	}> {}
 
 /**
  * A field for a database-generated column that is available for reads only.
@@ -214,12 +215,12 @@ export interface GeneratedByDb<S extends Schema.Top> extends
  * @since 4.0.0
  */
 export const GeneratedByDb = <S extends Schema.Top>(
-  schema: S
+	schema: S,
 ): GeneratedByDb<S> =>
-  Field({
-    select: schema,
-    json: schema
-  })
+	Field({
+		select: schema,
+		json: schema,
+	});
 
 /**
  * Variant field type for an application-generated value that is present in
@@ -229,14 +230,13 @@ export const GeneratedByDb = <S extends Schema.Top>(
  * @category generated
  * @since 4.0.0
  */
-export interface GeneratedByApp<S extends Schema.Top> extends
-  VariantSchema.Field<{
-    readonly select: S
-    readonly insert: S
-    readonly update: S
-    readonly json: S
-  }>
-{}
+export interface GeneratedByApp<S extends Schema.Top>
+	extends VariantSchema.Field<{
+		readonly select: S;
+		readonly insert: S;
+		readonly update: S;
+		readonly json: S;
+	}> {}
 
 /**
  * A field for a value generated by the application that is present in database
@@ -246,13 +246,15 @@ export interface GeneratedByApp<S extends Schema.Top> extends
  * @category generated
  * @since 4.0.0
  */
-export const GeneratedByApp = <S extends Schema.Top>(schema: S): GeneratedByApp<S> =>
-  Field({
-    select: schema,
-    insert: schema,
-    update: schema,
-    json: schema
-  })
+export const GeneratedByApp = <S extends Schema.Top>(
+	schema: S,
+): GeneratedByApp<S> =>
+	Field({
+		select: schema,
+		insert: schema,
+		update: schema,
+		json: schema,
+	});
 
 /**
  * Variant field type for a sensitive value that is available to database variants
@@ -261,13 +263,12 @@ export const GeneratedByApp = <S extends Schema.Top>(schema: S): GeneratedByApp<
  * @category sensitive
  * @since 4.0.0
  */
-export interface Sensitive<S extends Schema.Top> extends
-  VariantSchema.Field<{
-    readonly select: S
-    readonly insert: S
-    readonly update: S
-  }>
-{}
+export interface Sensitive<S extends Schema.Top>
+	extends VariantSchema.Field<{
+		readonly select: S;
+		readonly insert: S;
+		readonly update: S;
+	}> {}
 
 /**
  * A field that represents a sensitive value that should not be exposed in the
@@ -277,11 +278,11 @@ export interface Sensitive<S extends Schema.Top> extends
  * @since 4.0.0
  */
 export const Sensitive = <S extends Schema.Top>(schema: S): Sensitive<S> =>
-  Field({
-    select: schema,
-    insert: schema,
-    update: schema
-  })
+	Field({
+		select: schema,
+		insert: schema,
+		update: schema,
+	});
 
 /**
  * Schema type for an optional object key whose encoded value may be missing or
@@ -291,8 +292,10 @@ export const Sensitive = <S extends Schema.Top>(schema: S): Sensitive<S> =>
  * @since 4.0.0
  */
 export interface optionalOption<S extends Schema.Top>
-  extends Schema.decodeTo<Schema.Option<Schema.toType<S>>, Schema.optionalKey<Schema.NullOr<S>>>
-{}
+	extends Schema.decodeTo<
+		Schema.Option<Schema.toType<S>>,
+		Schema.optionalKey<Schema.NullOr<S>>
+	> {}
 
 /**
  * Creates a schema for optional keys that decodes missing or null encoded values
@@ -301,16 +304,22 @@ export interface optionalOption<S extends Schema.Top>
  * @category optional
  * @since 4.0.0
  */
-export const optionalOption = <S extends Schema.Top>(schema: S): optionalOption<S> =>
-  Schema.optionalKey(Schema.NullOr(schema)).pipe(
-    Schema.decodeTo(
-      Schema.Option(Schema.toType(schema)),
-      Transformation.transformOptional<Option.Option<S["Type"]>, S["Type"] | null>({
-        decode: (oe) => oe.pipe(Option.filter(Predicate.isNotNull), Option.some),
-        encode: Option.flatten
-      }) as any
-    )
-  )
+export const optionalOption = <S extends Schema.Top>(
+	schema: S,
+): optionalOption<S> =>
+	Schema.optionalKey(Schema.NullOr(schema)).pipe(
+		Schema.decodeTo(
+			Schema.Option(Schema.toType(schema)),
+			Transformation.transformOptional<
+				Option.Option<S["Type"]>,
+				S["Type"] | null
+			>({
+				decode: (oe) =>
+					oe.pipe(Option.filter(Predicate.isNotNull), Option.some),
+				encode: Option.flatten,
+			}) as any,
+		),
+	);
 
 /**
  * Convert a field to one that is optional for all variants.
@@ -323,16 +332,15 @@ export const optionalOption = <S extends Schema.Top>(schema: S): optionalOption<
  * @category optional
  * @since 4.0.0
  */
-export interface FieldOption<S extends Schema.Top> extends
-  VariantSchema.Field<{
-    readonly select: Schema.OptionFromNullOr<S>
-    readonly insert: Schema.OptionFromNullOr<S>
-    readonly update: Schema.OptionFromNullOr<S>
-    readonly json: optionalOption<S>
-    readonly jsonCreate: optionalOption<S>
-    readonly jsonUpdate: optionalOption<S>
-  }>
-{}
+export interface FieldOption<S extends Schema.Top>
+	extends VariantSchema.Field<{
+		readonly select: Schema.OptionFromNullOr<S>;
+		readonly insert: Schema.OptionFromNullOr<S>;
+		readonly update: Schema.OptionFromNullOr<S>;
+		readonly json: optionalOption<S>;
+		readonly jsonCreate: optionalOption<S>;
+		readonly jsonUpdate: optionalOption<S>;
+	}> {}
 
 /**
  * Convert a field to one that is optional for all variants.
@@ -346,23 +354,25 @@ export interface FieldOption<S extends Schema.Top> extends
  * @since 4.0.0
  */
 export const FieldOption: <Field extends VariantSchema.Field<any> | Schema.Top>(
-  self: Field
-) => Field extends Schema.Top ? FieldOption<Field>
-  : Field extends VariantSchema.Field<infer S> ? VariantSchema.Field<
-      {
-        readonly [K in keyof S]: S[K] extends Schema.Top ? K extends VariantsDatabase ? Schema.OptionFromNullOr<S[K]> :
-          optionalOption<S[K]>
-          : never
-      }
-    > :
-  never = fieldEvolve({
-    select: Schema.OptionFromNullOr,
-    insert: Schema.OptionFromNullOr,
-    update: Schema.OptionFromNullOr,
-    json: optionalOption,
-    jsonCreate: optionalOption,
-    jsonUpdate: optionalOption
-  }) as any
+	self: Field,
+) => Field extends Schema.Top
+	? FieldOption<Field>
+	: Field extends VariantSchema.Field<infer S>
+		? VariantSchema.Field<{
+				readonly [K in keyof S]: S[K] extends Schema.Top
+					? K extends VariantsDatabase
+						? Schema.OptionFromNullOr<S[K]>
+						: optionalOption<S[K]>
+					: never;
+			}>
+		: never = fieldEvolve({
+	select: Schema.OptionFromNullOr,
+	insert: Schema.OptionFromNullOr,
+	update: Schema.OptionFromNullOr,
+	json: optionalOption,
+	jsonCreate: optionalOption,
+	jsonUpdate: optionalOption,
+}) as any;
 
 /**
  * Variant field type for SQLite booleans stored as `0 | 1` in database variants
@@ -371,16 +381,15 @@ export const FieldOption: <Field extends VariantSchema.Field<any> | Schema.Top>(
  * @category booleans
  * @since 4.0.0
  */
-export interface BooleanSqlite extends
-  VariantSchema.Field<{
-    readonly select: Schema.BooleanFromBit
-    readonly insert: Schema.BooleanFromBit
-    readonly update: Schema.BooleanFromBit
-    readonly json: Schema.Boolean
-    readonly jsonCreate: Schema.Boolean
-    readonly jsonUpdate: Schema.Boolean
-  }>
-{}
+export interface BooleanSqlite
+	extends VariantSchema.Field<{
+		readonly select: Schema.BooleanFromBit;
+		readonly insert: Schema.BooleanFromBit;
+		readonly update: Schema.BooleanFromBit;
+		readonly json: Schema.Boolean;
+		readonly jsonCreate: Schema.Boolean;
+		readonly jsonUpdate: Schema.Boolean;
+	}> {}
 
 /**
  * A schema for sqlite booleans that are represented as `0 | 1` in database
@@ -390,13 +399,13 @@ export interface BooleanSqlite extends
  * @since 4.0.0
  */
 export const BooleanSqlite: BooleanSqlite = Field({
-  select: Schema.BooleanFromBit,
-  insert: Schema.BooleanFromBit,
-  update: Schema.BooleanFromBit,
-  json: Schema.Boolean,
-  jsonCreate: Schema.Boolean,
-  jsonUpdate: Schema.Boolean
-})
+	select: Schema.BooleanFromBit,
+	insert: Schema.BooleanFromBit,
+	update: Schema.BooleanFromBit,
+	json: Schema.Boolean,
+	jsonCreate: Schema.Boolean,
+	jsonUpdate: Schema.Boolean,
+});
 
 /**
  * Schema type for a `DateTime.Utc` date-only value encoded as a `YYYY-MM-DD`
@@ -405,7 +414,8 @@ export const BooleanSqlite: BooleanSqlite = Field({
  * @category date & time
  * @since 4.0.0
  */
-export interface Date extends Schema.decodeTo<Schema.instanceOf<DateTime.Utc>, Schema.String> {}
+export interface Date
+	extends Schema.decodeTo<Schema.instanceOf<DateTime.Utc>, Schema.String> {}
 
 /**
  * A schema for a `DateTime.Utc` that is serialized as a date string in the
@@ -415,11 +425,11 @@ export interface Date extends Schema.decodeTo<Schema.instanceOf<DateTime.Utc>, S
  * @since 4.0.0
  */
 export const Date: Date = Schema.String.pipe(
-  Schema.decodeTo(Schema.DateTimeUtc, {
-    decode: Getter.dateTimeUtcFromInput().map(DateTime.removeTime),
-    encode: Getter.transform(DateTime.formatIsoDate)
-  })
-)
+	Schema.decodeTo(Schema.DateTimeUtc, {
+		decode: Getter.dateTimeUtcFromInput().map(DateTime.removeTime),
+		encode: Getter.transform(DateTime.formatIsoDate),
+	}),
+);
 
 /**
  * Overrideable date-only UTC schema whose constructor default is the current date
@@ -429,8 +439,8 @@ export const Date: Date = Schema.String.pipe(
  * @since 4.0.0
  */
 export const DateWithNow = VariantSchema.Overrideable(Date, {
-  defaultValue: Effect.map(DateTime.now, DateTime.removeTime)
-})
+	defaultValue: Effect.map(DateTime.now, DateTime.removeTime),
+});
 
 /**
  * Overrideable UTC date-time schema encoded as a string, with a constructor
@@ -439,9 +449,12 @@ export const DateWithNow = VariantSchema.Overrideable(Date, {
  * @category date & time
  * @since 4.0.0
  */
-export const DateTimeWithNow = VariantSchema.Overrideable(Schema.DateTimeUtcFromString, {
-  defaultValue: DateTime.now
-})
+export const DateTimeWithNow = VariantSchema.Overrideable(
+	Schema.DateTimeUtcFromString,
+	{
+		defaultValue: DateTime.now,
+	},
+);
 
 /**
  * Overrideable UTC date-time schema encoded as a JavaScript `Date`, with a
@@ -450,9 +463,12 @@ export const DateTimeWithNow = VariantSchema.Overrideable(Schema.DateTimeUtcFrom
  * @category date & time
  * @since 4.0.0
  */
-export const DateTimeFromDateWithNow = VariantSchema.Overrideable(Schema.DateTimeUtcFromDate, {
-  defaultValue: DateTime.now
-})
+export const DateTimeFromDateWithNow = VariantSchema.Overrideable(
+	Schema.DateTimeUtcFromDate,
+	{
+		defaultValue: DateTime.now,
+	},
+);
 
 /**
  * Overrideable UTC date-time schema encoded as milliseconds, with a constructor
@@ -461,9 +477,12 @@ export const DateTimeFromDateWithNow = VariantSchema.Overrideable(Schema.DateTim
  * @category date & time
  * @since 4.0.0
  */
-export const DateTimeFromNumberWithNow = VariantSchema.Overrideable(Schema.DateTimeUtcFromMillis, {
-  defaultValue: DateTime.now
-})
+export const DateTimeFromNumberWithNow = VariantSchema.Overrideable(
+	Schema.DateTimeUtcFromMillis,
+	{
+		defaultValue: DateTime.now,
+	},
+);
 
 /**
  * Variant field type for a UTC date-time stored as a string, defaulted to the
@@ -472,13 +491,12 @@ export const DateTimeFromNumberWithNow = VariantSchema.Overrideable(Schema.DateT
  * @category date & time
  * @since 4.0.0
  */
-export interface DateTimeInsert extends
-  VariantSchema.Field<{
-    readonly select: Schema.DateTimeUtcFromString
-    readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromString>
-    readonly json: Schema.DateTimeUtcFromString
-  }>
-{}
+export interface DateTimeInsert
+	extends VariantSchema.Field<{
+		readonly select: Schema.DateTimeUtcFromString;
+		readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromString>;
+		readonly json: Schema.DateTimeUtcFromString;
+	}> {}
 
 /**
  * A field that represents a date-time value that is inserted as the current
@@ -492,10 +510,10 @@ export interface DateTimeInsert extends
  * @since 4.0.0
  */
 export const DateTimeInsert: DateTimeInsert = Field({
-  select: Schema.DateTimeUtcFromString,
-  insert: DateTimeWithNow,
-  json: Schema.DateTimeUtcFromString
-})
+	select: Schema.DateTimeUtcFromString,
+	insert: DateTimeWithNow,
+	json: Schema.DateTimeUtcFromString,
+});
 
 /**
  * Variant field type for a UTC date-time stored as a JavaScript `Date` in
@@ -504,13 +522,12 @@ export const DateTimeInsert: DateTimeInsert = Field({
  * @category date & time
  * @since 4.0.0
  */
-export interface DateTimeInsertFromDate extends
-  VariantSchema.Field<{
-    readonly select: Schema.DateTimeUtcFromDate
-    readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromDate>
-    readonly json: Schema.DateTimeUtcFromString
-  }>
-{}
+export interface DateTimeInsertFromDate
+	extends VariantSchema.Field<{
+		readonly select: Schema.DateTimeUtcFromDate;
+		readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromDate>;
+		readonly json: Schema.DateTimeUtcFromString;
+	}> {}
 
 /**
  * A field that represents a date-time value that is inserted as the current
@@ -524,10 +541,10 @@ export interface DateTimeInsertFromDate extends
  * @since 4.0.0
  */
 export const DateTimeInsertFromDate: DateTimeInsertFromDate = Field({
-  select: Schema.DateTimeUtcFromDate,
-  insert: DateTimeFromDateWithNow,
-  json: Schema.DateTimeUtcFromString
-})
+	select: Schema.DateTimeUtcFromDate,
+	insert: DateTimeFromDateWithNow,
+	json: Schema.DateTimeUtcFromString,
+});
 
 /**
  * Variant field type for a UTC date-time encoded as milliseconds and defaulted to
@@ -536,13 +553,12 @@ export const DateTimeInsertFromDate: DateTimeInsertFromDate = Field({
  * @category date & time
  * @since 4.0.0
  */
-export interface DateTimeInsertFromNumber extends
-  VariantSchema.Field<{
-    readonly select: Schema.DateTimeUtcFromMillis
-    readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromMillis>
-    readonly json: Schema.DateTimeUtcFromMillis
-  }>
-{}
+export interface DateTimeInsertFromNumber
+	extends VariantSchema.Field<{
+		readonly select: Schema.DateTimeUtcFromMillis;
+		readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromMillis>;
+		readonly json: Schema.DateTimeUtcFromMillis;
+	}> {}
 
 /**
  * A field that represents a date-time value that is inserted as the current
@@ -556,10 +572,10 @@ export interface DateTimeInsertFromNumber extends
  * @since 4.0.0
  */
 export const DateTimeInsertFromNumber: DateTimeInsertFromNumber = Field({
-  select: Schema.DateTimeUtcFromMillis,
-  insert: DateTimeFromNumberWithNow,
-  json: Schema.DateTimeUtcFromMillis
-})
+	select: Schema.DateTimeUtcFromMillis,
+	insert: DateTimeFromNumberWithNow,
+	json: Schema.DateTimeUtcFromMillis,
+});
 
 /**
  * Variant field type for a UTC date-time stored as a string and defaulted to the
@@ -568,14 +584,13 @@ export const DateTimeInsertFromNumber: DateTimeInsertFromNumber = Field({
  * @category date & time
  * @since 4.0.0
  */
-export interface DateTimeUpdate extends
-  VariantSchema.Field<{
-    readonly select: Schema.DateTimeUtcFromString
-    readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromString>
-    readonly update: VariantSchema.Overrideable<Schema.DateTimeUtcFromString>
-    readonly json: Schema.DateTimeUtcFromString
-  }>
-{}
+export interface DateTimeUpdate
+	extends VariantSchema.Field<{
+		readonly select: Schema.DateTimeUtcFromString;
+		readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromString>;
+		readonly update: VariantSchema.Overrideable<Schema.DateTimeUtcFromString>;
+		readonly json: Schema.DateTimeUtcFromString;
+	}> {}
 
 /**
  * A field that represents a date-time value that is updated as the current
@@ -590,11 +605,11 @@ export interface DateTimeUpdate extends
  * @since 4.0.0
  */
 export const DateTimeUpdate: DateTimeUpdate = Field({
-  select: Schema.DateTimeUtcFromString,
-  insert: DateTimeWithNow,
-  update: DateTimeWithNow,
-  json: Schema.DateTimeUtcFromString
-})
+	select: Schema.DateTimeUtcFromString,
+	insert: DateTimeWithNow,
+	update: DateTimeWithNow,
+	json: Schema.DateTimeUtcFromString,
+});
 
 /**
  * Variant field type for a UTC date-time stored as a JavaScript `Date` in
@@ -604,14 +619,13 @@ export const DateTimeUpdate: DateTimeUpdate = Field({
  * @category date & time
  * @since 4.0.0
  */
-export interface DateTimeUpdateFromDate extends
-  VariantSchema.Field<{
-    readonly select: Schema.DateTimeUtcFromDate
-    readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromDate>
-    readonly update: VariantSchema.Overrideable<Schema.DateTimeUtcFromDate>
-    readonly json: Schema.DateTimeUtcFromString
-  }>
-{}
+export interface DateTimeUpdateFromDate
+	extends VariantSchema.Field<{
+		readonly select: Schema.DateTimeUtcFromDate;
+		readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromDate>;
+		readonly update: VariantSchema.Overrideable<Schema.DateTimeUtcFromDate>;
+		readonly json: Schema.DateTimeUtcFromString;
+	}> {}
 
 /**
  * A field that represents a date-time value that is updated as the current
@@ -626,11 +640,11 @@ export interface DateTimeUpdateFromDate extends
  * @since 4.0.0
  */
 export const DateTimeUpdateFromDate: DateTimeUpdateFromDate = Field({
-  select: Schema.DateTimeUtcFromDate,
-  insert: DateTimeFromDateWithNow,
-  update: DateTimeFromDateWithNow,
-  json: Schema.DateTimeUtcFromString
-})
+	select: Schema.DateTimeUtcFromDate,
+	insert: DateTimeFromDateWithNow,
+	update: DateTimeFromDateWithNow,
+	json: Schema.DateTimeUtcFromString,
+});
 
 /**
  * Variant field type for a UTC date-time encoded as milliseconds and defaulted to
@@ -639,14 +653,13 @@ export const DateTimeUpdateFromDate: DateTimeUpdateFromDate = Field({
  * @category date & time
  * @since 4.0.0
  */
-export interface DateTimeUpdateFromNumber extends
-  VariantSchema.Field<{
-    readonly select: Schema.DateTimeUtcFromMillis
-    readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromMillis>
-    readonly update: VariantSchema.Overrideable<Schema.DateTimeUtcFromMillis>
-    readonly json: Schema.DateTimeUtcFromMillis
-  }>
-{}
+export interface DateTimeUpdateFromNumber
+	extends VariantSchema.Field<{
+		readonly select: Schema.DateTimeUtcFromMillis;
+		readonly insert: VariantSchema.Overrideable<Schema.DateTimeUtcFromMillis>;
+		readonly update: VariantSchema.Overrideable<Schema.DateTimeUtcFromMillis>;
+		readonly json: Schema.DateTimeUtcFromMillis;
+	}> {}
 
 /**
  * A field that represents a date-time value that is updated as the current
@@ -661,11 +674,11 @@ export interface DateTimeUpdateFromNumber extends
  * @since 4.0.0
  */
 export const DateTimeUpdateFromNumber: DateTimeUpdateFromNumber = Field({
-  select: Schema.DateTimeUtcFromMillis,
-  insert: DateTimeFromNumberWithNow,
-  update: DateTimeFromNumberWithNow,
-  json: Schema.DateTimeUtcFromMillis
-})
+	select: Schema.DateTimeUtcFromMillis,
+	insert: DateTimeFromNumberWithNow,
+	update: DateTimeFromNumberWithNow,
+	json: Schema.DateTimeUtcFromMillis,
+});
 
 /**
  * Variant field type for a JSON value stored as text in database variants and
@@ -674,16 +687,15 @@ export const DateTimeUpdateFromNumber: DateTimeUpdateFromNumber = Field({
  * @category json
  * @since 4.0.0
  */
-export interface JsonFromString<S extends Schema.Top> extends
-  VariantSchema.Field<{
-    readonly select: Schema.fromJsonString<S>
-    readonly insert: Schema.fromJsonString<S>
-    readonly update: Schema.fromJsonString<S>
-    readonly json: S
-    readonly jsonCreate: S
-    readonly jsonUpdate: S
-  }>
-{}
+export interface JsonFromString<S extends Schema.Top>
+	extends VariantSchema.Field<{
+		readonly select: Schema.fromJsonString<S>;
+		readonly insert: Schema.fromJsonString<S>;
+		readonly update: Schema.fromJsonString<S>;
+		readonly json: S;
+		readonly jsonCreate: S;
+		readonly jsonUpdate: S;
+	}> {}
 
 /**
  * A field that represents a JSON value stored as text in the database.
@@ -696,18 +708,18 @@ export interface JsonFromString<S extends Schema.Top> extends
  * @since 4.0.0
  */
 export const JsonFromString = <S extends Schema.Top>(
-  schema: S
+	schema: S,
 ): JsonFromString<S> => {
-  const parsed = Schema.fromJsonString(Schema.toCodecJson(schema)) as any
-  return Field({
-    select: parsed,
-    insert: parsed,
-    update: parsed,
-    json: schema,
-    jsonCreate: schema,
-    jsonUpdate: schema
-  })
-}
+	const parsed = Schema.fromJsonString(Schema.toCodecJson(schema)) as any;
+	return Field({
+		select: parsed,
+		insert: parsed,
+		update: parsed,
+		json: schema,
+		jsonCreate: schema,
+		jsonUpdate: schema,
+	});
+};
 
 /**
  * Variant field type for a branded binary UUID v4 value whose insert variant
@@ -716,14 +728,21 @@ export const JsonFromString = <S extends Schema.Top>(
  * @category uuid
  * @since 4.0.0
  */
-export interface UuidV4BytesInsert<B extends string> extends
-  VariantSchema.Field<{
-    readonly select: Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>
-    readonly insert: Schema.withConstructorDefault<Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>>
-    readonly update: Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>
-    readonly json: Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>
-  }>
-{}
+export interface UuidV4BytesInsert<B extends string>
+	extends VariantSchema.Field<{
+		readonly select: Schema.brand<
+			Schema.instanceOf<Uint8Array<ArrayBuffer>>,
+			B
+		>;
+		readonly insert: Schema.withConstructorDefault<
+			Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>
+		>;
+		readonly update: Schema.brand<
+			Schema.instanceOf<Uint8Array<ArrayBuffer>>,
+			B
+		>;
+		readonly json: Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>;
+	}> {}
 
 /**
  * Schema for binary `Uint8Array` values backed by an `ArrayBuffer`.
@@ -731,9 +750,8 @@ export interface UuidV4BytesInsert<B extends string> extends
  * @category Uint8Array
  * @since 4.0.0
  */
-export const Uint8Array: Schema.instanceOf<Uint8Array<ArrayBuffer>> = Schema.Uint8Array as Schema.instanceOf<
-  globalThis.Uint8Array<ArrayBuffer>
->
+export const Uint8Array: Schema.instanceOf<Uint8Array<ArrayBuffer>> =
+	Schema.Uint8Array as Schema.instanceOf<globalThis.Uint8Array<ArrayBuffer>>;
 
 /**
  * Adds a constructor default that generates a binary UUID v4 for a branded
@@ -743,9 +761,15 @@ export const Uint8Array: Schema.instanceOf<Uint8Array<ArrayBuffer>> = Schema.Uin
  * @since 4.0.0
  */
 export const UuidV4BytesWithGenerate = <B extends string>(
-  schema: Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>
-): Schema.withConstructorDefault<Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>> =>
-  schema.pipe(Schema.withConstructorDefault(Effect.sync(() => Uuid.v4({}, new globalThis.Uint8Array(16)))))
+	schema: Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>,
+): Schema.withConstructorDefault<
+	Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>
+> =>
+	schema.pipe(
+		Schema.withConstructorDefault(
+			Effect.sync(() => Uuid.v4({}, new globalThis.Uint8Array(16))),
+		),
+	);
 
 /**
  * A field that represents a binary UUID v4 that is generated on inserts.
@@ -754,14 +778,14 @@ export const UuidV4BytesWithGenerate = <B extends string>(
  * @since 4.0.0
  */
 export const UuidV4BytesInsert = <const B extends string>(
-  schema: Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>
+	schema: Schema.brand<Schema.instanceOf<Uint8Array<ArrayBuffer>>, B>,
 ): UuidV4BytesInsert<B> =>
-  Field({
-    select: schema,
-    insert: UuidV4BytesWithGenerate(schema),
-    update: schema,
-    json: schema
-  })
+	Field({
+		select: schema,
+		insert: UuidV4BytesWithGenerate(schema),
+		update: schema,
+		json: schema,
+	});
 
 /**
  * Variant field type for a branded string UUID v4 value whose insert variant
@@ -770,14 +794,15 @@ export const UuidV4BytesInsert = <const B extends string>(
  * @category uuid
  * @since 4.0.0
  */
-export interface UuidV4Insert<B extends string> extends
-  VariantSchema.Field<{
-    readonly select: Schema.brand<Schema.String, B>
-    readonly insert: Schema.withConstructorDefault<Schema.brand<Schema.String, B>>
-    readonly update: Schema.brand<Schema.String, B>
-    readonly json: Schema.brand<Schema.String, B>
-  }>
-{}
+export interface UuidV4Insert<B extends string>
+	extends VariantSchema.Field<{
+		readonly select: Schema.brand<Schema.String, B>;
+		readonly insert: Schema.withConstructorDefault<
+			Schema.brand<Schema.String, B>
+		>;
+		readonly update: Schema.brand<Schema.String, B>;
+		readonly json: Schema.brand<Schema.String, B>;
+	}> {}
 
 /**
  * Adds a constructor default that generates a string UUID v4.
@@ -786,9 +811,9 @@ export interface UuidV4Insert<B extends string> extends
  * @since 4.0.0
  */
 export const UuidV4WithGenerate = <B extends string>(
-  schema: Schema.brand<Schema.String, B>
+	schema: Schema.brand<Schema.String, B>,
 ): Schema.withConstructorDefault<Schema.brand<Schema.String, B>> =>
-  schema.pipe(Schema.withConstructorDefault(Effect.sync(() => Uuid.v4())))
+	schema.pipe(Schema.withConstructorDefault(Effect.sync(() => Uuid.v4())));
 
 /**
  * A field that represents a string UUID v4 that is generated on inserts.
@@ -797,14 +822,14 @@ export const UuidV4WithGenerate = <B extends string>(
  * @since 4.0.0
  */
 export const UuidV4Insert = <const B extends string>(
-  schema: Schema.brand<Schema.String, B>
+	schema: Schema.brand<Schema.String, B>,
 ): UuidV4Insert<B> =>
-  Field({
-    select: schema,
-    insert: UuidV4WithGenerate(schema),
-    update: schema,
-    json: schema
-  })
+	Field({
+		select: schema,
+		insert: UuidV4WithGenerate(schema),
+		update: schema,
+		json: schema,
+	});
 
 /**
  * Variant field type for a branded string UUID v7 value whose insert variant
@@ -813,14 +838,15 @@ export const UuidV4Insert = <const B extends string>(
  * @category uuid
  * @since 4.0.0
  */
-export interface UuidV7Insert<B extends string> extends
-  VariantSchema.Field<{
-    readonly select: Schema.brand<Schema.String, B>
-    readonly insert: Schema.withConstructorDefault<Schema.brand<Schema.String, B>>
-    readonly update: Schema.brand<Schema.String, B>
-    readonly json: Schema.brand<Schema.String, B>
-  }>
-{}
+export interface UuidV7Insert<B extends string>
+	extends VariantSchema.Field<{
+		readonly select: Schema.brand<Schema.String, B>;
+		readonly insert: Schema.withConstructorDefault<
+			Schema.brand<Schema.String, B>
+		>;
+		readonly update: Schema.brand<Schema.String, B>;
+		readonly json: Schema.brand<Schema.String, B>;
+	}> {}
 
 /**
  * Adds a constructor default that generates a string UUID v7.
@@ -829,13 +855,19 @@ export interface UuidV7Insert<B extends string> extends
  * @since 4.0.0
  */
 export const UuidV7WithGenerate = <B extends string>(
-  schema: Schema.brand<Schema.String, B>
+	schema: Schema.brand<Schema.String, B>,
 ): Schema.withConstructorDefault<Schema.brand<Schema.String, B>> =>
-  schema.pipe(Schema.withConstructorDefault(Effect.clockWith((clock) =>
-    Effect.succeed(Uuid.v7({
-      msecs: clock.currentTimeMillisUnsafe()
-    }))
-  )))
+	schema.pipe(
+		Schema.withConstructorDefault(
+			Effect.clockWith((clock) =>
+				Effect.succeed(
+					Uuid.v7({
+						msecs: clock.currentTimeMillisUnsafe(),
+					}),
+				),
+			),
+		),
+	);
 
 /**
  * A field that represents a string UUID v7 that is generated on inserts.
@@ -844,11 +876,11 @@ export const UuidV7WithGenerate = <B extends string>(
  * @since 4.0.0
  */
 export const UuidV7Insert = <const B extends string>(
-  schema: Schema.brand<Schema.String, B>
+	schema: Schema.brand<Schema.String, B>,
 ): UuidV7Insert<B> =>
-  Field({
-    select: schema,
-    insert: UuidV7WithGenerate(schema),
-    update: schema,
-    json: schema
-  })
+	Field({
+		select: schema,
+		insert: UuidV7WithGenerate(schema),
+		update: schema,
+		json: schema,
+	});

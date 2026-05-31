@@ -25,14 +25,14 @@
  * @since 4.0.0
  */
 export type HttpMethod =
-  | "GET"
-  | "POST"
-  | "PUT"
-  | "DELETE"
-  | "PATCH"
-  | "HEAD"
-  | "OPTIONS"
-  | "TRACE"
+	| "GET"
+	| "POST"
+	| "PUT"
+	| "DELETE"
+	| "PATCH"
+	| "HEAD"
+	| "OPTIONS"
+	| "TRACE";
 
 /**
  * Namespace containing subtype helpers associated with `HttpMethod`.
@@ -40,21 +40,21 @@ export type HttpMethod =
  * @since 4.0.0
  */
 export declare namespace HttpMethod {
-  /**
-   * HTTP methods that this module treats as not carrying a request body.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export type NoBody = "GET" | "HEAD" | "OPTIONS" | "TRACE"
+	/**
+	 * HTTP methods that this module treats as not carrying a request body.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export type NoBody = "GET" | "HEAD" | "OPTIONS" | "TRACE";
 
-  /**
-   * HTTP methods that this module treats as capable of carrying a request body.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export type WithBody = Exclude<HttpMethod, NoBody>
+	/**
+	 * HTTP methods that this module treats as capable of carrying a request body.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export type WithBody = Exclude<HttpMethod, NoBody>;
 }
 
 /**
@@ -64,7 +64,10 @@ export declare namespace HttpMethod {
  * @since 4.0.0
  */
 export const hasBody = (method: HttpMethod): method is HttpMethod.WithBody =>
-  method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE"
+	method !== "GET" &&
+	method !== "HEAD" &&
+	method !== "OPTIONS" &&
+	method !== "TRACE";
 
 /**
  * Set containing every supported `HttpMethod` literal.
@@ -73,15 +76,15 @@ export const hasBody = (method: HttpMethod): method is HttpMethod.WithBody =>
  * @since 4.0.0
  */
 export const all: ReadonlySet<HttpMethod> = new Set([
-  "GET",
-  "POST",
-  "PUT",
-  "DELETE",
-  "PATCH",
-  "HEAD",
-  "OPTIONS",
-  "TRACE"
-])
+	"GET",
+	"POST",
+	"PUT",
+	"DELETE",
+	"PATCH",
+	"HEAD",
+	"OPTIONS",
+	"TRACE",
+]);
 
 /**
  * Tuples mapping each supported HTTP method to its short request-constructor name.
@@ -90,15 +93,15 @@ export const all: ReadonlySet<HttpMethod> = new Set([
  * @since 4.0.0
  */
 export const allShort = [
-  ["GET", "get"],
-  ["POST", "post"],
-  ["PUT", "put"],
-  ["DELETE", "del"],
-  ["PATCH", "patch"],
-  ["HEAD", "head"],
-  ["OPTIONS", "options"],
-  ["TRACE", "trace"]
-] as const
+	["GET", "get"],
+	["POST", "post"],
+	["PUT", "put"],
+	["DELETE", "del"],
+	["PATCH", "patch"],
+	["HEAD", "head"],
+	["OPTIONS", "options"],
+	["TRACE", "trace"],
+] as const;
 
 /**
  * Tests if a value is a `HttpMethod`.
@@ -119,4 +122,5 @@ export const allShort = [
  * @category refinements
  * @since 4.0.0
  */
-export const isHttpMethod = (u: unknown): u is HttpMethod => all.has(u as HttpMethod)
+export const isHttpMethod = (u: unknown): u is HttpMethod =>
+	all.has(u as HttpMethod);

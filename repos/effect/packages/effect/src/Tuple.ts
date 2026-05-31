@@ -69,12 +69,12 @@
  *
  * @since 2.0.0
  */
-import * as Combiner from "./Combiner.ts"
-import * as Equivalence from "./Equivalence.ts"
-import { dual } from "./Function.ts"
-import * as order from "./Order.ts"
-import * as Reducer from "./Reducer.ts"
-import type { Apply, Lambda } from "./Struct.ts"
+import * as Combiner from "./Combiner.ts";
+import * as Equivalence from "./Equivalence.ts";
+import { dual } from "./Function.ts";
+import * as order from "./Order.ts";
+import * as Reducer from "./Reducer.ts";
+import type { Apply, Lambda } from "./Struct.ts";
 
 /**
  * Creates a tuple from the provided arguments.
@@ -103,9 +103,14 @@ import type { Apply, Lambda } from "./Struct.ts"
  * @category constructors
  * @since 2.0.0
  */
-export const make = <Elements extends ReadonlyArray<unknown>>(...elements: Elements): Elements => elements
+export const make = <Elements extends ReadonlyArray<unknown>>(
+	...elements: Elements
+): Elements => elements;
 
-type Indices<T extends ReadonlyArray<unknown>> = Exclude<Partial<T>["length"], T["length"]>
+type Indices<T extends ReadonlyArray<unknown>> = Exclude<
+	Partial<T>["length"],
+	T["length"]
+>;
 
 /**
  * Retrieves the element at the specified index from a tuple.
@@ -134,25 +139,37 @@ type Indices<T extends ReadonlyArray<unknown>> = Exclude<Partial<T>["length"], T
  * @since 4.0.0
  */
 export const get: {
-  <const T extends ReadonlyArray<unknown>, I extends Indices<T> & keyof T>(index: I): (self: T) => T[I]
-  <const T extends ReadonlyArray<unknown>, I extends Indices<T> & keyof T>(self: T, index: I): T[I]
-} = dual(2, <T extends ReadonlyArray<unknown>, I extends keyof T>(self: T, index: I): T[I] => self[index])
+	<const T extends ReadonlyArray<unknown>, I extends Indices<T> & keyof T>(
+		index: I,
+	): (self: T) => T[I];
+	<const T extends ReadonlyArray<unknown>, I extends Indices<T> & keyof T>(
+		self: T,
+		index: I,
+	): T[I];
+} = dual(
+	2,
+	<T extends ReadonlyArray<unknown>, I extends keyof T>(
+		self: T,
+		index: I,
+	): T[I] => self[index],
+);
 
 type _BuildTuple<
-  T extends ReadonlyArray<unknown>,
-  K,
-  Acc extends ReadonlyArray<unknown> = [],
-  I extends ReadonlyArray<unknown> = [] // current index counter
-> = I["length"] extends T["length"] ? Acc
-  : _BuildTuple<
-    T,
-    K,
-    // If current index is in K, keep the element; otherwise skip it
-    I["length"] extends K ? [...Acc, T[I["length"]]] : Acc,
-    [...I, unknown]
-  >
+	T extends ReadonlyArray<unknown>,
+	K,
+	Acc extends ReadonlyArray<unknown> = [],
+	I extends ReadonlyArray<unknown> = [], // current index counter
+> = I["length"] extends T["length"]
+	? Acc
+	: _BuildTuple<
+			T,
+			K,
+			// If current index is in K, keep the element; otherwise skip it
+			I["length"] extends K ? [...Acc, T[I["length"]]] : Acc,
+			[...I, unknown]
+		>;
 
-type PickTuple<T extends ReadonlyArray<unknown>, K> = _BuildTuple<T, K>
+type PickTuple<T extends ReadonlyArray<unknown>, K> = _BuildTuple<T, K>;
 
 /**
  * Creates a new tuple containing only the elements at the specified indices.
@@ -181,24 +198,33 @@ type PickTuple<T extends ReadonlyArray<unknown>, K> = _BuildTuple<T, K>
  * @since 4.0.0
  */
 export const pick: {
-  <const T extends ReadonlyArray<unknown>, const I extends ReadonlyArray<Indices<T>>>(
-    indices: I
-  ): (self: T) => PickTuple<T, I[number]>
-  <const T extends ReadonlyArray<unknown>, const I extends ReadonlyArray<Indices<T>>>(
-    self: T,
-    indices: I
-  ): PickTuple<T, I[number]>
+	<
+		const T extends ReadonlyArray<unknown>,
+		const I extends ReadonlyArray<Indices<T>>,
+	>(
+		indices: I,
+	): (self: T) => PickTuple<T, I[number]>;
+	<
+		const T extends ReadonlyArray<unknown>,
+		const I extends ReadonlyArray<Indices<T>>,
+	>(
+		self: T,
+		indices: I,
+	): PickTuple<T, I[number]>;
 } = dual(
-  2,
-  <const T extends ReadonlyArray<unknown>>(
-    self: T,
-    indices: ReadonlyArray<number>
-  ) => {
-    return indices.map((i) => self[i])
-  }
-)
+	2,
+	<const T extends ReadonlyArray<unknown>>(
+		self: T,
+		indices: ReadonlyArray<number>,
+	) => {
+		return indices.map((i) => self[i]);
+	},
+);
 
-type OmitTuple<T extends ReadonlyArray<unknown>, K> = _BuildTuple<T, Exclude<Indices<T>, K>>
+type OmitTuple<T extends ReadonlyArray<unknown>, K> = _BuildTuple<
+	T,
+	Exclude<Indices<T>, K>
+>;
 
 /**
  * Creates a new tuple with the elements at the specified indices removed.
@@ -226,23 +252,29 @@ type OmitTuple<T extends ReadonlyArray<unknown>, K> = _BuildTuple<T, Exclude<Ind
  * @since 4.0.0
  */
 export const omit: {
-  <const T extends ReadonlyArray<unknown>, const I extends ReadonlyArray<Indices<T>>>(
-    indices: I
-  ): (self: T) => OmitTuple<T, I[number]>
-  <const T extends ReadonlyArray<unknown>, const I extends ReadonlyArray<Indices<T>>>(
-    self: T,
-    indices: I
-  ): OmitTuple<T, I[number]>
+	<
+		const T extends ReadonlyArray<unknown>,
+		const I extends ReadonlyArray<Indices<T>>,
+	>(
+		indices: I,
+	): (self: T) => OmitTuple<T, I[number]>;
+	<
+		const T extends ReadonlyArray<unknown>,
+		const I extends ReadonlyArray<Indices<T>>,
+	>(
+		self: T,
+		indices: I,
+	): OmitTuple<T, I[number]>;
 } = dual(
-  2,
-  <const T extends ReadonlyArray<unknown>>(
-    self: T,
-    indices: ReadonlyArray<number>
-  ) => {
-    const toDrop = new Set<number>(indices)
-    return self.filter((_, i) => !toDrop.has(i))
-  }
-)
+	2,
+	<const T extends ReadonlyArray<unknown>>(
+		self: T,
+		indices: ReadonlyArray<number>,
+	) => {
+		const toDrop = new Set<number>(indices);
+		return self.filter((_, i) => !toDrop.has(i));
+	},
+);
 
 /**
  * Appends a single element to the end of a tuple.
@@ -266,9 +298,20 @@ export const omit: {
  * @since 2.0.0
  */
 export const appendElement: {
-  <const E>(element: E): <const T extends ReadonlyArray<unknown>>(self: T) => [...T, E]
-  <const T extends ReadonlyArray<unknown>, const E>(self: T, element: E): [...T, E]
-} = dual(2, <T extends ReadonlyArray<unknown>, E>(self: T, element: E): [...T, E] => [...self, element])
+	<const E>(
+		element: E,
+	): <const T extends ReadonlyArray<unknown>>(self: T) => [...T, E];
+	<const T extends ReadonlyArray<unknown>, const E>(
+		self: T,
+		element: E,
+	): [...T, E];
+} = dual(
+	2,
+	<T extends ReadonlyArray<unknown>, E>(self: T, element: E): [...T, E] => [
+		...self,
+		element,
+	],
+);
 
 /**
  * Concatenates two tuples into a single tuple.
@@ -292,21 +335,35 @@ export const appendElement: {
  * @since 4.0.0
  */
 export const appendElements: {
-  <const T2 extends ReadonlyArray<unknown>>(
-    that: T2
-  ): <const T1 extends ReadonlyArray<unknown>>(self: T1) => [...T1, ...T2]
-  <const T1 extends ReadonlyArray<unknown>, const T2 extends ReadonlyArray<unknown>>(self: T1, that: T2): [...T1, ...T2]
+	<const T2 extends ReadonlyArray<unknown>>(
+		that: T2,
+	): <const T1 extends ReadonlyArray<unknown>>(self: T1) => [...T1, ...T2];
+	<
+		const T1 extends ReadonlyArray<unknown>,
+		const T2 extends ReadonlyArray<unknown>,
+	>(
+		self: T1,
+		that: T2,
+	): [...T1, ...T2];
 } = dual(
-  2,
-  <T1 extends ReadonlyArray<unknown>, T2 extends ReadonlyArray<unknown>>(
-    self: T1,
-    that: T2
-  ): [...T1, ...T2] => [...self, ...that]
-)
+	2,
+	<T1 extends ReadonlyArray<unknown>, T2 extends ReadonlyArray<unknown>>(
+		self: T1,
+		that: T2,
+	): [...T1, ...T2] => [...self, ...that],
+);
 
-type Evolver<T> = { readonly [I in keyof T]?: ((a: T[I]) => unknown) | undefined }
+type Evolver<T> = {
+	readonly [I in keyof T]?: ((a: T[I]) => unknown) | undefined;
+};
 
-type Evolved<T, E> = { [I in keyof T]: I extends keyof E ? (E[I] extends (...a: any) => infer R ? R : T[I]) : T[I] }
+type Evolved<T, E> = {
+	[I in keyof T]: I extends keyof E
+		? E[I] extends (...a: any) => infer R
+			? R
+			: T[I]
+		: T[I];
+};
 
 /**
  * Transforms elements of a tuple by providing an array of transform functions.
@@ -343,14 +400,22 @@ type Evolved<T, E> = { [I in keyof T]: I extends keyof E ? (E[I] extends (...a: 
  * @since 4.0.0
  */
 export const evolve: {
-  <const T extends ReadonlyArray<unknown>, const E extends Evolver<T>>(evolver: E): (self: T) => Evolved<T, E>
-  <const T extends ReadonlyArray<unknown>, const E extends Evolver<T>>(self: T, evolver: E): Evolved<T, E>
+	<const T extends ReadonlyArray<unknown>, const E extends Evolver<T>>(
+		evolver: E,
+	): (self: T) => Evolved<T, E>;
+	<const T extends ReadonlyArray<unknown>, const E extends Evolver<T>>(
+		self: T,
+		evolver: E,
+	): Evolved<T, E>;
 } = dual(
-  2,
-  <const T extends ReadonlyArray<unknown>, const E extends Evolver<T>>(self: T, evolver: E) => {
-    return self.map((e, i) => (evolver[i] !== undefined ? evolver[i](e) : e))
-  }
-)
+	2,
+	<const T extends ReadonlyArray<unknown>, const E extends Evolver<T>>(
+		self: T,
+		evolver: E,
+	) => {
+		return self.map((e, i) => (evolver[i] !== undefined ? evolver[i](e) : e));
+	},
+);
 
 /**
  * Rearranges elements of a tuple by providing an array of stringified source
@@ -382,22 +447,45 @@ export const evolve: {
  * @since 4.0.0
  */
 export const renameIndices: {
-  <const T extends ReadonlyArray<unknown>, const M extends { readonly [I in keyof T]?: `${keyof T & string}` }>(
-    mapping: M
-  ): (self: T) => { [I in keyof T]: I extends keyof M ? M[I] extends keyof T ? T[M[I]] : T[I] : T[I] }
-  <const T extends ReadonlyArray<unknown>, const M extends { readonly [I in keyof T]?: `${keyof T & string}` }>(
-    self: T,
-    mapping: M
-  ): { [I in keyof T]: I extends keyof M ? M[I] extends keyof T ? T[M[I]] : T[I] : T[I] }
+	<
+		const T extends ReadonlyArray<unknown>,
+		const M extends { readonly [I in keyof T]?: `${keyof T & string}` },
+	>(
+		mapping: M,
+	): (self: T) => {
+		[I in keyof T]: I extends keyof M
+			? M[I] extends keyof T
+				? T[M[I]]
+				: T[I]
+			: T[I];
+	};
+	<
+		const T extends ReadonlyArray<unknown>,
+		const M extends { readonly [I in keyof T]?: `${keyof T & string}` },
+	>(
+		self: T,
+		mapping: M,
+	): {
+		[I in keyof T]: I extends keyof M
+			? M[I] extends keyof T
+				? T[M[I]]
+				: T[I]
+			: T[I];
+	};
 } = dual(
-  2,
-  <const T extends ReadonlyArray<unknown>, const M extends { readonly [I in keyof T]?: `${keyof T & string}` }>(
-    self: T,
-    mapping: M
-  ) => {
-    return self.map((e, i) => mapping[i] !== undefined ? self[mapping[i]] : e)
-  }
-)
+	2,
+	<
+		const T extends ReadonlyArray<unknown>,
+		const M extends { readonly [I in keyof T]?: `${keyof T & string}` },
+	>(
+		self: T,
+		mapping: M,
+	) => {
+		return self.map((e, i) =>
+			mapping[i] !== undefined ? self[mapping[i]] : e,
+		);
+	},
+);
 
 /**
  * Applies a `Struct.Lambda` transformation to every element in a tuple.
@@ -438,21 +526,24 @@ export const renameIndices: {
  * @since 3.9.0
  */
 export const map: {
-  <L extends Lambda>(
-    lambda: L
-  ): <const T extends ReadonlyArray<unknown>>(
-    self: T
-  ) => { [K in keyof T]: Apply<L, T[K]> }
-  <const T extends ReadonlyArray<unknown>, L extends Lambda>(
-    self: T,
-    lambda: L
-  ): { [K in keyof T]: Apply<L, T[K]> }
+	<L extends Lambda>(
+		lambda: L,
+	): <const T extends ReadonlyArray<unknown>>(
+		self: T,
+	) => { [K in keyof T]: Apply<L, T[K]> };
+	<const T extends ReadonlyArray<unknown>, L extends Lambda>(
+		self: T,
+		lambda: L,
+	): { [K in keyof T]: Apply<L, T[K]> };
 } = dual(
-  2,
-  <const T extends ReadonlyArray<unknown>, L extends Function>(self: T, lambda: L) => {
-    return self.map((e) => lambda(e))
-  }
-)
+	2,
+	<const T extends ReadonlyArray<unknown>, L extends Function>(
+		self: T,
+		lambda: L,
+	) => {
+		return self.map((e) => lambda(e));
+	},
+);
 
 /**
  * Applies a `Struct.Lambda` transformation only to the elements at the
@@ -491,28 +582,36 @@ export const map: {
  * @since 4.0.0
  */
 export const mapPick: {
-  <const T extends ReadonlyArray<unknown>, const I extends ReadonlyArray<Indices<T>>, L extends Lambda>(
-    indices: I,
-    lambda: L
-  ): (
-    self: T
-  ) => { [K in keyof T]: K extends `${I[number]}` ? Apply<L, T[K]> : T[K] }
-  <const T extends ReadonlyArray<unknown>, const I extends ReadonlyArray<Indices<T>>, L extends Lambda>(
-    self: T,
-    indices: I,
-    lambda: L
-  ): { [K in keyof T]: K extends `${I[number]}` ? Apply<L, T[K]> : T[K] }
+	<
+		const T extends ReadonlyArray<unknown>,
+		const I extends ReadonlyArray<Indices<T>>,
+		L extends Lambda,
+	>(
+		indices: I,
+		lambda: L,
+	): (self: T) => {
+		[K in keyof T]: K extends `${I[number]}` ? Apply<L, T[K]> : T[K];
+	};
+	<
+		const T extends ReadonlyArray<unknown>,
+		const I extends ReadonlyArray<Indices<T>>,
+		L extends Lambda,
+	>(
+		self: T,
+		indices: I,
+		lambda: L,
+	): { [K in keyof T]: K extends `${I[number]}` ? Apply<L, T[K]> : T[K] };
 } = dual(
-  3,
-  <const T extends ReadonlyArray<unknown>, L extends Function>(
-    self: T,
-    indices: ReadonlyArray<number>,
-    lambda: L
-  ) => {
-    const toPick = new Set<number>(indices)
-    return self.map((e, i) => (toPick.has(i) ? lambda(e) : e))
-  }
-)
+	3,
+	<const T extends ReadonlyArray<unknown>, L extends Function>(
+		self: T,
+		indices: ReadonlyArray<number>,
+		lambda: L,
+	) => {
+		const toPick = new Set<number>(indices);
+		return self.map((e, i) => (toPick.has(i) ? lambda(e) : e));
+	},
+);
 
 /**
  * Applies a `Struct.Lambda` transformation to all elements except those at the
@@ -551,28 +650,36 @@ export const mapPick: {
  * @since 4.0.0
  */
 export const mapOmit: {
-  <const T extends ReadonlyArray<unknown>, const I extends ReadonlyArray<Indices<T>>, L extends Lambda>(
-    indices: I,
-    lambda: L
-  ): (
-    self: T
-  ) => { [K in keyof T]: K extends `${I[number]}` ? T[K] : Apply<L, T[K]> }
-  <const T extends ReadonlyArray<unknown>, const I extends ReadonlyArray<Indices<T>>, L extends Lambda>(
-    self: T,
-    indices: I,
-    lambda: L
-  ): { [K in keyof T]: K extends `${I[number]}` ? T[K] : Apply<L, T[K]> }
+	<
+		const T extends ReadonlyArray<unknown>,
+		const I extends ReadonlyArray<Indices<T>>,
+		L extends Lambda,
+	>(
+		indices: I,
+		lambda: L,
+	): (self: T) => {
+		[K in keyof T]: K extends `${I[number]}` ? T[K] : Apply<L, T[K]>;
+	};
+	<
+		const T extends ReadonlyArray<unknown>,
+		const I extends ReadonlyArray<Indices<T>>,
+		L extends Lambda,
+	>(
+		self: T,
+		indices: I,
+		lambda: L,
+	): { [K in keyof T]: K extends `${I[number]}` ? T[K] : Apply<L, T[K]> };
 } = dual(
-  3,
-  <const T extends ReadonlyArray<unknown>, L extends Function>(
-    self: T,
-    indices: ReadonlyArray<number>,
-    lambda: L
-  ) => {
-    const toOmit = new Set<number>(indices)
-    return self.map((e, i) => (toOmit.has(i) ? e : lambda(e)))
-  }
-)
+	3,
+	<const T extends ReadonlyArray<unknown>, L extends Function>(
+		self: T,
+		indices: ReadonlyArray<number>,
+		lambda: L,
+	) => {
+		const toOmit = new Set<number>(indices);
+		return self.map((e, i) => (toOmit.has(i) ? e : lambda(e)));
+	},
+);
 
 /**
  * Creates an `Equivalence` for tuples by comparing corresponding elements
@@ -605,7 +712,7 @@ export const mapOmit: {
  * @category Equivalence
  * @since 4.0.0
  */
-export const makeEquivalence = Equivalence.Tuple
+export const makeEquivalence = Equivalence.Tuple;
 
 /**
  * Creates an `Order` for tuples by comparing corresponding elements using the
@@ -635,79 +742,79 @@ export const makeEquivalence = Equivalence.Tuple
  * @category Ordering
  * @since 4.0.0
  */
-export const makeOrder = order.Tuple
+export const makeOrder = order.Tuple;
 
 export {
-  /**
-   * Checks if an array has exactly `N` elements, narrowing the type to a
-   * fixed-length tuple.
-   *
-   * **When to use**
-   *
-   * Use this to guard against unexpected array lengths at runtime.
-   *
-   * **Details**
-   *
-   * This is a re-export of `Predicate.isTupleOf`. It narrows the type to
-   * `TupleOf<N, T>` in the truthy branch.
-   *
-   * **Gotchas**
-   *
-   * This only checks `.length`; it does not validate element types.
-   *
-   * **Example** (Checking exact length)
-   *
-   * ```ts
-   * import { Tuple } from "effect"
-   *
-   * const arr: Array<number> = [1, 2, 3]
-   * if (Tuple.isTupleOf(arr, 3)) {
-   *   console.log(arr)
-   *   // ^? [number, number, number]
-   * }
-   * ```
-   *
-   * @see {@link isTupleOfAtLeast} – check for a minimum length
-   * @category guards
-   * @since 3.3.0
-   */
-  isTupleOf,
-  /**
-   * Checks if an array has at least `N` elements, narrowing the type to a
-   * tuple with a minimum length.
-   *
-   * **When to use**
-   *
-   * Use this to guard that an array has at least the expected number of
-   * elements.
-   *
-   * **Details**
-   *
-   * This is a re-export of `Predicate.isTupleOfAtLeast`. It narrows the type to
-   * `TupleOfAtLeast<N, T>` in the truthy branch.
-   *
-   * **Gotchas**
-   *
-   * This only checks `.length`; it does not validate element types.
-   *
-   * **Example** (Checking minimum length)
-   *
-   * ```ts
-   * import { Tuple } from "effect"
-   *
-   * const arr: Array<number> = [1, 2, 3, 4]
-   * if (Tuple.isTupleOfAtLeast(arr, 3)) {
-   *   console.log(arr)
-   *   // ^? [number, number, number, ...number[]]
-   * }
-   * ```
-   *
-   * @see {@link isTupleOf} – check for an exact length
-   * @category guards
-   * @since 3.3.0
-   */
-  isTupleOfAtLeast
-} from "./Predicate.ts"
+	/**
+	 * Checks if an array has exactly `N` elements, narrowing the type to a
+	 * fixed-length tuple.
+	 *
+	 * **When to use**
+	 *
+	 * Use this to guard against unexpected array lengths at runtime.
+	 *
+	 * **Details**
+	 *
+	 * This is a re-export of `Predicate.isTupleOf`. It narrows the type to
+	 * `TupleOf<N, T>` in the truthy branch.
+	 *
+	 * **Gotchas**
+	 *
+	 * This only checks `.length`; it does not validate element types.
+	 *
+	 * **Example** (Checking exact length)
+	 *
+	 * ```ts
+	 * import { Tuple } from "effect"
+	 *
+	 * const arr: Array<number> = [1, 2, 3]
+	 * if (Tuple.isTupleOf(arr, 3)) {
+	 *   console.log(arr)
+	 *   // ^? [number, number, number]
+	 * }
+	 * ```
+	 *
+	 * @see {@link isTupleOfAtLeast} – check for a minimum length
+	 * @category guards
+	 * @since 3.3.0
+	 */
+	isTupleOf,
+	/**
+	 * Checks if an array has at least `N` elements, narrowing the type to a
+	 * tuple with a minimum length.
+	 *
+	 * **When to use**
+	 *
+	 * Use this to guard that an array has at least the expected number of
+	 * elements.
+	 *
+	 * **Details**
+	 *
+	 * This is a re-export of `Predicate.isTupleOfAtLeast`. It narrows the type to
+	 * `TupleOfAtLeast<N, T>` in the truthy branch.
+	 *
+	 * **Gotchas**
+	 *
+	 * This only checks `.length`; it does not validate element types.
+	 *
+	 * **Example** (Checking minimum length)
+	 *
+	 * ```ts
+	 * import { Tuple } from "effect"
+	 *
+	 * const arr: Array<number> = [1, 2, 3, 4]
+	 * if (Tuple.isTupleOfAtLeast(arr, 3)) {
+	 *   console.log(arr)
+	 *   // ^? [number, number, number, ...number[]]
+	 * }
+	 * ```
+	 *
+	 * @see {@link isTupleOf} – check for an exact length
+	 * @category guards
+	 * @since 3.3.0
+	 */
+	isTupleOfAtLeast,
+} from "./Predicate.ts";
 
 /**
  * Creates a `Combiner` for a tuple shape by providing a `Combiner` for each
@@ -742,15 +849,15 @@ export {
  * @since 4.0.0
  */
 export function makeCombiner<A extends ReadonlyArray<unknown>>(
-  combiners: { readonly [K in keyof A]: Combiner.Combiner<A[K]> }
+	combiners: { readonly [K in keyof A]: Combiner.Combiner<A[K]> },
 ): Combiner.Combiner<A> {
-  return Combiner.make((self, that) => {
-    const out = []
-    for (let i = 0; i < self.length; i++) {
-      out.push(combiners[i].combine(self[i], that[i]))
-    }
-    return out as any
-  })
+	return Combiner.make((self, that) => {
+		const out = [];
+		for (let i = 0; i < self.length; i++) {
+			out.push(combiners[i].combine(self[i], that[i]));
+		}
+		return out as any;
+	});
 }
 
 /**
@@ -790,12 +897,12 @@ export function makeCombiner<A extends ReadonlyArray<unknown>>(
  * @since 4.0.0
  */
 export function makeReducer<A extends ReadonlyArray<unknown>>(
-  reducers: { readonly [K in keyof A]: Reducer.Reducer<A[K]> }
+	reducers: { readonly [K in keyof A]: Reducer.Reducer<A[K]> },
 ): Reducer.Reducer<A> {
-  const combine = makeCombiner(reducers).combine
-  const initialValue = []
-  for (let i = 0; i < reducers.length; i++) {
-    initialValue.push(reducers[i].initialValue)
-  }
-  return Reducer.make(combine, initialValue as unknown as A)
+	const combine = makeCombiner(reducers).combine;
+	const initialValue = [];
+	for (let i = 0; i < reducers.length; i++) {
+		initialValue.push(reducers[i].initialValue);
+	}
+	return Reducer.make(combine, initialValue as unknown as A);
 }

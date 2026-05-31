@@ -172,8 +172,10 @@ export async function seedSavedRoutesForTests(
 	options: { userId?: string } = {},
 ) {
 	const repository = createSavedRoutesRepository(createBrowserStorage());
-	await repository.init();
-	await repository.replaceRoutes(getTestSavedRouteScope(options), routes);
+	await Effect.runPromise(repository.init());
+	await Effect.runPromise(
+		repository.replaceRoutes(getTestSavedRouteScope(options), routes),
+	);
 	savedRoutesState.initialized = false;
 	await savedRoutesState.initSavedRoutes();
 }
@@ -182,8 +184,10 @@ export async function readSavedRoutesForTests(
 	options: { userId?: string } = {},
 ) {
 	const repository = createSavedRoutesRepository(createBrowserStorage());
-	await repository.init();
-	return await repository.readRoutes(getTestSavedRouteScope(options));
+	await Effect.runPromise(repository.init());
+	return await Effect.runPromise(
+		repository.readRoutes(getTestSavedRouteScope(options)),
+	);
 }
 
 export async function clearSavedRoutesForTests() {

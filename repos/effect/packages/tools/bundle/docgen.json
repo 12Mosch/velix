@@ -1,4 +1,4 @@
 {
-  "$schema": "../../../node_modules/@effect/docgen/schema.json",
-  "exclude": ["src/bin.ts"]
+	"$schema": "../../../node_modules/@effect/docgen/schema.json",
+	"exclude": ["src/bin.ts"]
 }

@@ -21,10 +21,10 @@
  *
  * @since 4.0.0
  */
-import * as Context from "effect/Context"
-import * as Effect from "effect/Effect"
-import { dual } from "effect/Function"
-import type { HttpClient } from "effect/unstable/http/HttpClient"
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import { dual } from "effect/Function";
+import type { HttpClient } from "effect/unstable/http/HttpClient";
 
 /**
  * Context service used to carry OpenAI-compatible client configuration for the
@@ -34,18 +34,19 @@ import type { HttpClient } from "effect/unstable/http/HttpClient"
  * @since 4.0.0
  */
 export class OpenAiConfig extends Context.Service<
-  OpenAiConfig,
-  OpenAiConfig.Service
+	OpenAiConfig,
+	OpenAiConfig.Service
 >()("@effect/ai-openai-compat/OpenAiConfig") {
-  /**
-   * Gets the configured OpenAI-compatible service from the current context when present.
-   *
-   * @since 4.0.0
-   */
-  static readonly getOrUndefined: Effect.Effect<typeof OpenAiConfig.Service | undefined> = Effect.map(
-    Effect.context<never>(),
-    (context) => context.mapUnsafe.get(OpenAiConfig.key)
-  )
+	/**
+	 * Gets the configured OpenAI-compatible service from the current context when present.
+	 *
+	 * @since 4.0.0
+	 */
+	static readonly getOrUndefined: Effect.Effect<
+		typeof OpenAiConfig.Service | undefined
+	> = Effect.map(Effect.context<never>(), (context) =>
+		context.mapUnsafe.get(OpenAiConfig.key),
+	);
 }
 
 /**
@@ -54,16 +55,16 @@ export class OpenAiConfig extends Context.Service<
  * @since 4.0.0
  */
 export declare namespace OpenAiConfig {
-  /**
-   * Configuration consumed by OpenAI-compatible clients when they build or
-   * resolve the underlying HTTP client.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface Service {
-    readonly transformClient?: ((client: HttpClient) => HttpClient) | undefined
-  }
+	/**
+	 * Configuration consumed by OpenAI-compatible clients when they build or
+	 * resolve the underlying HTTP client.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface Service {
+		readonly transformClient?: ((client: HttpClient) => HttpClient) | undefined;
+	}
 }
 
 /**
@@ -83,13 +84,20 @@ export declare namespace OpenAiConfig {
  * @since 4.0.0
  */
 export const withClientTransform: {
-  (transform: (client: HttpClient) => HttpClient): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
-  <A, E, R>(self: Effect.Effect<A, E, R>, transform: (client: HttpClient) => HttpClient): Effect.Effect<A, E, R>
-} = dual(2, <A, E, R>(
-  self: Effect.Effect<A, E, R>,
-  transformClient: (client: HttpClient) => HttpClient
-) =>
-  Effect.flatMap(
-    OpenAiConfig.getOrUndefined,
-    (config) => Effect.provideService(self, OpenAiConfig, { ...config, transformClient })
-  ))
+	(
+		transform: (client: HttpClient) => HttpClient,
+	): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
+	<A, E, R>(
+		self: Effect.Effect<A, E, R>,
+		transform: (client: HttpClient) => HttpClient,
+	): Effect.Effect<A, E, R>;
+} = dual(
+	2,
+	<A, E, R>(
+		self: Effect.Effect<A, E, R>,
+		transformClient: (client: HttpClient) => HttpClient,
+	) =>
+		Effect.flatMap(OpenAiConfig.getOrUndefined, (config) =>
+			Effect.provideService(self, OpenAiConfig, { ...config, transformClient }),
+		),
+);

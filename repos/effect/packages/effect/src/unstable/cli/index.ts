@@ -29,7 +29,7 @@
  *
  * @since 4.0.0
  */
-export * as Argument from "./Argument.ts"
+export * as Argument from "./Argument.ts";
 
 /**
  * The `CliError` module defines the structured error model used by the
@@ -58,7 +58,7 @@ export * as Argument from "./Argument.ts"
  *
  * @since 4.0.0
  */
-export * as CliError from "./CliError.ts"
+export * as CliError from "./CliError.ts";
 
 /**
  * The `CliOutput` module provides the formatting service used by Effect CLI
@@ -84,7 +84,7 @@ export * as CliError from "./CliError.ts"
  *
  * @since 4.0.0
  */
-export * as CliOutput from "./CliOutput.ts"
+export * as CliOutput from "./CliOutput.ts";
 
 /**
  * The `Command` module provides the core building block for defining and
@@ -117,14 +117,14 @@ export * as CliOutput from "./CliOutput.ts"
  *
  * @since 4.0.0
  */
-export * as Command from "./Command.ts"
+export * as Command from "./Command.ts";
 
 /**
  * Shell completion descriptors and script generation for the unstable CLI API.
  *
  * @since 4.0.0
  */
-export * as Completions from "./Completions.ts"
+export * as Completions from "./Completions.ts";
 
 /**
  * The `Flag` module provides typed command-line options for Effect CLI
@@ -148,7 +148,7 @@ export * as Completions from "./Completions.ts"
  *
  * @since 4.0.0
  */
-export * as Flag from "./Flag.ts"
+export * as Flag from "./Flag.ts";
 
 /**
  * The `GlobalFlag` module defines flags that are available to every command in
@@ -176,7 +176,7 @@ export * as Flag from "./Flag.ts"
  *
  * @since 4.0.0
  */
-export * as GlobalFlag from "./GlobalFlag.ts"
+export * as GlobalFlag from "./GlobalFlag.ts";
 
 /**
  * The `HelpDoc` module defines the structured documentation model used by the
@@ -202,7 +202,7 @@ export * as GlobalFlag from "./GlobalFlag.ts"
  *
  * @since 4.0.0
  */
-export * as HelpDoc from "./HelpDoc.ts"
+export * as HelpDoc from "./HelpDoc.ts";
 
 /**
  * The `Param` module defines the shared parser tree used by the unstable CLI
@@ -233,7 +233,7 @@ export * as HelpDoc from "./HelpDoc.ts"
  *
  * @since 4.0.0
  */
-export * as Param from "./Param.ts"
+export * as Param from "./Param.ts";
 
 /**
  * Primitive types for CLI parameter parsing.
@@ -248,7 +248,7 @@ export * as Param from "./Param.ts"
  *
  * @since 4.0.0
  */
-export * as Primitive from "./Primitive.ts"
+export * as Primitive from "./Primitive.ts";
 
 /**
  * The `Prompt` module provides composable, effectful building blocks for
@@ -277,4 +277,4 @@ export * as Primitive from "./Primitive.ts"
  *
  * @since 4.0.0
  */
-export * as Prompt from "./Prompt.ts"
+export * as Prompt from "./Prompt.ts";

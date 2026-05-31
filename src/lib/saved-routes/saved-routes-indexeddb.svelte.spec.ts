@@ -10,6 +10,7 @@ import {
 	SAVED_ROUTES_STORAGE_KEY,
 	type SavedRoute,
 } from "$lib/saved-routes-core";
+import { Effect } from "effect";
 
 const route: PlannedRoute = {
 	mode: "point_to_point",
@@ -37,7 +38,7 @@ function createRoute(id: string, createdAt: string): SavedRoute {
 
 async function createRepository() {
 	const repository = createSavedRoutesRepository(window.localStorage);
-	await repository.init();
+	await Effect.runPromise(repository.init());
 	return repository;
 }
 
@@ -45,7 +46,7 @@ describe("saved routes IndexedDB repository", () => {
 	beforeEach(async () => {
 		window.localStorage.clear();
 		const repository = await createRepository();
-		await repository.clear();
+		await Effect.runPromise(repository.clear());
 	});
 
 	it("writes and reads anonymous routes sorted newest first", async () => {
@@ -53,13 +54,16 @@ describe("saved routes IndexedDB repository", () => {
 		const older = createRoute("older", "2026-04-19T09:30:00.000Z");
 		const newer = createRoute("newer", "2026-04-20T09:30:00.000Z");
 
-		await repository.upsertRoute({ kind: "anonymous" }, older);
-		await repository.upsertRoute({ kind: "anonymous" }, newer);
+		await Effect.runPromise(
+			repository.upsertRoute({ kind: "anonymous" }, older),
+		);
+		await Effect.runPromise(
+			repository.upsertRoute({ kind: "anonymous" }, newer),
+		);
 
-		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([
-			newer,
-			older,
-		]);
+		expect(
+			await Effect.runPromise(repository.readRoutes({ kind: "anonymous" })),
+		).toEqual([newer, older]);
 	});
 
 	it("keeps user-scoped routes separate", async () => {
@@ -67,14 +71,22 @@ describe("saved routes IndexedDB repository", () => {
 		const first = createRoute("route-1", "2026-04-19T09:30:00.000Z");
 		const second = createRoute("route-2", "2026-04-20T09:30:00.000Z");
 
-		await repository.upsertRoute({ kind: "user", userId: "user_1" }, first);
-		await repository.upsertRoute({ kind: "user", userId: "user_2" }, second);
+		await Effect.runPromise(
+			repository.upsertRoute({ kind: "user", userId: "user_1" }, first),
+		);
+		await Effect.runPromise(
+			repository.upsertRoute({ kind: "user", userId: "user_2" }, second),
+		);
 
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_1" }),
+			),
 		).toEqual([first]);
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_2" }),
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_2" }),
+			),
 		).toEqual([second]);
 	});
 
@@ -87,13 +99,19 @@ describe("saved routes IndexedDB repository", () => {
 		};
 		const second = createRoute("route-2", "2026-04-20T09:30:00.000Z");
 
-		await repository.replaceRoutes({ kind: "anonymous" }, [first, second]);
-		await repository.upsertRoute({ kind: "anonymous" }, updated);
-		await repository.deleteRoute({ kind: "anonymous" }, "route-2");
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "anonymous" }, [first, second]),
+		);
+		await Effect.runPromise(
+			repository.upsertRoute({ kind: "anonymous" }, updated),
+		);
+		await Effect.runPromise(
+			repository.deleteRoute({ kind: "anonymous" }, "route-2"),
+		);
 
-		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([
-			updated,
-		]);
+		expect(
+			await Effect.runPromise(repository.readRoutes({ kind: "anonymous" })),
+		).toEqual([updated]);
 	});
 
 	it("full replacement clears missing routes for that scope only", async () => {
@@ -101,12 +119,16 @@ describe("saved routes IndexedDB repository", () => {
 		const first = createRoute("route-1", "2026-04-19T09:30:00.000Z");
 		const second = createRoute("route-2", "2026-04-20T09:30:00.000Z");
 
-		await repository.replaceRoutes({ kind: "anonymous" }, [first, second]);
-		await repository.replaceRoutes({ kind: "anonymous" }, [second]);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "anonymous" }, [first, second]),
+		);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "anonymous" }, [second]),
+		);
 
-		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([
-			second,
-		]);
+		expect(
+			await Effect.runPromise(repository.readRoutes({ kind: "anonymous" })),
+		).toEqual([second]);
 	});
 
 	it("migrates legacy anonymous and user localStorage arrays", async () => {
@@ -126,11 +148,13 @@ describe("saved routes IndexedDB repository", () => {
 
 		const repository = await createRepository();
 
-		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([
-			anonymous,
-		]);
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+			await Effect.runPromise(repository.readRoutes({ kind: "anonymous" })),
+		).toEqual([anonymous]);
+		expect(
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_1" }),
+			),
 		).toEqual([user]);
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
 		expect(
@@ -143,7 +167,9 @@ describe("saved routes IndexedDB repository", () => {
 
 		const repository = await createRepository();
 
-		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([]);
+		expect(
+			await Effect.runPromise(repository.readRoutes({ kind: "anonymous" })),
+		).toEqual([]);
 		expect(window.localStorage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBe(
 			"{broken",
 		);

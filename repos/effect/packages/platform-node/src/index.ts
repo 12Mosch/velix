@@ -7,14 +7,14 @@
 /**
  * @since 4.0.0
  */
-export * as Mime from "./Mime.ts"
+export * as Mime from "./Mime.ts";
 
 /**
  * Node.js implementation of `ChildProcessSpawner`.
  *
  * @since 4.0.0
  */
-export * as NodeChildProcessSpawner from "./NodeChildProcessSpawner.ts"
+export * as NodeChildProcessSpawner from "./NodeChildProcessSpawner.ts";
 
 /**
  * The `NodeClusterHttp` module provides the Node.js HTTP and WebSocket
@@ -52,7 +52,7 @@ export * as NodeChildProcessSpawner from "./NodeChildProcessSpawner.ts"
  *
  * @since 4.0.0
  */
-export * as NodeClusterHttp from "./NodeClusterHttp.ts"
+export * as NodeClusterHttp from "./NodeClusterHttp.ts";
 
 /**
  * The `NodeClusterSocket` module provides the Node.js socket transport for
@@ -86,14 +86,14 @@ export * as NodeClusterHttp from "./NodeClusterHttp.ts"
  *
  * @since 4.0.0
  */
-export * as NodeClusterSocket from "./NodeClusterSocket.ts"
+export * as NodeClusterSocket from "./NodeClusterSocket.ts";
 
 /**
  * Node.js platform Crypto service layer.
  *
  * @since 1.0.0
  */
-export * as NodeCrypto from "./NodeCrypto.ts"
+export * as NodeCrypto from "./NodeCrypto.ts";
 
 /**
  * Provides the Node.js `FileSystem` layer for Effect programs.
@@ -115,7 +115,7 @@ export * as NodeCrypto from "./NodeCrypto.ts"
  *
  * @since 4.0.0
  */
-export * as NodeFileSystem from "./NodeFileSystem.ts"
+export * as NodeFileSystem from "./NodeFileSystem.ts";
 
 /**
  * Node.js implementations of the Effect `HttpClient`.
@@ -146,7 +146,7 @@ export * as NodeFileSystem from "./NodeFileSystem.ts"
  *
  * @since 4.0.0
  */
-export * as NodeHttpClient from "./NodeHttpClient.ts"
+export * as NodeHttpClient from "./NodeHttpClient.ts";
 
 /**
  * Utilities for adapting Node `http.IncomingMessage` values to the Effect HTTP
@@ -163,7 +163,7 @@ export * as NodeHttpClient from "./NodeHttpClient.ts"
  *
  * @since 4.0.0
  */
-export * as NodeHttpIncomingMessage from "./NodeHttpIncomingMessage.ts"
+export * as NodeHttpIncomingMessage from "./NodeHttpIncomingMessage.ts";
 
 /**
  * Node.js implementation of the Effect HTTP platform service.
@@ -189,7 +189,7 @@ export * as NodeHttpIncomingMessage from "./NodeHttpIncomingMessage.ts"
  *
  * @since 4.0.0
  */
-export * as NodeHttpPlatform from "./NodeHttpPlatform.ts"
+export * as NodeHttpPlatform from "./NodeHttpPlatform.ts";
 
 /**
  * Node.js implementation of the Effect `HttpServer`.
@@ -223,7 +223,7 @@ export * as NodeHttpPlatform from "./NodeHttpPlatform.ts"
  *
  * @since 4.0.0
  */
-export * as NodeHttpServer from "./NodeHttpServer.ts"
+export * as NodeHttpServer from "./NodeHttpServer.ts";
 
 /**
  * Accessors for the Node.js objects backing a platform Node
@@ -247,7 +247,7 @@ export * as NodeHttpServer from "./NodeHttpServer.ts"
  *
  * @since 4.0.0
  */
-export * as NodeHttpServerRequest from "./NodeHttpServerRequest.ts"
+export * as NodeHttpServerRequest from "./NodeHttpServerRequest.ts";
 
 /**
  * Node-specific helpers for parsing HTTP `multipart/form-data` request bodies.
@@ -269,7 +269,7 @@ export * as NodeHttpServerRequest from "./NodeHttpServerRequest.ts"
  *
  * @since 4.0.0
  */
-export * as NodeMultipart from "./NodeMultipart.ts"
+export * as NodeMultipart from "./NodeMultipart.ts";
 
 /**
  * Node.js layers for Effect's `Path` service.
@@ -288,7 +288,7 @@ export * as NodeMultipart from "./NodeMultipart.ts"
  *
  * @since 4.0.0
  */
-export * as NodePath from "./NodePath.ts"
+export * as NodePath from "./NodePath.ts";
 
 /**
  * Node.js Redis integration backed by `ioredis`.
@@ -312,7 +312,7 @@ export * as NodePath from "./NodePath.ts"
  *
  * @since 4.0.0
  */
-export * as NodeRedis from "./NodeRedis.ts"
+export * as NodeRedis from "./NodeRedis.ts";
 
 /**
  * Node.js entry-point helpers for running Effect programs.
@@ -331,7 +331,7 @@ export * as NodeRedis from "./NodeRedis.ts"
  *
  * @since 4.0.0
  */
-export * as NodeRuntime from "./NodeRuntime.ts"
+export * as NodeRuntime from "./NodeRuntime.ts";
 
 /**
  * Provides the aggregate Node platform services layer for applications that run
@@ -353,12 +353,12 @@ export * as NodeRuntime from "./NodeRuntime.ts"
  *
  * @since 4.0.0
  */
-export * as NodeServices from "./NodeServices.ts"
+export * as NodeServices from "./NodeServices.ts";
 
 /**
  * @since 4.0.0
  */
-export * as NodeSink from "./NodeSink.ts"
+export * as NodeSink from "./NodeSink.ts";
 
 /**
  * Node platform socket entry point for Effect sockets backed by Node streams
@@ -380,12 +380,12 @@ export * as NodeSink from "./NodeSink.ts"
  *
  * @since 4.0.0
  */
-export * as NodeSocket from "./NodeSocket.ts"
+export * as NodeSocket from "./NodeSocket.ts";
 
 /**
  * @since 4.0.0
  */
-export * as NodeSocketServer from "./NodeSocketServer.ts"
+export * as NodeSocketServer from "./NodeSocketServer.ts";
 
 /**
  * Node.js implementation of the Effect `Stdio` service.
@@ -406,12 +406,12 @@ export * as NodeSocketServer from "./NodeSocketServer.ts"
  *
  * @since 4.0.0
  */
-export * as NodeStdio from "./NodeStdio.ts"
+export * as NodeStdio from "./NodeStdio.ts";
 
 /**
  * @since 4.0.0
  */
-export * as NodeStream from "./NodeStream.ts"
+export * as NodeStream from "./NodeStream.ts";
 
 /**
  * Provides the Node.js `Terminal` service for interactive command-line
@@ -426,7 +426,7 @@ export * as NodeStream from "./NodeStream.ts"
  *
  * @since 4.0.0
  */
-export * as NodeTerminal from "./NodeTerminal.ts"
+export * as NodeTerminal from "./NodeTerminal.ts";
 
 /**
  * Parent-side Node.js support for Effect workers.
@@ -449,7 +449,7 @@ export * as NodeTerminal from "./NodeTerminal.ts"
  *
  * @since 4.0.0
  */
-export * as NodeWorker from "./NodeWorker.ts"
+export * as NodeWorker from "./NodeWorker.ts";
 
 /**
  * Runtime support for Effect workers that are executed by Node.js.
@@ -472,9 +472,9 @@ export * as NodeWorker from "./NodeWorker.ts"
  *
  * @since 4.0.0
  */
-export * as NodeWorkerRunner from "./NodeWorkerRunner.ts"
+export * as NodeWorkerRunner from "./NodeWorkerRunner.ts";
 
 /**
  * @since 4.0.0
  */
-export * as Undici from "./Undici.ts"
+export * as Undici from "./Undici.ts";

@@ -86,7 +86,7 @@
  *
  * @since 4.0.0
  */
-export * as AiError from "./AiError.ts"
+export * as AiError from "./AiError.ts";
 
 /**
  * Provides a codec transformation for Anthropic structured output.
@@ -105,7 +105,7 @@ export * as AiError from "./AiError.ts"
  *
  * @since 4.0.0
  */
-export * as AnthropicStructuredOutput from "./AnthropicStructuredOutput.ts"
+export * as AnthropicStructuredOutput from "./AnthropicStructuredOutput.ts";
 
 /**
  * The `Chat` module provides a stateful conversation interface for AI language
@@ -155,7 +155,7 @@ export * as AnthropicStructuredOutput from "./AnthropicStructuredOutput.ts"
  *
  * @since 4.0.0
  */
-export * as Chat from "./Chat.ts"
+export * as Chat from "./Chat.ts";
 
 /**
  * The `EmbeddingModel` module provides provider-agnostic text embedding capabilities.
@@ -174,7 +174,7 @@ export * as Chat from "./Chat.ts"
  *
  * @since 4.0.0
  */
-export * as EmbeddingModel from "./EmbeddingModel.ts"
+export * as EmbeddingModel from "./EmbeddingModel.ts";
 
 /**
  * The `IdGenerator` module provides a pluggable system for generating unique identifiers
@@ -225,7 +225,7 @@ export * as EmbeddingModel from "./EmbeddingModel.ts"
  *
  * @since 4.0.0
  */
-export * as IdGenerator from "./IdGenerator.ts"
+export * as IdGenerator from "./IdGenerator.ts";
 
 /**
  * The `LanguageModel` module provides AI text generation capabilities with tool
@@ -279,7 +279,7 @@ export * as IdGenerator from "./IdGenerator.ts"
  *
  * @since 4.0.0
  */
-export * as LanguageModel from "./LanguageModel.ts"
+export * as LanguageModel from "./LanguageModel.ts";
 
 /**
  * The `McpSchema` module defines Effect Schema and RPC models for the Model
@@ -312,7 +312,7 @@ export * as LanguageModel from "./LanguageModel.ts"
  *
  * @since 4.0.0
  */
-export * as McpSchema from "./McpSchema.ts"
+export * as McpSchema from "./McpSchema.ts";
 
 /**
  * The `McpServer` module provides Effect services and layers for building
@@ -340,7 +340,7 @@ export * as McpSchema from "./McpSchema.ts"
  *
  * @since 4.0.0
  */
-export * as McpServer from "./McpServer.ts"
+export * as McpServer from "./McpServer.ts";
 
 /**
  * The `Model` module provides a unified interface for AI service providers.
@@ -373,14 +373,14 @@ export * as McpServer from "./McpServer.ts"
  *
  * @since 4.0.0
  */
-export * as Model from "./Model.ts"
+export * as Model from "./Model.ts";
 
 /**
  * Provides codec transformations for OpenAI structured output.
  *
  * @since 4.0.0
  */
-export * as OpenAiStructuredOutput from "./OpenAiStructuredOutput.ts"
+export * as OpenAiStructuredOutput from "./OpenAiStructuredOutput.ts";
 
 /**
  * The `Prompt` module provides several data structures to simplify creating and
@@ -437,7 +437,7 @@ export * as OpenAiStructuredOutput from "./OpenAiStructuredOutput.ts"
  *
  * @since 4.0.0
  */
-export * as Prompt from "./Prompt.ts"
+export * as Prompt from "./Prompt.ts";
 
 /**
  * The `Response` module provides data structures to represent responses from
@@ -468,7 +468,7 @@ export * as Prompt from "./Prompt.ts"
  *
  * @since 4.0.0
  */
-export * as Response from "./Response.ts"
+export * as Response from "./Response.ts";
 
 /**
  * The `ResponseIdTracker` module provides a small service for reusing provider
@@ -485,7 +485,7 @@ export * as Response from "./Response.ts"
  *
  * @since 4.0.0
  */
-export * as ResponseIdTracker from "./ResponseIdTracker.ts"
+export * as ResponseIdTracker from "./ResponseIdTracker.ts";
 
 /**
  * The `Telemetry` module provides OpenTelemetry integration for operations
@@ -521,7 +521,7 @@ export * as ResponseIdTracker from "./ResponseIdTracker.ts"
  *
  * @since 4.0.0
  */
-export * as Telemetry from "./Telemetry.ts"
+export * as Telemetry from "./Telemetry.ts";
 
 /**
  * The `Tokenizer` module provides tokenization and text truncation capabilities
@@ -562,7 +562,7 @@ export * as Telemetry from "./Telemetry.ts"
  *
  * @since 4.0.0
  */
-export * as Tokenizer from "./Tokenizer.ts"
+export * as Tokenizer from "./Tokenizer.ts";
 
 /**
  * The `Tool` module provides functionality for defining and managing tools
@@ -593,7 +593,7 @@ export * as Tokenizer from "./Tokenizer.ts"
  *
  * @since 4.0.0
  */
-export * as Tool from "./Tool.ts"
+export * as Tool from "./Tool.ts";
 
 /**
  * The `Toolkit` module allows for creating and implementing a collection of
@@ -647,4 +647,4 @@ export * as Tool from "./Tool.ts"
  *
  * @since 4.0.0
  */
-export * as Toolkit from "./Toolkit.ts"
+export * as Toolkit from "./Toolkit.ts";

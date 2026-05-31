@@ -47,7 +47,7 @@
  *
  * @since 4.0.0
  */
-export * as ChildProcess from "./ChildProcess.ts"
+export * as ChildProcess from "./ChildProcess.ts";
 
 /**
  * A module providing a generic service interface for spawning child processes.
@@ -57,4 +57,4 @@ export * as ChildProcess from "./ChildProcess.ts"
  *
  * @since 4.0.0
  */
-export * as ChildProcessSpawner from "./ChildProcessSpawner.ts"
+export * as ChildProcessSpawner from "./ChildProcessSpawner.ts";

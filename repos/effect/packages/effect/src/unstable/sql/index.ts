@@ -28,7 +28,7 @@
  *
  * @since 4.0.0
  */
-export * as Migrator from "./Migrator.ts"
+export * as Migrator from "./Migrator.ts";
 
 /**
  * Defines the `SqlClient` service, the central runtime entry point for Effect's
@@ -54,7 +54,7 @@ export * as Migrator from "./Migrator.ts"
  *
  * @since 4.0.0
  */
-export * as SqlClient from "./SqlClient.ts"
+export * as SqlClient from "./SqlClient.ts";
 
 /**
  * Defines the low-level SQL connection service and shared row/acquirer types
@@ -79,7 +79,7 @@ export * as SqlClient from "./SqlClient.ts"
  *
  * @since 4.0.0
  */
-export * as SqlConnection from "./SqlConnection.ts"
+export * as SqlConnection from "./SqlConnection.ts";
 
 /**
  * Structured SQL errors used by the unstable SQL APIs.
@@ -102,7 +102,7 @@ export * as SqlConnection from "./SqlConnection.ts"
  *
  * @since 4.0.0
  */
-export * as SqlError from "./SqlError.ts"
+export * as SqlError from "./SqlError.ts";
 
 /**
  * Builds SQL repositories and request resolvers from Effect schema models.
@@ -124,7 +124,7 @@ export * as SqlError from "./SqlError.ts"
  *
  * @since 4.0.0
  */
-export * as SqlModel from "./SqlModel.ts"
+export * as SqlModel from "./SqlModel.ts";
 
 /**
  * Schema-aware `RequestResolver` helpers for SQL-backed data loading.
@@ -155,7 +155,7 @@ export * as SqlModel from "./SqlModel.ts"
  *
  * @since 4.0.0
  */
-export * as SqlResolver from "./SqlResolver.ts"
+export * as SqlResolver from "./SqlResolver.ts";
 
 /**
  * Schema-driven helpers for wrapping SQL executions in typed query functions.
@@ -178,7 +178,7 @@ export * as SqlResolver from "./SqlResolver.ts"
  *
  * @since 4.0.0
  */
-export * as SqlSchema from "./SqlSchema.ts"
+export * as SqlSchema from "./SqlSchema.ts";
 
 /**
  * Low-level helpers for adapting push-based SQL row sources into Effect
@@ -203,7 +203,7 @@ export * as SqlSchema from "./SqlSchema.ts"
  *
  * @since 4.0.0
  */
-export * as SqlStream from "./SqlStream.ts"
+export * as SqlStream from "./SqlStream.ts";
 
 /**
  * Building blocks for Effect's unstable SQL statement API.
@@ -225,4 +225,4 @@ export * as SqlStream from "./SqlStream.ts"
  *
  * @since 4.0.0
  */
-export * as Statement from "./Statement.ts"
+export * as Statement from "./Statement.ts";

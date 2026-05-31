@@ -6,16 +6,16 @@
  *
  * @since 3.3.0
  */
-import * as Equal from "./Equal.ts"
-import * as Equivalence from "./Equivalence.ts"
-import * as Hash from "./Hash.ts"
-import { PipeInspectableProto } from "./internal/core.ts"
-import * as redacted from "./internal/redacted.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { hasProperty, isString } from "./Predicate.ts"
-import type { Covariant } from "./Types.ts"
+import * as Equal from "./Equal.ts";
+import * as Equivalence from "./Equivalence.ts";
+import * as Hash from "./Hash.ts";
+import { PipeInspectableProto } from "./internal/core.ts";
+import * as redacted from "./internal/redacted.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { hasProperty, isString } from "./Predicate.ts";
+import type { Covariant } from "./Types.ts";
 
-const TypeId = "~effect/data/Redacted"
+const TypeId = "~effect/data/Redacted";
 
 /**
  * A wrapper for sensitive values whose string, JSON, and inspection output is
@@ -43,8 +43,11 @@ const TypeId = "~effect/data/Redacted"
  * @category models
  * @since 3.3.0
  */
-export interface Redacted<out A = string> extends Redacted.Variance<A>, Equal.Equal, Pipeable {
-  readonly label: string | undefined
+export interface Redacted<out A = string>
+	extends Redacted.Variance<A>,
+		Equal.Equal,
+		Pipeable {
+	readonly label: string | undefined;
 }
 
 /**
@@ -65,45 +68,47 @@ export interface Redacted<out A = string> extends Redacted.Variance<A>, Equal.Eq
  * @since 3.3.0
  */
 export declare namespace Redacted {
-  /**
-   * Type-level variance marker for `Redacted`.
-   *
-   * **Details**
-   *
-   * This interface records the covariant value type carried by a `Redacted`
-   * value and is not normally referenced directly by users.
-   *
-   * @category models
-   * @since 3.3.0
-   */
-  export interface Variance<out A> {
-    readonly [TypeId]: {
-      readonly _A: Covariant<A>
-    }
-  }
+	/**
+	 * Type-level variance marker for `Redacted`.
+	 *
+	 * **Details**
+	 *
+	 * This interface records the covariant value type carried by a `Redacted`
+	 * value and is not normally referenced directly by users.
+	 *
+	 * @category models
+	 * @since 3.3.0
+	 */
+	export interface Variance<out A> {
+		readonly [TypeId]: {
+			readonly _A: Covariant<A>;
+		};
+	}
 
-  /**
-   * Extracts the underlying value type from a `Redacted` type.
-   *
-   * **Example** (Extracting the redacted value type)
-   *
-   * ```ts
-   * import { Redacted } from "effect"
-   *
-   * type ApiKey = Redacted.Redacted<{ readonly token: string }>
-   * type ApiKeyValue = Redacted.Redacted.Value<ApiKey>
-   *
-   * const rotate = (value: ApiKeyValue): ApiKeyValue => ({
-   *   token: `${value.token}:rotated`
-   * })
-   *
-   * console.log(rotate({ token: "secret" })) // { token: "secret:rotated" }
-   * ```
-   *
-   * @category type-level
-   * @since 3.3.0
-   */
-  export type Value<T extends Redacted<any>> = [T] extends [Redacted<infer _A>] ? _A : never
+	/**
+	 * Extracts the underlying value type from a `Redacted` type.
+	 *
+	 * **Example** (Extracting the redacted value type)
+	 *
+	 * ```ts
+	 * import { Redacted } from "effect"
+	 *
+	 * type ApiKey = Redacted.Redacted<{ readonly token: string }>
+	 * type ApiKeyValue = Redacted.Redacted.Value<ApiKey>
+	 *
+	 * const rotate = (value: ApiKeyValue): ApiKeyValue => ({
+	 *   token: `${value.token}:rotated`
+	 * })
+	 *
+	 * console.log(rotate({ token: "secret" })) // { token: "secret:rotated" }
+	 * ```
+	 *
+	 * @category type-level
+	 * @since 3.3.0
+	 */
+	export type Value<T extends Redacted<any>> = [T] extends [Redacted<infer _A>]
+		? _A
+		: never;
 }
 
 /**
@@ -129,7 +134,8 @@ export declare namespace Redacted {
  * @category refinements
  * @since 3.3.0
  */
-export const isRedacted = (u: unknown): u is Redacted<unknown> => hasProperty(u, TypeId)
+export const isRedacted = (u: unknown): u is Redacted<unknown> =>
+	hasProperty(u, TypeId);
 
 /**
  * Creates a `Redacted` wrapper for a sensitive value.
@@ -151,42 +157,45 @@ export const isRedacted = (u: unknown): u is Redacted<unknown> => hasProperty(u,
  * @category constructors
  * @since 3.3.0
  */
-export const make = <T>(value: T, options?: {
-  readonly label?: string | undefined
-}): Redacted<T> => {
-  const self = Object.create(Proto)
-  if (options?.label) {
-    self.label = options.label
-  }
-  redacted.redactedRegistry.set(self, value)
-  return self
-}
+export const make = <T>(
+	value: T,
+	options?: {
+		readonly label?: string | undefined;
+	},
+): Redacted<T> => {
+	const self = Object.create(Proto);
+	if (options?.label) {
+		self.label = options.label;
+	}
+	redacted.redactedRegistry.set(self, value);
+	return self;
+};
 
 const Proto = {
-  [TypeId]: {
-    _A: (_: never) => _
-  },
-  label: undefined,
-  ...PipeInspectableProto,
-  toJSON() {
-    return this.toString()
-  },
-  toString() {
-    return `<redacted${isString(this.label) ? ":" + this.label : ""}>`
-  },
-  [Hash.symbol]<T>(this: Redacted<T>): number {
-    return Hash.hash(redacted.redactedRegistry.get(this))
-  },
-  [Equal.symbol]<T>(this: Redacted<T>, that: unknown): boolean {
-    return (
-      isRedacted(that) &&
-      Equal.equals(
-        redacted.redactedRegistry.get(this),
-        redacted.redactedRegistry.get(that)
-      )
-    )
-  }
-}
+	[TypeId]: {
+		_A: (_: never) => _,
+	},
+	label: undefined,
+	...PipeInspectableProto,
+	toJSON() {
+		return this.toString();
+	},
+	toString() {
+		return `<redacted${isString(this.label) ? ":" + this.label : ""}>`;
+	},
+	[Hash.symbol]<T>(this: Redacted<T>): number {
+		return Hash.hash(redacted.redactedRegistry.get(this));
+	},
+	[Equal.symbol]<T>(this: Redacted<T>, that: unknown): boolean {
+		return (
+			isRedacted(that) &&
+			Equal.equals(
+				redacted.redactedRegistry.get(this),
+				redacted.redactedRegistry.get(that),
+			)
+		);
+	},
+};
 
 /**
  * Retrieves the original value from a `Redacted` instance. Use this function
@@ -206,7 +215,7 @@ const Proto = {
  * @category getters
  * @since 3.3.0
  */
-export const value: <T>(self: Redacted<T>) => T = redacted.value
+export const value: <T>(self: Redacted<T>) => T = redacted.value;
 
 /**
  * Deletes the stored value for a `Redacted` wrapper, making future
@@ -239,7 +248,8 @@ export const value: <T>(self: Redacted<T>) => T = redacted.value
  * @category unsafe
  * @since 4.0.0
  */
-export const wipeUnsafe = <T>(self: Redacted<T>): boolean => redacted.redactedRegistry.delete(self)
+export const wipeUnsafe = <T>(self: Redacted<T>): boolean =>
+	redacted.redactedRegistry.delete(self);
 
 /**
  * Generates an equivalence relation for `Redacted<A>` values based on an
@@ -265,5 +275,7 @@ export const wipeUnsafe = <T>(self: Redacted<T>): boolean => redacted.redactedRe
  * @category equivalence
  * @since 4.0.0
  */
-export const makeEquivalence = <A>(isEquivalent: Equivalence.Equivalence<A>): Equivalence.Equivalence<Redacted<A>> =>
-  Equivalence.make((x, y) => isEquivalent(value(x), value(y)))
+export const makeEquivalence = <A>(
+	isEquivalent: Equivalence.Equivalence<A>,
+): Equivalence.Equivalence<Redacted<A>> =>
+	Equivalence.make((x, y) => isEquivalent(value(x), value(y)));

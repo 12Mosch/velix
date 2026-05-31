@@ -17,13 +17,13 @@
  *
  * @since 4.0.0
  */
-import * as Context from "effect/Context"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
+import * as Context from "effect/Context";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
-const TypeId = "~@effect/platform-browser/Clipboard"
-const ErrorTypeId = "~@effect/platform-browser/Clipboard/ClipboardError"
+const TypeId = "~@effect/platform-browser/Clipboard";
+const ErrorTypeId = "~@effect/platform-browser/Clipboard/ClipboardError";
 
 /**
  * Service interface for reading from, writing to, and clearing the browser clipboard.
@@ -32,13 +32,15 @@ const ErrorTypeId = "~@effect/platform-browser/Clipboard/ClipboardError"
  * @since 4.0.0
  */
 export interface Clipboard {
-  readonly [TypeId]: typeof TypeId
-  readonly read: Effect.Effect<ClipboardItems, ClipboardError>
-  readonly readString: Effect.Effect<string, ClipboardError>
-  readonly write: (items: ClipboardItems) => Effect.Effect<void, ClipboardError>
-  readonly writeString: (text: string) => Effect.Effect<void, ClipboardError>
-  readonly writeBlob: (blob: Blob) => Effect.Effect<void, ClipboardError>
-  readonly clear: Effect.Effect<void, ClipboardError>
+	readonly [TypeId]: typeof TypeId;
+	readonly read: Effect.Effect<ClipboardItems, ClipboardError>;
+	readonly readString: Effect.Effect<string, ClipboardError>;
+	readonly write: (
+		items: ClipboardItems,
+	) => Effect.Effect<void, ClipboardError>;
+	readonly writeString: (text: string) => Effect.Effect<void, ClipboardError>;
+	readonly writeBlob: (blob: Blob) => Effect.Effect<void, ClipboardError>;
+	readonly clear: Effect.Effect<void, ClipboardError>;
 }
 
 /**
@@ -48,10 +50,10 @@ export interface Clipboard {
  * @since 4.0.0
  */
 export class ClipboardError extends Data.TaggedError("ClipboardError")<{
-  readonly message: string
-  readonly cause: unknown
+	readonly message: string;
+	readonly cause: unknown;
 }> {
-  readonly [ErrorTypeId] = ErrorTypeId
+	readonly [ErrorTypeId] = ErrorTypeId;
 }
 
 /**
@@ -60,7 +62,8 @@ export class ClipboardError extends Data.TaggedError("ClipboardError")<{
  * @category services
  * @since 4.0.0
  */
-export const Clipboard: Context.Service<Clipboard, Clipboard> = Context.Service<Clipboard>(TypeId)
+export const Clipboard: Context.Service<Clipboard, Clipboard> =
+	Context.Service<Clipboard>(TypeId);
 
 /**
  * Builds a `Clipboard` service from primitive read and write operations, deriving `clear` and `writeBlob` helpers.
@@ -69,14 +72,15 @@ export const Clipboard: Context.Service<Clipboard, Clipboard> = Context.Service<
  * @since 4.0.0
  */
 export const make = (
-  impl: Omit<Clipboard, "clear" | "writeBlob" | typeof TypeId>
+	impl: Omit<Clipboard, "clear" | "writeBlob" | typeof TypeId>,
 ): Clipboard =>
-  Clipboard.of({
-    ...impl,
-    [TypeId]: TypeId,
-    clear: impl.writeString(""),
-    writeBlob: (blob: Blob) => impl.write([new ClipboardItem({ [blob.type]: blob })])
-  })
+	Clipboard.of({
+		...impl,
+		[TypeId]: TypeId,
+		clear: impl.writeString(""),
+		writeBlob: (blob: Blob) =>
+			impl.write([new ClipboardItem({ [blob.type]: blob })]),
+	});
 
 /**
  * A layer that directly interfaces with the navigator.clipboard api
@@ -85,41 +89,41 @@ export const make = (
  * @since 4.0.0
  */
 export const layer: Layer.Layer<Clipboard> = Layer.succeed(
-  Clipboard,
-  make({
-    read: Effect.tryPromise({
-      try: () => navigator.clipboard.read(),
-      catch: (cause) =>
-        new ClipboardError({
-          cause,
-          "message": "Unable to read from clipboard"
-        })
-    }),
-    write: (s: Array<ClipboardItem>) =>
-      Effect.tryPromise({
-        try: () => navigator.clipboard.write(s),
-        catch: (cause) =>
-          new ClipboardError({
-            cause,
-            "message": "Unable to write to clipboard"
-          })
-      }),
-    readString: Effect.tryPromise({
-      try: () => navigator.clipboard.readText(),
-      catch: (cause) =>
-        new ClipboardError({
-          cause,
-          "message": "Unable to read a string from clipboard"
-        })
-    }),
-    writeString: (text: string) =>
-      Effect.tryPromise({
-        try: () => navigator.clipboard.writeText(text),
-        catch: (cause) =>
-          new ClipboardError({
-            cause,
-            "message": "Unable to write a string to clipboard"
-          })
-      })
-  })
-)
+	Clipboard,
+	make({
+		read: Effect.tryPromise({
+			try: () => navigator.clipboard.read(),
+			catch: (cause) =>
+				new ClipboardError({
+					cause,
+					message: "Unable to read from clipboard",
+				}),
+		}),
+		write: (s: Array<ClipboardItem>) =>
+			Effect.tryPromise({
+				try: () => navigator.clipboard.write(s),
+				catch: (cause) =>
+					new ClipboardError({
+						cause,
+						message: "Unable to write to clipboard",
+					}),
+			}),
+		readString: Effect.tryPromise({
+			try: () => navigator.clipboard.readText(),
+			catch: (cause) =>
+				new ClipboardError({
+					cause,
+					message: "Unable to read a string from clipboard",
+				}),
+		}),
+		writeString: (text: string) =>
+			Effect.tryPromise({
+				try: () => navigator.clipboard.writeText(text),
+				catch: (cause) =>
+					new ClipboardError({
+						cause,
+						message: "Unable to write a string to clipboard",
+					}),
+			}),
+	}),
+);

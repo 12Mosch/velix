@@ -18,12 +18,12 @@
  *
  * @since 4.0.0
  */
-import * as Cause from "../../Cause.ts"
-import * as Effect from "../../Effect.ts"
-import { hasProperty } from "../../Predicate.ts"
-import * as Schema from "../../Schema.ts"
-import type { HttpServerResponse } from "./HttpServerResponse.ts"
-import * as Response from "./HttpServerResponse.ts"
+import * as Cause from "../../Cause.ts";
+import * as Effect from "../../Effect.ts";
+import { hasProperty } from "../../Predicate.ts";
+import * as Schema from "../../Schema.ts";
+import type { HttpServerResponse } from "./HttpServerResponse.ts";
+import * as Response from "./HttpServerResponse.ts";
 
 /**
  * Protocol key used by values that can render themselves as
@@ -32,7 +32,7 @@ import * as Response from "./HttpServerResponse.ts"
  * @category type IDs
  * @since 4.0.0
  */
-export const symbol = "~effect/http/HttpServerRespondable"
+export const symbol = "~effect/http/HttpServerRespondable";
 
 /**
  * Protocol for values that can be converted into an `HttpServerResponse`.
@@ -46,7 +46,7 @@ export const symbol = "~effect/http/HttpServerRespondable"
  * @since 4.0.0
  */
 export interface Respondable {
-  [symbol](): Effect.Effect<HttpServerResponse, unknown>
+	[symbol](): Effect.Effect<HttpServerResponse, unknown>;
 }
 
 /**
@@ -55,10 +55,11 @@ export interface Respondable {
  * @category guards
  * @since 4.0.0
  */
-export const isRespondable = (u: unknown): u is Respondable => hasProperty(u, symbol)
+export const isRespondable = (u: unknown): u is Respondable =>
+	hasProperty(u, symbol);
 
-const badRequest = Response.empty({ status: 400 })
-const notFound = Response.empty({ status: 404 })
+const badRequest = Response.empty({ status: 400 });
+const notFound = Response.empty({ status: 404 });
 
 /**
  * Converts a `Respondable` value into an `HttpServerResponse`.
@@ -71,12 +72,14 @@ const notFound = Response.empty({ status: 404 })
  * @category accessors
  * @since 4.0.0
  */
-export const toResponse = (self: Respondable): Effect.Effect<HttpServerResponse> => {
-  if (Response.isHttpServerResponse(self)) {
-    return Effect.succeed(self)
-  }
-  return Effect.orDie(self[symbol]())
-}
+export const toResponse = (
+	self: Respondable,
+): Effect.Effect<HttpServerResponse> => {
+	if (Response.isHttpServerResponse(self)) {
+		return Effect.succeed(self);
+	}
+	return Effect.orDie(self[symbol]());
+};
 
 /**
  * Attempts to convert an unknown value into an `HttpServerResponse`, falling back
@@ -90,19 +93,22 @@ export const toResponse = (self: Respondable): Effect.Effect<HttpServerResponse>
  * @category accessors
  * @since 4.0.0
  */
-export const toResponseOrElse = (u: unknown, orElse: HttpServerResponse): Effect.Effect<HttpServerResponse> => {
-  if (Response.isHttpServerResponse(u)) {
-    return Effect.succeed(u)
-  } else if (isRespondable(u)) {
-    return Effect.catchCause(u[symbol](), () => Effect.succeed(orElse))
-    // add support for some commmon types
-  } else if (Schema.isSchemaError(u)) {
-    return Effect.succeed(badRequest)
-  } else if (Cause.isNoSuchElementError(u)) {
-    return Effect.succeed(notFound)
-  }
-  return Effect.succeed(orElse)
-}
+export const toResponseOrElse = (
+	u: unknown,
+	orElse: HttpServerResponse,
+): Effect.Effect<HttpServerResponse> => {
+	if (Response.isHttpServerResponse(u)) {
+		return Effect.succeed(u);
+	} else if (isRespondable(u)) {
+		return Effect.catchCause(u[symbol](), () => Effect.succeed(orElse));
+		// add support for some commmon types
+	} else if (Schema.isSchemaError(u)) {
+		return Effect.succeed(badRequest);
+	} else if (Cause.isNoSuchElementError(u)) {
+		return Effect.succeed(notFound);
+	}
+	return Effect.succeed(orElse);
+};
 
 /**
  * Attempts to convert an unknown defect into an `HttpServerResponse`, falling
@@ -115,11 +121,14 @@ export const toResponseOrElse = (u: unknown, orElse: HttpServerResponse): Effect
  * @category accessors
  * @since 4.0.0
  */
-export const toResponseOrElseDefect = (u: unknown, orElse: HttpServerResponse): Effect.Effect<HttpServerResponse> => {
-  if (Response.isHttpServerResponse(u)) {
-    return Effect.succeed(u)
-  } else if (isRespondable(u)) {
-    return Effect.catchCause(u[symbol](), () => Effect.succeed(orElse))
-  }
-  return Effect.succeed(orElse)
-}
+export const toResponseOrElseDefect = (
+	u: unknown,
+	orElse: HttpServerResponse,
+): Effect.Effect<HttpServerResponse> => {
+	if (Response.isHttpServerResponse(u)) {
+		return Effect.succeed(u);
+	} else if (isRespondable(u)) {
+		return Effect.catchCause(u[symbol](), () => Effect.succeed(orElse));
+	}
+	return Effect.succeed(orElse);
+};

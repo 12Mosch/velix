@@ -9,7 +9,7 @@
  *
  * @since 1.0.0
  */
-export * as BrowserCrypto from "./BrowserCrypto.ts"
+export * as BrowserCrypto from "./BrowserCrypto.ts";
 
 /**
  * Browser implementations of the Effect `HttpClient`.
@@ -43,7 +43,7 @@ export * as BrowserCrypto from "./BrowserCrypto.ts"
  *
  * @since 4.0.0
  */
-export * as BrowserHttpClient from "./BrowserHttpClient.ts"
+export * as BrowserHttpClient from "./BrowserHttpClient.ts";
 
 /**
  * Browser-backed `KeyValueStore` layers for Effect programs.
@@ -64,7 +64,7 @@ export * as BrowserHttpClient from "./BrowserHttpClient.ts"
  *
  * @since 4.0.0
  */
-export * as BrowserKeyValueStore from "./BrowserKeyValueStore.ts"
+export * as BrowserKeyValueStore from "./BrowserKeyValueStore.ts";
 
 /**
  * Browser-backed persistence layers for Effect's persistence service.
@@ -81,7 +81,7 @@ export * as BrowserKeyValueStore from "./BrowserKeyValueStore.ts"
  *
  * @since 4.0.0
  */
-export * as BrowserPersistence from "./BrowserPersistence.ts"
+export * as BrowserPersistence from "./BrowserPersistence.ts";
 
 /**
  * Browser entry-point helpers for running Effect programs.
@@ -107,7 +107,7 @@ export * as BrowserPersistence from "./BrowserPersistence.ts"
  *
  * @since 4.0.0
  */
-export * as BrowserRuntime from "./BrowserRuntime.ts"
+export * as BrowserRuntime from "./BrowserRuntime.ts";
 
 /**
  * Browser WebSocket layers for Effect sockets.
@@ -135,7 +135,7 @@ export * as BrowserRuntime from "./BrowserRuntime.ts"
  *
  * @since 4.0.0
  */
-export * as BrowserSocket from "./BrowserSocket.ts"
+export * as BrowserSocket from "./BrowserSocket.ts";
 
 /**
  * Browser `Stream` constructors for DOM event targets.
@@ -162,7 +162,7 @@ export * as BrowserSocket from "./BrowserSocket.ts"
  *
  * @since 4.0.0
  */
-export * as BrowserStream from "./BrowserStream.ts"
+export * as BrowserStream from "./BrowserStream.ts";
 
 /**
  * Parent-side browser support for Effect workers.
@@ -187,7 +187,7 @@ export * as BrowserStream from "./BrowserStream.ts"
  *
  * @since 4.0.0
  */
-export * as BrowserWorker from "./BrowserWorker.ts"
+export * as BrowserWorker from "./BrowserWorker.ts";
 
 /**
  * Browser runtime support for Effect worker runners.
@@ -210,7 +210,7 @@ export * as BrowserWorker from "./BrowserWorker.ts"
  *
  * @since 4.0.0
  */
-export * as BrowserWorkerRunner from "./BrowserWorkerRunner.ts"
+export * as BrowserWorkerRunner from "./BrowserWorkerRunner.ts";
 
 /**
  * Browser clipboard service for Effect programs.
@@ -231,7 +231,7 @@ export * as BrowserWorkerRunner from "./BrowserWorkerRunner.ts"
  *
  * @since 4.0.0
  */
-export * as Clipboard from "./Clipboard.ts"
+export * as Clipboard from "./Clipboard.ts";
 
 /**
  * Browser geolocation support for Effect programs.
@@ -252,7 +252,7 @@ export * as Clipboard from "./Clipboard.ts"
  *
  * @since 4.0.0
  */
-export * as Geolocation from "./Geolocation.ts"
+export * as Geolocation from "./Geolocation.ts";
 
 /**
  * Browser IndexedDB primitives and key schemas for Effect applications.
@@ -279,7 +279,7 @@ export * as Geolocation from "./Geolocation.ts"
  *
  * @since 4.0.0
  */
-export * as IndexedDb from "./IndexedDb.ts"
+export * as IndexedDb from "./IndexedDb.ts";
 
 /**
  * Builds and opens typed IndexedDB databases from versioned schema migrations.
@@ -309,7 +309,7 @@ export * as IndexedDb from "./IndexedDb.ts"
  *
  * @since 4.0.0
  */
-export * as IndexedDbDatabase from "./IndexedDbDatabase.ts"
+export * as IndexedDbDatabase from "./IndexedDbDatabase.ts";
 
 /**
  * Builds effectful, schema-aware queries for typed browser IndexedDB versions.
@@ -340,7 +340,7 @@ export * as IndexedDbDatabase from "./IndexedDbDatabase.ts"
  *
  * @since 4.0.0
  */
-export * as IndexedDbQueryBuilder from "./IndexedDbQueryBuilder.ts"
+export * as IndexedDbQueryBuilder from "./IndexedDbQueryBuilder.ts";
 
 /**
  * Defines typed table descriptors for the browser IndexedDB integration.
@@ -363,7 +363,7 @@ export * as IndexedDbQueryBuilder from "./IndexedDbQueryBuilder.ts"
  *
  * @since 4.0.0
  */
-export * as IndexedDbTable from "./IndexedDbTable.ts"
+export * as IndexedDbTable from "./IndexedDbTable.ts";
 
 /**
  * Typed IndexedDB schema version definitions.
@@ -384,7 +384,7 @@ export * as IndexedDbTable from "./IndexedDbTable.ts"
  *
  * @since 4.0.0
  */
-export * as IndexedDbVersion from "./IndexedDbVersion.ts"
+export * as IndexedDbVersion from "./IndexedDbVersion.ts";
 
 /**
  * Browser Permissions API support for Effect programs.
@@ -406,4 +406,4 @@ export * as IndexedDbVersion from "./IndexedDbVersion.ts"
  *
  * @since 4.0.0
  */
-export * as Permissions from "./Permissions.ts"
+export * as Permissions from "./Permissions.ts";

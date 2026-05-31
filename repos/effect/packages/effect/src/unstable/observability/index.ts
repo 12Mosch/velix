@@ -26,7 +26,7 @@
  *
  * @since 4.0.0
  */
-export * as Otlp from "./Otlp.ts"
+export * as Otlp from "./Otlp.ts";
 
 /**
  * Low-level OTLP/HTTP batch exporter used by the observability modules for
@@ -55,7 +55,7 @@ export * as Otlp from "./Otlp.ts"
  *
  * @since 4.0.0
  */
-export * as OtlpExporter from "./OtlpExporter.ts"
+export * as OtlpExporter from "./OtlpExporter.ts";
 
 /**
  * Exports Effect log records to an OpenTelemetry Protocol (OTLP) logs endpoint.
@@ -77,7 +77,7 @@ export * as OtlpExporter from "./OtlpExporter.ts"
  *
  * @since 4.0.0
  */
-export * as OtlpLogger from "./OtlpLogger.ts"
+export * as OtlpLogger from "./OtlpLogger.ts";
 
 /**
  * OTLP/HTTP metrics exporter for Effect's Metric system.
@@ -104,7 +104,7 @@ export * as OtlpLogger from "./OtlpLogger.ts"
  *
  * @since 4.0.0
  */
-export * as OtlpMetrics from "./OtlpMetrics.ts"
+export * as OtlpMetrics from "./OtlpMetrics.ts";
 
 /**
  * Helpers and data types for describing the OTLP resource attached to exported
@@ -128,7 +128,7 @@ export * as OtlpMetrics from "./OtlpMetrics.ts"
  *
  * @since 4.0.0
  */
-export * as OtlpResource from "./OtlpResource.ts"
+export * as OtlpResource from "./OtlpResource.ts";
 
 /**
  * Defines the serialization boundary used by the OTLP observability layers.
@@ -150,7 +150,7 @@ export * as OtlpResource from "./OtlpResource.ts"
  *
  * @since 4.0.0
  */
-export * as OtlpSerialization from "./OtlpSerialization.ts"
+export * as OtlpSerialization from "./OtlpSerialization.ts";
 
 /**
  * Exports Effect spans to an OpenTelemetry Protocol (OTLP) traces endpoint.
@@ -177,7 +177,7 @@ export * as OtlpSerialization from "./OtlpSerialization.ts"
  *
  * @since 4.0.0
  */
-export * as OtlpTracer from "./OtlpTracer.ts"
+export * as OtlpTracer from "./OtlpTracer.ts";
 
 /**
  * Prometheus metrics exporter for Effect's Metric system.
@@ -225,4 +225,4 @@ export * as OtlpTracer from "./OtlpTracer.ts"
  *
  * @since 4.0.0
  */
-export * as PrometheusMetrics from "./PrometheusMetrics.ts"
+export * as PrometheusMetrics from "./PrometheusMetrics.ts";

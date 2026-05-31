@@ -12,7 +12,7 @@
  *
  * @since 4.0.0
  */
-export * as AnthropicClient from "./AnthropicClient.ts"
+export * as AnthropicClient from "./AnthropicClient.ts";
 
 /**
  * The `AnthropicConfig` module provides contextual configuration for the
@@ -35,7 +35,7 @@ export * as AnthropicClient from "./AnthropicClient.ts"
  *
  * @since 4.0.0
  */
-export * as AnthropicConfig from "./AnthropicConfig.ts"
+export * as AnthropicConfig from "./AnthropicConfig.ts";
 
 /**
  * Anthropic error metadata augmentation.
@@ -45,7 +45,7 @@ export * as AnthropicConfig from "./AnthropicConfig.ts"
  *
  * @since 4.0.0
  */
-export * as AnthropicError from "./AnthropicError.ts"
+export * as AnthropicError from "./AnthropicError.ts";
 
 /**
  * The `AnthropicLanguageModel` module provides the Anthropic implementation of
@@ -76,7 +76,7 @@ export * as AnthropicError from "./AnthropicError.ts"
  *
  * @since 4.0.0
  */
-export * as AnthropicLanguageModel from "./AnthropicLanguageModel.ts"
+export * as AnthropicLanguageModel from "./AnthropicLanguageModel.ts";
 
 /**
  * Anthropic telemetry attributes for OpenTelemetry integration.
@@ -87,7 +87,7 @@ export * as AnthropicLanguageModel from "./AnthropicLanguageModel.ts"
  *
  * @since 4.0.0
  */
-export * as AnthropicTelemetry from "./AnthropicTelemetry.ts"
+export * as AnthropicTelemetry from "./AnthropicTelemetry.ts";
 
 /**
  * Anthropic provider-defined tools for use with the LanguageModel.
@@ -97,9 +97,9 @@ export * as AnthropicTelemetry from "./AnthropicTelemetry.ts"
  *
  * @since 4.0.0
  */
-export * as AnthropicTool from "./AnthropicTool.ts"
+export * as AnthropicTool from "./AnthropicTool.ts";
 
 /**
  * @since 4.0.0
  */
-export * as Generated from "./Generated.ts"
+export * as Generated from "./Generated.ts";

@@ -31,9 +31,9 @@
  *
  * @since 4.0.0
  */
-import * as Data from "./Data.ts"
+import * as Data from "./Data.ts";
 
-const TypeId = "~effect/platform/PlatformError"
+const TypeId = "~effect/platform/PlatformError";
 
 /**
  * Error data for an invalid argument passed to a platform API.
@@ -47,19 +47,19 @@ const TypeId = "~effect/platform/PlatformError"
  * @since 4.0.0
  */
 export class BadArgument extends Data.TaggedError("BadArgument")<{
-  module: string
-  method: string
-  description?: string | undefined
-  cause?: unknown
+	module: string;
+	method: string;
+	description?: string | undefined;
+	cause?: unknown;
 }> {
-  /**
-   * Formats the module, method, and optional description that rejected the argument.
-   *
-   * @since 4.0.0
-   */
-  override get message(): string {
-    return `${this.module}.${this.method}${this.description ? `: ${this.description}` : ""}`
-  }
+	/**
+	 * Formats the module, method, and optional description that rejected the argument.
+	 *
+	 * @since 4.0.0
+	 */
+	override get message(): string {
+		return `${this.module}.${this.method}${this.description ? `: ${this.description}` : ""}`;
+	}
 }
 
 /**
@@ -74,17 +74,17 @@ export class BadArgument extends Data.TaggedError("BadArgument")<{
  * @since 4.0.0
  */
 export type SystemErrorTag =
-  | "AlreadyExists"
-  | "BadResource"
-  | "Busy"
-  | "InvalidData"
-  | "NotFound"
-  | "PermissionDenied"
-  | "TimedOut"
-  | "UnexpectedEof"
-  | "Unknown"
-  | "WouldBlock"
-  | "WriteZero"
+	| "AlreadyExists"
+	| "BadResource"
+	| "Busy"
+	| "InvalidData"
+	| "NotFound"
+	| "PermissionDenied"
+	| "TimedOut"
+	| "UnexpectedEof"
+	| "Unknown"
+	| "WouldBlock"
+	| "WriteZero";
 
 /**
  * Error data for a platform or system operation failure.
@@ -99,24 +99,24 @@ export type SystemErrorTag =
  * @since 4.0.0
  */
 export class SystemError extends Data.Error<{
-  _tag: SystemErrorTag
-  module: string
-  method: string
-  description?: string | undefined
-  syscall?: string | undefined
-  pathOrDescriptor?: string | number | undefined
-  cause?: unknown
+	_tag: SystemErrorTag;
+	module: string;
+	method: string;
+	description?: string | undefined;
+	syscall?: string | undefined;
+	pathOrDescriptor?: string | number | undefined;
+	cause?: unknown;
 }> {
-  /**
-   * Formats the normalized system error tag with operation and path details.
-   *
-   * @since 4.0.0
-   */
-  override get message(): string {
-    return `${this._tag}: ${this.module}.${this.method}${
-      this.pathOrDescriptor !== undefined ? ` (${this.pathOrDescriptor})` : ""
-    }${this.description ? `: ${this.description}` : ""}`
-  }
+	/**
+	 * Formats the normalized system error tag with operation and path details.
+	 *
+	 * @since 4.0.0
+	 */
+	override get message(): string {
+		return `${this._tag}: ${this.module}.${this.method}${
+			this.pathOrDescriptor !== undefined ? ` (${this.pathOrDescriptor})` : ""
+		}${this.description ? `: ${this.description}` : ""}`;
+	}
 }
 
 /**
@@ -132,26 +132,26 @@ export class SystemError extends Data.Error<{
  * @since 4.0.0
  */
 export class PlatformError extends Data.TaggedError("PlatformError")<{
-  reason: BadArgument | SystemError
+	reason: BadArgument | SystemError;
 }> {
-  constructor(reason: BadArgument | SystemError) {
-    if ("cause" in reason) {
-      super({ reason, cause: reason.cause } as any)
-    } else {
-      super({ reason })
-    }
-  }
+	constructor(reason: BadArgument | SystemError) {
+		if ("cause" in reason) {
+			super({ reason, cause: reason.cause } as any);
+		} else {
+			super({ reason });
+		}
+	}
 
-  /**
-   * Marks this value as a platform error wrapper for runtime guards.
-   *
-   * @since 4.0.0
-   */
-  readonly [TypeId]: typeof TypeId = TypeId
+	/**
+	 * Marks this value as a platform error wrapper for runtime guards.
+	 *
+	 * @since 4.0.0
+	 */
+	readonly [TypeId]: typeof TypeId = TypeId;
 
-  override get message(): string {
-    return this.reason.message
-  }
+	override get message(): string {
+		return this.reason.message;
+	}
 }
 
 /**
@@ -166,14 +166,14 @@ export class PlatformError extends Data.TaggedError("PlatformError")<{
  * @since 4.0.0
  */
 export const systemError = (options: {
-  readonly _tag: SystemErrorTag
-  readonly module: string
-  readonly method: string
-  readonly description?: string | undefined
-  readonly syscall?: string | undefined
-  readonly pathOrDescriptor?: string | number | undefined
-  readonly cause?: unknown
-}): PlatformError => new PlatformError(new SystemError(options))
+	readonly _tag: SystemErrorTag;
+	readonly module: string;
+	readonly method: string;
+	readonly description?: string | undefined;
+	readonly syscall?: string | undefined;
+	readonly pathOrDescriptor?: string | number | undefined;
+	readonly cause?: unknown;
+}): PlatformError => new PlatformError(new SystemError(options));
 
 /**
  * Creates a `PlatformError` whose reason is a `BadArgument`.
@@ -187,8 +187,8 @@ export const systemError = (options: {
  * @since 4.0.0
  */
 export const badArgument = (options: {
-  readonly module: string
-  readonly method: string
-  readonly description?: string | undefined
-  readonly cause?: unknown
-}): PlatformError => new PlatformError(new BadArgument(options))
+	readonly module: string;
+	readonly method: string;
+	readonly description?: string | undefined;
+	readonly cause?: unknown;
+}): PlatformError => new PlatformError(new BadArgument(options));

@@ -20,10 +20,10 @@
  *
  * @since 4.0.0
  */
-import { hasProperty } from "../../Predicate.ts"
-import * as Schema from "../../Schema.ts"
+import { hasProperty } from "../../Predicate.ts";
+import * as Schema from "../../Schema.ts";
 
-const TypeId = "~effect/workers/WorkerError" as const
+const TypeId = "~effect/workers/WorkerError" as const;
 
 /**
  * Type-level identifier used to brand `WorkerError` values.
@@ -31,7 +31,7 @@ const TypeId = "~effect/workers/WorkerError" as const
  * @category Symbols
  * @since 4.0.0
  */
-export type TypeId = typeof TypeId
+export type TypeId = typeof TypeId;
 
 /**
  * Returns `true` when a value is a `WorkerError`.
@@ -39,7 +39,8 @@ export type TypeId = typeof TypeId
  * @category guards
  * @since 4.0.0
  */
-export const isWorkerError = (u: unknown): u is WorkerError => hasProperty(u, TypeId)
+export const isWorkerError = (u: unknown): u is WorkerError =>
+	hasProperty(u, TypeId);
 
 /**
  * Worker error reason for failures while spawning or setting up a worker.
@@ -48,11 +49,11 @@ export const isWorkerError = (u: unknown): u is WorkerError => hasProperty(u, Ty
  * @since 4.0.0
  */
 export class WorkerSpawnError extends Schema.ErrorClass<WorkerSpawnError>(
-  "effect/workers/WorkerError/WorkerSpawnError"
+	"effect/workers/WorkerError/WorkerSpawnError",
 )({
-  _tag: Schema.tag("WorkerSpawnError"),
-  message: Schema.String,
-  cause: Schema.optional(Schema.Defect)
+	_tag: Schema.tag("WorkerSpawnError"),
+	message: Schema.String,
+	cause: Schema.optional(Schema.Defect),
 }) {}
 
 /**
@@ -62,11 +63,11 @@ export class WorkerSpawnError extends Schema.ErrorClass<WorkerSpawnError>(
  * @since 4.0.0
  */
 export class WorkerSendError extends Schema.ErrorClass<WorkerSendError>(
-  "effect/workers/WorkerError/WorkerSendError"
+	"effect/workers/WorkerError/WorkerSendError",
 )({
-  _tag: Schema.tag("WorkerSendError"),
-  message: Schema.String,
-  cause: Schema.optional(Schema.Defect)
+	_tag: Schema.tag("WorkerSendError"),
+	message: Schema.String,
+	cause: Schema.optional(Schema.Defect),
 }) {}
 
 /**
@@ -77,11 +78,11 @@ export class WorkerSendError extends Schema.ErrorClass<WorkerSendError>(
  * @since 4.0.0
  */
 export class WorkerReceiveError extends Schema.ErrorClass<WorkerReceiveError>(
-  "effect/workers/WorkerError/WorkerReceiveError"
+	"effect/workers/WorkerError/WorkerReceiveError",
 )({
-  _tag: Schema.tag("WorkerReceiveError"),
-  message: Schema.String,
-  cause: Schema.optional(Schema.Defect)
+	_tag: Schema.tag("WorkerReceiveError"),
+	message: Schema.String,
+	cause: Schema.optional(Schema.Defect),
 }) {}
 
 /**
@@ -91,11 +92,11 @@ export class WorkerReceiveError extends Schema.ErrorClass<WorkerReceiveError>(
  * @since 4.0.0
  */
 export class WorkerUnknownError extends Schema.ErrorClass<WorkerUnknownError>(
-  "effect/workers/WorkerError/WorkerUnknownError"
+	"effect/workers/WorkerError/WorkerUnknownError",
 )({
-  _tag: Schema.tag("WorkerUnknownError"),
-  message: Schema.String,
-  cause: Schema.optional(Schema.Defect)
+	_tag: Schema.tag("WorkerUnknownError"),
+	message: Schema.String,
+	cause: Schema.optional(Schema.Defect),
 }) {}
 
 /**
@@ -105,10 +106,10 @@ export class WorkerUnknownError extends Schema.ErrorClass<WorkerUnknownError>(
  * @since 4.0.0
  */
 export type WorkerErrorReason =
-  | WorkerSpawnError
-  | WorkerSendError
-  | WorkerReceiveError
-  | WorkerUnknownError
+	| WorkerSpawnError
+	| WorkerSendError
+	| WorkerReceiveError
+	| WorkerUnknownError;
 
 /**
  * Schema for decoding and encoding all supported worker error reason variants.
@@ -116,17 +117,19 @@ export type WorkerErrorReason =
  * @category models
  * @since 4.0.0
  */
-export const WorkerErrorReason: Schema.Union<[
-  typeof WorkerSpawnError,
-  typeof WorkerSendError,
-  typeof WorkerReceiveError,
-  typeof WorkerUnknownError
-]> = Schema.Union([
-  WorkerSpawnError,
-  WorkerSendError,
-  WorkerReceiveError,
-  WorkerUnknownError
-])
+export const WorkerErrorReason: Schema.Union<
+	[
+		typeof WorkerSpawnError,
+		typeof WorkerSendError,
+		typeof WorkerReceiveError,
+		typeof WorkerUnknownError,
+	]
+> = Schema.Union([
+	WorkerSpawnError,
+	WorkerSendError,
+	WorkerReceiveError,
+	WorkerUnknownError,
+]);
 
 /**
  * Error raised by worker APIs, wrapping a specific `WorkerErrorReason` and
@@ -136,26 +139,26 @@ export const WorkerErrorReason: Schema.Union<[
  * @since 4.0.0
  */
 export class WorkerError extends Schema.ErrorClass<WorkerError>(TypeId)({
-  _tag: Schema.tag("WorkerError"),
-  reason: WorkerErrorReason
+	_tag: Schema.tag("WorkerError"),
+	reason: WorkerErrorReason,
 }) {
-  // @effect-diagnostics-next-line overriddenSchemaConstructor:off
-  constructor(props: {
-    readonly reason: WorkerErrorReason
-  }) {
-    super({
-      ...props,
-      cause: props.reason.cause
-    } as any)
-  }
-  /**
-   * Marks this value as a worker error for runtime guards.
-   *
-   * @since 4.0.0
-   */
-  readonly [TypeId]: TypeId = TypeId
+	// @effect-diagnostics-next-line overriddenSchemaConstructor:off
+	constructor(props: {
+		readonly reason: WorkerErrorReason;
+	}) {
+		super({
+			...props,
+			cause: props.reason.cause,
+		} as any);
+	}
+	/**
+	 * Marks this value as a worker error for runtime guards.
+	 *
+	 * @since 4.0.0
+	 */
+	readonly [TypeId]: TypeId = TypeId;
 
-  override get message(): string {
-    return this.reason.message
-  }
+	override get message(): string {
+		return this.reason.message;
+	}
 }

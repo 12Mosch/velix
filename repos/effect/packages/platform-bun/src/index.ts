@@ -9,7 +9,7 @@
  *
  * @since 4.0.0
  */
-export * as BunChildProcessSpawner from "./BunChildProcessSpawner.ts"
+export * as BunChildProcessSpawner from "./BunChildProcessSpawner.ts";
 
 /**
  * The `BunClusterHttp` module provides the Bun HTTP and WebSocket transports
@@ -47,7 +47,7 @@ export * as BunChildProcessSpawner from "./BunChildProcessSpawner.ts"
  *
  * @since 4.0.0
  */
-export * as BunClusterHttp from "./BunClusterHttp.ts"
+export * as BunClusterHttp from "./BunClusterHttp.ts";
 
 /**
  * The `BunClusterSocket` module provides the Bun socket transport for Effect
@@ -87,14 +87,14 @@ export * as BunClusterHttp from "./BunClusterHttp.ts"
  *
  * @since 4.0.0
  */
-export * as BunClusterSocket from "./BunClusterSocket.ts"
+export * as BunClusterSocket from "./BunClusterSocket.ts";
 
 /**
  * Bun platform Crypto service layer.
  *
  * @since 1.0.0
  */
-export * as BunCrypto from "./BunCrypto.ts"
+export * as BunCrypto from "./BunCrypto.ts";
 
 /**
  * Bun layer for Effect's `FileSystem` service.
@@ -121,12 +121,12 @@ export * as BunCrypto from "./BunCrypto.ts"
  *
  * @since 4.0.0
  */
-export * as BunFileSystem from "./BunFileSystem.ts"
+export * as BunFileSystem from "./BunFileSystem.ts";
 
 /**
  * @since 4.0.0
  */
-export * as BunHttpClient from "./BunHttpClient.ts"
+export * as BunHttpClient from "./BunHttpClient.ts";
 
 /**
  * Bun implementation of the Effect HTTP platform service.
@@ -153,7 +153,7 @@ export * as BunHttpClient from "./BunHttpClient.ts"
  *
  * @since 4.0.0
  */
-export * as BunHttpPlatform from "./BunHttpPlatform.ts"
+export * as BunHttpPlatform from "./BunHttpPlatform.ts";
 
 /**
  * Bun implementation of the Effect `HttpServer`.
@@ -189,7 +189,7 @@ export * as BunHttpPlatform from "./BunHttpPlatform.ts"
  *
  * @since 4.0.0
  */
-export * as BunHttpServer from "./BunHttpServer.ts"
+export * as BunHttpServer from "./BunHttpServer.ts";
 
 /**
  * Accessors for the Bun `Request` object backing a platform Bun
@@ -216,7 +216,7 @@ export * as BunHttpServer from "./BunHttpServer.ts"
  *
  * @since 4.0.0
  */
-export * as BunHttpServerRequest from "./BunHttpServerRequest.ts"
+export * as BunHttpServerRequest from "./BunHttpServerRequest.ts";
 
 /**
  * Bun-specific helpers for parsing HTTP `multipart/form-data` request bodies.
@@ -240,7 +240,7 @@ export * as BunHttpServerRequest from "./BunHttpServerRequest.ts"
  *
  * @since 4.0.0
  */
-export * as BunMultipart from "./BunMultipart.ts"
+export * as BunMultipart from "./BunMultipart.ts";
 
 /**
  * Bun layers for Effect's `Path` service.
@@ -262,7 +262,7 @@ export * as BunMultipart from "./BunMultipart.ts"
  *
  * @since 4.0.0
  */
-export * as BunPath from "./BunPath.ts"
+export * as BunPath from "./BunPath.ts";
 
 /**
  * Bun Redis integration backed by Bun's built-in `RedisClient`.
@@ -291,7 +291,7 @@ export * as BunPath from "./BunPath.ts"
  *
  * @since 4.0.0
  */
-export * as BunRedis from "./BunRedis.ts"
+export * as BunRedis from "./BunRedis.ts";
 
 /**
  * Bun entry-point helpers for running Effect programs.
@@ -312,7 +312,7 @@ export * as BunRedis from "./BunRedis.ts"
  *
  * @since 4.0.0
  */
-export * as BunRuntime from "./BunRuntime.ts"
+export * as BunRuntime from "./BunRuntime.ts";
 
 /**
  * Provides the aggregate Bun platform services layer for applications that run
@@ -337,12 +337,12 @@ export * as BunRuntime from "./BunRuntime.ts"
  *
  * @since 4.0.0
  */
-export * as BunServices from "./BunServices.ts"
+export * as BunServices from "./BunServices.ts";
 
 /**
  * @since 4.0.0
  */
-export * as BunSink from "./BunSink.ts"
+export * as BunSink from "./BunSink.ts";
 
 /**
  * Bun platform socket entry point for Effect sockets backed by Bun-compatible
@@ -366,12 +366,12 @@ export * as BunSink from "./BunSink.ts"
  *
  * @since 4.0.0
  */
-export * as BunSocket from "./BunSocket.ts"
+export * as BunSocket from "./BunSocket.ts";
 
 /**
  * @since 4.0.0
  */
-export * as BunSocketServer from "./BunSocketServer.ts"
+export * as BunSocketServer from "./BunSocketServer.ts";
 
 /**
  * Bun-backed implementation of Effect's `Stdio` service.
@@ -394,7 +394,7 @@ export * as BunSocketServer from "./BunSocketServer.ts"
  *
  * @since 4.0.0
  */
-export * as BunStdio from "./BunStdio.ts"
+export * as BunStdio from "./BunStdio.ts";
 
 /**
  * Bun stream interoperability for Effect streams.
@@ -420,7 +420,7 @@ export * as BunStdio from "./BunStdio.ts"
  *
  * @since 4.0.0
  */
-export * as BunStream from "./BunStream.ts"
+export * as BunStream from "./BunStream.ts";
 
 /**
  * Bun-backed implementation of Effect's `Terminal` service.
@@ -439,7 +439,7 @@ export * as BunStream from "./BunStream.ts"
  *
  * @since 4.0.0
  */
-export * as BunTerminal from "./BunTerminal.ts"
+export * as BunTerminal from "./BunTerminal.ts";
 
 /**
  * Parent-side Bun support for Effect workers.
@@ -462,7 +462,7 @@ export * as BunTerminal from "./BunTerminal.ts"
  *
  * @since 4.0.0
  */
-export * as BunWorker from "./BunWorker.ts"
+export * as BunWorker from "./BunWorker.ts";
 
 /**
  * Bun runtime support for Effect worker runners.
@@ -485,4 +485,4 @@ export * as BunWorker from "./BunWorker.ts"
  *
  * @since 4.0.0
  */
-export * as BunWorkerRunner from "./BunWorkerRunner.ts"
+export * as BunWorkerRunner from "./BunWorkerRunner.ts";

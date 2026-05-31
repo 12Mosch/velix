@@ -22,7 +22,7 @@
  *
  * @since 4.0.0
  */
-export * as DevTools from "./DevTools.ts"
+export * as DevTools from "./DevTools.ts";
 
 /**
  * Provides the low-level client used by the unstable devtools integration to
@@ -39,7 +39,7 @@ export * as DevTools from "./DevTools.ts"
  *
  * @since 4.0.0
  */
-export * as DevToolsClient from "./DevToolsClient.ts"
+export * as DevToolsClient from "./DevToolsClient.ts";
 
 /**
  * Schemas and TypeScript types for the Effect devtools protocol.
@@ -61,7 +61,7 @@ export * as DevToolsClient from "./DevToolsClient.ts"
  *
  * @since 4.0.0
  */
-export * as DevToolsSchema from "./DevToolsSchema.ts"
+export * as DevToolsSchema from "./DevToolsSchema.ts";
 
 /**
  * Server-side helpers for exposing the Effect devtools protocol over a socket.
@@ -80,4 +80,4 @@ export * as DevToolsSchema from "./DevToolsSchema.ts"
  *
  * @since 4.0.0
  */
-export * as DevToolsServer from "./DevToolsServer.ts"
+export * as DevToolsServer from "./DevToolsServer.ts";

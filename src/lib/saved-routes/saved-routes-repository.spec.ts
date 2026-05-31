@@ -12,6 +12,7 @@ import {
 	SAVED_ROUTES_STORAGE_KEY,
 } from "$lib/saved-routes-core";
 import type { BrowserStorage } from "$lib/storage/browser-storage";
+import { Effect } from "effect";
 
 const route: PlannedRoute = {
 	mode: "point_to_point",
@@ -62,16 +63,22 @@ describe("saved routes repository", () => {
 			createdAt: "2026-04-19T09:30:00.000Z",
 		});
 
-		await repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]);
-		await repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
-			savedRoute,
-		]);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]),
+		);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
+				savedRoute,
+			]),
+		);
 
-		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([
-			savedRoute,
-		]);
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+			await Effect.runPromise(repository.readRoutes({ kind: "anonymous" })),
+		).toEqual([savedRoute]);
+		expect(
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_1" }),
+			),
 		).toEqual([savedRoute]);
 		expect(storage.getItem(SAVED_ROUTES_STORAGE_KEY)).toBeNull();
 	});
@@ -81,16 +88,28 @@ describe("saved routes repository", () => {
 		const repository = createSavedRoutesRepository(storage);
 		const savedRoute = buildSavedRoute(route);
 
-		await repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]);
-		await repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
-			savedRoute,
-		]);
-		await repository.replaceRoutes({ kind: "anonymous" }, []);
-		await repository.replaceRoutes({ kind: "user", userId: "user_1" }, []);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]),
+		);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
+				savedRoute,
+			]),
+		);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "anonymous" }, []),
+		);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "user", userId: "user_1" }, []),
+		);
 
-		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([]);
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+			await Effect.runPromise(repository.readRoutes({ kind: "anonymous" })),
+		).toEqual([]);
+		expect(
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_1" }),
+			),
 		).toEqual([]);
 	});
 
@@ -99,38 +118,56 @@ describe("saved routes repository", () => {
 		const repository = createSavedRoutesRepository(storage);
 		const savedRoute = buildSavedRoute(route);
 
-		await repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]);
-		await repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
-			savedRoute,
-		]);
-		await repository.replaceRoutes({ kind: "user", userId: "user_2" }, [
-			savedRoute,
-		]);
-		repository.writeMergedUserIds(new Set(["user_1"]));
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "anonymous" }, [savedRoute]),
+		);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "user", userId: "user_1" }, [
+				savedRoute,
+			]),
+		);
+		await Effect.runPromise(
+			repository.replaceRoutes({ kind: "user", userId: "user_2" }, [
+				savedRoute,
+			]),
+		);
+		await Effect.runPromise(repository.writeMergedUserIds(new Set(["user_1"])));
 
-		await repository.clear();
+		await Effect.runPromise(repository.clear());
 
-		expect(await repository.readRoutes({ kind: "anonymous" })).toEqual([]);
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+			await Effect.runPromise(repository.readRoutes({ kind: "anonymous" })),
 		).toEqual([]);
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_2" }),
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_1" }),
+			),
 		).toEqual([]);
-		expect(repository.readMergedUserIds()).toEqual(new Set());
+		expect(
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_2" }),
+			),
+		).toEqual([]);
+		expect(await Effect.runPromise(repository.readMergedUserIds())).toEqual(
+			new Set(),
+		);
 	});
 
-	it("tracks merged user ids and ignores malformed migration state", () => {
+	it("tracks merged user ids and ignores malformed migration state", async () => {
 		const storage = createMemoryStorage();
 		const repository = createSavedRoutesRepository(storage);
 
-		repository.writeMergedUserIds(new Set(["user_1", "user_2"]));
-		expect(repository.readMergedUserIds()).toEqual(
+		await Effect.runPromise(
+			repository.writeMergedUserIds(new Set(["user_1", "user_2"])),
+		);
+		expect(await Effect.runPromise(repository.readMergedUserIds())).toEqual(
 			new Set(["user_1", "user_2"]),
 		);
 
 		storage.setItem(SYNCED_MIGRATIONS_STORAGE_KEY, "{broken");
-		expect(repository.readMergedUserIds()).toEqual(new Set());
+		expect(await Effect.runPromise(repository.readMergedUserIds())).toEqual(
+			new Set(),
+		);
 	});
 
 	it("dedupes routes by id while preserving first occurrence order", () => {
@@ -156,34 +193,39 @@ describe("saved routes repository", () => {
 		});
 
 		for (let index = 0; index < 12; index += 1) {
-			await repository.addRouteVersion(
-				{ kind: "anonymous" },
-				buildSavedRouteVersion(
-					{
-						...savedRoute,
-						route: {
-							...savedRoute.route,
-							destinationLabel: `Version ${index}`,
+			await Effect.runPromise(
+				repository.addRouteVersion(
+					{ kind: "anonymous" },
+					buildSavedRouteVersion(
+						{
+							...savedRoute,
+							route: {
+								...savedRoute.route,
+								destinationLabel: `Version ${index}`,
+							},
 						},
-					},
-					{
-						versionId: `version-${index}`,
-						capturedAt: new Date(Date.UTC(2026, 3, 19, 9, index)).toISOString(),
-					},
+						{
+							versionId: `version-${index}`,
+							capturedAt: new Date(
+								Date.UTC(2026, 3, 19, 9, index),
+							).toISOString(),
+						},
+					),
 				),
 			);
 		}
-		await repository.addRouteVersion(
-			{ kind: "user", userId: "user_1" },
-			buildSavedRouteVersion(savedRoute, {
-				versionId: "user-version",
-				capturedAt: "2026-04-21T09:30:00.000Z",
-			}),
+		await Effect.runPromise(
+			repository.addRouteVersion(
+				{ kind: "user", userId: "user_1" },
+				buildSavedRouteVersion(savedRoute, {
+					versionId: "user-version",
+					capturedAt: "2026-04-21T09:30:00.000Z",
+				}),
+			),
 		);
 
-		const anonymousVersions = await repository.readRouteVersions(
-			{ kind: "anonymous" },
-			savedRoute.id,
+		const anonymousVersions = await Effect.runPromise(
+			repository.readRouteVersions({ kind: "anonymous" }, savedRoute.id),
 		);
 
 		expect(anonymousVersions).toHaveLength(10);
@@ -200,9 +242,11 @@ describe("saved routes repository", () => {
 			"version-2",
 		]);
 		expect(
-			await repository.readRouteVersions(
-				{ kind: "user", userId: "user_1" },
-				savedRoute.id,
+			await Effect.runPromise(
+				repository.readRouteVersions(
+					{ kind: "user", userId: "user_1" },
+					savedRoute.id,
+				),
 			),
 		).toHaveLength(1);
 	});
@@ -212,15 +256,23 @@ describe("saved routes repository", () => {
 		const repository = createSavedRoutesRepository(storage);
 		const savedRoute = buildSavedRoute(route, { id: "route-1" });
 
-		await repository.upsertRoute({ kind: "anonymous" }, savedRoute);
-		await repository.addRouteVersion(
-			{ kind: "anonymous" },
-			buildSavedRouteVersion(savedRoute, { versionId: "version-1" }),
+		await Effect.runPromise(
+			repository.upsertRoute({ kind: "anonymous" }, savedRoute),
 		);
-		await repository.deleteRoute({ kind: "anonymous" }, savedRoute.id);
+		await Effect.runPromise(
+			repository.addRouteVersion(
+				{ kind: "anonymous" },
+				buildSavedRouteVersion(savedRoute, { versionId: "version-1" }),
+			),
+		);
+		await Effect.runPromise(
+			repository.deleteRoute({ kind: "anonymous" }, savedRoute.id),
+		);
 
 		expect(
-			await repository.readRouteVersions({ kind: "anonymous" }, savedRoute.id),
+			await Effect.runPromise(
+				repository.readRouteVersions({ kind: "anonymous" }, savedRoute.id),
+			),
 		).toEqual([]);
 	});
 
@@ -230,22 +282,28 @@ describe("saved routes repository", () => {
 		const savedRoute = buildSavedRoute(route, { id: "route-1" });
 		const otherRoute = buildSavedRoute(route, { id: "route-2" });
 
-		await repository.replaceRouteVersions({ kind: "anonymous" }, "route-1", [
-			buildSavedRouteVersion(otherRoute, {
-				versionId: "version-from-other-route",
-			}),
-			buildSavedRouteVersion(savedRoute, {
-				versionId: "version-from-route-1",
-			}),
-		]);
+		await Effect.runPromise(
+			repository.replaceRouteVersions({ kind: "anonymous" }, "route-1", [
+				buildSavedRouteVersion(otherRoute, {
+					versionId: "version-from-other-route",
+				}),
+				buildSavedRouteVersion(savedRoute, {
+					versionId: "version-from-route-1",
+				}),
+			]),
+		);
 
 		expect(
 			(
-				await repository.readRouteVersions({ kind: "anonymous" }, "route-1")
+				await Effect.runPromise(
+					repository.readRouteVersions({ kind: "anonymous" }, "route-1"),
+				)
 			).map((version) => version.routeId),
 		).toEqual(["route-1", "route-1"]);
 		expect(
-			await repository.readRouteVersions({ kind: "anonymous" }, "route-2"),
+			await Effect.runPromise(
+				repository.readRouteVersions({ kind: "anonymous" }, "route-2"),
+			),
 		).toEqual([]);
 	});
 });

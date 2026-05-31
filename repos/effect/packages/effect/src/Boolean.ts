@@ -4,12 +4,12 @@
  *
  * @since 2.0.0
  */
-import * as Equ from "./Equivalence.ts"
-import type { LazyArg } from "./Function.ts"
-import { dual } from "./Function.ts"
-import * as order from "./Order.ts"
-import * as predicate from "./Predicate.ts"
-import * as Reducer from "./Reducer.ts"
+import * as Equ from "./Equivalence.ts";
+import type { LazyArg } from "./Function.ts";
+import { dual } from "./Function.ts";
+import * as order from "./Order.ts";
+import * as predicate from "./Predicate.ts";
+import * as Reducer from "./Reducer.ts";
 
 /**
  * Reference to the global Boolean constructor.
@@ -32,7 +32,7 @@ import * as Reducer from "./Reducer.ts"
  * @category constructors
  * @since 4.0.0
  */
-export const Boolean = globalThis.Boolean
+export const Boolean = globalThis.Boolean;
 
 /**
  * Tests if a value is a `boolean`.
@@ -50,7 +50,8 @@ export const Boolean = globalThis.Boolean
  * @category guards
  * @since 2.0.0
  */
-export const isBoolean: (input: unknown) => input is boolean = predicate.isBoolean
+export const isBoolean: (input: unknown) => input is boolean =
+	predicate.isBoolean;
 
 /**
  * This function returns the result of either of the given functions depending on the value of the boolean parameter.
@@ -75,18 +76,27 @@ export const isBoolean: (input: unknown) => input is boolean = predicate.isBoole
  * @since 2.0.0
  */
 export const match: {
-  <A, B = A>(options: {
-    readonly onFalse: LazyArg<A>
-    readonly onTrue: LazyArg<B>
-  }): (value: boolean) => A | B
-  <A, B>(value: boolean, options: {
-    readonly onFalse: LazyArg<A>
-    readonly onTrue: LazyArg<B>
-  }): A | B
-} = dual(2, <A, B>(value: boolean, options: {
-  readonly onFalse: LazyArg<A>
-  readonly onTrue: LazyArg<B>
-}): A | B => value ? options.onTrue() : options.onFalse())
+	<A, B = A>(options: {
+		readonly onFalse: LazyArg<A>;
+		readonly onTrue: LazyArg<B>;
+	}): (value: boolean) => A | B;
+	<A, B>(
+		value: boolean,
+		options: {
+			readonly onFalse: LazyArg<A>;
+			readonly onTrue: LazyArg<B>;
+		},
+	): A | B;
+} = dual(
+	2,
+	<A, B>(
+		value: boolean,
+		options: {
+			readonly onFalse: LazyArg<A>;
+			readonly onTrue: LazyArg<B>;
+		},
+	): A | B => (value ? options.onTrue() : options.onFalse()),
+);
 
 /**
  * Provides an `Order` instance for `boolean` that allows comparing and sorting boolean values.
@@ -105,7 +115,7 @@ export const match: {
  * @category instances
  * @since 2.0.0
  */
-export const Order: order.Order<boolean> = order.Boolean
+export const Order: order.Order<boolean> = order.Boolean;
 
 /**
  * An `Equivalence` instance for booleans using strict equality (`===`).
@@ -122,7 +132,7 @@ export const Order: order.Order<boolean> = order.Boolean
  * @category instances
  * @since 2.0.0
  */
-export const Equivalence: Equ.Equivalence<boolean> = Equ.Boolean
+export const Equivalence: Equ.Equivalence<boolean> = Equ.Boolean;
 
 /**
  * Negates the given boolean: `!self`
@@ -140,7 +150,7 @@ export const Equivalence: Equ.Equivalence<boolean> = Equ.Boolean
  * @category combinators
  * @since 2.0.0
  */
-export const not = (self: boolean): boolean => !self
+export const not = (self: boolean): boolean => !self;
 
 /**
  * Combines two boolean using AND: `self && that`.
@@ -161,9 +171,9 @@ export const not = (self: boolean): boolean => !self
  * @since 2.0.0
  */
 export const and: {
-  (that: boolean): (self: boolean) => boolean
-  (self: boolean, that: boolean): boolean
-} = dual(2, (self: boolean, that: boolean): boolean => self && that)
+	(that: boolean): (self: boolean) => boolean;
+	(self: boolean, that: boolean): boolean;
+} = dual(2, (self: boolean, that: boolean): boolean => self && that);
 
 /**
  * Combines two boolean using NAND: `!(self && that)`.
@@ -184,9 +194,9 @@ export const and: {
  * @since 2.0.0
  */
 export const nand: {
-  (that: boolean): (self: boolean) => boolean
-  (self: boolean, that: boolean): boolean
-} = dual(2, (self: boolean, that: boolean): boolean => !(self && that))
+	(that: boolean): (self: boolean) => boolean;
+	(self: boolean, that: boolean): boolean;
+} = dual(2, (self: boolean, that: boolean): boolean => !(self && that));
 
 /**
  * Combines two boolean using OR: `self || that`.
@@ -207,9 +217,9 @@ export const nand: {
  * @since 2.0.0
  */
 export const or: {
-  (that: boolean): (self: boolean) => boolean
-  (self: boolean, that: boolean): boolean
-} = dual(2, (self: boolean, that: boolean): boolean => self || that)
+	(that: boolean): (self: boolean) => boolean;
+	(self: boolean, that: boolean): boolean;
+} = dual(2, (self: boolean, that: boolean): boolean => self || that);
 
 /**
  * Combines two booleans using NOR: `!(self || that)`.
@@ -230,9 +240,9 @@ export const or: {
  * @since 2.0.0
  */
 export const nor: {
-  (that: boolean): (self: boolean) => boolean
-  (self: boolean, that: boolean): boolean
-} = dual(2, (self: boolean, that: boolean): boolean => !(self || that))
+	(that: boolean): (self: boolean) => boolean;
+	(self: boolean, that: boolean): boolean;
+} = dual(2, (self: boolean, that: boolean): boolean => !(self || that));
 
 /**
  * Combines two booleans using XOR: `(!self && that) || (self && !that)`.
@@ -253,9 +263,12 @@ export const nor: {
  * @since 2.0.0
  */
 export const xor: {
-  (that: boolean): (self: boolean) => boolean
-  (self: boolean, that: boolean): boolean
-} = dual(2, (self: boolean, that: boolean): boolean => (!self && that) || (self && !that))
+	(that: boolean): (self: boolean) => boolean;
+	(self: boolean, that: boolean): boolean;
+} = dual(
+	2,
+	(self: boolean, that: boolean): boolean => (!self && that) || (self && !that),
+);
 
 /**
  * Combines two booleans using EQV (aka XNOR): `!xor(self, that)`.
@@ -276,9 +289,9 @@ export const xor: {
  * @since 2.0.0
  */
 export const eqv: {
-  (that: boolean): (self: boolean) => boolean
-  (self: boolean, that: boolean): boolean
-} = dual(2, (self: boolean, that: boolean): boolean => !xor(self, that))
+	(that: boolean): (self: boolean) => boolean;
+	(self: boolean, that: boolean): boolean;
+} = dual(2, (self: boolean, that: boolean): boolean => !xor(self, that));
 
 /**
  * Combines two booleans using an implication: `(!self || that)`.
@@ -299,9 +312,9 @@ export const eqv: {
  * @since 2.0.0
  */
 export const implies: {
-  (that: boolean): (self: boolean) => boolean
-  (self: boolean, that: boolean): boolean
-} = dual(2, (self, that) => self ? that : true)
+	(that: boolean): (self: boolean) => boolean;
+	(self: boolean, that: boolean): boolean;
+} = dual(2, (self, that) => (self ? that : true));
 
 /**
  * This utility function is used to check if all the elements in a collection of boolean values are `true`.
@@ -320,13 +333,13 @@ export const implies: {
  * @since 2.0.0
  */
 export const every = (collection: Iterable<boolean>): boolean => {
-  for (const b of collection) {
-    if (!b) {
-      return false
-    }
-  }
-  return true
-}
+	for (const b of collection) {
+		if (!b) {
+			return false;
+		}
+	}
+	return true;
+};
 
 /**
  * This utility function is used to check if at least one of the elements in a collection of boolean values is `true`.
@@ -345,13 +358,13 @@ export const every = (collection: Iterable<boolean>): boolean => {
  * @since 2.0.0
  */
 export const some = (collection: Iterable<boolean>): boolean => {
-  for (const b of collection) {
-    if (b) {
-      return true
-    }
-  }
-  return false
-}
+	for (const b of collection) {
+		if (b) {
+			return true;
+		}
+	}
+	return false;
+};
 
 /**
  * A `Reducer` for combining `boolean`s using AND.
@@ -363,7 +376,10 @@ export const some = (collection: Iterable<boolean>): boolean => {
  * @category math
  * @since 4.0.0
  */
-export const ReducerAnd: Reducer.Reducer<boolean> = Reducer.make((a, b) => a && b, true)
+export const ReducerAnd: Reducer.Reducer<boolean> = Reducer.make(
+	(a, b) => a && b,
+	true,
+);
 
 /**
  * A `Reducer` for combining `boolean`s using OR.
@@ -375,4 +391,7 @@ export const ReducerAnd: Reducer.Reducer<boolean> = Reducer.make((a, b) => a && 
  * @category math
  * @since 4.0.0
  */
-export const ReducerOr: Reducer.Reducer<boolean> = Reducer.make((a, b) => a || b, false)
+export const ReducerOr: Reducer.Reducer<boolean> = Reducer.make(
+	(a, b) => a || b,
+	false,
+);

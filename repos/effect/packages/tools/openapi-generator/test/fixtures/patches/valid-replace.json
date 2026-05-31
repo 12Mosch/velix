@@ -1,7 +1,7 @@
 [
-  {
-    "op": "replace",
-    "path": "/info/title",
-    "value": "Updated API Title"
-  }
+	{
+		"op": "replace",
+		"path": "/info/title",
+		"value": "Updated API Title"
+	}
 ]

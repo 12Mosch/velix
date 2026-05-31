@@ -1,5 +1,5 @@
-import { Optic, Schema } from "effect"
-import { Bench } from "tinybench"
+import { Optic, Schema } from "effect";
+import { Bench } from "tinybench";
 
 /*
 ┌─────────┬──────────────────┬──────────────────┬──────────────────┬────────────────────────┬────────────────────────┬──────────┐
@@ -13,67 +13,70 @@ import { Bench } from "tinybench"
 └─────────┴──────────────────┴──────────────────┴──────────────────┴────────────────────────┴────────────────────────┴──────────┘
 */
 
-const bench = new Bench()
+const bench = new Bench();
 
 // Define a class with nested properties
 class User extends Schema.Class<User>("User")({
-  id: Schema.Number,
-  profile: Schema.Struct({
-    name: Schema.String,
-    email: Schema.String,
-    address: Schema.Struct({
-      street: Schema.String,
-      city: Schema.String,
-      country: Schema.String
-    })
-  })
+	id: Schema.Number,
+	profile: Schema.Struct({
+		name: Schema.String,
+		email: Schema.String,
+		address: Schema.Struct({
+			street: Schema.String,
+			city: Schema.String,
+			country: Schema.String,
+		}),
+	}),
 }) {}
 
 // Create a user instance
 const user = User.make({
-  id: 1,
-  profile: {
-    name: "John Doe",
-    email: "john@example.com",
-    address: {
-      street: "123 Main St",
-      city: "New York",
-      country: "USA"
-    }
-  }
-})
+	id: 1,
+	profile: {
+		name: "John Doe",
+		email: "john@example.com",
+		address: {
+			street: "123 Main St",
+			city: "New York",
+			country: "USA",
+		},
+	},
+});
 
-const iso = Schema.toIso(User).key("profile").key("address").key("street")
-const optic = Optic.id<typeof User["Type"]>().key("profile").key("address").key("street")
+const iso = Schema.toIso(User).key("profile").key("address").key("street");
+const optic = Optic.id<(typeof User)["Type"]>()
+	.key("profile")
+	.key("address")
+	.key("street");
 
 bench
-  .add("iso get", function() {
-    iso.get(user)
-  })
-  .add("optic get", function() {
-    optic.get(user)
-  })
-  .add("direct get", function() {
-    // oxlint-disable-next-line no-unused-expressions
-    user.profile.address.street
-  })
-  .add("iso replace", function() {
-    iso.replace("Updated", user)
-  })
-  .add("direct replace", function() {
-    // oxlint-disable-next-line no-new
-    new User({
-      ...user,
-      profile: {
-        ...user.profile,
-        address: {
-          ...user.profile.address,
-          street: "Updated"
-        }
-      }
-    })
-  })
+	.add("iso get", function () {
+		iso.get(user);
+	})
+	.add("optic get", function () {
+		optic.get(user);
+	})
+	.add("direct get", function () {
+		// oxlint-disable-next-line no-unused-expressions
+		user.profile.address.street;
+	})
+	.add("iso replace", function () {
+		iso.replace("Updated", user);
+	})
+	.add("direct replace", function () {
+		// oxlint-disable-next-line no-new
+		new User({
+			...user,
+			profile: {
+				...user.profile,
+				address: {
+					...user.profile.address,
+					street: "Updated",
+				},
+			},
+		});
+	});
 
-await bench.run()
+await bench.run();
 
-console.table(bench.table())
+console.table(bench.table());

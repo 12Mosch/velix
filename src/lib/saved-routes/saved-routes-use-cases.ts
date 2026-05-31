@@ -3,7 +3,10 @@ import type {
 	SavedRouteScope,
 	SavedRoutesRepository,
 } from "$lib/saved-routes/saved-routes-repository";
-import { dedupeSavedRoutesById } from "$lib/saved-routes/saved-routes-repository";
+import {
+	dedupeSavedRoutesById,
+	SavedRoutesRepositoryError,
+} from "$lib/saved-routes/saved-routes-repository";
 import {
 	buildSavedRoute,
 	buildSavedRouteVersion,
@@ -93,14 +96,7 @@ export class SavedRoutesUseCases {
 				return state.savedRoutes;
 			}
 
-			yield* Effect.tryPromise({
-				try: () => this.repository.init(),
-				catch: (cause) =>
-					toSavedRoutesOperationError(
-						cause,
-						"Could not initialize saved routes storage.",
-					),
-			}).pipe(Effect.catch(() => Effect.void));
+			yield* this.repository.init().pipe(Effect.catch(() => Effect.void));
 			state.initialized = true;
 			state.localRoutesReady = true;
 			state.savedRoutes =
@@ -274,7 +270,9 @@ export class SavedRoutesUseCases {
 			const remoteRepository = this.remoteRepository;
 			const sessionVersion = this.remoteSessionVersion;
 			const mergeEffect = Effect.gen({ self: this }, function* () {
-				const migratedUserIds = this.repository.readMergedUserIds();
+				const migratedUserIds = yield* this.repository
+					.readMergedUserIds()
+					.pipe(Effect.catch(() => Effect.succeed(new Set<string>())));
 				if (migratedUserIds.has(userId)) {
 					return;
 				}
@@ -284,7 +282,9 @@ export class SavedRoutesUseCases {
 				);
 				if (localRoutes.length === 0) {
 					migratedUserIds.add(userId);
-					this.repository.writeMergedUserIds(migratedUserIds);
+					yield* this.repository
+						.writeMergedUserIds(migratedUserIds)
+						.pipe(Effect.catch(() => Effect.void));
 					return;
 				}
 
@@ -323,7 +323,9 @@ export class SavedRoutesUseCases {
 				}
 
 				migratedUserIds.add(userId);
-				this.repository.writeMergedUserIds(migratedUserIds);
+				yield* this.repository
+					.writeMergedUserIds(migratedUserIds)
+					.pipe(Effect.catch(() => Effect.void));
 				state.syncError = null;
 			});
 			let mergePromise: Promise<void>;
@@ -532,11 +534,7 @@ export class SavedRoutesUseCases {
 				clearTimeout(this.remoteSaveFlushTimer);
 				this.remoteSaveFlushTimer = null;
 			}
-			yield* Effect.tryPromise({
-				try: () => this.repository.clear(),
-				catch: (cause) =>
-					toSavedRoutesOperationError(cause, "Could not clear saved routes."),
-			}).pipe(Effect.catch(() => Effect.void));
+			yield* this.repository.clear().pipe(Effect.catch(() => Effect.void));
 		});
 	}
 
@@ -549,25 +547,18 @@ export class SavedRoutesUseCases {
 	private readRoutesEffect(
 		scope: SavedRouteScope,
 	): Effect.Effect<SavedRoute[]> {
-		return Effect.tryPromise({
-			try: () => this.repository.readRoutes(scope),
-			catch: (cause) =>
-				toSavedRoutesOperationError(cause, "Could not read saved routes."),
-		}).pipe(Effect.catch(() => Effect.succeed([])));
+		return this.repository
+			.readRoutes(scope)
+			.pipe(Effect.catch(() => Effect.succeed([])));
 	}
 
 	private readRouteVersionsEffect(
 		scope: SavedRouteScope,
 		routeId: string,
 	): Effect.Effect<SavedRouteVersion[]> {
-		return Effect.tryPromise({
-			try: () => this.repository.readRouteVersions(scope, routeId),
-			catch: (cause) =>
-				toSavedRoutesOperationError(
-					cause,
-					"Could not read saved route versions.",
-				),
-		}).pipe(Effect.catch(() => Effect.succeed([])));
+		return this.repository
+			.readRouteVersions(scope, routeId)
+			.pipe(Effect.catch(() => Effect.succeed([])));
 	}
 
 	private persistRoutesEffect(
@@ -575,11 +566,7 @@ export class SavedRoutesUseCases {
 		scope: SavedRouteScope,
 		routes: SavedRoute[],
 	): Effect.Effect<void> {
-		return Effect.tryPromise({
-			try: () => this.repository.replaceRoutes(scope, routes),
-			catch: (cause) =>
-				toSavedRoutesOperationError(cause, "Could not replace saved routes."),
-		}).pipe(
+		return this.repository.replaceRoutes(scope, routes).pipe(
 			Effect.andThen(() =>
 				Effect.sync(() => {
 					state.localSaveError = null;
@@ -598,11 +585,7 @@ export class SavedRoutesUseCases {
 		savedRoute: SavedRoute,
 	): Effect.Effect<void> {
 		const scope = this.getLocalScope(state);
-		return Effect.tryPromise({
-			try: () => this.repository.upsertRoute(scope, savedRoute),
-			catch: (cause) =>
-				toSavedRoutesOperationError(cause, "Could not save route locally."),
-		}).pipe(
+		return this.repository.upsertRoute(scope, savedRoute).pipe(
 			Effect.andThen(() =>
 				Effect.sync(() => {
 					state.localSaveError = null;
@@ -621,14 +604,7 @@ export class SavedRoutesUseCases {
 		version: SavedRouteVersion,
 	): Effect.Effect<void> {
 		const scope = this.getLocalScope(state);
-		return Effect.tryPromise({
-			try: () => this.repository.addRouteVersion(scope, version),
-			catch: (cause) =>
-				toSavedRoutesOperationError(
-					cause,
-					"Could not save route version locally.",
-				),
-		}).pipe(
+		return this.repository.addRouteVersion(scope, version).pipe(
 			Effect.andThen(() =>
 				Effect.sync(() => {
 					state.localSaveError = null;
@@ -701,19 +677,9 @@ export class SavedRoutesUseCases {
 			const mergedVersions = sortSavedRouteVersionsNewestFirst([
 				...mergedVersionsById.values(),
 			]);
-			yield* Effect.tryPromise({
-				try: () =>
-					this.repository.replaceRouteVersions(
-						{ kind: "user", userId },
-						routeId,
-						mergedVersions,
-					),
-				catch: (cause) =>
-					toSavedRoutesOperationError(
-						cause,
-						"Could not replace saved route versions.",
-					),
-			}).pipe(Effect.catch(() => Effect.void));
+			yield* this.repository
+				.replaceRouteVersions({ kind: "user", userId }, routeId, mergedVersions)
+				.pipe(Effect.catch(() => Effect.void));
 		});
 	}
 
@@ -722,11 +688,7 @@ export class SavedRoutesUseCases {
 		routeId: string,
 	): Effect.Effect<void> {
 		const scope = this.getLocalScope(state);
-		return Effect.tryPromise({
-			try: () => this.repository.deleteRoute(scope, routeId),
-			catch: (cause) =>
-				toSavedRoutesOperationError(cause, "Could not delete saved route."),
-		}).pipe(
+		return this.repository.deleteRoute(scope, routeId).pipe(
 			Effect.andThen(() =>
 				Effect.sync(() => {
 					state.localSaveError = null;
@@ -748,8 +710,10 @@ export class SavedRoutesUseCases {
 	}
 
 	private getLocalSaveErrorMessage(error: unknown) {
-		return error instanceof Error
-			? `Could not save route locally: ${error.message}`
+		const cause =
+			error instanceof SavedRoutesRepositoryError ? error.cause : error;
+		return cause instanceof Error
+			? `Could not save route locally: ${cause.message}`
 			: "Could not save route locally.";
 	}
 

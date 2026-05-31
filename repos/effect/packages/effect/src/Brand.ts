@@ -5,15 +5,15 @@
  *
  * @since 2.0.0
  */
-import * as Arr from "./Array.ts"
-import * as Option from "./Option.ts"
-import * as Result from "./Result.ts"
-import type * as Schema from "./Schema.ts"
-import * as AST from "./SchemaAST.ts"
-import type * as Issue from "./SchemaIssue.ts"
-import type * as Types from "./Types.ts"
+import * as Arr from "./Array.ts";
+import * as Option from "./Option.ts";
+import * as Result from "./Result.ts";
+import type * as Schema from "./Schema.ts";
+import * as AST from "./SchemaAST.ts";
+import type * as Issue from "./SchemaIssue.ts";
+import type * as Types from "./Types.ts";
 
-const TypeId = "~effect/Brand"
+const TypeId = "~effect/Brand";
 
 /**
  * A generic interface that defines a branded type.
@@ -22,9 +22,9 @@ const TypeId = "~effect/Brand"
  * @since 2.0.0
  */
 export interface Brand<in out Keys extends string> {
-  readonly [TypeId]: {
-    readonly [K in Keys]: Keys
-  }
+	readonly [TypeId]: {
+		readonly [K in Keys]: Keys;
+	};
 }
 
 /**
@@ -35,34 +35,39 @@ export interface Brand<in out Keys extends string> {
  * @since 2.0.0
  */
 export interface Constructor<in out B extends Brand<any>> {
-  /**
-   * Constructs a branded type from a value of type `Unbranded<B>`, throwing an
-   * error if the provided value is not valid.
-   */
-  (unbranded: Brand.Unbranded<B>): B
-  /**
-   * Constructs a branded type from a value of type `Unbranded<B>`, returning
-   * `Some<B>` if the provided value is valid, `None` otherwise.
-   */
-  option(unbranded: Brand.Unbranded<B>): Option.Option<B>
-  /**
-   * Constructs a branded type from a value of type `Unbranded<B>`, returning
-   * `Success<B>` if the provided value is valid, `Failure<BrandError>`
-   * otherwise.
-   */
-  result(unbranded: Brand.Unbranded<B>): Result.Result<B, BrandError>
-  /**
-   * Attempts to refine the provided value of type `Unbranded<B>`, returning
-   * `true` if the provided value is a valid branded type, `false` otherwise.
-   */
-  is(unbranded: Brand.Unbranded<B>): unbranded is Brand.Unbranded<B> & B
+	/**
+	 * Constructs a branded type from a value of type `Unbranded<B>`, throwing an
+	 * error if the provided value is not valid.
+	 */
+	(unbranded: Brand.Unbranded<B>): B;
+	/**
+	 * Constructs a branded type from a value of type `Unbranded<B>`, returning
+	 * `Some<B>` if the provided value is valid, `None` otherwise.
+	 */
+	option(unbranded: Brand.Unbranded<B>): Option.Option<B>;
+	/**
+	 * Constructs a branded type from a value of type `Unbranded<B>`, returning
+	 * `Success<B>` if the provided value is valid, `Failure<BrandError>`
+	 * otherwise.
+	 */
+	result(unbranded: Brand.Unbranded<B>): Result.Result<B, BrandError>;
+	/**
+	 * Attempts to refine the provided value of type `Unbranded<B>`, returning
+	 * `true` if the provided value is a valid branded type, `false` otherwise.
+	 */
+	is(unbranded: Brand.Unbranded<B>): unbranded is Brand.Unbranded<B> & B;
 
-  /**
-   * The checks that are applied to the branded type.
-   *
-   * @internal
-   */
-  checks?: readonly [AST.Check<Brand.Unbranded<B>>, ...Array<AST.Check<Brand.Unbranded<B>>>] | undefined
+	/**
+	 * The checks that are applied to the branded type.
+	 *
+	 * @internal
+	 */
+	checks?:
+		| readonly [
+				AST.Check<Brand.Unbranded<B>>,
+				...Array<AST.Check<Brand.Unbranded<B>>>,
+		  ]
+		| undefined;
 }
 
 /**
@@ -73,43 +78,43 @@ export interface Constructor<in out B extends Brand<any>> {
  * @since 4.0.0
  */
 export class BrandError {
-  constructor(issue: Issue.Issue) {
-    this.issue = issue
-  }
-  /**
-   * Discriminant used to identify brand construction failures.
-   *
-   * @since 4.0.0
-   */
-  readonly _tag = "BrandError"
-  /**
-   * Error name used by tools that inspect JavaScript error-like objects.
-   *
-   * @since 4.0.0
-   */
-  readonly name: string = "BrandError"
-  /**
-   * Schema issue describing why brand validation failed.
-   *
-   * @since 4.0.0
-   */
-  readonly issue: Issue.Issue
-  /**
-   * Human-readable rendering of the validation issue.
-   *
-   * @since 4.0.0
-   */
-  get message() {
-    return this.issue.toString()
-  }
-  /**
-   * Formats the brand error together with its validation message.
-   *
-   * @since 4.0.0
-   */
-  toString() {
-    return `BrandError(${this.message})`
-  }
+	constructor(issue: Issue.Issue) {
+		this.issue = issue;
+	}
+	/**
+	 * Discriminant used to identify brand construction failures.
+	 *
+	 * @since 4.0.0
+	 */
+	readonly _tag = "BrandError";
+	/**
+	 * Error name used by tools that inspect JavaScript error-like objects.
+	 *
+	 * @since 4.0.0
+	 */
+	readonly name: string = "BrandError";
+	/**
+	 * Schema issue describing why brand validation failed.
+	 *
+	 * @since 4.0.0
+	 */
+	readonly issue: Issue.Issue;
+	/**
+	 * Human-readable rendering of the validation issue.
+	 *
+	 * @since 4.0.0
+	 */
+	get message() {
+		return this.issue.toString();
+	}
+	/**
+	 * Formats the brand error together with its validation message.
+	 *
+	 * @since 4.0.0
+	 */
+	toString() {
+		return `BrandError(${this.message})`;
+	}
 }
 
 /**
@@ -119,56 +124,61 @@ export class BrandError {
  * @since 2.0.0
  */
 export declare namespace Brand {
-  /**
-   * A utility type to extract a branded type from a `Constructor`.
-   *
-   * @category utility types
-   * @since 2.0.0
-   */
-  export type FromConstructor<C> = C extends Constructor<infer B> ? B : never
+	/**
+	 * A utility type to extract a branded type from a `Constructor`.
+	 *
+	 * @category utility types
+	 * @since 2.0.0
+	 */
+	export type FromConstructor<C> = C extends Constructor<infer B> ? B : never;
 
-  /**
-   * A utility type to extract the unbranded value type from a brand.
-   *
-   * @category utility types
-   * @since 2.0.0
-   */
-  export type Unbranded<B extends Brand<any>> = B extends infer U & Brands<B> ? U : B
+	/**
+	 * A utility type to extract the unbranded value type from a brand.
+	 *
+	 * @category utility types
+	 * @since 2.0.0
+	 */
+	export type Unbranded<B extends Brand<any>> = B extends infer U & Brands<B>
+		? U
+		: B;
 
-  /**
-   * A utility type to extract the keys of a branded type.
-   *
-   * @category utility types
-   * @since 4.0.0
-   */
-  export type Keys<B extends Brand<any>> = keyof B[typeof TypeId]
+	/**
+	 * A utility type to extract the keys of a branded type.
+	 *
+	 * @category utility types
+	 * @since 4.0.0
+	 */
+	export type Keys<B extends Brand<any>> = keyof B[typeof TypeId];
 
-  /**
-   * A utility type to extract the brands from a branded type.
-   *
-   * @category utility types
-   * @since 2.0.0
-   */
-  export type Brands<B extends Brand<any>> = Types.UnionToIntersection<
-    { [K in Keys<B>]: K extends string ? Brand<K> : never }[Keys<B>]
-  >
+	/**
+	 * A utility type to extract the brands from a branded type.
+	 *
+	 * @category utility types
+	 * @since 2.0.0
+	 */
+	export type Brands<B extends Brand<any>> = Types.UnionToIntersection<
+		{ [K in Keys<B>]: K extends string ? Brand<K> : never }[Keys<B>]
+	>;
 
-  /**
-   * A utility type that checks that all brands have the same base type.
-   *
-   * @category utility types
-   * @since 2.0.0
-   */
-  export type EnsureCommonBase<
-    Brands extends readonly [Constructor<any>, ...Array<Constructor<any>>]
-  > = {
-    [B in keyof Brands]: Brand.Unbranded<Brand.FromConstructor<Brands[0]>> extends
-      Brand.Unbranded<Brand.FromConstructor<Brands[B]>>
-      ? Brand.Unbranded<Brand.FromConstructor<Brands[B]>> extends Brand.Unbranded<Brand.FromConstructor<Brands[0]>>
-        ? Brands[B]
-      : Brands[B]
-      : "ERROR: All brands should have the same base type"
-  }
+	/**
+	 * A utility type that checks that all brands have the same base type.
+	 *
+	 * @category utility types
+	 * @since 2.0.0
+	 */
+	export type EnsureCommonBase<
+		Brands extends readonly [Constructor<any>, ...Array<Constructor<any>>],
+	> = {
+		[B in keyof Brands]: Brand.Unbranded<
+			Brand.FromConstructor<Brands[0]>
+		> extends Brand.Unbranded<Brand.FromConstructor<Brands[B]>>
+			? Brand.Unbranded<
+					Brand.FromConstructor<Brands[B]>
+				> extends Brand.Unbranded<Brand.FromConstructor<Brands[0]>>
+				? Brands[B]
+				: Brands[B]
+			: "ERROR: All brands should have the same base type";
+	};
 }
 
 /**
@@ -177,7 +187,7 @@ export declare namespace Brand {
  * @category utility types
  * @since 2.0.0
  */
-export type Branded<A, Key extends string> = A & Brand<Key>
+export type Branded<A, Key extends string> = A & Brand<Key>;
 
 /**
  * Returns a `Constructor` that **does not apply any runtime checks** and just
@@ -193,11 +203,11 @@ export type Branded<A, Key extends string> = A & Brand<Key>
  * @since 2.0.0
  */
 export function nominal<A extends Brand<any>>(): Constructor<A> {
-  return Object.assign((input: Brand.Unbranded<A>) => input as A, {
-    option: (input: Brand.Unbranded<A>) => Option.some(input as A),
-    result: (input: Brand.Unbranded<A>) => Result.succeed(input as A),
-    is: (_: Brand.Unbranded<A>): _ is Brand.Unbranded<A> & A => true
-  })
+	return Object.assign((input: Brand.Unbranded<A>) => input as A, {
+		option: (input: Brand.Unbranded<A>) => Option.some(input as A),
+		result: (input: Brand.Unbranded<A>) => Result.succeed(input as A),
+		is: (_: Brand.Unbranded<A>): _ is Brand.Unbranded<A> & A => true,
+	});
 }
 
 /**
@@ -214,9 +224,9 @@ export function nominal<A extends Brand<any>>(): Constructor<A> {
  * @since 4.0.0
  */
 export function make<A extends Brand<any>>(
-  filter: (unbranded: Brand.Unbranded<A>) => Schema.FilterOutput
+	filter: (unbranded: Brand.Unbranded<A>) => Schema.FilterOutput,
 ): Constructor<A> {
-  return check(AST.makeFilter(filter))
+	return check(AST.makeFilter(filter));
 }
 
 /**
@@ -232,20 +242,27 @@ export function make<A extends Brand<any>>(
  * @since 4.0.0
  */
 export function check<A extends Brand<any>>(
-  ...checks: readonly [
-    AST.Check<Brand.Unbranded<A>>,
-    ...Array<AST.Check<Brand.Unbranded<A>>>
-  ]
+	...checks: readonly [
+		AST.Check<Brand.Unbranded<A>>,
+		...Array<AST.Check<Brand.Unbranded<A>>>,
+	]
 ): Constructor<A> {
-  const result = (input: Brand.Unbranded<A>): Result.Result<A, BrandError> => {
-    return Result.mapError(AST.runChecks(checks, input), (issue) => new BrandError(issue)) as any
-  }
-  return Object.assign((input: Brand.Unbranded<A>) => Result.getOrThrow(result(input)), {
-    option: (input: Brand.Unbranded<A>) => Option.getSuccess(result(input)),
-    result,
-    is: (input: Brand.Unbranded<A>): input is Brand.Unbranded<A> & A => Result.isSuccess(result(input)),
-    checks
-  })
+	const result = (input: Brand.Unbranded<A>): Result.Result<A, BrandError> => {
+		return Result.mapError(
+			AST.runChecks(checks, input),
+			(issue) => new BrandError(issue),
+		) as any;
+	};
+	return Object.assign(
+		(input: Brand.Unbranded<A>) => Result.getOrThrow(result(input)),
+		{
+			option: (input: Brand.Unbranded<A>) => Option.getSuccess(result(input)),
+			result,
+			is: (input: Brand.Unbranded<A>): input is Brand.Unbranded<A> & A =>
+				Result.isSuccess(result(input)),
+			checks,
+		},
+	);
 }
 
 /**
@@ -256,14 +273,17 @@ export function check<A extends Brand<any>>(
  * @category combining
  * @since 2.0.0
  */
-export function all<Brands extends readonly [Constructor<any>, ...Array<Constructor<any>>]>(
-  ...brands: Brand.EnsureCommonBase<Brands>
+export function all<
+	Brands extends readonly [Constructor<any>, ...Array<Constructor<any>>],
+>(
+	...brands: Brand.EnsureCommonBase<Brands>
 ): Constructor<
-  Types.UnionToIntersection<{ [B in keyof Brands]: Brand.FromConstructor<Brands[B]> }[number]> extends
-    infer X extends Brand<any> ? X : Brand<any>
+	Types.UnionToIntersection<
+		{ [B in keyof Brands]: Brand.FromConstructor<Brands[B]> }[number]
+	> extends infer X extends Brand<any>
+		? X
+		: Brand<any>
 > {
-  const checks = brands.flatMap((brand) => brand.checks ?? [])
-  return Arr.isArrayNonEmpty(checks) ?
-    check(...checks) :
-    nominal()
+	const checks = brands.flatMap((brand) => brand.checks ?? []);
+	return Arr.isArrayNonEmpty(checks) ? check(...checks) : nominal();
 }

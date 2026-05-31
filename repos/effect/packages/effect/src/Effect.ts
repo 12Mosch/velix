@@ -70,68 +70,68 @@
  *
  * @since 2.0.0
  */
-import type * as Arr from "./Array.ts"
-import type * as Cause from "./Cause.ts"
-import type { Clock } from "./Clock.ts"
-import * as Context from "./Context.ts"
-import * as Duration from "./Duration.ts"
-import type { ExecutionPlan } from "./ExecutionPlan.ts"
-import * as Exit from "./Exit.ts"
-import type { Fiber } from "./Fiber.ts"
-import type * as Filter from "./Filter.ts"
-import { constant, dual, type LazyArg } from "./Function.ts"
-import type { TypeLambda } from "./HKT.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import * as core from "./internal/core.ts"
-import * as internal from "./internal/effect.ts"
-import * as internalExecutionPlan from "./internal/executionPlan.ts"
-import * as internalLayer from "./internal/layer.ts"
-import * as internalRequest from "./internal/request.ts"
-import * as internalSchedule from "./internal/schedule.ts"
-import type * as Layer from "./Layer.ts"
-import type { Logger } from "./Logger.ts"
-import type { Severity } from "./LogLevel.ts"
-import * as Metric from "./Metric.ts"
-import type { Option } from "./Option.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import type * as Predicate from "./Predicate.ts"
-import { CurrentLogAnnotations, CurrentLogSpans } from "./References.ts"
-import type * as Request from "./Request.ts"
-import type { RequestResolver } from "./RequestResolver.ts"
-import type * as Result from "./Result.ts"
-import type { Schedule } from "./Schedule.ts"
-import type { Scheduler } from "./Scheduler.ts"
-import type { Scope } from "./Scope.ts"
+import type * as Arr from "./Array.ts";
+import type * as Cause from "./Cause.ts";
+import type { Clock } from "./Clock.ts";
+import * as Context from "./Context.ts";
+import * as Duration from "./Duration.ts";
+import type { ExecutionPlan } from "./ExecutionPlan.ts";
+import * as Exit from "./Exit.ts";
+import type { Fiber } from "./Fiber.ts";
+import type * as Filter from "./Filter.ts";
+import { constant, dual, type LazyArg } from "./Function.ts";
+import type { TypeLambda } from "./HKT.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import * as core from "./internal/core.ts";
+import * as internal from "./internal/effect.ts";
+import * as internalExecutionPlan from "./internal/executionPlan.ts";
+import * as internalLayer from "./internal/layer.ts";
+import * as internalRequest from "./internal/request.ts";
+import * as internalSchedule from "./internal/schedule.ts";
+import type * as Layer from "./Layer.ts";
+import type { Logger } from "./Logger.ts";
+import type { Severity } from "./LogLevel.ts";
+import * as Metric from "./Metric.ts";
+import type { Option } from "./Option.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import type * as Predicate from "./Predicate.ts";
+import { CurrentLogAnnotations, CurrentLogSpans } from "./References.ts";
+import type * as Request from "./Request.ts";
+import type { RequestResolver } from "./RequestResolver.ts";
+import type * as Result from "./Result.ts";
+import type { Schedule } from "./Schedule.ts";
+import type { Scheduler } from "./Scheduler.ts";
+import type { Scope } from "./Scope.ts";
 import type {
-  AnySpan,
-  ParentSpan,
-  Span,
-  SpanLink,
-  SpanOptions,
-  SpanOptionsNoTrace,
-  TraceOptions,
-  Tracer
-} from "./Tracer.ts"
-import type { TxRef } from "./TxRef.ts"
+	AnySpan,
+	ParentSpan,
+	Span,
+	SpanLink,
+	SpanOptions,
+	SpanOptionsNoTrace,
+	TraceOptions,
+	Tracer,
+} from "./Tracer.ts";
+import type { TxRef } from "./TxRef.ts";
 import type {
-  Concurrency,
-  Covariant,
-  EqualsWith,
-  ExcludeReason,
-  ExcludeTag,
-  ExtractReason,
-  ExtractTag,
-  NarrowReason,
-  NoInfer,
-  OmitReason,
-  ReasonOf,
-  ReasonTags,
-  Simplify,
-  Tags,
-  unassigned
-} from "./Types.ts"
-import type * as Unify from "./Unify.ts"
-import { internalCall } from "./Utils.ts"
+	Concurrency,
+	Covariant,
+	EqualsWith,
+	ExcludeReason,
+	ExcludeTag,
+	ExtractReason,
+	ExtractTag,
+	NarrowReason,
+	NoInfer,
+	OmitReason,
+	ReasonOf,
+	ReasonTags,
+	Simplify,
+	Tags,
+	unassigned,
+} from "./Types.ts";
+import type * as Unify from "./Unify.ts";
+import { internalCall } from "./Utils.ts";
 
 /**
  * Type-level identifier for `Effect` values.
@@ -139,7 +139,7 @@ import { internalCall } from "./Utils.ts"
  * @category Type identifiers
  * @since 4.0.0
  */
-export type TypeId = "~effect/Effect"
+export type TypeId = "~effect/Effect";
 
 /**
  * Runtime identifier used to recognize `Effect` values.
@@ -147,7 +147,7 @@ export type TypeId = "~effect/Effect"
  * @category Type identifiers
  * @since 4.0.0
  */
-export const TypeId: TypeId = core.EffectTypeId
+export const TypeId: TypeId = core.EffectTypeId;
 
 /**
  * The `Effect` interface defines a value that lazily describes a workflow or
@@ -168,12 +168,14 @@ export const TypeId: TypeId = core.EffectTypeId
  * @category models
  * @since 2.0.0
  */
-export interface Effect<out A, out E = never, out R = never> extends Pipeable, Inspectable {
-  readonly [TypeId]: Variance<A, E, R>
-  [Symbol.iterator](): EffectIterator<Effect<A, E, R>>
-  [Unify.typeSymbol]?: unknown
-  [Unify.unifySymbol]?: EffectUnify<this>
-  [Unify.ignoreSymbol]?: {}
+export interface Effect<out A, out E = never, out R = never>
+	extends Pipeable,
+		Inspectable {
+	readonly [TypeId]: Variance<A, E, R>;
+	[Symbol.iterator](): EffectIterator<Effect<A, E, R>>;
+	[Unify.typeSymbol]?: unknown;
+	[Unify.unifySymbol]?: EffectUnify<this>;
+	[Unify.ignoreSymbol]?: {};
 }
 
 /**
@@ -183,10 +185,11 @@ export interface Effect<out A, out E = never, out R = never> extends Pipeable, I
  * @since 2.0.0
  */
 export interface EffectUnify<A extends { [Unify.typeSymbol]?: any }> {
-  Effect?: () => A[Unify.typeSymbol] extends
-    | Effect<infer A0, infer E0, infer R0>
-    | infer _ ? Effect<A0, E0, R0>
-    : never
+	Effect?: () => A[Unify.typeSymbol] extends
+		| Effect<infer A0, infer E0, infer R0>
+		| infer _
+		? Effect<A0, E0, R0>
+		: never;
 }
 
 /**
@@ -196,7 +199,7 @@ export interface EffectUnify<A extends { [Unify.typeSymbol]?: any }> {
  * @since 2.0.0
  */
 export interface EffectTypeLambda extends TypeLambda {
-  readonly type: Effect<this["Target"], this["Out1"], this["Out2"]>
+	readonly type: Effect<this["Target"], this["Out1"], this["Out2"]>;
 }
 
 /**
@@ -206,9 +209,9 @@ export interface EffectTypeLambda extends TypeLambda {
  * @since 2.0.0
  */
 export interface Variance<A, E, R> {
-  _A: Covariant<A>
-  _E: Covariant<E>
-  _R: Covariant<R>
+	_A: Covariant<A>;
+	_E: Covariant<E>;
+	_R: Covariant<R>;
 }
 
 /**
@@ -217,8 +220,8 @@ export interface Variance<A, E, R> {
  * @category models
  * @since 2.0.0
  */
-export type Success<T> = T extends Effect<infer _A, infer _E, infer _R> ? _A
-  : never
+export type Success<T> =
+	T extends Effect<infer _A, infer _E, infer _R> ? _A : never;
 
 /**
  * Extracts the error type from an `Effect`.
@@ -226,8 +229,8 @@ export type Success<T> = T extends Effect<infer _A, infer _E, infer _R> ? _A
  * @category models
  * @since 2.0.0
  */
-export type Error<T> = T extends Effect<infer _A, infer _E, infer _R> ? _E
-  : never
+export type Error<T> =
+	T extends Effect<infer _A, infer _E, infer _R> ? _E : never;
 
 /**
  * Extracts the required services type from an `Effect`.
@@ -235,8 +238,8 @@ export type Error<T> = T extends Effect<infer _A, infer _E, infer _R> ? _E
  * @category models
  * @since 4.0.0
  */
-export type Services<T> = T extends Effect<infer _A, infer _E, infer _R> ? _R
-  : never
+export type Services<T> =
+	T extends Effect<infer _A, infer _E, infer _R> ? _R : never;
 
 /**
  * Tests if a value is an `Effect`.
@@ -253,7 +256,8 @@ export type Services<T> = T extends Effect<infer _A, infer _E, infer _R> ? _R
  * @category guards
  * @since 2.0.0
  */
-export const isEffect: (u: unknown) => u is Effect<any, any, any> = core.isEffect
+export const isEffect: (u: unknown) => u is Effect<any, any, any> =
+	core.isEffect;
 
 /**
  * Iterator interface for Effect generators, enabling Effect values to work with generator functions.
@@ -262,9 +266,7 @@ export const isEffect: (u: unknown) => u is Effect<any, any, any> = core.isEffec
  * @since 4.0.0
  */
 export interface EffectIterator<T extends Effect<any, any, any>> {
-  next(
-    ...args: ReadonlyArray<any>
-  ): IteratorResult<T, Success<T>>
+	next(...args: ReadonlyArray<any>): IteratorResult<T, Success<T>>;
 }
 
 // ========================================================================
@@ -278,124 +280,159 @@ export interface EffectIterator<T extends Effect<any, any, any>> {
  * @since 2.0.0
  */
 export declare namespace All {
-  /**
-   * Alias for any `Effect` value accepted by `Effect.all`.
-   *
-   * @category models
-   * @since 2.0.0
-   */
-  export type EffectAny = Effect<any, any, any>
+	/**
+	 * Alias for any `Effect` value accepted by `Effect.all`.
+	 *
+	 * @category models
+	 * @since 2.0.0
+	 */
+	export type EffectAny = Effect<any, any, any>;
 
-  /**
-   * Computes the return type for `Effect.all` when collecting an iterable.
-   *
-   * @category models
-   * @since 2.0.0
-   */
-  export type ReturnIterable<
-    T extends Iterable<EffectAny>,
-    Discard extends boolean,
-    Mode extends boolean = false
-  > = [T] extends [Iterable<Effect<infer A, infer E, infer R>>] ? Effect<
-      Discard extends true ? void : Array<Mode extends true ? Result.Result<A, E> : A>,
-      Mode extends true ? never : E,
-      R
-    >
-    : never
+	/**
+	 * Computes the return type for `Effect.all` when collecting an iterable.
+	 *
+	 * @category models
+	 * @since 2.0.0
+	 */
+	export type ReturnIterable<
+		T extends Iterable<EffectAny>,
+		Discard extends boolean,
+		Mode extends boolean = false,
+	> = [T] extends [Iterable<Effect<infer A, infer E, infer R>>]
+		? Effect<
+				Discard extends true
+					? void
+					: Array<Mode extends true ? Result.Result<A, E> : A>,
+				Mode extends true ? never : E,
+				R
+			>
+		: never;
 
-  /**
-   * Computes the return type for `Effect.all` when collecting a tuple.
-   *
-   * @category models
-   * @since 2.0.0
-   */
-  export type ReturnTuple<
-    T extends ReadonlyArray<unknown>,
-    Discard extends boolean,
-    Mode extends boolean = false
-  > = Effect<
-    Discard extends true ? void
-      : T[number] extends never ? []
-      : {
-        -readonly [K in keyof T]: T[K] extends Effect<
-          infer _A,
-          infer _E,
-          infer _R
-        > ? Mode extends true ? Result.Result<_A, _E> : _A
-          : never
-      },
-    Mode extends true ? never
-      : T[number] extends never ? never
-      : T[number] extends Effect<infer _A, infer _E, infer _R> ? _E
-      : never,
-    T[number] extends never ? never
-      : T[number] extends Effect<infer _A, infer _E, infer _R> ? _R
-      : never
-  > extends infer X ? X
-    : never
+	/**
+	 * Computes the return type for `Effect.all` when collecting a tuple.
+	 *
+	 * @category models
+	 * @since 2.0.0
+	 */
+	export type ReturnTuple<
+		T extends ReadonlyArray<unknown>,
+		Discard extends boolean,
+		Mode extends boolean = false,
+	> =
+		Effect<
+			Discard extends true
+				? void
+				: T[number] extends never
+					? []
+					: {
+							-readonly [K in keyof T]: T[K] extends Effect<
+								infer _A,
+								infer _E,
+								infer _R
+							>
+								? Mode extends true
+									? Result.Result<_A, _E>
+									: _A
+								: never;
+						},
+			Mode extends true
+				? never
+				: T[number] extends never
+					? never
+					: T[number] extends Effect<infer _A, infer _E, infer _R>
+						? _E
+						: never,
+			T[number] extends never
+				? never
+				: T[number] extends Effect<infer _A, infer _E, infer _R>
+					? _R
+					: never
+		> extends infer X
+			? X
+			: never;
 
-  /**
-   * Computes the return type for `Effect.all` when collecting a record.
-   *
-   * @category models
-   * @since 2.0.0
-   */
-  export type ReturnObject<T, Discard extends boolean, Mode extends boolean = false> = [T] extends [
-    Record<string, EffectAny>
-  ] ? Effect<
-      Discard extends true ? void
-        : {
-          -readonly [K in keyof T]: [T[K]] extends [
-            Effect<infer _A, infer _E, infer _R>
-          ] ? Mode extends true ? Result.Result<_A, _E> : _A
-            : never
-        },
-      Mode extends true ? never
-        : keyof T extends never ? never
-        : T[keyof T] extends Effect<infer _A, infer _E, infer _R> ? _E
-        : never,
-      keyof T extends never ? never
-        : T[keyof T] extends Effect<infer _A, infer _E, infer _R> ? _R
-        : never
-    >
-    : never
+	/**
+	 * Computes the return type for `Effect.all` when collecting a record.
+	 *
+	 * @category models
+	 * @since 2.0.0
+	 */
+	export type ReturnObject<
+		T,
+		Discard extends boolean,
+		Mode extends boolean = false,
+	> = [T] extends [Record<string, EffectAny>]
+		? Effect<
+				Discard extends true
+					? void
+					: {
+							-readonly [K in keyof T]: [T[K]] extends [
+								Effect<infer _A, infer _E, infer _R>,
+							]
+								? Mode extends true
+									? Result.Result<_A, _E>
+									: _A
+								: never;
+						},
+				Mode extends true
+					? never
+					: keyof T extends never
+						? never
+						: T[keyof T] extends Effect<infer _A, infer _E, infer _R>
+							? _E
+							: never,
+				keyof T extends never
+					? never
+					: T[keyof T] extends Effect<infer _A, infer _E, infer _R>
+						? _R
+						: never
+			>
+		: never;
 
-  /**
-   * Detects whether `Effect.all` should discard collected values.
-   *
-   * @category models
-   * @since 2.0.0
-   */
-  export type IsDiscard<A> = [Extract<A, { readonly discard: true }>] extends [
-    never
-  ] ? false
-    : true
+	/**
+	 * Detects whether `Effect.all` should discard collected values.
+	 *
+	 * @category models
+	 * @since 2.0.0
+	 */
+	export type IsDiscard<A> = [Extract<A, { readonly discard: true }>] extends [
+		never,
+	]
+		? false
+		: true;
 
-  /**
-   * Detects whether `Effect.all` should collect results in `Result` mode.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export type IsResult<A> = [Extract<A, { readonly mode: "result" }>] extends [never] ? false : true
+	/**
+	 * Detects whether `Effect.all` should collect results in `Result` mode.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export type IsResult<A> = [Extract<A, { readonly mode: "result" }>] extends [
+		never,
+	]
+		? false
+		: true;
 
-  /**
-   * Computes the return type for `Effect.all` from its input and options.
-   *
-   * @category models
-   * @since 2.0.0
-   */
-  export type Return<
-    Arg extends Iterable<EffectAny> | Record<string, EffectAny>,
-    O extends {
-      readonly concurrency?: Concurrency | undefined
-      readonly discard?: boolean | undefined
-      readonly mode?: "default" | "result" | undefined
-    }
-  > = [Arg] extends [ReadonlyArray<EffectAny>] ? ReturnTuple<Arg, IsDiscard<O>, IsResult<O>>
-    : [Arg] extends [Iterable<EffectAny>] ? ReturnIterable<Arg, IsDiscard<O>, IsResult<O>>
-    : [Arg] extends [Record<string, EffectAny>] ? ReturnObject<Arg, IsDiscard<O>, IsResult<O>>
-    : never
+	/**
+	 * Computes the return type for `Effect.all` from its input and options.
+	 *
+	 * @category models
+	 * @since 2.0.0
+	 */
+	export type Return<
+		Arg extends Iterable<EffectAny> | Record<string, EffectAny>,
+		O extends {
+			readonly concurrency?: Concurrency | undefined;
+			readonly discard?: boolean | undefined;
+			readonly mode?: "default" | "result" | undefined;
+		},
+	> = [Arg] extends [ReadonlyArray<EffectAny>]
+		? ReturnTuple<Arg, IsDiscard<O>, IsResult<O>>
+		: [Arg] extends [Iterable<EffectAny>]
+			? ReturnIterable<Arg, IsDiscard<O>, IsResult<O>>
+			: [Arg] extends [Record<string, EffectAny>]
+				? ReturnObject<Arg, IsDiscard<O>, IsResult<O>>
+				: never;
 }
 
 /**
@@ -527,18 +564,18 @@ export declare namespace All {
  * @since 2.0.0
  */
 export const all: <
-  const Arg extends
-    | Iterable<Effect<any, any, any>>
-    | Record<string, Effect<any, any, any>>,
-  O extends {
-    readonly concurrency?: Concurrency | undefined
-    readonly discard?: boolean | undefined
-    readonly mode?: "default" | "result" | undefined
-  }
+	const Arg extends
+		| Iterable<Effect<any, any, any>>
+		| Record<string, Effect<any, any, any>>,
+	O extends {
+		readonly concurrency?: Concurrency | undefined;
+		readonly discard?: boolean | undefined;
+		readonly mode?: "default" | "result" | undefined;
+	},
 >(
-  arg: Arg,
-  options?: O
-) => All.Return<Arg, O> = internal.all
+	arg: Arg,
+	options?: O,
+) => All.Return<Arg, O> = internal.all;
 
 /**
  * Applies an effectful function to each element and partitions failures and
@@ -571,16 +608,18 @@ export const all: <
  * @since 2.0.0
  */
 export const partition: {
-  <A, B, E, R>(
-    f: (a: A, i: number) => Effect<B, E, R>,
-    options?: { readonly concurrency?: Concurrency | undefined }
-  ): (elements: Iterable<A>) => Effect<[excluded: Array<E>, satisfying: Array<B>], never, R>
-  <A, B, E, R>(
-    elements: Iterable<A>,
-    f: (a: A, i: number) => Effect<B, E, R>,
-    options?: { readonly concurrency?: Concurrency | undefined }
-  ): Effect<[excluded: Array<E>, satisfying: Array<B>], never, R>
-} = internal.partition
+	<A, B, E, R>(
+		f: (a: A, i: number) => Effect<B, E, R>,
+		options?: { readonly concurrency?: Concurrency | undefined },
+	): (
+		elements: Iterable<A>,
+	) => Effect<[excluded: Array<E>, satisfying: Array<B>], never, R>;
+	<A, B, E, R>(
+		elements: Iterable<A>,
+		f: (a: A, i: number) => Effect<B, E, R>,
+		options?: { readonly concurrency?: Concurrency | undefined },
+	): Effect<[excluded: Array<E>, satisfying: Array<B>], never, R>;
+} = internal.partition;
 
 /**
  * Applies an effectful function to each element and accumulates all failures.
@@ -621,37 +660,41 @@ export const partition: {
  * @since 2.0.0
  */
 export const validate: {
-  <A, B, E, R>(
-    f: (a: A, i: number) => Effect<B, E, R>,
-    options?: {
-      readonly concurrency?: Concurrency | undefined
-      readonly discard?: false | undefined
-    } | undefined
-  ): (elements: Iterable<A>) => Effect<Array<B>, Arr.NonEmptyArray<E>, R>
-  <A, B, E, R>(
-    f: (a: A, i: number) => Effect<B, E, R>,
-    options: {
-      readonly concurrency?: Concurrency | undefined
-      readonly discard: true
-    }
-  ): (elements: Iterable<A>) => Effect<void, Arr.NonEmptyArray<E>, R>
-  <A, B, E, R>(
-    elements: Iterable<A>,
-    f: (a: A, i: number) => Effect<B, E, R>,
-    options?: {
-      readonly concurrency?: Concurrency | undefined
-      readonly discard?: false | undefined
-    } | undefined
-  ): Effect<Array<B>, Arr.NonEmptyArray<E>, R>
-  <A, B, E, R>(
-    elements: Iterable<A>,
-    f: (a: A, i: number) => Effect<B, E, R>,
-    options: {
-      readonly concurrency?: Concurrency | undefined
-      readonly discard: true
-    }
-  ): Effect<void, Arr.NonEmptyArray<E>, R>
-} = internal.validate
+	<A, B, E, R>(
+		f: (a: A, i: number) => Effect<B, E, R>,
+		options?:
+			| {
+					readonly concurrency?: Concurrency | undefined;
+					readonly discard?: false | undefined;
+			  }
+			| undefined,
+	): (elements: Iterable<A>) => Effect<Array<B>, Arr.NonEmptyArray<E>, R>;
+	<A, B, E, R>(
+		f: (a: A, i: number) => Effect<B, E, R>,
+		options: {
+			readonly concurrency?: Concurrency | undefined;
+			readonly discard: true;
+		},
+	): (elements: Iterable<A>) => Effect<void, Arr.NonEmptyArray<E>, R>;
+	<A, B, E, R>(
+		elements: Iterable<A>,
+		f: (a: A, i: number) => Effect<B, E, R>,
+		options?:
+			| {
+					readonly concurrency?: Concurrency | undefined;
+					readonly discard?: false | undefined;
+			  }
+			| undefined,
+	): Effect<Array<B>, Arr.NonEmptyArray<E>, R>;
+	<A, B, E, R>(
+		elements: Iterable<A>,
+		f: (a: A, i: number) => Effect<B, E, R>,
+		options: {
+			readonly concurrency?: Concurrency | undefined;
+			readonly discard: true;
+		},
+	): Effect<void, Arr.NonEmptyArray<E>, R>;
+} = internal.validate;
 
 /**
  * Returns the first element that satisfies an effectful predicate.
@@ -676,14 +719,14 @@ export const validate: {
  * @since 2.0.0
  */
 export const findFirst: {
-  <A, E, R>(
-    predicate: (a: NoInfer<A>, i: number) => Effect<boolean, E, R>
-  ): (elements: Iterable<A>) => Effect<Option<A>, E, R>
-  <A, E, R>(
-    elements: Iterable<A>,
-    predicate: (a: NoInfer<A>, i: number) => Effect<boolean, E, R>
-  ): Effect<Option<A>, E, R>
-} = internal.findFirst
+	<A, E, R>(
+		predicate: (a: NoInfer<A>, i: number) => Effect<boolean, E, R>,
+	): (elements: Iterable<A>) => Effect<Option<A>, E, R>;
+	<A, E, R>(
+		elements: Iterable<A>,
+		predicate: (a: NoInfer<A>, i: number) => Effect<boolean, E, R>,
+	): Effect<Option<A>, E, R>;
+} = internal.findFirst;
 
 /**
  * Returns the first value that passes an effectful `FilterEffect`.
@@ -697,14 +740,14 @@ export const findFirst: {
  * @since 4.0.0
  */
 export const findFirstFilter: {
-  <A, B, X, E, R>(
-    filter: (input: NoInfer<A>, i: number) => Effect<Result.Result<B, X>, E, R>
-  ): (elements: Iterable<A>) => Effect<Option<B>, E, R>
-  <A, B, X, E, R>(
-    elements: Iterable<A>,
-    filter: (input: NoInfer<A>, i: number) => Effect<Result.Result<B, X>, E, R>
-  ): Effect<Option<B>, E, R>
-} = internal.findFirstFilter
+	<A, B, X, E, R>(
+		filter: (input: NoInfer<A>, i: number) => Effect<Result.Result<B, X>, E, R>,
+	): (elements: Iterable<A>) => Effect<Option<B>, E, R>;
+	<A, B, X, E, R>(
+		elements: Iterable<A>,
+		filter: (input: NoInfer<A>, i: number) => Effect<Result.Result<B, X>, E, R>,
+	): Effect<Option<B>, E, R>;
+} = internal.findFirstFilter;
 
 /**
  * Executes an effectful operation for each element in an `Iterable`.
@@ -776,16 +819,32 @@ export const findFirstFilter: {
  * @since 2.0.0
  */
 export const forEach: {
-  <B, E, R, S extends Iterable<any>, const Discard extends boolean = false>(
-    f: (a: Arr.ReadonlyArray.Infer<S>, i: number) => Effect<B, E, R>,
-    options?: { readonly concurrency?: Concurrency | undefined; readonly discard?: Discard | undefined } | undefined
-  ): (self: S) => Effect<Discard extends false ? Arr.ReadonlyArray.With<S, B> : void, E, R>
-  <B, E, R, S extends Iterable<any>, const Discard extends boolean = false>(
-    self: S,
-    f: (a: Arr.ReadonlyArray.Infer<S>, i: number) => Effect<B, E, R>,
-    options?: { readonly concurrency?: Concurrency | undefined; readonly discard?: Discard | undefined } | undefined
-  ): Effect<Discard extends false ? Arr.ReadonlyArray.With<S, B> : void, E, R>
-} = internal.forEach
+	<B, E, R, S extends Iterable<any>, const Discard extends boolean = false>(
+		f: (a: Arr.ReadonlyArray.Infer<S>, i: number) => Effect<B, E, R>,
+		options?:
+			| {
+					readonly concurrency?: Concurrency | undefined;
+					readonly discard?: Discard | undefined;
+			  }
+			| undefined,
+	): (
+		self: S,
+	) => Effect<
+		Discard extends false ? Arr.ReadonlyArray.With<S, B> : void,
+		E,
+		R
+	>;
+	<B, E, R, S extends Iterable<any>, const Discard extends boolean = false>(
+		self: S,
+		f: (a: Arr.ReadonlyArray.Infer<S>, i: number) => Effect<B, E, R>,
+		options?:
+			| {
+					readonly concurrency?: Concurrency | undefined;
+					readonly discard?: Discard | undefined;
+			  }
+			| undefined,
+	): Effect<Discard extends false ? Arr.ReadonlyArray.With<S, B> : void, E, R>;
+} = internal.forEach;
 
 /**
  * Executes a body effect repeatedly while a condition holds true.
@@ -816,10 +875,10 @@ export const forEach: {
  * @since 2.0.0
  */
 export const whileLoop: <A, E, R>(options: {
-  readonly while: LazyArg<boolean>
-  readonly body: LazyArg<Effect<A, E, R>>
-  readonly step: (a: A) => void
-}) => Effect<void, E, R> = internal.whileLoop
+	readonly while: LazyArg<boolean>;
+	readonly body: LazyArg<Effect<A, E, R>>;
+	readonly step: (a: A) => void;
+}) => Effect<void, E, R> = internal.whileLoop;
 
 // -----------------------------------------------------------------------------
 // Creating Effects
@@ -873,8 +932,8 @@ export const whileLoop: <A, E, R>(options: {
  * @since 2.0.0
  */
 export const promise: <A>(
-  evaluate: (signal: AbortSignal) => PromiseLike<A>
-) => Effect<A> = internal.promise
+	evaluate: (signal: AbortSignal) => PromiseLike<A>,
+) => Effect<A> = internal.promise;
 
 /**
  * Creates an `Effect` that represents an asynchronous computation that might
@@ -944,10 +1003,13 @@ export const promise: <A>(
  * @since 2.0.0
  */
 export const tryPromise: <A, E = Cause.UnknownError>(
-  options:
-    | { readonly try: (signal: AbortSignal) => PromiseLike<A>; readonly catch: (error: unknown) => E }
-    | ((signal: AbortSignal) => PromiseLike<A>)
-) => Effect<A, E> = internal.tryPromise
+	options:
+		| {
+				readonly try: (signal: AbortSignal) => PromiseLike<A>;
+				readonly catch: (error: unknown) => E;
+		  }
+		| ((signal: AbortSignal) => PromiseLike<A>),
+) => Effect<A, E> = internal.tryPromise;
 
 /**
  * Creates an `Effect` that always succeeds with a given value.
@@ -973,7 +1035,7 @@ export const tryPromise: <A, E = Cause.UnknownError>(
  * @category Creating Effects
  * @since 2.0.0
  */
-export const succeed: <A>(value: A) => Effect<A> = internal.succeed
+export const succeed: <A>(value: A) => Effect<A> = internal.succeed;
 
 /**
  * Returns an effect which succeeds with `None`.
@@ -992,7 +1054,7 @@ export const succeed: <A>(value: A) => Effect<A> = internal.succeed
  * @category Creating Effects
  * @since 2.0.0
  */
-export const succeedNone: Effect<Option<never>> = internal.succeedNone
+export const succeedNone: Effect<Option<never>> = internal.succeedNone;
 
 /**
  * Returns an effect which succeeds with the value wrapped in a `Some`.
@@ -1011,7 +1073,8 @@ export const succeedNone: Effect<Option<never>> = internal.succeedNone
  * @category Creating Effects
  * @since 2.0.0
  */
-export const succeedSome: <A>(value: A) => Effect<Option<A>> = internal.succeedSome
+export const succeedSome: <A>(value: A) => Effect<Option<A>> =
+	internal.succeedSome;
 
 /**
  * Delays the creation of an `Effect` until it is actually needed.
@@ -1100,8 +1163,8 @@ export const succeedSome: <A>(value: A) => Effect<Option<A>> = internal.succeedS
  * @since 2.0.0
  */
 export const suspend: <A, E, R>(
-  effect: LazyArg<Effect<A, E, R>>
-) => Effect<A, E, R> = internal.suspend
+	effect: LazyArg<Effect<A, E, R>>,
+) => Effect<A, E, R> = internal.suspend;
 
 /**
  * Creates an `Effect` that represents a synchronous side-effectful computation.
@@ -1139,29 +1202,29 @@ export const suspend: <A, E, R>(
  * @category Creating Effects
  * @since 2.0.0
  */
-export const sync: <A>(thunk: LazyArg<A>) => Effect<A> = internal.sync
+export const sync: <A>(thunk: LazyArg<A>) => Effect<A> = internal.sync;
 
-const void_: Effect<void> = internal.void
+const void_: Effect<void> = internal.void;
 export {
-  /**
-   * Returns an effect that succeeds with `void`.
-   *
-   * @category Creating Effects
-   * @since 2.0.0
-   */
-  void_ as void
-}
+	/**
+	 * Returns an effect that succeeds with `void`.
+	 *
+	 * @category Creating Effects
+	 * @since 2.0.0
+	 */
+	void_ as void,
+};
 
-const undefined_: Effect<undefined> = internal.undefined
+const undefined_: Effect<undefined> = internal.undefined;
 export {
-  /**
-   * Returns an effect that succeeds with `undefined`.
-   *
-   * @category Creating Effects
-   * @since 4.0.0
-   */
-  undefined_ as undefined
-}
+	/**
+	 * Returns an effect that succeeds with `undefined`.
+	 *
+	 * @category Creating Effects
+	 * @since 4.0.0
+	 */
+	undefined_ as undefined,
+};
 
 /**
  * Creates an `Effect` from a callback-based asynchronous API.
@@ -1199,12 +1262,12 @@ export {
  * @since 4.0.0
  */
 export const callback: <A, E = never, R = never>(
-  register: (
-    this: Scheduler,
-    resume: (effect: Effect<A, E, R>) => void,
-    signal: AbortSignal
-  ) => void | Effect<void, never, R>
-) => Effect<A, E, R> = internal.callback
+	register: (
+		this: Scheduler,
+		resume: (effect: Effect<A, E, R>) => void,
+		signal: AbortSignal,
+	) => void | Effect<void, never, R>,
+) => Effect<A, E, R> = internal.callback;
 
 /**
  * Returns an effect that will never produce anything. The moral equivalent of
@@ -1228,7 +1291,7 @@ export const callback: <A, E = never, R = never>(
  * @category Creating Effects
  * @since 2.0.0
  */
-export const never: Effect<never> = internal.never
+export const never: Effect<never> = internal.never;
 
 /**
  * An `Effect` containing an empty record `{}`, used as the starting point for
@@ -1250,7 +1313,7 @@ export const never: Effect<never> = internal.never
  * @category Do notation
  * @since 2.0.0
  */
-export const Do: Effect<{}> = internal.Do
+export const Do: Effect<{}> = internal.Do;
 
 /**
  * Gives a name to the success value of an `Effect`, creating a single-key
@@ -1260,33 +1323,38 @@ export const Do: Effect<{}> = internal.Do
  * @since 2.0.0
  */
 export const bindTo: {
-  <N extends string>(name: N): <A, E, R>(self: Effect<A, E, R>) => Effect<{ [K in N]: A }, E, R>
-  <A, E, R, N extends string>(self: Effect<A, E, R>, name: N): Effect<{ [K in N]: A }, E, R>
-} = internal.bindTo
+	<N extends string>(
+		name: N,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<{ [K in N]: A }, E, R>;
+	<A, E, R, N extends string>(
+		self: Effect<A, E, R>,
+		name: N,
+	): Effect<{ [K in N]: A }, E, R>;
+} = internal.bindTo;
 
 const let_: {
-  <N extends string, A extends Record<string, any>, B>(
-    name: N,
-    f: (a: NoInfer<A>) => B
-  ): <E, R>(
-    self: Effect<A, E, R>
-  ) => Effect<Simplify<Omit<A, N> & Record<N, B>>, E, R>
-  <A extends Record<string, any>, E, R, B, N extends string>(
-    self: Effect<A, E, R>,
-    name: N,
-    f: (a: NoInfer<A>) => B
-  ): Effect<Simplify<Omit<A, N> & Record<N, B>>, E, R>
-} = internal.let
+	<N extends string, A extends Record<string, any>, B>(
+		name: N,
+		f: (a: NoInfer<A>) => B,
+	): <E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<Simplify<Omit<A, N> & Record<N, B>>, E, R>;
+	<A extends Record<string, any>, E, R, B, N extends string>(
+		self: Effect<A, E, R>,
+		name: N,
+		f: (a: NoInfer<A>) => B,
+	): Effect<Simplify<Omit<A, N> & Record<N, B>>, E, R>;
+} = internal.let;
 
 export {
-  /**
-   * Adds a computed plain value to the do notation record.
-   *
-   * @category Do notation
-   * @since 2.0.0
-   */
-  let_ as let
-}
+	/**
+	 * Adds a computed plain value to the do notation record.
+	 *
+	 * @category Do notation
+	 * @since 2.0.0
+	 */
+	let_ as let,
+};
 
 /**
  * Adds an `Effect` value to the do notation record under a given name.
@@ -1295,18 +1363,18 @@ export {
  * @since 2.0.0
  */
 export const bind: {
-  <N extends string, A extends Record<string, any>, B, E2, R2>(
-    name: N,
-    f: (a: NoInfer<A>) => Effect<B, E2, R2>
-  ): <E, R>(
-    self: Effect<A, E, R>
-  ) => Effect<Simplify<Omit<A, N> & Record<N, B>>, E | E2, R | R2>
-  <A extends Record<string, any>, E, R, B, E2, R2, N extends string>(
-    self: Effect<A, E, R>,
-    name: N,
-    f: (a: NoInfer<A>) => Effect<B, E2, R2>
-  ): Effect<Simplify<Omit<A, N> & Record<N, B>>, E | E2, R | R2>
-} = internal.bind
+	<N extends string, A extends Record<string, any>, B, E2, R2>(
+		name: N,
+		f: (a: NoInfer<A>) => Effect<B, E2, R2>,
+	): <E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<Simplify<Omit<A, N> & Record<N, B>>, E | E2, R | R2>;
+	<A extends Record<string, any>, E, R, B, E2, R2, N extends string>(
+		self: Effect<A, E, R>,
+		name: N,
+		f: (a: NoInfer<A>) => Effect<B, E2, R2>,
+	): Effect<Simplify<Omit<A, N> & Record<N, B>>, E | E2, R | R2>;
+} = internal.bind;
 
 /**
  * Provides a way to write effectful code using generator functions, simplifying
@@ -1360,32 +1428,40 @@ export const bind: {
  * @since 2.0.0
  */
 export const gen: {
-  <Eff extends Effect<any, any, any>, AEff>(
-    f: () => Generator<Eff, AEff, never>
-  ): Effect<
-    AEff,
-    [Eff] extends [never] ? never
-      : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-      : never,
-    [Eff] extends [never] ? never
-      : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-      : never
-  >
-  <Self, Eff extends Effect<any, any, any>, AEff>(
-    options: {
-      readonly self: Self
-    },
-    f: (this: Self) => Generator<Eff, AEff, never>
-  ): Effect<
-    AEff,
-    [Eff] extends [never] ? never
-      : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-      : never,
-    [Eff] extends [never] ? never
-      : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-      : never
-  >
-} = internal.gen
+	<Eff extends Effect<any, any, any>, AEff>(
+		f: () => Generator<Eff, AEff, never>,
+	): Effect<
+		AEff,
+		[Eff] extends [never]
+			? never
+			: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+				? E
+				: never,
+		[Eff] extends [never]
+			? never
+			: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+				? R
+				: never
+	>;
+	<Self, Eff extends Effect<any, any, any>, AEff>(
+		options: {
+			readonly self: Self;
+		},
+		f: (this: Self) => Generator<Eff, AEff, never>,
+	): Effect<
+		AEff,
+		[Eff] extends [never]
+			? never
+			: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+				? E
+				: never,
+		[Eff] extends [never]
+			? never
+			: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+				? R
+				: never
+	>;
+} = internal.gen;
 
 /**
  * Type helpers for `Effect.gen` generator return signatures.
@@ -1393,13 +1469,17 @@ export const gen: {
  * @since 2.0.0
  */
 export declare namespace gen {
-  /**
-   * Generator return type accepted by `Effect.gen`.
-   *
-   * @category Creating Effects
-   * @since 4.0.0
-   */
-  export type Return<A, E = never, R = never> = Generator<Effect<any, E, R>, A, any>
+	/**
+	 * Generator return type accepted by `Effect.gen`.
+	 *
+	 * @category Creating Effects
+	 * @since 4.0.0
+	 */
+	export type Return<A, E = never, R = never> = Generator<
+		Effect<any, E, R>,
+		A,
+		any
+	>;
 }
 
 /**
@@ -1429,7 +1509,7 @@ export declare namespace gen {
  * @category Creating Effects
  * @since 2.0.0
  */
-export const fail: <E>(error: E) => Effect<never, E> = internal.fail
+export const fail: <E>(error: E) => Effect<never, E> = internal.fail;
 
 /**
  * Creates an `Effect` that represents a recoverable error using a lazy evaluation.
@@ -1455,7 +1535,8 @@ export const fail: <E>(error: E) => Effect<never, E> = internal.fail
  * @category Creating Effects
  * @since 2.0.0
  */
-export const failSync: <E>(evaluate: LazyArg<E>) => Effect<never, E> = internal.failSync
+export const failSync: <E>(evaluate: LazyArg<E>) => Effect<never, E> =
+	internal.failSync;
 
 /**
  * Creates an `Effect` that represents a failure with a specific `Cause`.
@@ -1481,7 +1562,8 @@ export const failSync: <E>(evaluate: LazyArg<E>) => Effect<never, E> = internal.
  * @category Creating Effects
  * @since 2.0.0
  */
-export const failCause: <E>(cause: Cause.Cause<E>) => Effect<never, E> = internal.failCause
+export const failCause: <E>(cause: Cause.Cause<E>) => Effect<never, E> =
+	internal.failCause;
 
 /**
  * Creates an `Effect` that represents a failure with a `Cause` computed lazily.
@@ -1508,8 +1590,8 @@ export const failCause: <E>(cause: Cause.Cause<E>) => Effect<never, E> = interna
  * @since 2.0.0
  */
 export const failCauseSync: <E>(
-  evaluate: LazyArg<Cause.Cause<E>>
-) => Effect<never, E> = internal.failCauseSync
+	evaluate: LazyArg<Cause.Cause<E>>,
+) => Effect<never, E> = internal.failCauseSync;
 
 /**
  * Creates an effect that terminates a fiber with a specified error.
@@ -1552,80 +1634,80 @@ export const failCauseSync: <E>(
  * @category Creating Effects
  * @since 2.0.0
  */
-export const die: (defect: unknown) => Effect<never> = internal.die
+export const die: (defect: unknown) => Effect<never> = internal.die;
 
 const try_: <A, E>(options: {
-  try: LazyArg<A>
-  catch: (error: unknown) => E
-}) => Effect<A, E> = internal.try
+	try: LazyArg<A>;
+	catch: (error: unknown) => E;
+}) => Effect<A, E> = internal.try;
 
 export {
-  /**
-   * Creates an `Effect` that represents a synchronous computation that might
-   * fail.
-   *
-   * **When to use**
-   *
-   * In situations where you need to perform synchronous operations that might
-   * fail, such as parsing JSON, you can use the `try` constructor. This
-   * constructor is designed to handle operations that could throw exceptions by
-   * capturing those exceptions and transforming them into manageable errors.
-   *
-   * **Details**
-   *
-   * Error Handling:
-   *
-   * There are two ways to handle errors with `try`:
-   *
-   * 1. If you don't provide a `catch` function, the error is caught and the
-   *    effect fails with an `UnknownError`.
-   * 2. If you provide a `catch` function, the error is caught and the `catch`
-   *    function maps it to an error of type `E`.
-   *
-   * **Example** (Parsing JSON with typed error mapping)
-   *
-   * ```ts
-   * import { Effect } from "effect"
-   *
-   * const parseJSON = (input: string) =>
-   *   Effect.try({
-   *     try: () => JSON.parse(input),
-   *     catch: (error) => error as Error
-   *   })
-   *
-   * // Success case
-   * Effect.runPromise(parseJSON("{\"name\": \"Alice\"}")).then(console.log)
-   * // Output: { name: "Alice" }
-   *
-   * // Failure case
-   * Effect.runPromiseExit(parseJSON("invalid json")).then(console.log)
-   * // Output: Exit.failure with Error
-   * ```
-   *
-   * **Example** (Mapping synchronous exceptions to a tagged error)
-   *
-   * ```ts
-   * import { Data, Effect } from "effect"
-   *
-   * class JsonParsingError extends Data.TaggedError("JsonParsingError")<{ readonly cause: unknown }> {}
-   *
-   * const parseJSON = (input: string) =>
-   *   Effect.try({
-   *     try: () => JSON.parse(input),
-   *     catch: (cause) => new JsonParsingError({ cause })
-   *   })
-   *
-   * Effect.runPromiseExit(parseJSON("invalid json")).then(console.log)
-   * // Output: Exit.failure with custom Error message
-   * ```
-   *
-   * @see {@link sync} if the effectful computation is synchronous and does not
-   * throw errors.
-   * @category Creating Effects
-   * @since 2.0.0
-   */
-  try_ as try
-}
+	/**
+	 * Creates an `Effect` that represents a synchronous computation that might
+	 * fail.
+	 *
+	 * **When to use**
+	 *
+	 * In situations where you need to perform synchronous operations that might
+	 * fail, such as parsing JSON, you can use the `try` constructor. This
+	 * constructor is designed to handle operations that could throw exceptions by
+	 * capturing those exceptions and transforming them into manageable errors.
+	 *
+	 * **Details**
+	 *
+	 * Error Handling:
+	 *
+	 * There are two ways to handle errors with `try`:
+	 *
+	 * 1. If you don't provide a `catch` function, the error is caught and the
+	 *    effect fails with an `UnknownError`.
+	 * 2. If you provide a `catch` function, the error is caught and the `catch`
+	 *    function maps it to an error of type `E`.
+	 *
+	 * **Example** (Parsing JSON with typed error mapping)
+	 *
+	 * ```ts
+	 * import { Effect } from "effect"
+	 *
+	 * const parseJSON = (input: string) =>
+	 *   Effect.try({
+	 *     try: () => JSON.parse(input),
+	 *     catch: (error) => error as Error
+	 *   })
+	 *
+	 * // Success case
+	 * Effect.runPromise(parseJSON("{\"name\": \"Alice\"}")).then(console.log)
+	 * // Output: { name: "Alice" }
+	 *
+	 * // Failure case
+	 * Effect.runPromiseExit(parseJSON("invalid json")).then(console.log)
+	 * // Output: Exit.failure with Error
+	 * ```
+	 *
+	 * **Example** (Mapping synchronous exceptions to a tagged error)
+	 *
+	 * ```ts
+	 * import { Data, Effect } from "effect"
+	 *
+	 * class JsonParsingError extends Data.TaggedError("JsonParsingError")<{ readonly cause: unknown }> {}
+	 *
+	 * const parseJSON = (input: string) =>
+	 *   Effect.try({
+	 *     try: () => JSON.parse(input),
+	 *     catch: (cause) => new JsonParsingError({ cause })
+	 *   })
+	 *
+	 * Effect.runPromiseExit(parseJSON("invalid json")).then(console.log)
+	 * // Output: Exit.failure with custom Error message
+	 * ```
+	 *
+	 * @see {@link sync} if the effectful computation is synchronous and does not
+	 * throw errors.
+	 * @category Creating Effects
+	 * @since 2.0.0
+	 */
+	try_ as try,
+};
 
 /**
  * Yields control back to the Effect runtime, allowing other fibers to execute.
@@ -1647,7 +1729,7 @@ export {
  * @category Creating Effects
  * @since 2.0.0
  */
-export const yieldNow: Effect<void> = internal.yieldNow
+export const yieldNow: Effect<void> = internal.yieldNow;
 
 /**
  * Yields control back to the Effect runtime with a specified priority, allowing other fibers to execute.
@@ -1669,7 +1751,8 @@ export const yieldNow: Effect<void> = internal.yieldNow
  * @category Creating Effects
  * @since 4.0.0
  */
-export const yieldNowWith: (priority?: number) => Effect<void> = internal.yieldNowWith
+export const yieldNowWith: (priority?: number) => Effect<void> =
+	internal.yieldNowWith;
 
 /**
  * Provides access to the current fiber within an effect computation.
@@ -1691,8 +1774,8 @@ export const yieldNowWith: (priority?: number) => Effect<void> = internal.yieldN
  * @since 4.0.0
  */
 export const withFiber: <A, E = never, R = never>(
-  evaluate: (fiber: Fiber<unknown, unknown>) => Effect<A, E, R>
-) => Effect<A, E, R> = core.withFiber
+	evaluate: (fiber: Fiber<unknown, unknown>) => Effect<A, E, R>,
+) => Effect<A, E, R> = core.withFiber;
 
 // -----------------------------------------------------------------------------
 // Conversions
@@ -1720,7 +1803,8 @@ export const withFiber: <A, E = never, R = never>(
  * @category converting
  * @since 4.0.0
  */
-export const fromResult: <A, E>(result: Result.Result<A, E>) => Effect<A, E> = internal.fromResult
+export const fromResult: <A, E>(result: Result.Result<A, E>) => Effect<A, E> =
+	internal.fromResult;
 
 /**
  * Converts an `Option` into an `Effect`.
@@ -1750,8 +1834,8 @@ export const fromResult: <A, E>(result: Result.Result<A, E>) => Effect<A, E> = i
  * @since 4.0.0
  */
 export const fromOption: <A>(
-  option: Option<A>
-) => Effect<A, Cause.NoSuchElementError> = internal.fromOption
+	option: Option<A>,
+) => Effect<A, Cause.NoSuchElementError> = internal.fromOption;
 
 /**
  * Converts a nullable value to an `Effect`, failing with a `NoSuchElementError`
@@ -1778,7 +1862,9 @@ export const fromOption: <A>(
  * @category converting
  * @since 4.0.0
  */
-export const fromNullishOr: <A>(value: A) => Effect<NonNullable<A>, Cause.NoSuchElementError> = internal.fromNullishOr
+export const fromNullishOr: <A>(
+	value: A,
+) => Effect<NonNullable<A>, Cause.NoSuchElementError> = internal.fromNullishOr;
 
 // -----------------------------------------------------------------------------
 // Mapping
@@ -1851,14 +1937,14 @@ export const fromNullishOr: <A>(value: A) => Effect<NonNullable<A>, Cause.NoSuch
  * @since 2.0.0
  */
 export const flatMap: {
-  <A, B, E1, R1>(
-    f: (a: A) => Effect<B, E1, R1>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B, E1 | E, R1 | R>
-  <A, E, R, B, E1, R1>(
-    self: Effect<A, E, R>,
-    f: (a: A) => Effect<B, E1, R1>
-  ): Effect<B, E | E1, R | R1>
-} = internal.flatMap
+	<A, B, E1, R1>(
+		f: (a: A) => Effect<B, E1, R1>,
+	): <E, R>(self: Effect<A, E, R>) => Effect<B, E1 | E, R1 | R>;
+	<A, E, R, B, E1, R1>(
+		self: Effect<A, E, R>,
+		f: (a: A) => Effect<B, E1, R1>,
+	): Effect<B, E | E1, R | R1>;
+} = internal.flatMap;
 
 /**
  * Flattens an `Effect` that produces another `Effect` into a single effect.
@@ -1880,8 +1966,9 @@ export const flatMap: {
  * @category sequencing
  * @since 2.0.0
  */
-export const flatten: <A, E, R, E2, R2>(self: Effect<Effect<A, E, R>, E2, R2>) => Effect<A, E | E2, R | R2> =
-  internal.flatten
+export const flatten: <A, E, R, E2, R2>(
+	self: Effect<Effect<A, E, R>, E2, R2>,
+) => Effect<A, E | E2, R | R2> = internal.flatten;
 
 /**
  * Runs this effect and then runs another effect, optionally using the first
@@ -1959,21 +2046,21 @@ export const flatten: <A, E, R, E2, R2>(self: Effect<Effect<A, E, R>, E2, R2>) =
  * @since 2.0.0
  */
 export const andThen: {
-  <A, B, E2, R2>(
-    f: (a: A) => Effect<B, E2, R2>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B, E | E2, R | R2>
-  <B, E2, R2>(
-    f: Effect<B, E2, R2>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<B, E | E2, R | R2>
-  <A, E, R, B, E2, R2>(
-    self: Effect<A, E, R>,
-    f: (a: A) => Effect<B, E2, R2>
-  ): Effect<B, E | E2, R | R2>
-  <A, E, R, B, E2, R2>(
-    self: Effect<A, E, R>,
-    f: Effect<B, E2, R2>
-  ): Effect<B, E | E2, R | R2>
-} = internal.andThen
+	<A, B, E2, R2>(
+		f: (a: A) => Effect<B, E2, R2>,
+	): <E, R>(self: Effect<A, E, R>) => Effect<B, E | E2, R | R2>;
+	<B, E2, R2>(
+		f: Effect<B, E2, R2>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<B, E | E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (a: A) => Effect<B, E2, R2>,
+	): Effect<B, E | E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		f: Effect<B, E2, R2>,
+	): Effect<B, E | E2, R | R2>;
+} = internal.andThen;
 
 /**
  * Runs a side effect with the result of an effect without changing the original
@@ -2029,21 +2116,21 @@ export const andThen: {
  * @since 2.0.0
  */
 export const tap: {
-  <A, B, E2, R2>(
-    f: (a: NoInfer<A>) => Effect<B, E2, R2>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>
-  <B, E2, R2>(
-    f: Effect<B, E2, R2>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>
-  <A, E, R, B, E2, R2>(
-    self: Effect<A, E, R>,
-    f: (a: NoInfer<A>) => Effect<B, E2, R2>
-  ): Effect<A, E | E2, R | R2>
-  <A, E, R, B, E2, R2>(
-    self: Effect<A, E, R>,
-    f: Effect<B, E2, R2>
-  ): Effect<A, E | E2, R | R2>
-} = internal.tap
+	<A, B, E2, R2>(
+		f: (a: NoInfer<A>) => Effect<B, E2, R2>,
+	): <E, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>;
+	<B, E2, R2>(
+		f: Effect<B, E2, R2>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (a: NoInfer<A>) => Effect<B, E2, R2>,
+	): Effect<A, E | E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		f: Effect<B, E2, R2>,
+	): Effect<A, E | E2, R | R2>;
+} = internal.tap;
 
 /**
  * Encapsulates both success and failure of an `Effect` into a `Result` type.
@@ -2092,7 +2179,9 @@ export const tap: {
  * @category Outcome Encapsulation
  * @since 4.0.0
  */
-export const result: <A, E, R>(self: Effect<A, E, R>) => Effect<Result.Result<A, E>, never, R> = internal.result
+export const result: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<Result.Result<A, E>, never, R> = internal.result;
 
 /**
  * Convert success to `Option.some` and failure to `Option.none`.
@@ -2126,7 +2215,9 @@ export const result: <A, E, R>(self: Effect<A, E, R>) => Effect<Result.Result<A,
  * @category Output Encapsulation
  * @since 2.0.0
  */
-export const option: <A, E, R>(self: Effect<A, E, R>) => Effect<Option<A>, never, R> = internal.option
+export const option: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<Option<A>, never, R> = internal.option;
 
 /**
  * Transforms an effect to encapsulate both failure and success using the `Exit`
@@ -2166,8 +2257,8 @@ export const option: <A, E, R>(self: Effect<A, E, R>) => Effect<Option<A>, never
  * @since 2.0.0
  */
 export const exit: <A, E, R>(
-  self: Effect<A, E, R>
-) => Effect<Exit.Exit<A, E>, never, R> = internal.exit
+	self: Effect<A, E, R>,
+) => Effect<Exit.Exit<A, E>, never, R> = internal.exit;
 
 /**
  * Transforms the value inside an effect by applying a function to it.
@@ -2219,9 +2310,9 @@ export const exit: <A, E, R>(
  * @since 2.0.0
  */
 export const map: {
-  <A, B>(f: (a: A) => B): <E, R>(self: Effect<A, E, R>) => Effect<B, E, R>
-  <A, E, R, B>(self: Effect<A, E, R>, f: (a: A) => B): Effect<B, E, R>
-} = internal.map
+	<A, B>(f: (a: A) => B): <E, R>(self: Effect<A, E, R>) => Effect<B, E, R>;
+	<A, E, R, B>(self: Effect<A, E, R>, f: (a: A) => B): Effect<B, E, R>;
+} = internal.map;
 
 /**
  * Replaces the value inside an effect with a constant value.
@@ -2247,9 +2338,9 @@ export const map: {
  * @since 2.0.0
  */
 export const as: {
-  <B>(value: B): <A, E, R>(self: Effect<A, E, R>) => Effect<B, E, R>
-  <A, E, R, B>(self: Effect<A, E, R>, value: B): Effect<B, E, R>
-} = internal.as
+	<B>(value: B): <A, E, R>(self: Effect<A, E, R>) => Effect<B, E, R>;
+	<A, E, R, B>(self: Effect<A, E, R>, value: B): Effect<B, E, R>;
+} = internal.as;
 
 /**
  * This function maps the success value of an `Effect` value to a `Some` value
@@ -2270,7 +2361,9 @@ export const as: {
  * @category mapping
  * @since 2.0.0
  */
-export const asSome: <A, E, R>(self: Effect<A, E, R>) => Effect<Option<A>, E, R> = internal.asSome
+export const asSome: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<Option<A>, E, R> = internal.asSome;
 
 /**
  * This function maps the success value of an `Effect` value to `void`. If the
@@ -2292,7 +2385,8 @@ export const asSome: <A, E, R>(self: Effect<A, E, R>) => Effect<Option<A>, E, R>
  * @category mapping
  * @since 2.0.0
  */
-export const asVoid: <A, E, R>(self: Effect<A, E, R>) => Effect<void, E, R> = internal.asVoid
+export const asVoid: <A, E, R>(self: Effect<A, E, R>) => Effect<void, E, R> =
+	internal.asVoid;
 
 /**
  * The `flip` function swaps the success and error channels of an effect,
@@ -2322,7 +2416,8 @@ export const asVoid: <A, E, R>(self: Effect<A, E, R>) => Effect<void, E, R> = in
  * @category mapping
  * @since 2.0.0
  */
-export const flip: <A, E, R>(self: Effect<A, E, R>) => Effect<E, A, R> = internal.flip
+export const flip: <A, E, R>(self: Effect<A, E, R>) => Effect<E, A, R> =
+	internal.flip;
 
 // -----------------------------------------------------------------------------
 // Zipping
@@ -2398,16 +2493,16 @@ export const flip: <A, E, R>(self: Effect<A, E, R>) => Effect<E, A, R> = interna
  * @since 2.0.0
  */
 export const zip: {
-  <A2, E2, R2>(
-    that: Effect<A2, E2, R2>,
-    options?: { readonly concurrent?: boolean | undefined } | undefined
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<[A, A2], E2 | E, R2 | R>
-  <A, E, R, A2, E2, R2>(
-    self: Effect<A, E, R>,
-    that: Effect<A2, E2, R2>,
-    options?: { readonly concurrent?: boolean | undefined }
-  ): Effect<[A, A2], E | E2, R | R2>
-} = internal.zip
+	<A2, E2, R2>(
+		that: Effect<A2, E2, R2>,
+		options?: { readonly concurrent?: boolean | undefined } | undefined,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<[A, A2], E2 | E, R2 | R>;
+	<A, E, R, A2, E2, R2>(
+		self: Effect<A, E, R>,
+		that: Effect<A2, E2, R2>,
+		options?: { readonly concurrent?: boolean | undefined },
+	): Effect<[A, A2], E | E2, R | R2>;
+} = internal.zip;
 
 /**
  * Combines two effects sequentially and applies a function to their results to
@@ -2458,54 +2553,54 @@ export const zip: {
  * @since 2.0.0
  */
 export const zipWith: {
-  <A2, E2, R2, A, B>(
-    that: Effect<A2, E2, R2>,
-    f: (a: A, b: A2) => B,
-    options?: { readonly concurrent?: boolean | undefined }
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B, E2 | E, R2 | R>
-  <A, E, R, A2, E2, R2, B>(
-    self: Effect<A, E, R>,
-    that: Effect<A2, E2, R2>,
-    f: (a: A, b: A2) => B,
-    options?: { readonly concurrent?: boolean | undefined }
-  ): Effect<B, E2 | E, R2 | R>
-} = internal.zipWith
+	<A2, E2, R2, A, B>(
+		that: Effect<A2, E2, R2>,
+		f: (a: A, b: A2) => B,
+		options?: { readonly concurrent?: boolean | undefined },
+	): <E, R>(self: Effect<A, E, R>) => Effect<B, E2 | E, R2 | R>;
+	<A, E, R, A2, E2, R2, B>(
+		self: Effect<A, E, R>,
+		that: Effect<A2, E2, R2>,
+		f: (a: A, b: A2) => B,
+		options?: { readonly concurrent?: boolean | undefined },
+	): Effect<B, E2 | E, R2 | R>;
+} = internal.zipWith;
 
 // -----------------------------------------------------------------------------
 // Error handling
 // -----------------------------------------------------------------------------
 
 const catch_: {
-  <E, A2, E2, R2>(
-    f: (e: E) => Effect<A2, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A2 | A, E2, R2 | R>
-  <A, E, R, A2, E2, R2>(
-    self: Effect<A, E, R>,
-    f: (e: E) => Effect<A2, E2, R2>
-  ): Effect<A2 | A, E2, R2 | R>
-} = internal.catch_
+	<E, A2, E2, R2>(
+		f: (e: E) => Effect<A2, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A2 | A, E2, R2 | R>;
+	<A, E, R, A2, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (e: E) => Effect<A2, E2, R2>,
+	): Effect<A2 | A, E2, R2 | R>;
+} = internal.catch_;
 
 export {
-  /**
-   * Handles all errors in an effect by providing a fallback effect.
-   *
-   * **Details**
-   *
-   * The `catch` function catches any errors that may occur during the
-   * execution of an effect and allows you to handle them by specifying a fallback
-   * effect. This ensures that the program continues without failing by recovering
-   * from errors using the provided fallback logic.
-   *
-   * **Note**: `catch` only handles recoverable errors. It will not recover
-   * from unrecoverable defects.
-   *
-   * @see {@link catchCause} for a version that can recover from both recoverable and unrecoverable errors.
-   *
-   * @category error handling
-   * @since 4.0.0
-   */
-  catch_ as catch
-}
+	/**
+	 * Handles all errors in an effect by providing a fallback effect.
+	 *
+	 * **Details**
+	 *
+	 * The `catch` function catches any errors that may occur during the
+	 * execution of an effect and allows you to handle them by specifying a fallback
+	 * effect. This ensures that the program continues without failing by recovering
+	 * from errors using the provided fallback logic.
+	 *
+	 * **Note**: `catch` only handles recoverable errors. It will not recover
+	 * from unrecoverable defects.
+	 *
+	 * @see {@link catchCause} for a version that can recover from both recoverable and unrecoverable errors.
+	 *
+	 * @category error handling
+	 * @since 4.0.0
+	 */
+	catch_ as catch,
+};
 
 /**
  * Catches and handles specific errors by their `_tag` field, which is used as a
@@ -2549,42 +2644,68 @@ export {
  * @since 2.0.0
  */
 export const catchTag: {
-  <
-    const K extends Tags<E> | Arr.NonEmptyReadonlyArray<Tags<E>>,
-    E,
-    A1,
-    E1,
-    R1,
-    A2 = never,
-    E2 = ExcludeTag<E, K extends readonly [string, ...string[]] ? K[number] : K>,
-    R2 = never
-  >(
-    k: K,
-    f: (e: ExtractTag<NoInfer<E>, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>) => Effect<A1, E1, R1>,
-    orElse?:
-      | ((e: ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>) => Effect<A2, E2, R2>)
-      | undefined
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A | A1 | A2, E1 | E2, R | R1 | R2>
-  <
-    A,
-    E,
-    R,
-    const K extends Tags<E> | Arr.NonEmptyReadonlyArray<Tags<E>>,
-    R1,
-    E1,
-    A1,
-    A2 = never,
-    E2 = ExcludeTag<E, K extends readonly [string, ...string[]] ? K[number] : K>,
-    R2 = never
-  >(
-    self: Effect<A, E, R>,
-    k: K,
-    f: (e: ExtractTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>) => Effect<A1, E1, R1>,
-    orElse?:
-      | ((e: ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>) => Effect<A2, E2, R2>)
-      | undefined
-  ): Effect<A | A1 | A2, E1 | E2, R | R1 | R2>
-} = internal.catchTag
+	<
+		const K extends Tags<E> | Arr.NonEmptyReadonlyArray<Tags<E>>,
+		E,
+		A1,
+		E1,
+		R1,
+		A2 = never,
+		E2 = ExcludeTag<
+			E,
+			K extends readonly [string, ...string[]] ? K[number] : K
+		>,
+		R2 = never,
+	>(
+		k: K,
+		f: (
+			e: ExtractTag<
+				NoInfer<E>,
+				K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K
+			>,
+		) => Effect<A1, E1, R1>,
+		orElse?:
+			| ((
+					e: ExcludeTag<
+						E,
+						K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K
+					>,
+			  ) => Effect<A2, E2, R2>)
+			| undefined,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A | A1 | A2, E1 | E2, R | R1 | R2>;
+	<
+		A,
+		E,
+		R,
+		const K extends Tags<E> | Arr.NonEmptyReadonlyArray<Tags<E>>,
+		R1,
+		E1,
+		A1,
+		A2 = never,
+		E2 = ExcludeTag<
+			E,
+			K extends readonly [string, ...string[]] ? K[number] : K
+		>,
+		R2 = never,
+	>(
+		self: Effect<A, E, R>,
+		k: K,
+		f: (
+			e: ExtractTag<
+				E,
+				K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K
+			>,
+		) => Effect<A1, E1, R1>,
+		orElse?:
+			| ((
+					e: ExcludeTag<
+						E,
+						K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K
+					>,
+			  ) => Effect<A2, E2, R2>)
+			| undefined,
+	): Effect<A | A1 | A2, E1 | E2, R | R1 | R2>;
+} = internal.catchTag;
 
 /**
  * Handles multiple errors in a single block of code using their `_tag` field.
@@ -2630,66 +2751,112 @@ export const catchTag: {
  * @since 2.0.0
  */
 export const catchTags: {
-  <
-    E,
-    Cases extends
-      & { [K in Extract<E, { _tag: string }>["_tag"]]+?: ((error: Extract<E, { _tag: K }>) => Effect<any, any, any>) }
-      & (unknown extends E ? {} : { [K in Exclude<keyof Cases, Extract<E, { _tag: string }>["_tag"]>]: never }),
-    A2 = never,
-    E2 = Exclude<E, { _tag: keyof Cases }>,
-    R2 = never
-  >(
-    cases: Cases,
-    orElse?: ((e: Exclude<E, { _tag: keyof Cases }>) => Effect<A2, E2, R2>) | undefined
-  ): <A, R>(
-    self: Effect<A, E, R>
-  ) => Effect<
-    | A
-    | A2
-    | {
-      [K in keyof Cases]: Cases[K] extends (...args: Array<any>) => Effect<infer A, any, any> ? A : never
-    }[keyof Cases],
-    | E2
-    | {
-      [K in keyof Cases]: Cases[K] extends (...args: Array<any>) => Effect<any, infer E, any> ? E : never
-    }[keyof Cases],
-    | R
-    | R2
-    | {
-      [K in keyof Cases]: Cases[K] extends (...args: Array<any>) => Effect<any, any, infer R> ? R : never
-    }[keyof Cases]
-  >
-  <
-    R,
-    E,
-    A,
-    Cases extends
-      & { [K in Extract<E, { _tag: string }>["_tag"]]+?: ((error: Extract<E, { _tag: K }>) => Effect<any, any, any>) }
-      & (unknown extends E ? {} : { [K in Exclude<keyof Cases, Extract<E, { _tag: string }>["_tag"]>]: never }),
-    A2 = never,
-    E2 = Exclude<E, { _tag: keyof Cases }>,
-    R2 = never
-  >(
-    self: Effect<A, E, R>,
-    cases: Cases,
-    orElse?: ((e: Exclude<E, { _tag: keyof Cases }>) => Effect<A2, E2, R2>) | undefined
-  ): Effect<
-    | A
-    | A2
-    | {
-      [K in keyof Cases]: Cases[K] extends (...args: Array<any>) => Effect<infer A, any, any> ? A : never
-    }[keyof Cases],
-    | E2
-    | {
-      [K in keyof Cases]: Cases[K] extends (...args: Array<any>) => Effect<any, infer E, any> ? E : never
-    }[keyof Cases],
-    | R
-    | R2
-    | {
-      [K in keyof Cases]: Cases[K] extends (...args: Array<any>) => Effect<any, any, infer R> ? R : never
-    }[keyof Cases]
-  >
-} = internal.catchTags
+	<
+		E,
+		Cases extends {
+			[K in Extract<E, { _tag: string }>["_tag"]]+?: (
+				error: Extract<E, { _tag: K }>,
+			) => Effect<any, any, any>;
+		} & (unknown extends E
+			? {}
+			: {
+					[K in Exclude<
+						keyof Cases,
+						Extract<E, { _tag: string }>["_tag"]
+					>]: never;
+				}),
+		A2 = never,
+		E2 = Exclude<E, { _tag: keyof Cases }>,
+		R2 = never,
+	>(
+		cases: Cases,
+		orElse?:
+			| ((e: Exclude<E, { _tag: keyof Cases }>) => Effect<A2, E2, R2>)
+			| undefined,
+	): <A, R>(
+		self: Effect<A, E, R>,
+	) => Effect<
+		| A
+		| A2
+		| {
+				[K in keyof Cases]: Cases[K] extends (
+					...args: Array<any>
+				) => Effect<infer A, any, any>
+					? A
+					: never;
+		  }[keyof Cases],
+		| E2
+		| {
+				[K in keyof Cases]: Cases[K] extends (
+					...args: Array<any>
+				) => Effect<any, infer E, any>
+					? E
+					: never;
+		  }[keyof Cases],
+		| R
+		| R2
+		| {
+				[K in keyof Cases]: Cases[K] extends (
+					...args: Array<any>
+				) => Effect<any, any, infer R>
+					? R
+					: never;
+		  }[keyof Cases]
+	>;
+	<
+		R,
+		E,
+		A,
+		Cases extends {
+			[K in Extract<E, { _tag: string }>["_tag"]]+?: (
+				error: Extract<E, { _tag: K }>,
+			) => Effect<any, any, any>;
+		} & (unknown extends E
+			? {}
+			: {
+					[K in Exclude<
+						keyof Cases,
+						Extract<E, { _tag: string }>["_tag"]
+					>]: never;
+				}),
+		A2 = never,
+		E2 = Exclude<E, { _tag: keyof Cases }>,
+		R2 = never,
+	>(
+		self: Effect<A, E, R>,
+		cases: Cases,
+		orElse?:
+			| ((e: Exclude<E, { _tag: keyof Cases }>) => Effect<A2, E2, R2>)
+			| undefined,
+	): Effect<
+		| A
+		| A2
+		| {
+				[K in keyof Cases]: Cases[K] extends (
+					...args: Array<any>
+				) => Effect<infer A, any, any>
+					? A
+					: never;
+		  }[keyof Cases],
+		| E2
+		| {
+				[K in keyof Cases]: Cases[K] extends (
+					...args: Array<any>
+				) => Effect<any, infer E, any>
+					? E
+					: never;
+		  }[keyof Cases],
+		| R
+		| R2
+		| {
+				[K in keyof Cases]: Cases[K] extends (
+					...args: Array<any>
+				) => Effect<any, any, infer R>
+					? R
+					: never;
+		  }[keyof Cases]
+	>;
+} = internal.catchTags;
 
 /**
  * Catches a specific reason within a tagged error.
@@ -2730,54 +2897,68 @@ export const catchTags: {
  * @since 4.0.0
  */
 export const catchReason: {
-  <
-    K extends Tags<E>,
-    E,
-    RK extends ReasonTags<ExtractTag<NoInfer<E>, K>>,
-    A2,
-    E2,
-    R2,
-    A3 = unassigned,
-    E3 = never,
-    R3 = never
-  >(
-    errorTag: K,
-    reasonTag: RK,
-    f: (
-      reason: ExtractReason<ExtractTag<NoInfer<E>, K>, RK>,
-      error: NarrowReason<ExtractTag<NoInfer<E>, K>, RK>
-    ) => Effect<A2, E2, R2>,
-    orElse?:
-      | ((
-        reasons: ExcludeReason<ExtractTag<NoInfer<E>, K>, RK>,
-        error: OmitReason<ExtractTag<NoInfer<E>, K>, RK>
-      ) => Effect<A3, E3, R3>)
-      | undefined
-  ): <A, R>(
-    self: Effect<A, E, R>
-  ) => Effect<A | A2 | Exclude<A3, unassigned>, (A3 extends unassigned ? E : ExcludeTag<E, K>) | E2 | E3, R | R2 | R3>
-  <
-    A,
-    E,
-    R,
-    K extends Tags<E>,
-    RK extends ReasonTags<ExtractTag<E, K>>,
-    A2,
-    E2,
-    R2,
-    A3 = unassigned,
-    E3 = never,
-    R3 = never
-  >(
-    self: Effect<A, E, R>,
-    errorTag: K,
-    reasonTag: RK,
-    f: (reason: ExtractReason<ExtractTag<E, K>, RK>, error: NarrowReason<ExtractTag<E, K>, RK>) => Effect<A2, E2, R2>,
-    orElse?:
-      | ((reasons: ExcludeReason<ExtractTag<E, K>, RK>, error: OmitReason<ExtractTag<E, K>, RK>) => Effect<A3, E3, R3>)
-      | undefined
-  ): Effect<A | A2 | Exclude<A3, unassigned>, (A3 extends unassigned ? E : ExcludeTag<E, K>) | E2 | E3, R | R2 | R3>
-} = internal.catchReason
+	<
+		K extends Tags<E>,
+		E,
+		RK extends ReasonTags<ExtractTag<NoInfer<E>, K>>,
+		A2,
+		E2,
+		R2,
+		A3 = unassigned,
+		E3 = never,
+		R3 = never,
+	>(
+		errorTag: K,
+		reasonTag: RK,
+		f: (
+			reason: ExtractReason<ExtractTag<NoInfer<E>, K>, RK>,
+			error: NarrowReason<ExtractTag<NoInfer<E>, K>, RK>,
+		) => Effect<A2, E2, R2>,
+		orElse?:
+			| ((
+					reasons: ExcludeReason<ExtractTag<NoInfer<E>, K>, RK>,
+					error: OmitReason<ExtractTag<NoInfer<E>, K>, RK>,
+			  ) => Effect<A3, E3, R3>)
+			| undefined,
+	): <A, R>(
+		self: Effect<A, E, R>,
+	) => Effect<
+		A | A2 | Exclude<A3, unassigned>,
+		(A3 extends unassigned ? E : ExcludeTag<E, K>) | E2 | E3,
+		R | R2 | R3
+	>;
+	<
+		A,
+		E,
+		R,
+		K extends Tags<E>,
+		RK extends ReasonTags<ExtractTag<E, K>>,
+		A2,
+		E2,
+		R2,
+		A3 = unassigned,
+		E3 = never,
+		R3 = never,
+	>(
+		self: Effect<A, E, R>,
+		errorTag: K,
+		reasonTag: RK,
+		f: (
+			reason: ExtractReason<ExtractTag<E, K>, RK>,
+			error: NarrowReason<ExtractTag<E, K>, RK>,
+		) => Effect<A2, E2, R2>,
+		orElse?:
+			| ((
+					reasons: ExcludeReason<ExtractTag<E, K>, RK>,
+					error: OmitReason<ExtractTag<E, K>, RK>,
+			  ) => Effect<A3, E3, R3>)
+			| undefined,
+	): Effect<
+		A | A2 | Exclude<A3, unassigned>,
+		(A3 extends unassigned ? E : ExcludeTag<E, K>) | E2 | E3,
+		R | R2 | R3
+	>;
+} = internal.catchReason;
 
 /**
  * Catches multiple reasons within a tagged error using an object of handlers.
@@ -2815,88 +2996,124 @@ export const catchReason: {
  * @since 4.0.0
  */
 export const catchReasons: {
-  <
-    K extends Tags<E>,
-    E,
-    Cases extends {
-      [RK in ReasonTags<ExtractTag<NoInfer<E>, K>>]+?: (
-        reason: ExtractReason<ExtractTag<NoInfer<E>, K>, RK>,
-        error: NarrowReason<ExtractTag<NoInfer<E>, K>, RK>
-      ) => Effect<any, any, any>
-    },
-    A2 = unassigned,
-    E2 = never,
-    R2 = never
-  >(
-    errorTag: K,
-    cases: Cases,
-    orElse?:
-      | ((
-        reason: ExcludeReason<ExtractTag<NoInfer<E>, K>, Extract<keyof Cases, string>>,
-        error: OmitReason<ExtractTag<NoInfer<E>, K>, Extract<keyof Cases, string>>
-      ) => Effect<A2, E2, R2>)
-      | undefined
-  ): <A, R>(
-    self: Effect<A, E, R>
-  ) => Effect<
-    | A
-    | Exclude<A2, unassigned>
-    | {
-      [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect<infer A, any, any> ? A : never
-    }[keyof Cases],
-    | (A2 extends unassigned ? E : ExcludeTag<E, K>)
-    | E2
-    | {
-      [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect<any, infer E, any> ? E : never
-    }[keyof Cases],
-    | R
-    | R2
-    | {
-      [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect<any, any, infer R> ? R : never
-    }[keyof Cases]
-  >
-  <
-    A,
-    E,
-    R,
-    K extends Tags<E>,
-    Cases extends {
-      [RK in ReasonTags<ExtractTag<E, K>>]+?: (
-        reason: ExtractReason<ExtractTag<E, K>, RK>,
-        error: NarrowReason<ExtractTag<E, K>, RK>
-      ) => Effect<any, any, any>
-    },
-    A2 = unassigned,
-    E2 = never,
-    R2 = never
-  >(
-    self: Effect<A, E, R>,
-    errorTag: K,
-    cases: Cases,
-    orElse?:
-      | ((
-        reason: ExcludeReason<ExtractTag<NoInfer<E>, K>, Extract<keyof Cases, string>>,
-        error: OmitReason<ExtractTag<NoInfer<E>, K>, Extract<keyof Cases, string>>
-      ) => Effect<A2, E2, R2>)
-      | undefined
-  ): Effect<
-    | A
-    | Exclude<A2, unassigned>
-    | {
-      [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect<infer A, any, any> ? A : never
-    }[keyof Cases],
-    | (A2 extends unassigned ? E : ExcludeTag<E, K>)
-    | E2
-    | {
-      [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect<any, infer E, any> ? E : never
-    }[keyof Cases],
-    | R
-    | R2
-    | {
-      [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect<any, any, infer R> ? R : never
-    }[keyof Cases]
-  >
-} = internal.catchReasons
+	<
+		K extends Tags<E>,
+		E,
+		Cases extends {
+			[RK in ReasonTags<ExtractTag<NoInfer<E>, K>>]+?: (
+				reason: ExtractReason<ExtractTag<NoInfer<E>, K>, RK>,
+				error: NarrowReason<ExtractTag<NoInfer<E>, K>, RK>,
+			) => Effect<any, any, any>;
+		},
+		A2 = unassigned,
+		E2 = never,
+		R2 = never,
+	>(
+		errorTag: K,
+		cases: Cases,
+		orElse?:
+			| ((
+					reason: ExcludeReason<
+						ExtractTag<NoInfer<E>, K>,
+						Extract<keyof Cases, string>
+					>,
+					error: OmitReason<
+						ExtractTag<NoInfer<E>, K>,
+						Extract<keyof Cases, string>
+					>,
+			  ) => Effect<A2, E2, R2>)
+			| undefined,
+	): <A, R>(
+		self: Effect<A, E, R>,
+	) => Effect<
+		| A
+		| Exclude<A2, unassigned>
+		| {
+				[RK in keyof Cases]: Cases[RK] extends (
+					...args: Array<any>
+				) => Effect<infer A, any, any>
+					? A
+					: never;
+		  }[keyof Cases],
+		| (A2 extends unassigned ? E : ExcludeTag<E, K>)
+		| E2
+		| {
+				[RK in keyof Cases]: Cases[RK] extends (
+					...args: Array<any>
+				) => Effect<any, infer E, any>
+					? E
+					: never;
+		  }[keyof Cases],
+		| R
+		| R2
+		| {
+				[RK in keyof Cases]: Cases[RK] extends (
+					...args: Array<any>
+				) => Effect<any, any, infer R>
+					? R
+					: never;
+		  }[keyof Cases]
+	>;
+	<
+		A,
+		E,
+		R,
+		K extends Tags<E>,
+		Cases extends {
+			[RK in ReasonTags<ExtractTag<E, K>>]+?: (
+				reason: ExtractReason<ExtractTag<E, K>, RK>,
+				error: NarrowReason<ExtractTag<E, K>, RK>,
+			) => Effect<any, any, any>;
+		},
+		A2 = unassigned,
+		E2 = never,
+		R2 = never,
+	>(
+		self: Effect<A, E, R>,
+		errorTag: K,
+		cases: Cases,
+		orElse?:
+			| ((
+					reason: ExcludeReason<
+						ExtractTag<NoInfer<E>, K>,
+						Extract<keyof Cases, string>
+					>,
+					error: OmitReason<
+						ExtractTag<NoInfer<E>, K>,
+						Extract<keyof Cases, string>
+					>,
+			  ) => Effect<A2, E2, R2>)
+			| undefined,
+	): Effect<
+		| A
+		| Exclude<A2, unassigned>
+		| {
+				[RK in keyof Cases]: Cases[RK] extends (
+					...args: Array<any>
+				) => Effect<infer A, any, any>
+					? A
+					: never;
+		  }[keyof Cases],
+		| (A2 extends unassigned ? E : ExcludeTag<E, K>)
+		| E2
+		| {
+				[RK in keyof Cases]: Cases[RK] extends (
+					...args: Array<any>
+				) => Effect<any, infer E, any>
+					? E
+					: never;
+		  }[keyof Cases],
+		| R
+		| R2
+		| {
+				[RK in keyof Cases]: Cases[RK] extends (
+					...args: Array<any>
+				) => Effect<any, any, infer R>
+					? R
+					: never;
+		  }[keyof Cases]
+	>;
+} = internal.catchReasons;
 
 /**
  * Type helper that keeps only error tags whose tagged error contains a tagged `reason` field.
@@ -2909,8 +3126,8 @@ export const catchReasons: {
  * @since 4.0.0
  */
 export type TagsWithReason<E> = {
-  [T in Tags<E>]: ReasonTags<ExtractTag<E, T>> extends never ? never : T
-}[Tags<E>]
+	[T in Tags<E>]: ReasonTags<ExtractTag<E, T>> extends never ? never : T;
+}[Tags<E>];
 
 /**
  * Promotes nested reason errors into the Effect error channel, replacing
@@ -2944,22 +3161,16 @@ export type TagsWithReason<E> = {
  * @since 4.0.0
  */
 export const unwrapReason: {
-  <
-    K extends TagsWithReason<E>,
-    E
-  >(
-    errorTag: K
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, ExcludeTag<E, K> | ReasonOf<ExtractTag<E, K>>, R>
-  <
-    A,
-    E,
-    R,
-    K extends TagsWithReason<E>
-  >(
-    self: Effect<A, E, R>,
-    errorTag: K
-  ): Effect<A, ExcludeTag<E, K> | ReasonOf<ExtractTag<E, K>>, R>
-} = internal.unwrapReason
+	<K extends TagsWithReason<E>, E>(
+		errorTag: K,
+	): <A, R>(
+		self: Effect<A, E, R>,
+	) => Effect<A, ExcludeTag<E, K> | ReasonOf<ExtractTag<E, K>>, R>;
+	<A, E, R, K extends TagsWithReason<E>>(
+		self: Effect<A, E, R>,
+		errorTag: K,
+	): Effect<A, ExcludeTag<E, K> | ReasonOf<ExtractTag<E, K>>, R>;
+} = internal.unwrapReason;
 
 /**
  * Handles both recoverable and unrecoverable errors by providing a recovery
@@ -3003,14 +3214,14 @@ export const unwrapReason: {
  * @since 4.0.0
  */
 export const catchCause: {
-  <E, A2, E2, R2>(
-    f: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A2 | A, E2, R2 | R>
-  <A, E, R, A2, E2, R2>(
-    self: Effect<A, E, R>,
-    f: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>
-  ): Effect<A | A2, E2, R | R2>
-} = internal.catchCause
+	<E, A2, E2, R2>(
+		f: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A2 | A, E2, R2 | R>;
+	<A, E, R, A2, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>,
+	): Effect<A | A2, E2, R | R2>;
+} = internal.catchCause;
 
 /**
  * Recovers from defects using a provided recovery function.
@@ -3053,14 +3264,14 @@ export const catchCause: {
  * @since 4.0.0
  */
 export const catchDefect: {
-  <A2, E2, R2>(
-    f: (defect: unknown) => Effect<A2, E2, R2>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A2 | A, E2 | E, R2 | R>
-  <A, E, R, A2, E2, R2>(
-    self: Effect<A, E, R>,
-    f: (defect: unknown) => Effect<A2, E2, R2>
-  ): Effect<A | A2, E | E2, R | R2>
-} = internal.catchDefect
+	<A2, E2, R2>(
+		f: (defect: unknown) => Effect<A2, E2, R2>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A2 | A, E2 | E, R2 | R>;
+	<A, E, R, A2, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (defect: unknown) => Effect<A2, E2, R2>,
+	): Effect<A | A2, E | E2, R | R2>;
+} = internal.catchDefect;
 
 /**
  * Recovers from specific errors using a `Predicate` or `Refinement`.
@@ -3102,29 +3313,40 @@ export const catchDefect: {
  * @since 2.0.0
  */
 export const catchIf: {
-  <E, EB extends E, A2, E2, R2, A3 = never, E3 = Exclude<E, EB>, R3 = never>(
-    refinement: Predicate.Refinement<NoInfer<E>, EB>,
-    f: (e: EB) => Effect<A2, E2, R2>,
-    orElse?: ((e: Exclude<E, EB>) => Effect<A3, E3, R3>) | undefined
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-  <E, A2, E2, R2, A3 = never, E3 = E, R3 = never>(
-    predicate: Predicate.Predicate<NoInfer<E>>,
-    f: (e: NoInfer<E>) => Effect<A2, E2, R2>,
-    orElse?: ((e: NoInfer<E>) => Effect<A3, E3, R3>) | undefined
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-  <A, E, R, EB extends E, A2, E2, R2, A3 = never, E3 = Exclude<E, EB>, R3 = never>(
-    self: Effect<A, E, R>,
-    refinement: Predicate.Refinement<E, EB>,
-    f: (e: EB) => Effect<A2, E2, R2>,
-    orElse?: ((e: Exclude<E, EB>) => Effect<A3, E3, R3>) | undefined
-  ): Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-  <A, E, R, A2, E2, R2, A3 = never, E3 = E, R3 = never>(
-    self: Effect<A, E, R>,
-    predicate: Predicate.Predicate<E>,
-    f: (e: E) => Effect<A2, E2, R2>,
-    orElse?: ((e: E) => Effect<A3, E3, R3>) | undefined
-  ): Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-} = internal.catchIf
+	<E, EB extends E, A2, E2, R2, A3 = never, E3 = Exclude<E, EB>, R3 = never>(
+		refinement: Predicate.Refinement<NoInfer<E>, EB>,
+		f: (e: EB) => Effect<A2, E2, R2>,
+		orElse?: ((e: Exclude<E, EB>) => Effect<A3, E3, R3>) | undefined,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A | A2 | A3, E2 | E3, R | R2 | R3>;
+	<E, A2, E2, R2, A3 = never, E3 = E, R3 = never>(
+		predicate: Predicate.Predicate<NoInfer<E>>,
+		f: (e: NoInfer<E>) => Effect<A2, E2, R2>,
+		orElse?: ((e: NoInfer<E>) => Effect<A3, E3, R3>) | undefined,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A | A2 | A3, E2 | E3, R | R2 | R3>;
+	<
+		A,
+		E,
+		R,
+		EB extends E,
+		A2,
+		E2,
+		R2,
+		A3 = never,
+		E3 = Exclude<E, EB>,
+		R3 = never,
+	>(
+		self: Effect<A, E, R>,
+		refinement: Predicate.Refinement<E, EB>,
+		f: (e: EB) => Effect<A2, E2, R2>,
+		orElse?: ((e: Exclude<E, EB>) => Effect<A3, E3, R3>) | undefined,
+	): Effect<A | A2 | A3, E2 | E3, R | R2 | R3>;
+	<A, E, R, A2, E2, R2, A3 = never, E3 = E, R3 = never>(
+		self: Effect<A, E, R>,
+		predicate: Predicate.Predicate<E>,
+		f: (e: E) => Effect<A2, E2, R2>,
+		orElse?: ((e: E) => Effect<A3, E3, R3>) | undefined,
+	): Effect<A | A2 | A3, E2 | E3, R | R2 | R3>;
+} = internal.catchIf;
 
 /**
  * Recovers from specific errors using a `Filter`.
@@ -3133,18 +3355,18 @@ export const catchIf: {
  * @since 4.0.0
  */
 export const catchFilter: {
-  <E, EB, A2, E2, R2, X, A3 = never, E3 = X, R3 = never>(
-    filter: Filter.Filter<NoInfer<E>, EB, X>,
-    f: (e: EB) => Effect<A2, E2, R2>,
-    orElse?: ((e: X) => Effect<A3, E3, R3>) | undefined
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-  <A, E, R, EB, A2, E2, R2, X, A3 = never, E3 = X, R3 = never>(
-    self: Effect<A, E, R>,
-    filter: Filter.Filter<NoInfer<E>, EB, X>,
-    f: (e: EB) => Effect<A2, E2, R2>,
-    orElse?: ((e: X) => Effect<A3, E3, R3>) | undefined
-  ): Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-} = internal.catchFilter
+	<E, EB, A2, E2, R2, X, A3 = never, E3 = X, R3 = never>(
+		filter: Filter.Filter<NoInfer<E>, EB, X>,
+		f: (e: EB) => Effect<A2, E2, R2>,
+		orElse?: ((e: X) => Effect<A3, E3, R3>) | undefined,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A | A2 | A3, E2 | E3, R | R2 | R3>;
+	<A, E, R, EB, A2, E2, R2, X, A3 = never, E3 = X, R3 = never>(
+		self: Effect<A, E, R>,
+		filter: Filter.Filter<NoInfer<E>, EB, X>,
+		f: (e: EB) => Effect<A2, E2, R2>,
+		orElse?: ((e: X) => Effect<A3, E3, R3>) | undefined,
+	): Effect<A | A2 | A3, E2 | E3, R | R2 | R3>;
+} = internal.catchFilter;
 
 /**
  * Catches `NoSuchElementError` failures and converts them to `Option.none`.
@@ -3170,8 +3392,9 @@ export const catchFilter: {
  * @since 4.0.0
  */
 export const catchNoSuchElement: <A, E, R>(
-  self: Effect<A, E, R>
-) => Effect<Option<A>, Exclude<E, Cause.NoSuchElementError>, R> = internal.catchNoSuchElement
+	self: Effect<A, E, R>,
+) => Effect<Option<A>, Exclude<E, Cause.NoSuchElementError>, R> =
+	internal.catchNoSuchElement;
 
 /**
  * Recovers from specific failures based on a predicate.
@@ -3209,16 +3432,16 @@ export const catchNoSuchElement: <A, E, R>(
  * @since 4.0.0
  */
 export const catchCauseIf: {
-  <E, B, E2, R2>(
-    predicate: Predicate.Predicate<Cause.Cause<E>>,
-    f: (cause: Cause.Cause<E>) => Effect<B, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A | B, E | E2, R | R2>
-  <A, E, R, B, E2, R2>(
-    self: Effect<A, E, R>,
-    predicate: Predicate.Predicate<Cause.Cause<E>>,
-    f: (cause: Cause.Cause<E>) => Effect<B, E2, R2>
-  ): Effect<A | B, E | E2, R | R2>
-} = internal.catchCauseIf
+	<E, B, E2, R2>(
+		predicate: Predicate.Predicate<Cause.Cause<E>>,
+		f: (cause: Cause.Cause<E>) => Effect<B, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A | B, E | E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		predicate: Predicate.Predicate<Cause.Cause<E>>,
+		f: (cause: Cause.Cause<E>) => Effect<B, E2, R2>,
+	): Effect<A | B, E | E2, R | R2>;
+} = internal.catchCauseIf;
 
 /**
  * Recovers from specific failures based on a `Filter`.
@@ -3227,16 +3450,18 @@ export const catchCauseIf: {
  * @since 4.0.0
  */
 export const catchCauseFilter: {
-  <E, B, E2, R2, EB, X extends Cause.Cause<any>>(
-    filter: Filter.Filter<Cause.Cause<E>, EB, X>,
-    f: (failure: EB, cause: Cause.Cause<E>) => Effect<B, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A | B, Cause.Cause.Error<X> | E2, R | R2>
-  <A, E, R, B, E2, R2, EB, X extends Cause.Cause<any>>(
-    self: Effect<A, E, R>,
-    filter: Filter.Filter<Cause.Cause<E>, EB, X>,
-    f: (failure: EB, cause: Cause.Cause<E>) => Effect<B, E2, R2>
-  ): Effect<A | B, Cause.Cause.Error<X> | E2, R | R2>
-} = internal.catchCauseFilter
+	<E, B, E2, R2, EB, X extends Cause.Cause<any>>(
+		filter: Filter.Filter<Cause.Cause<E>, EB, X>,
+		f: (failure: EB, cause: Cause.Cause<E>) => Effect<B, E2, R2>,
+	): <A, R>(
+		self: Effect<A, E, R>,
+	) => Effect<A | B, Cause.Cause.Error<X> | E2, R | R2>;
+	<A, E, R, B, E2, R2, EB, X extends Cause.Cause<any>>(
+		self: Effect<A, E, R>,
+		filter: Filter.Filter<Cause.Cause<E>, EB, X>,
+		f: (failure: EB, cause: Cause.Cause<E>) => Effect<B, E2, R2>,
+	): Effect<A | B, Cause.Cause.Error<X> | E2, R | R2>;
+} = internal.catchCauseFilter;
 
 /**
  * The `mapError` function is used to transform or modify the error
@@ -3275,9 +3500,9 @@ export const catchCauseFilter: {
  * @since 2.0.0
  */
 export const mapError: {
-  <E, E2>(f: (e: E) => E2): <A, R>(self: Effect<A, E, R>) => Effect<A, E2, R>
-  <A, E, R, E2>(self: Effect<A, E, R>, f: (e: E) => E2): Effect<A, E2, R>
-} = internal.mapError
+	<E, E2>(f: (e: E) => E2): <A, R>(self: Effect<A, E, R>) => Effect<A, E2, R>;
+	<A, E, R, E2>(self: Effect<A, E, R>, f: (e: E) => E2): Effect<A, E2, R>;
+} = internal.mapError;
 
 /**
  * Applies transformations to both the success and error channels of an effect.
@@ -3315,14 +3540,18 @@ export const mapError: {
  * @since 2.0.0
  */
 export const mapBoth: {
-  <E, E2, A, A2>(
-    options: { readonly onFailure: (e: E) => E2; readonly onSuccess: (a: A) => A2 }
-  ): <R>(self: Effect<A, E, R>) => Effect<A2, E2, R>
-  <A, E, R, E2, A2>(
-    self: Effect<A, E, R>,
-    options: { readonly onFailure: (e: E) => E2; readonly onSuccess: (a: A) => A2 }
-  ): Effect<A2, E2, R>
-} = internal.mapBoth
+	<E, E2, A, A2>(options: {
+		readonly onFailure: (e: E) => E2;
+		readonly onSuccess: (a: A) => A2;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2, E2, R>;
+	<A, E, R, E2, A2>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (e: E) => E2;
+			readonly onSuccess: (a: A) => A2;
+		},
+	): Effect<A2, E2, R>;
+} = internal.mapBoth;
 
 /**
  * Converts typed failures from the error channel into defects, removing the
@@ -3359,7 +3588,8 @@ export const mapBoth: {
  * @category Converting Failures to Defects
  * @since 2.0.0
  */
-export const orDie: <A, E, R>(self: Effect<A, E, R>) => Effect<A, never, R> = internal.orDie
+export const orDie: <A, E, R>(self: Effect<A, E, R>) => Effect<A, never, R> =
+	internal.orDie;
 
 /**
  * Runs an effectful operation when the source effect fails, while preserving
@@ -3394,14 +3624,14 @@ export const orDie: <A, E, R>(self: Effect<A, E, R>) => Effect<A, never, R> = in
  * @since 2.0.0
  */
 export const tapError: {
-  <E, X, E2, R2>(
-    f: (e: NoInfer<E>) => Effect<X, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R2 | R>
-  <A, E, R, X, E2, R2>(
-    self: Effect<A, E, R>,
-    f: (e: E) => Effect<X, E2, R2>
-  ): Effect<A, E | E2, R | R2>
-} = internal.tapError
+	<E, X, E2, R2>(
+		f: (e: NoInfer<E>) => Effect<X, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R2 | R>;
+	<A, E, R, X, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (e: E) => Effect<X, E2, R2>,
+	): Effect<A, E | E2, R | R2>;
+} = internal.tapError;
 
 /**
  * Runs an effectful handler when a failure's `_tag` matches.
@@ -3441,24 +3671,34 @@ export const tapError: {
  * @since 2.0.0
  */
 export const tapErrorTag: {
-  <const K extends Tags<E> | Arr.NonEmptyReadonlyArray<Tags<E>>, E, A1, E1, R1>(
-    k: K,
-    f: (e: ExtractTag<NoInfer<E>, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>) => Effect<A1, E1, R1>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E1, R1 | R>
-  <
-    A,
-    E,
-    R,
-    const K extends Tags<E> | Arr.NonEmptyReadonlyArray<Tags<E>>,
-    R1,
-    E1,
-    A1
-  >(
-    self: Effect<A, E, R>,
-    k: K,
-    f: (e: ExtractTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>) => Effect<A1, E1, R1>
-  ): Effect<A, E | E1, R | R1>
-} = internal.tapErrorTag
+	<const K extends Tags<E> | Arr.NonEmptyReadonlyArray<Tags<E>>, E, A1, E1, R1>(
+		k: K,
+		f: (
+			e: ExtractTag<
+				NoInfer<E>,
+				K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K
+			>,
+		) => Effect<A1, E1, R1>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E1, R1 | R>;
+	<
+		A,
+		E,
+		R,
+		const K extends Tags<E> | Arr.NonEmptyReadonlyArray<Tags<E>>,
+		R1,
+		E1,
+		A1,
+	>(
+		self: Effect<A, E, R>,
+		k: K,
+		f: (
+			e: ExtractTag<
+				E,
+				K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K
+			>,
+		) => Effect<A1, E1, R1>,
+	): Effect<A, E | E1, R | R1>;
+} = internal.tapErrorTag;
 
 /**
  * Runs an effectful operation with the full `Cause` when the source effect
@@ -3491,14 +3731,14 @@ export const tapErrorTag: {
  * @since 4.0.0
  */
 export const tapCause: {
-  <E, X, E2, R2>(
-    f: (cause: Cause.Cause<NoInfer<E>>) => Effect<X, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R2 | R>
-  <A, E, R, X, E2, R2>(
-    self: Effect<A, E, R>,
-    f: (cause: Cause.Cause<E>) => Effect<X, E2, R2>
-  ): Effect<A, E | E2, R | R2>
-} = internal.tapCause
+	<E, X, E2, R2>(
+		f: (cause: Cause.Cause<NoInfer<E>>) => Effect<X, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R2 | R>;
+	<A, E, R, X, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (cause: Cause.Cause<E>) => Effect<X, E2, R2>,
+	): Effect<A, E | E2, R | R2>;
+} = internal.tapCause;
 
 /**
  * Conditionally executes a side effect based on the cause of a failed effect.
@@ -3532,16 +3772,16 @@ export const tapCause: {
  * @since 4.0.0
  */
 export const tapCauseIf: {
-  <E, B, E2, R2>(
-    predicate: Predicate.Predicate<Cause.Cause<E>>,
-    f: (cause: Cause.Cause<E>) => Effect<B, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>
-  <A, E, R, B, E2, R2>(
-    self: Effect<A, E, R>,
-    predicate: Predicate.Predicate<Cause.Cause<E>>,
-    f: (cause: Cause.Cause<E>) => Effect<B, E2, R2>
-  ): Effect<A, E | E2, R | R2>
-} = internal.tapCauseIf
+	<E, B, E2, R2>(
+		predicate: Predicate.Predicate<Cause.Cause<E>>,
+		f: (cause: Cause.Cause<E>) => Effect<B, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		predicate: Predicate.Predicate<Cause.Cause<E>>,
+		f: (cause: Cause.Cause<E>) => Effect<B, E2, R2>,
+	): Effect<A, E | E2, R | R2>;
+} = internal.tapCauseIf;
 
 /**
  * Conditionally executes a side effect based on the cause of a failed effect.
@@ -3550,16 +3790,16 @@ export const tapCauseIf: {
  * @since 4.0.0
  */
 export const tapCauseFilter: {
-  <E, B, E2, R2, EB, X extends Cause.Cause<any>>(
-    filter: Filter.Filter<Cause.Cause<E>, EB, X>,
-    f: (a: EB, cause: Cause.Cause<E>) => Effect<B, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>
-  <A, E, R, B, E2, R2, EB, X extends Cause.Cause<any>>(
-    self: Effect<A, E, R>,
-    filter: Filter.Filter<Cause.Cause<E>, EB, X>,
-    f: (a: EB, cause: Cause.Cause<E>) => Effect<B, E2, R2>
-  ): Effect<A, E | E2, R | R2>
-} = internal.tapCauseFilter
+	<E, B, E2, R2, EB, X extends Cause.Cause<any>>(
+		filter: Filter.Filter<Cause.Cause<E>, EB, X>,
+		f: (a: EB, cause: Cause.Cause<E>) => Effect<B, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>;
+	<A, E, R, B, E2, R2, EB, X extends Cause.Cause<any>>(
+		self: Effect<A, E, R>,
+		filter: Filter.Filter<Cause.Cause<E>, EB, X>,
+		f: (a: EB, cause: Cause.Cause<E>) => Effect<B, E2, R2>,
+	): Effect<A, E | E2, R | R2>;
+} = internal.tapCauseFilter;
 
 /**
  * Runs an effectful operation when the source effect dies with a defect.
@@ -3609,9 +3849,14 @@ export const tapCauseFilter: {
  * @since 2.0.0
  */
 export const tapDefect: {
-  <E, B, E2, R2>(f: (defect: unknown) => Effect<B, E2, R2>): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>
-  <A, E, R, B, E2, R2>(self: Effect<A, E, R>, f: (defect: unknown) => Effect<B, E2, R2>): Effect<A, E | E2, R | R2>
-} = internal.tapDefect
+	<E, B, E2, R2>(
+		f: (defect: unknown) => Effect<B, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (defect: unknown) => Effect<B, E2, R2>,
+	): Effect<A, E | E2, R | R2>;
+} = internal.tapDefect;
 
 /**
  * Retries an effect until it succeeds, discarding failures.
@@ -3649,7 +3894,9 @@ export const tapDefect: {
  * @category Repetition / Recursion
  * @since 2.0.0
  */
-export const eventually: <A, E, R>(self: Effect<A, E, R>) => Effect<A, never, R> = internal.eventually
+export const eventually: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<A, never, R> = internal.eventually;
 
 // -----------------------------------------------------------------------------
 // Error Handling
@@ -3661,47 +3908,71 @@ export const eventually: <A, E, R>(self: Effect<A, E, R>) => Effect<A, never, R>
  * @since 2.0.0
  */
 export declare namespace Retry {
-  /**
-   * Computes the result type of `Effect.retry` from the original effect and retry options.
-   *
-   * @category error handling
-   * @since 2.0.0
-   */
-  export type Return<R, E, A, O extends Options<E>> = Effect<
-    A,
-    | (O extends { schedule: Schedule<infer _O, infer _I, infer _E1, infer _R> } ? E
-      : O extends { times: number } ? E
-      : O extends { until: Predicate.Refinement<E, infer E2> } ? E2
-      : O extends { while: Predicate.Refinement<E, infer E2> } ? Exclude<E, E2>
-      : E)
-    | (O extends { schedule: Schedule<infer _O, infer _I, infer E, infer _R> } ? E
-      : never)
-    | (O extends { while: (...args: Array<any>) => Effect<infer _A, infer E, infer _R> } ? E
-      : never)
-    | (O extends { until: (...args: Array<any>) => Effect<infer _A, infer E, infer _R> } ? E
-      : never),
-    | R
-    | (O extends { schedule: Schedule<infer _O, infer _I, infer _E1, infer R> } ? R
-      : never)
-    | (O extends { while: (...args: Array<any>) => Effect<infer _A, infer _E, infer R> } ? R
-      : never)
-    | (O extends { until: (...args: Array<any>) => Effect<infer _A, infer _E, infer R> } ? R
-      : never)
-  > extends infer Z ? Z
-    : never
+	/**
+	 * Computes the result type of `Effect.retry` from the original effect and retry options.
+	 *
+	 * @category error handling
+	 * @since 2.0.0
+	 */
+	export type Return<R, E, A, O extends Options<E>> =
+		Effect<
+			A,
+			| (O extends {
+					schedule: Schedule<infer _O, infer _I, infer _E1, infer _R>;
+			  }
+					? E
+					: O extends { times: number }
+						? E
+						: O extends { until: Predicate.Refinement<E, infer E2> }
+							? E2
+							: O extends { while: Predicate.Refinement<E, infer E2> }
+								? Exclude<E, E2>
+								: E)
+			| (O extends { schedule: Schedule<infer _O, infer _I, infer E, infer _R> }
+					? E
+					: never)
+			| (O extends {
+					while: (...args: Array<any>) => Effect<infer _A, infer E, infer _R>;
+			  }
+					? E
+					: never)
+			| (O extends {
+					until: (...args: Array<any>) => Effect<infer _A, infer E, infer _R>;
+			  }
+					? E
+					: never),
+			| R
+			| (O extends {
+					schedule: Schedule<infer _O, infer _I, infer _E1, infer R>;
+			  }
+					? R
+					: never)
+			| (O extends {
+					while: (...args: Array<any>) => Effect<infer _A, infer _E, infer R>;
+			  }
+					? R
+					: never)
+			| (O extends {
+					until: (...args: Array<any>) => Effect<infer _A, infer _E, infer R>;
+			  }
+					? R
+					: never)
+		> extends infer Z
+			? Z
+			: never;
 
-  /**
-   * Options that control whether and how a failing effect is retried.
-   *
-   * @category error handling
-   * @since 2.0.0
-   */
-  export interface Options<E> {
-    while?: ((error: E) => boolean | Effect<boolean, any, any>) | undefined
-    until?: ((error: E) => boolean | Effect<boolean, any, any>) | undefined
-    times?: number | undefined
-    schedule?: Schedule<any, E, any, any> | undefined
-  }
+	/**
+	 * Options that control whether and how a failing effect is retried.
+	 *
+	 * @category error handling
+	 * @since 2.0.0
+	 */
+	export interface Options<E> {
+		while?: ((error: E) => boolean | Effect<boolean, any, any>) | undefined;
+		until?: ((error: E) => boolean | Effect<boolean, any, any>) | undefined;
+		times?: number | undefined;
+		schedule?: Schedule<any, E, any, any> | undefined;
+	}
 }
 
 /**
@@ -3751,27 +4022,32 @@ export declare namespace Retry {
  * @since 2.0.0
  */
 export const retry: {
-  <E, O extends Retry.Options<E>>(options: O): <A, R>(self: Effect<A, E, R>) => Retry.Return<R, E, A, O>
-  <B, E, Error, Env>(
-    policy: Schedule<B, NoInfer<E>, Error, Env>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E | Error, R | Env>
-  <B, E, Error, Env>(
-    builder: (
-      $: <O, SE, R>(_: Schedule<O, NoInfer<E>, SE, R>) => Schedule<O, E, SE, R>
-    ) => Schedule<B, NoInfer<E>, Error, Env>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E | Error, R | Env>
-  <A, E, R, O extends Retry.Options<E>>(self: Effect<A, E, R>, options: O): Retry.Return<R, E, A, O>
-  <A, E, R, B, Error, Env>(
-    self: Effect<A, E, R>,
-    policy: Schedule<B, NoInfer<E>, Error, Env>
-  ): Effect<A, E | Error, R | Env>
-  <A, E, R, B, Error, Env>(
-    self: Effect<A, E, R>,
-    builder: (
-      $: <O, SE, R>(_: Schedule<O, NoInfer<E>, SE, R>) => Schedule<O, E, SE, R>
-    ) => Schedule<B, NoInfer<E>, Error, Env>
-  ): Effect<A, E | Error, R | Env>
-} = internalSchedule.retry
+	<E, O extends Retry.Options<E>>(
+		options: O,
+	): <A, R>(self: Effect<A, E, R>) => Retry.Return<R, E, A, O>;
+	<B, E, Error, Env>(
+		policy: Schedule<B, NoInfer<E>, Error, Env>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | Error, R | Env>;
+	<B, E, Error, Env>(
+		builder: (
+			$: <O, SE, R>(_: Schedule<O, NoInfer<E>, SE, R>) => Schedule<O, E, SE, R>,
+		) => Schedule<B, NoInfer<E>, Error, Env>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | Error, R | Env>;
+	<A, E, R, O extends Retry.Options<E>>(
+		self: Effect<A, E, R>,
+		options: O,
+	): Retry.Return<R, E, A, O>;
+	<A, E, R, B, Error, Env>(
+		self: Effect<A, E, R>,
+		policy: Schedule<B, NoInfer<E>, Error, Env>,
+	): Effect<A, E | Error, R | Env>;
+	<A, E, R, B, Error, Env>(
+		self: Effect<A, E, R>,
+		builder: (
+			$: <O, SE, R>(_: Schedule<O, NoInfer<E>, SE, R>) => Schedule<O, E, SE, R>,
+		) => Schedule<B, NoInfer<E>, Error, Env>,
+	): Effect<A, E | Error, R | Env>;
+} = internalSchedule.retry;
 
 /**
  * Retries a failing effect and runs a fallback effect if retries are exhausted.
@@ -3830,16 +4106,16 @@ export const retry: {
  * @since 2.0.0
  */
 export const retryOrElse: {
-  <A1, E, E1, R1, A2, E2, R2>(
-    policy: Schedule<A1, NoInfer<E>, E1, R1>,
-    orElse: (e: NoInfer<E>, out: A1) => Effect<A2, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A | A2, E1 | E2, R | R1 | R2>
-  <A, E, R, A1, E1, R1, A2, E2, R2>(
-    self: Effect<A, E, R>,
-    policy: Schedule<A1, NoInfer<E>, E1, R1>,
-    orElse: (e: NoInfer<E>, out: A1) => Effect<A2, E2, R2>
-  ): Effect<A | A2, E1 | E2, R | R1 | R2>
-} = internalSchedule.retryOrElse
+	<A1, E, E1, R1, A2, E2, R2>(
+		policy: Schedule<A1, NoInfer<E>, E1, R1>,
+		orElse: (e: NoInfer<E>, out: A1) => Effect<A2, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A | A2, E1 | E2, R | R1 | R2>;
+	<A, E, R, A1, E1, R1, A2, E2, R2>(
+		self: Effect<A, E, R>,
+		policy: Schedule<A1, NoInfer<E>, E1, R1>,
+		orElse: (e: NoInfer<E>, out: A1) => Effect<A2, E2, R2>,
+	): Effect<A | A2, E1 | E2, R | R1 | R2>;
+} = internalSchedule.retryOrElse;
 
 /**
  * Exposes an effect's full failure cause in the error channel as `Cause<E>`.
@@ -3873,8 +4149,8 @@ export const retryOrElse: {
  * @since 2.0.0
  */
 export const sandbox: <A, E, R>(
-  self: Effect<A, E, R>
-) => Effect<A, Cause.Cause<E>, R> = internal.sandbox
+	self: Effect<A, E, R>,
+) => Effect<A, Cause.Cause<E>, R> = internal.sandbox;
 
 /**
  * Discards both the success and failure values of an effect.
@@ -3917,21 +4193,28 @@ export const sandbox: <A, E, R>(
  * @since 2.0.0
  */
 export const ignore: <
-  Arg extends Effect<any, any, any> | {
-    readonly log?: boolean | Severity | undefined
-    readonly message?: string | undefined
-  } | undefined = {
-    readonly log?: boolean | Severity | undefined
-    readonly message?: string | undefined
-  }
+	Arg extends
+		| Effect<any, any, any>
+		| {
+				readonly log?: boolean | Severity | undefined;
+				readonly message?: string | undefined;
+		  }
+		| undefined = {
+		readonly log?: boolean | Severity | undefined;
+		readonly message?: string | undefined;
+	},
 >(
-  effectOrOptions?: Arg,
-  options?: {
-    readonly log?: boolean | Severity | undefined
-    readonly message?: string | undefined
-  } | undefined
-) => [Arg] extends [Effect<infer _A, infer _E, infer _R>] ? Effect<void, never, _R>
-  : <A, E, R>(self: Effect<A, E, R>) => Effect<void, never, R> = internal.ignore
+	effectOrOptions?: Arg,
+	options?:
+		| {
+				readonly log?: boolean | Severity | undefined;
+				readonly message?: string | undefined;
+		  }
+		| undefined,
+) => [Arg] extends [Effect<infer _A, infer _E, infer _R>]
+	? Effect<void, never, _R>
+	: <A, E, R>(self: Effect<A, E, R>) => Effect<void, never, R> =
+	internal.ignore;
 
 /**
  * Ignores the effect's failure cause, including defects and interruptions.
@@ -3956,21 +4239,28 @@ export const ignore: <
  * @since 4.0.0
  */
 export const ignoreCause: <
-  Arg extends Effect<any, any, any> | {
-    readonly log?: boolean | Severity | undefined
-    readonly message?: string | undefined
-  } | undefined = {
-    readonly log?: boolean | Severity | undefined
-    readonly message?: string | undefined
-  }
+	Arg extends
+		| Effect<any, any, any>
+		| {
+				readonly log?: boolean | Severity | undefined;
+				readonly message?: string | undefined;
+		  }
+		| undefined = {
+		readonly log?: boolean | Severity | undefined;
+		readonly message?: string | undefined;
+	},
 >(
-  effectOrOptions?: Arg,
-  options?: {
-    readonly log?: boolean | Severity | undefined
-    readonly message?: string | undefined
-  } | undefined
-) => [Arg] extends [Effect<infer _A, infer _E, infer _R>] ? Effect<void, never, _R>
-  : <A, E, R>(self: Effect<A, E, R>) => Effect<void, never, R> = internal.ignoreCause
+	effectOrOptions?: Arg,
+	options?:
+		| {
+				readonly log?: boolean | Severity | undefined;
+				readonly message?: string | undefined;
+		  }
+		| undefined,
+) => [Arg] extends [Effect<infer _A, infer _E, infer _R>]
+	? Effect<void, never, _R>
+	: <A, E, R>(self: Effect<A, E, R>) => Effect<void, never, R> =
+	internal.ignoreCause;
 
 /**
  * Apply an `ExecutionPlan` to an effect, retrying with step-provided resources
@@ -4009,16 +4299,26 @@ export const ignoreCause: <
  * @since 3.16.0
  */
 export const withExecutionPlan: {
-  <Input, Provides, PlanE, PlanR>(
-    plan: ExecutionPlan<{ provides: Provides; input: Input; error: PlanE; requirements: PlanR }>
-  ): <A, E extends Input, R>(
-    effect: Effect<A, E, R>
-  ) => Effect<A, E | PlanE, Exclude<R, Provides> | PlanR>
-  <A, E extends Input, R, Provides, Input, PlanE, PlanR>(
-    effect: Effect<A, E, R>,
-    plan: ExecutionPlan<{ provides: Provides; input: Input; error: PlanE; requirements: PlanR }>
-  ): Effect<A, E | PlanE, Exclude<R, Provides> | PlanR>
-} = internalExecutionPlan.withExecutionPlan
+	<Input, Provides, PlanE, PlanR>(
+		plan: ExecutionPlan<{
+			provides: Provides;
+			input: Input;
+			error: PlanE;
+			requirements: PlanR;
+		}>,
+	): <A, E extends Input, R>(
+		effect: Effect<A, E, R>,
+	) => Effect<A, E | PlanE, Exclude<R, Provides> | PlanR>;
+	<A, E extends Input, R, Provides, Input, PlanE, PlanR>(
+		effect: Effect<A, E, R>,
+		plan: ExecutionPlan<{
+			provides: Provides;
+			input: Input;
+			error: PlanE;
+			requirements: PlanR;
+		}>,
+	): Effect<A, E | PlanE, Exclude<R, Provides> | PlanR>;
+} = internalExecutionPlan.withExecutionPlan;
 
 /**
  * Runs an effect and reports any errors to the configured `ErrorReporter`s.
@@ -4032,14 +4332,19 @@ export const withExecutionPlan: {
  * @since 4.0.0
  */
 export const withErrorReporting: <
-  Arg extends Effect<any, any, any> | { readonly defectsOnly?: boolean | undefined } | undefined = {
-    readonly defectsOnly?: boolean | undefined
-  }
+	Arg extends
+		| Effect<any, any, any>
+		| { readonly defectsOnly?: boolean | undefined }
+		| undefined = {
+		readonly defectsOnly?: boolean | undefined;
+	},
 >(
-  effectOrOptions: Arg,
-  options?: { readonly defectsOnly?: boolean | undefined } | undefined
-) => [Arg] extends [Effect<infer _A, infer _E, infer _R>] ? Arg : <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R> =
-  internal.withErrorReporting
+	effectOrOptions: Arg,
+	options?: { readonly defectsOnly?: boolean | undefined } | undefined,
+) => [Arg] extends [Effect<infer _A, infer _E, infer _R>]
+	? Arg
+	: <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R> =
+	internal.withErrorReporting;
 
 // -----------------------------------------------------------------------------
 // Fallback
@@ -4082,14 +4387,14 @@ export const withErrorReporting: <
  * @since 2.0.0
  */
 export const orElseSucceed: {
-  <A2>(
-    evaluate: LazyArg<A2>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A2 | A, never, R>
-  <A, E, R, A2>(
-    self: Effect<A, E, R>,
-    evaluate: LazyArg<A2>
-  ): Effect<A | A2, never, R>
-} = internal.orElseSucceed
+	<A2>(
+		evaluate: LazyArg<A2>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A2 | A, never, R>;
+	<A, E, R, A2>(
+		self: Effect<A, E, R>,
+		evaluate: LazyArg<A2>,
+	): Effect<A | A2, never, R>;
+} = internal.orElseSucceed;
 
 /**
  * Runs a sequence of effects and returns the result of the first successful
@@ -4136,8 +4441,8 @@ export const orElseSucceed: {
  * @since 2.0.0
  */
 export const firstSuccessOf: <Eff extends Effect<any, any, any>>(
-  effects: Iterable<Eff>
-) => Effect<Success<Eff>, Error<Eff>, Services<Eff>> = internal.firstSuccessOf
+	effects: Iterable<Eff>,
+) => Effect<Success<Eff>, Error<Eff>, Services<Eff>> = internal.firstSuccessOf;
 
 // -----------------------------------------------------------------------------
 // Delays & timeouts
@@ -4190,14 +4495,14 @@ export const firstSuccessOf: <Eff extends Effect<any, any, any>>(
  * @since 2.0.0
  */
 export const timeout: {
-  (
-    duration: Duration.Input
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E | Cause.TimeoutError, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    duration: Duration.Input
-  ): Effect<A, E | Cause.TimeoutError, R>
-} = internal.timeout
+	(
+		duration: Duration.Input,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E | Cause.TimeoutError, R>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		duration: Duration.Input,
+	): Effect<A, E | Cause.TimeoutError, R>;
+} = internal.timeout;
 
 /**
  * Runs an effect with a time limit and represents only the timeout case as
@@ -4245,14 +4550,14 @@ export const timeout: {
  * @since 3.1.0
  */
 export const timeoutOption: {
-  (
-    duration: Duration.Input
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<Option<A>, E, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    duration: Duration.Input
-  ): Effect<Option<A>, E, R>
-} = internal.timeoutOption
+	(
+		duration: Duration.Input,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<Option<A>, E, R>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		duration: Duration.Input,
+	): Effect<Option<A>, E, R>;
+} = internal.timeoutOption;
 
 /**
  * Applies a timeout to an effect, with a fallback effect executed if the timeout is reached.
@@ -4294,18 +4599,18 @@ export const timeoutOption: {
  * @since 4.0.0
  */
 export const timeoutOrElse: {
-  <A2, E2, R2>(options: {
-    readonly duration: Duration.Input
-    readonly orElse: LazyArg<Effect<A2, E2, R2>>
-  }): <A, E, R>(self: Effect<A, E, R>) => Effect<A | A2, E | E2, R | R2>
-  <A, E, R, A2, E2, R2>(
-    self: Effect<A, E, R>,
-    options: {
-      readonly duration: Duration.Input
-      readonly orElse: LazyArg<Effect<A2, E2, R2>>
-    }
-  ): Effect<A | A2, E | E2, R | R2>
-} = internal.timeoutOrElse
+	<A2, E2, R2>(options: {
+		readonly duration: Duration.Input;
+		readonly orElse: LazyArg<Effect<A2, E2, R2>>;
+	}): <A, E, R>(self: Effect<A, E, R>) => Effect<A | A2, E | E2, R | R2>;
+	<A, E, R, A2, E2, R2>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly duration: Duration.Input;
+			readonly orElse: LazyArg<Effect<A2, E2, R2>>;
+		},
+	): Effect<A | A2, E | E2, R | R2>;
+} = internal.timeoutOrElse;
 
 /**
  * Returns an effect that is delayed from this effect by the specified
@@ -4329,14 +4634,11 @@ export const timeoutOrElse: {
  * @since 2.0.0
  */
 export const delay: {
-  (
-    duration: Duration.Input
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    duration: Duration.Input
-  ): Effect<A, E, R>
-} = internal.delay
+	(
+		duration: Duration.Input,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R>(self: Effect<A, E, R>, duration: Duration.Input): Effect<A, E, R>;
+} = internal.delay;
 
 /**
  * Returns an effect that suspends the current fiber for the specified duration
@@ -4361,7 +4663,7 @@ export const delay: {
  * @category Delays & Timeouts
  * @since 2.0.0
  */
-export const sleep: (duration: Duration.Input) => Effect<void> = internal.sleep
+export const sleep: (duration: Duration.Input) => Effect<void> = internal.sleep;
 
 /**
  * Measures the runtime of an effect and returns the duration with its result.
@@ -4385,8 +4687,9 @@ export const sleep: (duration: Duration.Input) => Effect<void> = internal.sleep
  * @category Delays & Timeouts
  * @since 2.0.0
  */
-export const timed: <A, E, R>(self: Effect<A, E, R>) => Effect<[duration: Duration.Duration, result: A], E, R> =
-  internal.timed
+export const timed: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<[duration: Duration.Duration, result: A], E, R> = internal.timed;
 
 // -----------------------------------------------------------------------------
 // Racing
@@ -4428,15 +4731,15 @@ export const timed: <A, E, R>(self: Effect<A, E, R>) => Effect<[duration: Durati
  * @since 2.0.0
  */
 export const raceAll: <Eff extends Effect<any, any, any>>(
-  all: Iterable<Eff>,
-  options?: {
-    readonly onWinner?: (options: {
-      readonly fiber: Fiber<any, any>
-      readonly index: number
-      readonly parentFiber: Fiber<any, any>
-    }) => void
-  }
-) => Effect<Success<Eff>, Error<Eff>, Services<Eff>> = internal.raceAll
+	all: Iterable<Eff>,
+	options?: {
+		readonly onWinner?: (options: {
+			readonly fiber: Fiber<any, any>;
+			readonly index: number;
+			readonly parentFiber: Fiber<any, any>;
+		}) => void;
+	},
+) => Effect<Success<Eff>, Error<Eff>, Services<Eff>> = internal.raceAll;
 
 /**
  * Runs multiple effects concurrently and completes with the first effect to
@@ -4468,15 +4771,15 @@ export const raceAll: <Eff extends Effect<any, any, any>>(
  * @since 4.0.0
  */
 export const raceAllFirst: <Eff extends Effect<any, any, any>>(
-  all: Iterable<Eff>,
-  options?: {
-    readonly onWinner?: (options: {
-      readonly fiber: Fiber<any, any>
-      readonly index: number
-      readonly parentFiber: Fiber<any, any>
-    }) => void
-  }
-) => Effect<Success<Eff>, Error<Eff>, Services<Eff>> = internal.raceAllFirst
+	all: Iterable<Eff>,
+	options?: {
+		readonly onWinner?: (options: {
+			readonly fiber: Fiber<any, any>;
+			readonly index: number;
+			readonly parentFiber: Fiber<any, any>;
+		}) => void;
+	},
+) => Effect<Success<Eff>, Error<Eff>, Services<Eff>> = internal.raceAllFirst;
 
 /**
  * Races two effects and returns the first successful result.
@@ -4507,24 +4810,28 @@ export const raceAllFirst: <Eff extends Effect<any, any, any>>(
  * @since 2.0.0
  */
 export const race: {
-  <A2, E2, R2>(
-    that: Effect<A2, E2, R2>,
-    options?: {
-      readonly onWinner?: (
-        options: { readonly fiber: Fiber<any, any>; readonly index: number; readonly parentFiber: Fiber<any, any> }
-      ) => void
-    }
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A | A2, E | E2, R | R2>
-  <A, E, R, A2, E2, R2>(
-    self: Effect<A, E, R>,
-    that: Effect<A2, E2, R2>,
-    options?: {
-      readonly onWinner?: (
-        options: { readonly fiber: Fiber<any, any>; readonly index: number; readonly parentFiber: Fiber<any, any> }
-      ) => void
-    }
-  ): Effect<A | A2, E | E2, R | R2>
-} = internal.race
+	<A2, E2, R2>(
+		that: Effect<A2, E2, R2>,
+		options?: {
+			readonly onWinner?: (options: {
+				readonly fiber: Fiber<any, any>;
+				readonly index: number;
+				readonly parentFiber: Fiber<any, any>;
+			}) => void;
+		},
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A | A2, E | E2, R | R2>;
+	<A, E, R, A2, E2, R2>(
+		self: Effect<A, E, R>,
+		that: Effect<A2, E2, R2>,
+		options?: {
+			readonly onWinner?: (options: {
+				readonly fiber: Fiber<any, any>;
+				readonly index: number;
+				readonly parentFiber: Fiber<any, any>;
+			}) => void;
+		},
+	): Effect<A | A2, E | E2, R | R2>;
+} = internal.race;
 
 /**
  * Races two effects and returns the result of the first one to complete, whether
@@ -4558,24 +4865,28 @@ export const race: {
  * @since 2.0.0
  */
 export const raceFirst: {
-  <A2, E2, R2>(
-    that: Effect<A2, E2, R2>,
-    options?: {
-      readonly onWinner?: (
-        options: { readonly fiber: Fiber<any, any>; readonly index: number; readonly parentFiber: Fiber<any, any> }
-      ) => void
-    }
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A | A2, E | E2, R | R2>
-  <A, E, R, A2, E2, R2>(
-    self: Effect<A, E, R>,
-    that: Effect<A2, E2, R2>,
-    options?: {
-      readonly onWinner?: (
-        options: { readonly fiber: Fiber<any, any>; readonly index: number; readonly parentFiber: Fiber<any, any> }
-      ) => void
-    }
-  ): Effect<A | A2, E | E2, R | R2>
-} = internal.raceFirst
+	<A2, E2, R2>(
+		that: Effect<A2, E2, R2>,
+		options?: {
+			readonly onWinner?: (options: {
+				readonly fiber: Fiber<any, any>;
+				readonly index: number;
+				readonly parentFiber: Fiber<any, any>;
+			}) => void;
+		},
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A | A2, E | E2, R | R2>;
+	<A, E, R, A2, E2, R2>(
+		self: Effect<A, E, R>,
+		that: Effect<A2, E2, R2>,
+		options?: {
+			readonly onWinner?: (options: {
+				readonly fiber: Fiber<any, any>;
+				readonly index: number;
+				readonly parentFiber: Fiber<any, any>;
+			}) => void;
+		},
+	): Effect<A | A2, E | E2, R | R2>;
+} = internal.raceFirst;
 
 // -----------------------------------------------------------------------------
 // Filtering
@@ -4603,30 +4914,30 @@ export const raceFirst: {
  * @since 2.0.0
  */
 export const filter: {
-  <A, B extends A>(
-    refinement: Predicate.Refinement<NoInfer<A>, B>
-  ): (elements: Iterable<A>) => Effect<Array<B>>
-  <A>(
-    predicate: Predicate.Predicate<NoInfer<A>>
-  ): (elements: Iterable<A>) => Effect<Array<A>>
-  <A, E, R>(
-    predicate: (a: NoInfer<A>, i: number) => Effect<boolean, E, R>,
-    options?: { readonly concurrency?: Concurrency | undefined }
-  ): (iterable: Iterable<A>) => Effect<Array<A>, E, R>
-  <A, B extends A>(
-    elements: Iterable<A>,
-    refinement: Predicate.Refinement<A, B>
-  ): Effect<Array<B>>
-  <A>(
-    elements: Iterable<A>,
-    predicate: Predicate.Predicate<A>
-  ): Effect<Array<A>>
-  <A, E, R>(
-    iterable: Iterable<A>,
-    predicate: (a: NoInfer<A>, i: number) => Effect<boolean, E, R>,
-    options?: { readonly concurrency?: Concurrency | undefined }
-  ): Effect<Array<A>, E, R>
-} = internal.filter
+	<A, B extends A>(
+		refinement: Predicate.Refinement<NoInfer<A>, B>,
+	): (elements: Iterable<A>) => Effect<Array<B>>;
+	<A>(
+		predicate: Predicate.Predicate<NoInfer<A>>,
+	): (elements: Iterable<A>) => Effect<Array<A>>;
+	<A, E, R>(
+		predicate: (a: NoInfer<A>, i: number) => Effect<boolean, E, R>,
+		options?: { readonly concurrency?: Concurrency | undefined },
+	): (iterable: Iterable<A>) => Effect<Array<A>, E, R>;
+	<A, B extends A>(
+		elements: Iterable<A>,
+		refinement: Predicate.Refinement<A, B>,
+	): Effect<Array<B>>;
+	<A>(
+		elements: Iterable<A>,
+		predicate: Predicate.Predicate<A>,
+	): Effect<Array<A>>;
+	<A, E, R>(
+		iterable: Iterable<A>,
+		predicate: (a: NoInfer<A>, i: number) => Effect<boolean, E, R>,
+		options?: { readonly concurrency?: Concurrency | undefined },
+	): Effect<Array<A>, E, R>;
+} = internal.filter;
 
 /**
  * Filters and maps elements of an iterable with a `Filter`.
@@ -4635,14 +4946,14 @@ export const filter: {
  * @since 2.0.0
  */
 export const filterMap: {
-  <A, B, X>(
-    filter: Filter.Filter<NoInfer<A>, B, X>
-  ): (elements: Iterable<A>) => Effect<Array<B>>
-  <A, B, X>(
-    elements: Iterable<A>,
-    filter: Filter.Filter<NoInfer<A>, B, X>
-  ): Effect<Array<B>>
-} = internal.filterMap
+	<A, B, X>(
+		filter: Filter.Filter<NoInfer<A>, B, X>,
+	): (elements: Iterable<A>) => Effect<Array<B>>;
+	<A, B, X>(
+		elements: Iterable<A>,
+		filter: Filter.Filter<NoInfer<A>, B, X>,
+	): Effect<Array<B>>;
+} = internal.filterMap;
 
 /**
  * Effectfully filters and maps elements of an iterable with a `FilterEffect`.
@@ -4651,16 +4962,16 @@ export const filterMap: {
  * @since 4.0.0
  */
 export const filterMapEffect: {
-  <A, B, X, E, R>(
-    filter: Filter.FilterEffect<NoInfer<A>, B, X, E, R>,
-    options?: { readonly concurrency?: Concurrency | undefined }
-  ): (elements: Iterable<A>) => Effect<Array<B>, E, R>
-  <A, B, X, E, R>(
-    elements: Iterable<A>,
-    filter: Filter.FilterEffect<NoInfer<A>, B, X, E, R>,
-    options?: { readonly concurrency?: Concurrency | undefined }
-  ): Effect<Array<B>, E, R>
-} = internal.filterMapEffect
+	<A, B, X, E, R>(
+		filter: Filter.FilterEffect<NoInfer<A>, B, X, E, R>,
+		options?: { readonly concurrency?: Concurrency | undefined },
+	): (elements: Iterable<A>) => Effect<Array<B>, E, R>;
+	<A, B, X, E, R>(
+		elements: Iterable<A>,
+		filter: Filter.FilterEffect<NoInfer<A>, B, X, E, R>,
+		options?: { readonly concurrency?: Concurrency | undefined },
+	): Effect<Array<B>, E, R>;
+} = internal.filterMapEffect;
 
 /**
  * Filters an effect, providing an alternative effect if the predicate fails.
@@ -4694,25 +5005,27 @@ export const filterMapEffect: {
  * @since 2.0.0
  */
 export const filterOrElse: {
-  <A, C, E2, R2, B extends A>(
-    refinement: Predicate.Refinement<NoInfer<A>, B>,
-    orElse: (a: EqualsWith<A, B, NoInfer<A>, Exclude<NoInfer<A>, B>>) => Effect<C, E2, R2>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B | C, E2 | E, R2 | R>
-  <A, C, E2, R2>(
-    predicate: Predicate.Predicate<NoInfer<A>>,
-    orElse: (a: NoInfer<A>) => Effect<C, E2, R2>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<A | C, E2 | E, R2 | R>
-  <A, E, R, C, E2, R2, B extends A>(
-    self: Effect<A, E, R>,
-    refinement: Predicate.Refinement<A, B>,
-    orElse: (a: EqualsWith<A, B, A, Exclude<A, B>>) => Effect<C, E2, R2>
-  ): Effect<B | C, E | E2, R | R2>
-  <A, E, R, C, E2, R2>(
-    self: Effect<A, E, R>,
-    predicate: Predicate.Predicate<NoInfer<A>>,
-    orElse: (a: NoInfer<A>) => Effect<C, E2, R2>
-  ): Effect<A | C, E | E2, R | R2>
-} = internal.filterOrElse
+	<A, C, E2, R2, B extends A>(
+		refinement: Predicate.Refinement<NoInfer<A>, B>,
+		orElse: (
+			a: EqualsWith<A, B, NoInfer<A>, Exclude<NoInfer<A>, B>>,
+		) => Effect<C, E2, R2>,
+	): <E, R>(self: Effect<A, E, R>) => Effect<B | C, E2 | E, R2 | R>;
+	<A, C, E2, R2>(
+		predicate: Predicate.Predicate<NoInfer<A>>,
+		orElse: (a: NoInfer<A>) => Effect<C, E2, R2>,
+	): <E, R>(self: Effect<A, E, R>) => Effect<A | C, E2 | E, R2 | R>;
+	<A, E, R, C, E2, R2, B extends A>(
+		self: Effect<A, E, R>,
+		refinement: Predicate.Refinement<A, B>,
+		orElse: (a: EqualsWith<A, B, A, Exclude<A, B>>) => Effect<C, E2, R2>,
+	): Effect<B | C, E | E2, R | R2>;
+	<A, E, R, C, E2, R2>(
+		self: Effect<A, E, R>,
+		predicate: Predicate.Predicate<NoInfer<A>>,
+		orElse: (a: NoInfer<A>) => Effect<C, E2, R2>,
+	): Effect<A | C, E | E2, R | R2>;
+} = internal.filterOrElse;
 
 /**
  * Filters an effect with a `Filter`, providing an alternative effect on failure.
@@ -4721,16 +5034,16 @@ export const filterOrElse: {
  * @since 4.0.0
  */
 export const filterMapOrElse: {
-  <A, B, X, C, E2, R2>(
-    filter: Filter.Filter<NoInfer<A>, B, X>,
-    orElse: (x: X) => Effect<C, E2, R2>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B | C, E2 | E, R2 | R>
-  <A, E, R, B, X, C, E2, R2>(
-    self: Effect<A, E, R>,
-    filter: Filter.Filter<NoInfer<A>, B, X>,
-    orElse: (x: X) => Effect<C, E2, R2>
-  ): Effect<B | C, E | E2, R | R2>
-} = internal.filterMapOrElse
+	<A, B, X, C, E2, R2>(
+		filter: Filter.Filter<NoInfer<A>, B, X>,
+		orElse: (x: X) => Effect<C, E2, R2>,
+	): <E, R>(self: Effect<A, E, R>) => Effect<B | C, E2 | E, R2 | R>;
+	<A, E, R, B, X, C, E2, R2>(
+		self: Effect<A, E, R>,
+		filter: Filter.Filter<NoInfer<A>, B, X>,
+		orElse: (x: X) => Effect<C, E2, R2>,
+	): Effect<B | C, E | E2, R | R2>;
+} = internal.filterMapOrElse;
 
 /**
  * Filters an effect, failing with a custom error if the predicate fails.
@@ -4763,39 +5076,43 @@ export const filterMapOrElse: {
  * @since 2.0.0
  */
 export const filterOrFail: {
-  <A, E2, B extends A>(
-    refinement: Predicate.Refinement<NoInfer<A>, B>,
-    orFailWith: (a: NoInfer<A>) => E2
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B, E2 | E, R>
-  <A, E2>(
-    predicate: Predicate.Predicate<NoInfer<A>>,
-    orFailWith: (a: NoInfer<A>) => E2
-  ): <E, R>(self: Effect<A, E, R>) => Effect<A, E2 | E, R>
-  <A, B extends A>(
-    refinement: Predicate.Refinement<NoInfer<A>, B>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B, Cause.NoSuchElementError | E, R>
-  <A>(
-    predicate: Predicate.Predicate<NoInfer<A>>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<A, Cause.NoSuchElementError | E, R>
-  <A, E, R, E2, B extends A>(
-    self: Effect<A, E, R>,
-    refinement: Predicate.Refinement<NoInfer<A>, B>,
-    orFailWith: (a: NoInfer<A>) => E2
-  ): Effect<B, E2 | E, R>
-  <A, E, R, E2>(
-    self: Effect<A, E, R>,
-    predicate: Predicate.Predicate<NoInfer<A>>,
-    orFailWith: (a: NoInfer<A>) => E2
-  ): Effect<A, E2 | E, R>
-  <A, E, R, B extends A>(
-    self: Effect<A, E, R>,
-    refinement: Predicate.Refinement<NoInfer<A>, B>
-  ): Effect<B, E | Cause.NoSuchElementError, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    predicate: Predicate.Predicate<NoInfer<A>>
-  ): Effect<A, E | Cause.NoSuchElementError, R>
-} = internal.filterOrFail
+	<A, E2, B extends A>(
+		refinement: Predicate.Refinement<NoInfer<A>, B>,
+		orFailWith: (a: NoInfer<A>) => E2,
+	): <E, R>(self: Effect<A, E, R>) => Effect<B, E2 | E, R>;
+	<A, E2>(
+		predicate: Predicate.Predicate<NoInfer<A>>,
+		orFailWith: (a: NoInfer<A>) => E2,
+	): <E, R>(self: Effect<A, E, R>) => Effect<A, E2 | E, R>;
+	<A, B extends A>(
+		refinement: Predicate.Refinement<NoInfer<A>, B>,
+	): <E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<B, Cause.NoSuchElementError | E, R>;
+	<A>(
+		predicate: Predicate.Predicate<NoInfer<A>>,
+	): <E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<A, Cause.NoSuchElementError | E, R>;
+	<A, E, R, E2, B extends A>(
+		self: Effect<A, E, R>,
+		refinement: Predicate.Refinement<NoInfer<A>, B>,
+		orFailWith: (a: NoInfer<A>) => E2,
+	): Effect<B, E2 | E, R>;
+	<A, E, R, E2>(
+		self: Effect<A, E, R>,
+		predicate: Predicate.Predicate<NoInfer<A>>,
+		orFailWith: (a: NoInfer<A>) => E2,
+	): Effect<A, E2 | E, R>;
+	<A, E, R, B extends A>(
+		self: Effect<A, E, R>,
+		refinement: Predicate.Refinement<NoInfer<A>, B>,
+	): Effect<B, E | Cause.NoSuchElementError, R>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		predicate: Predicate.Predicate<NoInfer<A>>,
+	): Effect<A, E | Cause.NoSuchElementError, R>;
+} = internal.filterOrFail;
 
 /**
  * Filters an effect with a `Filter`, failing when the filter fails.
@@ -4804,23 +5121,25 @@ export const filterOrFail: {
  * @since 4.0.0
  */
 export const filterMapOrFail: {
-  <A, B, X, E2>(
-    filter: Filter.Filter<NoInfer<A>, B, X>,
-    orFailWith: (x: X) => E2
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B, E2 | E, R>
-  <A, B, X>(
-    filter: Filter.Filter<NoInfer<A>, B, X>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<B, Cause.NoSuchElementError | E, R>
-  <A, E, R, B, X, E2>(
-    self: Effect<A, E, R>,
-    filter: Filter.Filter<A, B, X>,
-    orFailWith: (x: X) => E2
-  ): Effect<B, E2 | E, R>
-  <A, E, R, B, X>(
-    self: Effect<A, E, R>,
-    filter: Filter.Filter<A, B, X>
-  ): Effect<B, Cause.NoSuchElementError | E, R>
-} = internal.filterMapOrFail
+	<A, B, X, E2>(
+		filter: Filter.Filter<NoInfer<A>, B, X>,
+		orFailWith: (x: X) => E2,
+	): <E, R>(self: Effect<A, E, R>) => Effect<B, E2 | E, R>;
+	<A, B, X>(
+		filter: Filter.Filter<NoInfer<A>, B, X>,
+	): <E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<B, Cause.NoSuchElementError | E, R>;
+	<A, E, R, B, X, E2>(
+		self: Effect<A, E, R>,
+		filter: Filter.Filter<A, B, X>,
+		orFailWith: (x: X) => E2,
+	): Effect<B, E2 | E, R>;
+	<A, E, R, B, X>(
+		self: Effect<A, E, R>,
+		filter: Filter.Filter<A, B, X>,
+	): Effect<B, Cause.NoSuchElementError | E, R>;
+} = internal.filterMapOrFail;
 
 // -----------------------------------------------------------------------------
 // Conditional Operators
@@ -4864,14 +5183,14 @@ export const filterMapOrFail: {
  * @since 2.0.0
  */
 export const when: {
-  <E2 = never, R2 = never>(
-    condition: Effect<boolean, E2, R2>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<Option<A>, E | E2, R | R2>
-  <A, E, R, E2 = never, R2 = never>(
-    self: Effect<A, E, R>,
-    condition: Effect<boolean, E2, R2>
-  ): Effect<Option<A>, E | E2, R | R2>
-} = internal.when
+	<E2 = never, R2 = never>(
+		condition: Effect<boolean, E2, R2>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<Option<A>, E | E2, R | R2>;
+	<A, E, R, E2 = never, R2 = never>(
+		self: Effect<A, E, R>,
+		condition: Effect<boolean, E2, R2>,
+	): Effect<Option<A>, E | E2, R | R2>;
+} = internal.when;
 
 // -----------------------------------------------------------------------------
 // Pattern matching
@@ -4930,18 +5249,18 @@ export const when: {
  * @since 2.0.0
  */
 export const match: {
-  <E, A2, A, A3>(options: {
-    readonly onFailure: (error: E) => A2
-    readonly onSuccess: (value: A) => A3
-  }): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, never, R>
-  <A, E, R, A2, A3>(
-    self: Effect<A, E, R>,
-    options: {
-      readonly onFailure: (error: E) => A2
-      readonly onSuccess: (value: A) => A3
-    }
-  ): Effect<A2 | A3, never, R>
-} = internal.match
+	<E, A2, A, A3>(options: {
+		readonly onFailure: (error: E) => A2;
+		readonly onSuccess: (value: A) => A3;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, never, R>;
+	<A, E, R, A2, A3>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (error: E) => A2;
+			readonly onSuccess: (value: A) => A3;
+		},
+	): Effect<A2 | A3, never, R>;
+} = internal.match;
 
 /**
  * Handles both success and failure cases of an effect without performing side
@@ -4980,18 +5299,18 @@ export const match: {
  * @since 4.0.0
  */
 export const matchEager: {
-  <E, A2, A, A3>(options: {
-    readonly onFailure: (error: E) => A2
-    readonly onSuccess: (value: A) => A3
-  }): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, never, R>
-  <A, E, R, A2, A3>(
-    self: Effect<A, E, R>,
-    options: {
-      readonly onFailure: (error: E) => A2
-      readonly onSuccess: (value: A) => A3
-    }
-  ): Effect<A2 | A3, never, R>
-} = internal.matchEager
+	<E, A2, A, A3>(options: {
+		readonly onFailure: (error: E) => A2;
+		readonly onSuccess: (value: A) => A3;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, never, R>;
+	<A, E, R, A2, A3>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (error: E) => A2;
+			readonly onSuccess: (value: A) => A3;
+		},
+	): Effect<A2 | A3, never, R>;
+} = internal.matchEager;
 
 /**
  * Handles failures by matching the cause of failure.
@@ -5030,18 +5349,18 @@ export const matchEager: {
  * @since 2.0.0
  */
 export const matchCause: {
-  <E, A2, A, A3>(options: {
-    readonly onFailure: (cause: Cause.Cause<E>) => A2
-    readonly onSuccess: (a: A) => A3
-  }): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, never, R>
-  <A, E, R, A2, A3>(
-    self: Effect<A, E, R>,
-    options: {
-      readonly onFailure: (cause: Cause.Cause<E>) => A2
-      readonly onSuccess: (a: A) => A3
-    }
-  ): Effect<A2 | A3, never, R>
-} = internal.matchCause
+	<E, A2, A, A3>(options: {
+		readonly onFailure: (cause: Cause.Cause<E>) => A2;
+		readonly onSuccess: (a: A) => A3;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, never, R>;
+	<A, E, R, A2, A3>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (cause: Cause.Cause<E>) => A2;
+			readonly onSuccess: (a: A) => A3;
+		},
+	): Effect<A2 | A3, never, R>;
+} = internal.matchCause;
 
 /**
  * Handles failures by matching the cause of failure with eager evaluation.
@@ -5073,18 +5392,18 @@ export const matchCause: {
  * @since 4.0.0
  */
 export const matchCauseEager: {
-  <E, A2, A, A3>(options: {
-    readonly onFailure: (cause: Cause.Cause<E>) => A2
-    readonly onSuccess: (value: A) => A3
-  }): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, never, R>
-  <A, E, R, A2, A3>(
-    self: Effect<A, E, R>,
-    options: {
-      readonly onFailure: (cause: Cause.Cause<E>) => A2
-      readonly onSuccess: (value: A) => A3
-    }
-  ): Effect<A2 | A3, never, R>
-} = internal.matchCauseEager
+	<E, A2, A, A3>(options: {
+		readonly onFailure: (cause: Cause.Cause<E>) => A2;
+		readonly onSuccess: (value: A) => A3;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, never, R>;
+	<A, E, R, A2, A3>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (cause: Cause.Cause<E>) => A2;
+			readonly onSuccess: (value: A) => A3;
+		},
+	): Effect<A2 | A3, never, R>;
+} = internal.matchCauseEager;
 
 /**
  * Eagerly handles success or failure with effectful handlers when the effect is already resolved.
@@ -5098,20 +5417,18 @@ export const matchCauseEager: {
  * @since 4.0.0
  */
 export const matchCauseEffectEager: {
-  <E, A2, E2, R2, A, A3, E3, R3>(
-    options: {
-      readonly onFailure: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>
-      readonly onSuccess: (a: A) => Effect<A3, E3, R3>
-    }
-  ): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, E2 | E3, R2 | R3 | R>
-  <A, E, R, A2, E2, R2, A3, E3, R3>(
-    self: Effect<A, E, R>,
-    options: {
-      readonly onFailure: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>
-      readonly onSuccess: (a: A) => Effect<A3, E3, R3>
-    }
-  ): Effect<A2 | A3, E2 | E3, R2 | R3 | R>
-} = internal.matchCauseEffectEager
+	<E, A2, E2, R2, A, A3, E3, R3>(options: {
+		readonly onFailure: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>;
+		readonly onSuccess: (a: A) => Effect<A3, E3, R3>;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, E2 | E3, R2 | R3 | R>;
+	<A, E, R, A2, E2, R2, A3, E3, R3>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>;
+			readonly onSuccess: (a: A) => Effect<A3, E3, R3>;
+		},
+	): Effect<A2 | A3, E2 | E3, R2 | R3 | R>;
+} = internal.matchCauseEffectEager;
 
 /**
  * Handles failures with access to the cause and allows performing side effects.
@@ -5168,18 +5485,18 @@ export const matchCauseEffectEager: {
  * @since 2.0.0
  */
 export const matchCauseEffect: {
-  <E, A2, E2, R2, A, A3, E3, R3>(options: {
-    readonly onFailure: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>
-    readonly onSuccess: (a: A) => Effect<A3, E3, R3>
-  }): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, E2 | E3, R2 | R3 | R>
-  <A, E, R, A2, E2, R2, A3, E3, R3>(
-    self: Effect<A, E, R>,
-    options: {
-      readonly onFailure: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>
-      readonly onSuccess: (a: A) => Effect<A3, E3, R3>
-    }
-  ): Effect<A2 | A3, E2 | E3, R2 | R3 | R>
-} = internal.matchCauseEffect
+	<E, A2, E2, R2, A, A3, E3, R3>(options: {
+		readonly onFailure: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>;
+		readonly onSuccess: (a: A) => Effect<A3, E3, R3>;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, E2 | E3, R2 | R3 | R>;
+	<A, E, R, A2, E2, R2, A3, E3, R3>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (cause: Cause.Cause<E>) => Effect<A2, E2, R2>;
+			readonly onSuccess: (a: A) => Effect<A3, E3, R3>;
+		},
+	): Effect<A2 | A3, E2 | E3, R2 | R3 | R>;
+} = internal.matchCauseEffect;
 
 /**
  * Handles both success and failure by running effectful handlers.
@@ -5241,18 +5558,18 @@ export const matchCauseEffect: {
  * @since 2.0.0
  */
 export const matchEffect: {
-  <E, A2, E2, R2, A, A3, E3, R3>(options: {
-    readonly onFailure: (e: E) => Effect<A2, E2, R2>
-    readonly onSuccess: (a: A) => Effect<A3, E3, R3>
-  }): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, E2 | E3, R2 | R3 | R>
-  <A, E, R, A2, E2, R2, A3, E3, R3>(
-    self: Effect<A, E, R>,
-    options: {
-      readonly onFailure: (e: E) => Effect<A2, E2, R2>
-      readonly onSuccess: (a: A) => Effect<A3, E3, R3>
-    }
-  ): Effect<A2 | A3, E2 | E3, R2 | R3 | R>
-} = internal.matchEffect
+	<E, A2, E2, R2, A, A3, E3, R3>(options: {
+		readonly onFailure: (e: E) => Effect<A2, E2, R2>;
+		readonly onSuccess: (a: A) => Effect<A3, E3, R3>;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2 | A3, E2 | E3, R2 | R3 | R>;
+	<A, E, R, A2, E2, R2, A3, E3, R3>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (e: E) => Effect<A2, E2, R2>;
+			readonly onSuccess: (a: A) => Effect<A3, E3, R3>;
+		},
+	): Effect<A2 | A3, E2 | E3, R2 | R3 | R>;
+} = internal.matchEffect;
 
 // -----------------------------------------------------------------------------
 // Condition checking
@@ -5282,7 +5599,9 @@ export const matchEffect: {
  * @category Condition Checking
  * @since 2.0.0
  */
-export const isFailure: <A, E, R>(self: Effect<A, E, R>) => Effect<boolean, never, R> = internal.isFailure
+export const isFailure: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<boolean, never, R> = internal.isFailure;
 
 /**
  * Returns whether an effect completes successfully.
@@ -5313,7 +5632,9 @@ export const isFailure: <A, E, R>(self: Effect<A, E, R>) => Effect<boolean, neve
  * @category Condition Checking
  * @since 2.0.0
  */
-export const isSuccess: <A, E, R>(self: Effect<A, E, R>) => Effect<boolean, never, R> = internal.isSuccess
+export const isSuccess: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<boolean, never, R> = internal.isSuccess;
 
 // -----------------------------------------------------------------------------
 // Environment
@@ -5360,7 +5681,8 @@ export const isSuccess: <A, E, R>(self: Effect<A, E, R>) => Effect<boolean, neve
  * @category Environment
  * @since 2.0.0
  */
-export const context: <R = never>() => Effect<Context.Context<R>, never, R> = internal.context
+export const context: <R = never>() => Effect<Context.Context<R>, never, R> =
+	internal.context;
 
 /**
  * Transforms the current context using the provided function.
@@ -5410,8 +5732,8 @@ export const context: <R = never>() => Effect<Context.Context<R>, never, R> = in
  * @since 2.0.0
  */
 export const contextWith: <R, A, E, R2>(
-  f: (context: Context.Context<R>) => Effect<A, E, R2>
-) => Effect<A, E, R | R2> = internal.contextWith
+	f: (context: Context.Context<R>) => Effect<A, E, R2>,
+) => Effect<A, E, R | R2> = internal.contextWith;
 
 /**
  * Provides dependencies to an effect using layers or a context. Use `options.local`
@@ -5448,52 +5770,60 @@ export const contextWith: <R, A, E, R2>(
  * @since 2.0.0
  */
 export const provide: {
-  <const Layers extends [Layer.Any, ...Array<Layer.Any>]>(
-    layers: Layers,
-    options?: {
-      readonly local?: boolean | undefined
-    } | undefined
-  ): <A, E, R>(
-    self: Effect<A, E, R>
-  ) => Effect<
-    A,
-    E | Layer.Error<Layers[number]>,
-    Layer.Services<Layers[number]> | Exclude<R, Layer.Success<Layers[number]>>
-  >
-  <ROut, E2, RIn>(
-    layer: Layer.Layer<ROut, E2, RIn>,
-    options?: {
-      readonly local?: boolean | undefined
-    } | undefined
-  ): <A, E, R>(
-    self: Effect<A, E, R>
-  ) => Effect<A, E | E2, RIn | Exclude<R, ROut>>
-  <R2>(
-    context: Context.Context<R2>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, R2>>
-  <A, E, R, const Layers extends [Layer.Any, ...Array<Layer.Any>]>(
-    self: Effect<A, E, R>,
-    layers: Layers,
-    options?: {
-      readonly local?: boolean | undefined
-    } | undefined
-  ): Effect<
-    A,
-    E | Layer.Error<Layers[number]>,
-    Layer.Services<Layers[number]> | Exclude<R, Layer.Success<Layers[number]>>
-  >
-  <A, E, R, ROut, E2, RIn>(
-    self: Effect<A, E, R>,
-    layer: Layer.Layer<ROut, E2, RIn>,
-    options?: {
-      readonly local?: boolean | undefined
-    } | undefined
-  ): Effect<A, E | E2, RIn | Exclude<R, ROut>>
-  <A, E, R, R2>(
-    self: Effect<A, E, R>,
-    context: Context.Context<R2>
-  ): Effect<A, E, Exclude<R, R2>>
-} = internalLayer.provide
+	<const Layers extends [Layer.Any, ...Array<Layer.Any>]>(
+		layers: Layers,
+		options?:
+			| {
+					readonly local?: boolean | undefined;
+			  }
+			| undefined,
+	): <A, E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<
+		A,
+		E | Layer.Error<Layers[number]>,
+		Layer.Services<Layers[number]> | Exclude<R, Layer.Success<Layers[number]>>
+	>;
+	<ROut, E2, RIn>(
+		layer: Layer.Layer<ROut, E2, RIn>,
+		options?:
+			| {
+					readonly local?: boolean | undefined;
+			  }
+			| undefined,
+	): <A, E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<A, E | E2, RIn | Exclude<R, ROut>>;
+	<R2>(
+		context: Context.Context<R2>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, R2>>;
+	<A, E, R, const Layers extends [Layer.Any, ...Array<Layer.Any>]>(
+		self: Effect<A, E, R>,
+		layers: Layers,
+		options?:
+			| {
+					readonly local?: boolean | undefined;
+			  }
+			| undefined,
+	): Effect<
+		A,
+		E | Layer.Error<Layers[number]>,
+		Layer.Services<Layers[number]> | Exclude<R, Layer.Success<Layers[number]>>
+	>;
+	<A, E, R, ROut, E2, RIn>(
+		self: Effect<A, E, R>,
+		layer: Layer.Layer<ROut, E2, RIn>,
+		options?:
+			| {
+					readonly local?: boolean | undefined;
+			  }
+			| undefined,
+	): Effect<A, E | E2, RIn | Exclude<R, ROut>>;
+	<A, E, R, R2>(
+		self: Effect<A, E, R>,
+		context: Context.Context<R2>,
+	): Effect<A, E, Exclude<R, R2>>;
+} = internalLayer.provide;
 
 /**
  * Provides a context to an effect, fulfilling its service requirements.
@@ -5536,14 +5866,14 @@ export const provide: {
  * @since 4.0.0
  */
 export const provideContext: {
-  <XR>(
-    context: Context.Context<XR>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, XR>>
-  <A, E, R, XR>(
-    self: Effect<A, E, R>,
-    context: Context.Context<XR>
-  ): Effect<A, E, Exclude<R, XR>>
-} = internal.provideContext
+	<XR>(
+		context: Context.Context<XR>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, XR>>;
+	<A, E, R, XR>(
+		self: Effect<A, E, R>,
+		context: Context.Context<XR>,
+	): Effect<A, E, Exclude<R, XR>>;
+} = internal.provideContext;
 
 /**
  * Accesses a service from the context.
@@ -5568,7 +5898,9 @@ export const provideContext: {
  * @category Context
  * @since 4.0.0
  */
-export const service: <I, S>(service: Context.Key<I, S>) => Effect<S, never, I> = internal.service
+export const service: <I, S>(
+	service: Context.Key<I, S>,
+) => Effect<S, never, I> = internal.service;
 
 /**
  * Optionally accesses a service from the environment.
@@ -5605,7 +5937,9 @@ export const service: <I, S>(service: Context.Key<I, S>) => Effect<S, never, I> 
  * @category Context
  * @since 2.0.0
  */
-export const serviceOption: <I, S>(key: Context.Key<I, S>) => Effect<Option<S>> = internal.serviceOption
+export const serviceOption: <I, S>(
+	key: Context.Key<I, S>,
+) => Effect<Option<S>> = internal.serviceOption;
 
 /**
  * Provides part of the required context while leaving the rest unchanged.
@@ -5649,14 +5983,14 @@ export const serviceOption: <I, S>(key: Context.Key<I, S>) => Effect<Option<S>> 
  * @since 4.0.0
  */
 export const updateContext: {
-  <R2, R>(
-    f: (context: Context.Context<R2>) => Context.Context<NoInfer<R>>
-  ): <A, E>(self: Effect<A, E, R>) => Effect<A, E, R2>
-  <A, E, R, R2>(
-    self: Effect<A, E, R>,
-    f: (context: Context.Context<R2>) => Context.Context<NoInfer<R>>
-  ): Effect<A, E, R2>
-} = internal.updateContext
+	<R2, R>(
+		f: (context: Context.Context<R2>) => Context.Context<NoInfer<R>>,
+	): <A, E>(self: Effect<A, E, R>) => Effect<A, E, R2>;
+	<A, E, R, R2>(
+		self: Effect<A, E, R>,
+		f: (context: Context.Context<R2>) => Context.Context<NoInfer<R>>,
+	): Effect<A, E, R2>;
+} = internal.updateContext;
 
 /**
  * Runs an effect with a service implementation transformed by the provided
@@ -5694,16 +6028,16 @@ export const updateContext: {
  * @since 2.0.0
  */
 export const updateService: {
-  <I, A>(
-    service: Context.Key<I, A>,
-    f: (value: A) => A
-  ): <XA, E, R>(self: Effect<XA, E, R>) => Effect<XA, E, R | I>
-  <XA, E, R, I, A>(
-    self: Effect<XA, E, R>,
-    service: Context.Key<I, A>,
-    f: (value: A) => A
-  ): Effect<XA, E, R | I>
-} = internal.updateService
+	<I, A>(
+		service: Context.Key<I, A>,
+		f: (value: A) => A,
+	): <XA, E, R>(self: Effect<XA, E, R>) => Effect<XA, E, R | I>;
+	<XA, E, R, I, A>(
+		self: Effect<XA, E, R>,
+		service: Context.Key<I, A>,
+		f: (value: A) => A,
+	): Effect<XA, E, R | I>;
+} = internal.updateService;
 
 /**
  * The `provideService` function is used to provide an actual
@@ -5753,22 +6087,27 @@ export const updateService: {
  * @since 2.0.0
  */
 export const provideService: {
-  <I, S>(
-    service: Context.Key<I, S>
-  ): {
-    (implementation: S): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, I>>
-    <A, E, R>(self: Effect<A, E, R>, implementation: S): Effect<A, E, Exclude<R, I>>
-  }
-  <I, S>(
-    service: Context.Key<I, S>,
-    implementation: S
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, I>>
-  <A, E, R, I, S>(
-    self: Effect<A, E, R>,
-    service: Context.Key<I, S>,
-    implementation: S
-  ): Effect<A, E, Exclude<R, I>>
-} = internal.provideService
+	<I, S>(
+		service: Context.Key<I, S>,
+	): {
+		(
+			implementation: S,
+		): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, I>>;
+		<A, E, R>(
+			self: Effect<A, E, R>,
+			implementation: S,
+		): Effect<A, E, Exclude<R, I>>;
+	};
+	<I, S>(
+		service: Context.Key<I, S>,
+		implementation: S,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, I>>;
+	<A, E, R, I, S>(
+		self: Effect<A, E, R>,
+		service: Context.Key<I, S>,
+		implementation: S,
+	): Effect<A, E, Exclude<R, I>>;
+} = internal.provideService;
 
 /**
  * Provides one service to an effect using an effectful acquisition.
@@ -5824,16 +6163,16 @@ export const provideService: {
  * @since 2.0.0
  */
 export const provideServiceEffect: {
-  <I, S, E2, R2>(
-    service: Context.Key<I, S>,
-    acquire: Effect<S, E2, R2>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E | E2, Exclude<R, I> | R2>
-  <A, E, R, I, S, E2, R2>(
-    self: Effect<A, E, R>,
-    service: Context.Key<I, S>,
-    acquire: Effect<S, E2, R2>
-  ): Effect<A, E | E2, Exclude<R, I> | R2>
-} = internal.provideServiceEffect
+	<I, S, E2, R2>(
+		service: Context.Key<I, S>,
+		acquire: Effect<S, E2, R2>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E | E2, Exclude<R, I> | R2>;
+	<A, E, R, I, S, E2, R2>(
+		self: Effect<A, E, R>,
+		service: Context.Key<I, S>,
+		acquire: Effect<S, E2, R2>,
+	): Effect<A, E | E2, Exclude<R, I> | R2>;
+} = internal.provideServiceEffect;
 
 // -----------------------------------------------------------------------------
 // References
@@ -5872,14 +6211,14 @@ export const provideServiceEffect: {
  * @since 2.0.0
  */
 export const withConcurrency: {
-  (
-    concurrency: number | "unbounded"
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    concurrency: number | "unbounded"
-  ): Effect<A, E, R>
-} = internal.withConcurrency
+	(
+		concurrency: number | "unbounded",
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		concurrency: number | "unbounded",
+	): Effect<A, E, R>;
+} = internal.withConcurrency;
 
 // -----------------------------------------------------------------------------
 // Resource management & finalization
@@ -5917,7 +6256,7 @@ export const withConcurrency: {
  * @category resource management
  * @since 2.0.0
  */
-export const scope: Effect<Scope, never, Scope> = internal.scope
+export const scope: Effect<Scope, never, Scope> = internal.scope;
 
 /**
  * Scopes all resources used in this workflow to the lifetime of the workflow,
@@ -5952,8 +6291,8 @@ export const scope: Effect<Scope, never, Scope> = internal.scope
  * @since 2.0.0
  */
 export const scoped: <A, E, R>(
-  self: Effect<A, E, R>
-) => Effect<A, E, Exclude<R, Scope>> = internal.scoped
+	self: Effect<A, E, R>,
+) => Effect<A, E, Exclude<R, Scope>> = internal.scoped;
 
 /**
  * Creates a scoped effect by providing access to the scope.
@@ -5995,8 +6334,8 @@ export const scoped: <A, E, R>(
  * @since 3.11.0
  */
 export const scopedWith: <A, E, R>(
-  f: (scope: Scope) => Effect<A, E, R>
-) => Effect<A, E, R> = internal.scopedWith
+	f: (scope: Scope) => Effect<A, E, R>,
+) => Effect<A, E, R> = internal.scopedWith;
 
 /**
  * Constructs a scoped resource from an acquisition effect and a release
@@ -6053,10 +6392,13 @@ export const scopedWith: <A, E, R>(
  * @since 2.0.0
  */
 export const acquireRelease: <A, E, R, R2>(
-  acquire: Effect<A, E, R>,
-  release: (a: A, exit: Exit.Exit<unknown, unknown>) => Effect<unknown, never, R2>,
-  options?: { readonly interruptible?: boolean }
-) => Effect<A, E, R | R2 | Scope> = internal.acquireRelease
+	acquire: Effect<A, E, R>,
+	release: (
+		a: A,
+		exit: Exit.Exit<unknown, unknown>,
+	) => Effect<unknown, never, R2>,
+	options?: { readonly interruptible?: boolean },
+) => Effect<A, E, R | R2 | Scope> = internal.acquireRelease;
 
 /**
  * This function constructs a scoped resource from an Effect that acquires a
@@ -6098,8 +6440,8 @@ export const acquireRelease: <A, E, R, R2>(
  * @since 4.0.0
  */
 export const acquireDisposable: <A extends AsyncDisposable | Disposable, E, R>(
-  acquire: Effect<A, E, R>
-) => Effect<A, E, R | Scope> = internal.acquireDisposable
+	acquire: Effect<A, E, R>,
+) => Effect<A, E, R | Scope> = internal.acquireDisposable;
 
 /**
  * This function is used to ensure that an `Effect` value that represents the
@@ -6176,10 +6518,10 @@ export const acquireDisposable: <A extends AsyncDisposable | Disposable, E, R>(
  * @since 2.0.0
  */
 export const acquireUseRelease: <Resource, E, R, A, E2, R2, E3, R3>(
-  acquire: Effect<Resource, E, R>,
-  use: (a: Resource) => Effect<A, E2, R2>,
-  release: (a: Resource, exit: Exit.Exit<A, E2>) => Effect<void, E3, R3>
-) => Effect<A, E | E2 | E3, R | R2 | R3> = internal.acquireUseRelease
+	acquire: Effect<Resource, E, R>,
+	use: (a: Resource) => Effect<A, E2, R2>,
+	release: (a: Resource, exit: Exit.Exit<A, E2>) => Effect<void, E3, R3>,
+) => Effect<A, E | E2 | E3, R | R2 | R3> = internal.acquireUseRelease;
 
 /**
  * This function adds a finalizer to the scope of the calling `Effect` value.
@@ -6226,8 +6568,8 @@ export const acquireUseRelease: <Resource, E, R, A, E2, R2, E3, R3>(
  * @since 2.0.0
  */
 export const addFinalizer: <R>(
-  finalizer: (exit: Exit.Exit<unknown, unknown>) => Effect<void, never, R>
-) => Effect<void, never, R | Scope> = internal.addFinalizer
+	finalizer: (exit: Exit.Exit<unknown, unknown>) => Effect<void, never, R>,
+) => Effect<void, never, R | Scope> = internal.addFinalizer;
 
 /**
  * Returns an effect that, if this effect _starts_ execution, then the
@@ -6272,14 +6614,14 @@ export const addFinalizer: <R>(
  * @since 2.0.0
  */
 export const ensuring: {
-  <X, R1>(
-    finalizer: Effect<X, never, R1>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R1 | R>
-  <A, E, R, X, R1>(
-    self: Effect<A, E, R>,
-    finalizer: Effect<X, never, R1>
-  ): Effect<A, E, R1 | R>
-} = internal.ensuring
+	<X, R1>(
+		finalizer: Effect<X, never, R1>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R1 | R>;
+	<A, E, R, X, R1>(
+		self: Effect<A, E, R>,
+		finalizer: Effect<X, never, R1>,
+	): Effect<A, E, R1 | R>;
+} = internal.ensuring;
 
 /**
  * Runs the specified effect if this effect fails, providing the error to the
@@ -6309,14 +6651,14 @@ export const ensuring: {
  * @since 2.0.0
  */
 export const onError: {
-  <E, X, R2>(
-    cleanup: (cause: Cause.Cause<E>) => Effect<X, never, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R2 | R>
-  <A, E, R, X, R2>(
-    self: Effect<A, E, R>,
-    cleanup: (cause: Cause.Cause<E>) => Effect<X, never, R2>
-  ): Effect<A, E, R2 | R>
-} = internal.onError
+	<E, X, R2>(
+		cleanup: (cause: Cause.Cause<E>) => Effect<X, never, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R2 | R>;
+	<A, E, R, X, R2>(
+		self: Effect<A, E, R>,
+		cleanup: (cause: Cause.Cause<E>) => Effect<X, never, R2>,
+	): Effect<A, E, R2 | R>;
+} = internal.onError;
 
 /**
  * Runs the finalizer only when this effect fails and the `Cause` matches the
@@ -6343,16 +6685,16 @@ export const onError: {
  * @since 4.0.0
  */
 export const onErrorIf: {
-  <E, XE, XR>(
-    predicate: Predicate.Predicate<Cause.Cause<E>>,
-    f: (cause: Cause.Cause<E>) => Effect<void, XE, XR>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>
-  <A, E, R, XE, XR>(
-    self: Effect<A, E, R>,
-    predicate: Predicate.Predicate<Cause.Cause<E>>,
-    f: (cause: Cause.Cause<E>) => Effect<void, XE, XR>
-  ): Effect<A, E | XE, R | XR>
-} = internal.onErrorIf
+	<E, XE, XR>(
+		predicate: Predicate.Predicate<Cause.Cause<E>>,
+		f: (cause: Cause.Cause<E>) => Effect<void, XE, XR>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>;
+	<A, E, R, XE, XR>(
+		self: Effect<A, E, R>,
+		predicate: Predicate.Predicate<Cause.Cause<E>>,
+		f: (cause: Cause.Cause<E>) => Effect<void, XE, XR>,
+	): Effect<A, E | XE, R | XR>;
+} = internal.onErrorIf;
 
 /**
  * Runs the finalizer only when this effect fails and the cause matches the provided `Filter`.
@@ -6361,16 +6703,16 @@ export const onErrorIf: {
  * @since 4.0.0
  */
 export const onErrorFilter: {
-  <A, E, EB, X, XE, XR>(
-    filter: Filter.Filter<Cause.Cause<E>, EB, X>,
-    f: (failure: EB, cause: Cause.Cause<E>) => Effect<void, XE, XR>
-  ): <R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>
-  <A, E, R, EB, X, XE, XR>(
-    self: Effect<A, E, R>,
-    filter: Filter.Filter<Cause.Cause<E>, EB, X>,
-    f: (failure: EB, cause: Cause.Cause<E>) => Effect<void, XE, XR>
-  ): Effect<A, E | XE, R | XR>
-} = internal.onErrorFilter
+	<A, E, EB, X, XE, XR>(
+		filter: Filter.Filter<Cause.Cause<E>, EB, X>,
+		f: (failure: EB, cause: Cause.Cause<E>) => Effect<void, XE, XR>,
+	): <R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>;
+	<A, E, R, EB, X, XE, XR>(
+		self: Effect<A, E, R>,
+		filter: Filter.Filter<Cause.Cause<E>, EB, X>,
+		f: (failure: EB, cause: Cause.Cause<E>) => Effect<void, XE, XR>,
+	): Effect<A, E | XE, R | XR>;
+} = internal.onErrorFilter;
 
 /**
  * Runs an optional finalizer with the effect's `Exit` value when the effect
@@ -6385,10 +6727,10 @@ export const onErrorFilter: {
  * @since 4.0.0
  */
 export const onExitPrimitive: <A, E, R, XE = never, XR = never>(
-  self: Effect<A, E, R>,
-  f: (exit: Exit.Exit<A, E>) => Effect<void, XE, XR> | undefined,
-  interruptible?: boolean
-) => Effect<A, E | XE, R | XR> = internal.onExitPrimitive
+	self: Effect<A, E, R>,
+	f: (exit: Exit.Exit<A, E>) => Effect<void, XE, XR> | undefined,
+	interruptible?: boolean,
+) => Effect<A, E | XE, R | XR> = internal.onExitPrimitive;
 
 /**
  * Ensures that a cleanup functions runs, whether this effect succeeds, fails,
@@ -6418,14 +6760,14 @@ export const onExitPrimitive: <A, E, R, XE = never, XR = never>(
  * @since 2.0.0
  */
 export const onExit: {
-  <A, E, XE = never, XR = never>(
-    f: (exit: Exit.Exit<A, E>) => Effect<void, XE, XR>
-  ): <R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>
-  <A, E, R, XE = never, XR = never>(
-    self: Effect<A, E, R>,
-    f: (exit: Exit.Exit<A, E>) => Effect<void, XE, XR>
-  ): Effect<A, E | XE, R | XR>
-} = internal.onExit
+	<A, E, XE = never, XR = never>(
+		f: (exit: Exit.Exit<A, E>) => Effect<void, XE, XR>,
+	): <R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>;
+	<A, E, R, XE = never, XR = never>(
+		self: Effect<A, E, R>,
+		f: (exit: Exit.Exit<A, E>) => Effect<void, XE, XR>,
+	): Effect<A, E | XE, R | XR>;
+} = internal.onExit;
 
 /**
  * Runs the cleanup effect only when the `Exit` satisfies the provided
@@ -6450,16 +6792,16 @@ export const onExit: {
  * @since 4.0.0
  */
 export const onExitIf: {
-  <A, E, XE, XR>(
-    predicate: Predicate.Predicate<Exit.Exit<NoInfer<A>, NoInfer<E>>>,
-    f: (exit: Exit.Exit<NoInfer<A>, NoInfer<E>>) => Effect<void, XE, XR>
-  ): <R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>
-  <A, E, R, XE, XR>(
-    self: Effect<A, E, R>,
-    predicate: Predicate.Predicate<Exit.Exit<NoInfer<A>, NoInfer<E>>>,
-    f: (exit: Exit.Exit<NoInfer<A>, NoInfer<E>>) => Effect<void, XE, XR>
-  ): Effect<A, E | XE, R | XR>
-} = internal.onExitIf
+	<A, E, XE, XR>(
+		predicate: Predicate.Predicate<Exit.Exit<NoInfer<A>, NoInfer<E>>>,
+		f: (exit: Exit.Exit<NoInfer<A>, NoInfer<E>>) => Effect<void, XE, XR>,
+	): <R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>;
+	<A, E, R, XE, XR>(
+		self: Effect<A, E, R>,
+		predicate: Predicate.Predicate<Exit.Exit<NoInfer<A>, NoInfer<E>>>,
+		f: (exit: Exit.Exit<NoInfer<A>, NoInfer<E>>) => Effect<void, XE, XR>,
+	): Effect<A, E | XE, R | XR>;
+} = internal.onExitIf;
 
 /**
  * Runs the cleanup effect only when the `Exit` matches the provided `Filter`.
@@ -6468,16 +6810,16 @@ export const onExitIf: {
  * @since 4.0.0
  */
 export const onExitFilter: {
-  <A, E, XE, XR, B, X>(
-    filter: Filter.Filter<Exit.Exit<NoInfer<A>, NoInfer<E>>, B, X>,
-    f: (b: B, exit: Exit.Exit<NoInfer<A>, NoInfer<E>>) => Effect<void, XE, XR>
-  ): <R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>
-  <A, E, R, XE, XR, B, X>(
-    self: Effect<A, E, R>,
-    filter: Filter.Filter<Exit.Exit<NoInfer<A>, NoInfer<E>>, B, X>,
-    f: (b: B, exit: Exit.Exit<NoInfer<A>, NoInfer<E>>) => Effect<void, XE, XR>
-  ): Effect<A, E | XE, R | XR>
-} = internal.onExitFilter
+	<A, E, XE, XR, B, X>(
+		filter: Filter.Filter<Exit.Exit<NoInfer<A>, NoInfer<E>>, B, X>,
+		f: (b: B, exit: Exit.Exit<NoInfer<A>, NoInfer<E>>) => Effect<void, XE, XR>,
+	): <R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>;
+	<A, E, R, XE, XR, B, X>(
+		self: Effect<A, E, R>,
+		filter: Filter.Filter<Exit.Exit<NoInfer<A>, NoInfer<E>>, B, X>,
+		f: (b: B, exit: Exit.Exit<NoInfer<A>, NoInfer<E>>) => Effect<void, XE, XR>,
+	): Effect<A, E | XE, R | XR>;
+} = internal.onExitFilter;
 
 // -----------------------------------------------------------------------------
 // Caching
@@ -6546,7 +6888,9 @@ export const onExitFilter: {
  * @category Caching
  * @since 2.0.0
  */
-export const cached: <A, E, R>(self: Effect<A, E, R>) => Effect<Effect<A, E, R>> = internal.cached
+export const cached: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<Effect<A, E, R>> = internal.cached;
 
 /**
  * Returns an effect that caches its result for a specified `Duration`,
@@ -6615,9 +6959,14 @@ export const cached: <A, E, R>(self: Effect<A, E, R>) => Effect<Effect<A, E, R>>
  * @since 2.0.0
  */
 export const cachedWithTTL: {
-  (timeToLive: Duration.Input): <A, E, R>(self: Effect<A, E, R>) => Effect<Effect<A, E, R>>
-  <A, E, R>(self: Effect<A, E, R>, timeToLive: Duration.Input): Effect<Effect<A, E, R>>
-} = internal.cachedWithTTL
+	(
+		timeToLive: Duration.Input,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<Effect<A, E, R>>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		timeToLive: Duration.Input,
+	): Effect<Effect<A, E, R>>;
+} = internal.cachedWithTTL;
 
 /**
  * Caches an effect's result for a specified duration and allows manual
@@ -6689,9 +7038,16 @@ export const cachedWithTTL: {
  * @since 2.0.0
  */
 export const cachedInvalidateWithTTL: {
-  (timeToLive: Duration.Input): <A, E, R>(self: Effect<A, E, R>) => Effect<[Effect<A, E, R>, Effect<void>]>
-  <A, E, R>(self: Effect<A, E, R>, timeToLive: Duration.Input): Effect<[Effect<A, E, R>, Effect<void>]>
-} = internal.cachedInvalidateWithTTL
+	(
+		timeToLive: Duration.Input,
+	): <A, E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<[Effect<A, E, R>, Effect<void>]>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		timeToLive: Duration.Input,
+	): Effect<[Effect<A, E, R>, Effect<void>]>;
+} = internal.cachedInvalidateWithTTL;
 
 // -----------------------------------------------------------------------------
 // Interruption
@@ -6717,7 +7073,7 @@ export const cachedInvalidateWithTTL: {
  * @category Interruption
  * @since 2.0.0
  */
-export const interrupt: Effect<never> = internal.interrupt
+export const interrupt: Effect<never> = internal.interrupt;
 
 /**
  * Returns a new effect that allows the effect to be interruptible.
@@ -6740,8 +7096,8 @@ export const interrupt: Effect<never> = internal.interrupt
  * @since 2.0.0
  */
 export const interruptible: <A, E, R>(
-  self: Effect<A, E, R>
-) => Effect<A, E, R> = internal.interruptible
+	self: Effect<A, E, R>,
+) => Effect<A, E, R> = internal.interruptible;
 
 /**
  * Runs the specified finalizer effect if this effect is interrupted.
@@ -6768,14 +7124,14 @@ export const interruptible: <A, E, R>(
  * @since 2.0.0
  */
 export const onInterrupt: {
-  <XE, XR>(
-    finalizer: (interruptors: ReadonlySet<number>) => Effect<void, XE, XR>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>
-  <A, E, R, XE, XR>(
-    self: Effect<A, E, R>,
-    finalizer: (interruptors: ReadonlySet<number>) => Effect<void, XE, XR>
-  ): Effect<A, E | XE, R | XR>
-} = internal.onInterrupt
+	<XE, XR>(
+		finalizer: (interruptors: ReadonlySet<number>) => Effect<void, XE, XR>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E | XE, R | XR>;
+	<A, E, R, XE, XR>(
+		self: Effect<A, E, R>,
+		finalizer: (interruptors: ReadonlySet<number>) => Effect<void, XE, XR>,
+	): Effect<A, E | XE, R | XR>;
+} = internal.onInterrupt;
 
 /**
  * Returns a new effect that disables interruption for the given effect.
@@ -6802,8 +7158,8 @@ export const onInterrupt: {
  * @since 2.0.0
  */
 export const uninterruptible: <A, E, R>(
-  self: Effect<A, E, R>
-) => Effect<A, E, R> = internal.uninterruptible
+	self: Effect<A, E, R>,
+) => Effect<A, E, R> = internal.uninterruptible;
 
 /**
  * Disables interruption and provides a restore function to restore the
@@ -6836,10 +7192,10 @@ export const uninterruptible: <A, E, R>(
  * @since 2.0.0
  */
 export const uninterruptibleMask: <A, E, R>(
-  f: (
-    restore: <AX, EX, RX>(effect: Effect<AX, EX, RX>) => Effect<AX, EX, RX>
-  ) => Effect<A, E, R>
-) => Effect<A, E, R> = internal.uninterruptibleMask
+	f: (
+		restore: <AX, EX, RX>(effect: Effect<AX, EX, RX>) => Effect<AX, EX, RX>,
+	) => Effect<A, E, R>,
+) => Effect<A, E, R> = internal.uninterruptibleMask;
 
 /**
  * This function behaves like {@link interruptible}, but it also provides a
@@ -6873,10 +7229,10 @@ export const uninterruptibleMask: <A, E, R>(
  * @since 2.0.0
  */
 export const interruptibleMask: <A, E, R>(
-  f: (
-    restore: <AX, EX, RX>(effect: Effect<AX, EX, RX>) => Effect<AX, EX, RX>
-  ) => Effect<A, E, R>
-) => Effect<A, E, R> = internal.interruptibleMask
+	f: (
+		restore: <AX, EX, RX>(effect: Effect<AX, EX, RX>) => Effect<AX, EX, RX>,
+	) => Effect<A, E, R>,
+) => Effect<A, E, R> = internal.interruptibleMask;
 
 /**
  * Creates an AbortSignal that is managed by the provided scope.
@@ -6884,7 +7240,8 @@ export const interruptibleMask: <A, E, R>(
  * @category Interruption
  * @since 4.0.0
  */
-export const abortSignal: Effect<AbortSignal, never, Scope> = internal.abortSignal
+export const abortSignal: Effect<AbortSignal, never, Scope> =
+	internal.abortSignal;
 
 // -----------------------------------------------------------------------------
 // Repetition & Recursion
@@ -6896,49 +7253,65 @@ export const abortSignal: Effect<AbortSignal, never, Scope> = internal.abortSign
  * @since 2.0.0
  */
 export declare namespace Repeat {
-  /**
-   * Computes the result type of `Effect.repeat` from the original effect and repeat options.
-   *
-   * @category Repetition / Recursion
-   * @since 2.0.0
-   */
-  export type Return<R, E, A, O extends Options<A>> = Effect<
-    O extends { until: Predicate.Refinement<A, infer B> } ? B
-      : O extends { while: Predicate.Refinement<A, infer B> } ? Exclude<A, B>
-      : A,
-    | E
-    | (O extends { schedule: Schedule<infer _Out, infer _I, infer E, infer _R> } ? E
-      : never)
-    | (O extends { while: (...args: Array<any>) => Effect<infer _A, infer E, infer _R> } ? E
-      : never)
-    | (O extends { until: (...args: Array<any>) => Effect<infer _A, infer E, infer _R> } ? E
-      : never),
-    | R
-    | (O extends { schedule: Schedule<infer _O, infer _I, infer _E, infer R> } ? R
-      : never)
-    | (O extends {
-      while: (...args: Array<any>) => Effect<infer _A, infer _E, infer R>
-    } ? R
-      : never)
-    | (O extends {
-      until: (...args: Array<any>) => Effect<infer _A, infer _E, infer R>
-    } ? R
-      : never)
-  > extends infer Z ? Z
-    : never
+	/**
+	 * Computes the result type of `Effect.repeat` from the original effect and repeat options.
+	 *
+	 * @category Repetition / Recursion
+	 * @since 2.0.0
+	 */
+	export type Return<R, E, A, O extends Options<A>> =
+		Effect<
+			O extends { until: Predicate.Refinement<A, infer B> }
+				? B
+				: O extends { while: Predicate.Refinement<A, infer B> }
+					? Exclude<A, B>
+					: A,
+			| E
+			| (O extends {
+					schedule: Schedule<infer _Out, infer _I, infer E, infer _R>;
+			  }
+					? E
+					: never)
+			| (O extends {
+					while: (...args: Array<any>) => Effect<infer _A, infer E, infer _R>;
+			  }
+					? E
+					: never)
+			| (O extends {
+					until: (...args: Array<any>) => Effect<infer _A, infer E, infer _R>;
+			  }
+					? E
+					: never),
+			| R
+			| (O extends { schedule: Schedule<infer _O, infer _I, infer _E, infer R> }
+					? R
+					: never)
+			| (O extends {
+					while: (...args: Array<any>) => Effect<infer _A, infer _E, infer R>;
+			  }
+					? R
+					: never)
+			| (O extends {
+					until: (...args: Array<any>) => Effect<infer _A, infer _E, infer R>;
+			  }
+					? R
+					: never)
+		> extends infer Z
+			? Z
+			: never;
 
-  /**
-   * Options that control whether and how an effect is repeated.
-   *
-   * @category Repetition / Recursion
-   * @since 2.0.0
-   */
-  export interface Options<A> {
-    while?: ((_: A) => boolean | Effect<boolean, any, any>) | undefined
-    until?: ((_: A) => boolean | Effect<boolean, any, any>) | undefined
-    times?: number | undefined
-    schedule?: Schedule<any, A, any, any> | undefined
-  }
+	/**
+	 * Options that control whether and how an effect is repeated.
+	 *
+	 * @category Repetition / Recursion
+	 * @since 2.0.0
+	 */
+	export interface Options<A> {
+		while?: ((_: A) => boolean | Effect<boolean, any, any>) | undefined;
+		until?: ((_: A) => boolean | Effect<boolean, any, any>) | undefined;
+		times?: number | undefined;
+		schedule?: Schedule<any, A, any, any> | undefined;
+	}
 }
 
 /**
@@ -6972,18 +7345,24 @@ export declare namespace Repeat {
  * @since 2.0.0
  */
 export const forever: <
-  Arg extends Effect<any, any, any> | {
-    readonly disableYield?: boolean | undefined
-  } | undefined = {
-    readonly disableYield?: boolean | undefined
-  }
+	Arg extends
+		| Effect<any, any, any>
+		| {
+				readonly disableYield?: boolean | undefined;
+		  }
+		| undefined = {
+		readonly disableYield?: boolean | undefined;
+	},
 >(
-  effectOrOptions?: Arg,
-  options?: {
-    readonly disableYield?: boolean | undefined
-  } | undefined
-) => [Arg] extends [Effect<infer _A, infer _E, infer _R>] ? Effect<never, _E, _R>
-  : <A, E, R>(self: Effect<A, E, R>) => Effect<never, E, R> = internal.forever
+	effectOrOptions?: Arg,
+	options?:
+		| {
+				readonly disableYield?: boolean | undefined;
+		  }
+		| undefined,
+) => [Arg] extends [Effect<infer _A, infer _E, infer _R>]
+	? Effect<never, _E, _R>
+	: <A, E, R>(self: Effect<A, E, R>) => Effect<never, E, R> = internal.forever;
 
 /**
  * Repeats an effect based on a specified schedule or until the first failure.
@@ -7050,27 +7429,36 @@ export const forever: <
  * @since 2.0.0
  */
 export const repeat: {
-  <O extends Repeat.Options<A>, A>(options: O): <E, R>(self: Effect<A, E, R>) => Repeat.Return<R, E, A, O>
-  <Output, Input, Error, Env>(
-    schedule: Schedule<Output, NoInfer<Input>, Error, Env>
-  ): <E, R>(self: Effect<Input, E, R>) => Effect<Output, E | Error, R | Env>
-  <Output, Input, Error, Env>(
-    builder: (
-      $: <O, E, R>(_: Schedule<O, NoInfer<Input>, E, R>) => Schedule<O, Input, E, R>
-    ) => Schedule<Output, NoInfer<Input>, Error, Env>
-  ): <E, R>(self: Effect<Input, E, R>) => Effect<Output, E | Error, R | Env>
-  <A, E, R, O extends Repeat.Options<A>>(self: Effect<A, E, R>, options: O): Repeat.Return<R, E, A, O>
-  <Input, E, R, Output, Error, Env>(
-    self: Effect<Input, E, R>,
-    schedule: Schedule<Output, NoInfer<Input>, Error, Env>
-  ): Effect<Output, E | Error, R | Env>
-  <Input, E, R, Output, Error, Env>(
-    self: Effect<Input, E, R>,
-    builder: (
-      $: <O, E, R>(_: Schedule<O, NoInfer<Input>, E, R>) => Schedule<O, Input, E, R>
-    ) => Schedule<Output, NoInfer<Input>, Error, Env>
-  ): Effect<Output, E | Error, R | Env>
-} = internalSchedule.repeat
+	<O extends Repeat.Options<A>, A>(
+		options: O,
+	): <E, R>(self: Effect<A, E, R>) => Repeat.Return<R, E, A, O>;
+	<Output, Input, Error, Env>(
+		schedule: Schedule<Output, NoInfer<Input>, Error, Env>,
+	): <E, R>(self: Effect<Input, E, R>) => Effect<Output, E | Error, R | Env>;
+	<Output, Input, Error, Env>(
+		builder: (
+			$: <O, E, R>(
+				_: Schedule<O, NoInfer<Input>, E, R>,
+			) => Schedule<O, Input, E, R>,
+		) => Schedule<Output, NoInfer<Input>, Error, Env>,
+	): <E, R>(self: Effect<Input, E, R>) => Effect<Output, E | Error, R | Env>;
+	<A, E, R, O extends Repeat.Options<A>>(
+		self: Effect<A, E, R>,
+		options: O,
+	): Repeat.Return<R, E, A, O>;
+	<Input, E, R, Output, Error, Env>(
+		self: Effect<Input, E, R>,
+		schedule: Schedule<Output, NoInfer<Input>, Error, Env>,
+	): Effect<Output, E | Error, R | Env>;
+	<Input, E, R, Output, Error, Env>(
+		self: Effect<Input, E, R>,
+		builder: (
+			$: <O, E, R>(
+				_: Schedule<O, NoInfer<Input>, E, R>,
+			) => Schedule<O, Input, E, R>,
+		) => Schedule<Output, NoInfer<Input>, Error, Env>,
+	): Effect<Output, E | Error, R | Env>;
+} = internalSchedule.repeat;
 
 /**
  * Repeats an effect according to a schedule and runs a fallback effect if
@@ -7115,16 +7503,16 @@ export const repeat: {
  * @since 2.0.0
  */
 export const repeatOrElse: {
-  <R2, A, B, E, E2, E3, R3>(
-    schedule: Schedule<B, A, E2, R2>,
-    orElse: (error: E | E2, option: Option<B>) => Effect<B, E3, R3>
-  ): <R>(self: Effect<A, E, R>) => Effect<B, E3, R | R2 | R3>
-  <A, E, R, R2, B, E2, E3, R3>(
-    self: Effect<A, E, R>,
-    schedule: Schedule<B, A, E2, R2>,
-    orElse: (error: E | E2, option: Option<B>) => Effect<B, E3, R3>
-  ): Effect<B, E3, R | R2 | R3>
-} = internalSchedule.repeatOrElse
+	<R2, A, B, E, E2, E3, R3>(
+		schedule: Schedule<B, A, E2, R2>,
+		orElse: (error: E | E2, option: Option<B>) => Effect<B, E3, R3>,
+	): <R>(self: Effect<A, E, R>) => Effect<B, E3, R | R2 | R3>;
+	<A, E, R, R2, B, E2, E3, R3>(
+		self: Effect<A, E, R>,
+		schedule: Schedule<B, A, E2, R2>,
+		orElse: (error: E | E2, option: Option<B>) => Effect<B, E3, R3>,
+	): Effect<B, E3, R | R2 | R3>;
+} = internalSchedule.repeatOrElse;
 
 /**
  * Returns an array of `n` identical effects.
@@ -7137,9 +7525,9 @@ export const repeatOrElse: {
  * @since 2.0.0
  */
 export const replicate: {
-  (n: number): <A, E, R>(self: Effect<A, E, R>) => Array<Effect<A, E, R>>
-  <A, E, R>(self: Effect<A, E, R>, n: number): Array<Effect<A, E, R>>
-} = internal.replicate
+	(n: number): <A, E, R>(self: Effect<A, E, R>) => Array<Effect<A, E, R>>;
+	<A, E, R>(self: Effect<A, E, R>, n: number): Array<Effect<A, E, R>>;
+} = internal.replicate;
 
 /**
  * Performs this effect `n` times and collects results with `Effect.all` semantics.
@@ -7163,25 +7551,37 @@ export const replicate: {
  * @since 2.0.0
  */
 export const replicateEffect: {
-  (
-    n: number,
-    options?: { readonly concurrency?: Concurrency | undefined; readonly discard?: false | undefined }
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<Array<A>, E, R>
-  (
-    n: number,
-    options: { readonly concurrency?: Concurrency | undefined; readonly discard: true }
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<void, E, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    n: number,
-    options?: { readonly concurrency?: Concurrency | undefined; readonly discard?: false | undefined }
-  ): Effect<Array<A>, E, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    n: number,
-    options: { readonly concurrency?: Concurrency | undefined; readonly discard: true }
-  ): Effect<void, E, R>
-} = internal.replicateEffect
+	(
+		n: number,
+		options?: {
+			readonly concurrency?: Concurrency | undefined;
+			readonly discard?: false | undefined;
+		},
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<Array<A>, E, R>;
+	(
+		n: number,
+		options: {
+			readonly concurrency?: Concurrency | undefined;
+			readonly discard: true;
+		},
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<void, E, R>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		n: number,
+		options?: {
+			readonly concurrency?: Concurrency | undefined;
+			readonly discard?: false | undefined;
+		},
+	): Effect<Array<A>, E, R>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		n: number,
+		options: {
+			readonly concurrency?: Concurrency | undefined;
+			readonly discard: true;
+		},
+	): Effect<void, E, R>;
+} = internal.replicateEffect;
 
 /**
  * Runs an effect repeatedly according to a schedule and returns the schedule's
@@ -7226,17 +7626,20 @@ export const replicateEffect: {
  * @since 2.0.0
  */
 export const schedule: {
-  <Output, Error, Env>(
-    schedule: Schedule<Output, unknown, Error, Env>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<Output, E, R | Env>
-  <A, E, R, Output, Error, Env>(
-    self: Effect<A, E, R>,
-    schedule: Schedule<Output, unknown, Error, Env>
-  ): Effect<Output, E, R | Env>
-} = dual(2, <A, E, R, Output, Error, Env>(
-  self: Effect<A, E, R>,
-  schedule: Schedule<Output, unknown, Error, Env>
-): Effect<Output, E, R | Env> => scheduleFrom(self, undefined, schedule))
+	<Output, Error, Env>(
+		schedule: Schedule<Output, unknown, Error, Env>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<Output, E, R | Env>;
+	<A, E, R, Output, Error, Env>(
+		self: Effect<A, E, R>,
+		schedule: Schedule<Output, unknown, Error, Env>,
+	): Effect<Output, E, R | Env>;
+} = dual(
+	2,
+	<A, E, R, Output, Error, Env>(
+		self: Effect<A, E, R>,
+		schedule: Schedule<Output, unknown, Error, Env>,
+	): Effect<Output, E, R | Env> => scheduleFrom(self, undefined, schedule),
+);
 
 /**
  * Runs an effect repeatedly according to a schedule that is initialized with a
@@ -7276,16 +7679,16 @@ export const schedule: {
  * @since 2.0.0
  */
 export const scheduleFrom: {
-  <Input, Output, Error, Env>(
-    initial: Input,
-    schedule: Schedule<Output, Input, Error, Env>
-  ): <E, R>(self: Effect<Input, E, R>) => Effect<Output, E, R | Env>
-  <Input, E, R, Output, Error, Env>(
-    self: Effect<Input, E, R>,
-    initial: Input,
-    schedule: Schedule<Output, Input, Error, Env>
-  ): Effect<Output, E, R | Env>
-} = internalSchedule.scheduleFrom
+	<Input, Output, Error, Env>(
+		initial: Input,
+		schedule: Schedule<Output, Input, Error, Env>,
+	): <E, R>(self: Effect<Input, E, R>) => Effect<Output, E, R | Env>;
+	<Input, E, R, Output, Error, Env>(
+		self: Effect<Input, E, R>,
+		initial: Input,
+		schedule: Schedule<Output, Input, Error, Env>,
+	): Effect<Output, E, R | Env>;
+} = internalSchedule.scheduleFrom;
 
 // -----------------------------------------------------------------------------
 // Tracing
@@ -7309,7 +7712,7 @@ export const scheduleFrom: {
  * @category tracing
  * @since 2.0.0
  */
-export const tracer: Effect<Tracer> = internal.tracer
+export const tracer: Effect<Tracer> = internal.tracer;
 
 /**
  * Provides a tracer to an effect.
@@ -7332,9 +7735,9 @@ export const tracer: Effect<Tracer> = internal.tracer
  * @since 2.0.0
  */
 export const withTracer: {
-  (value: Tracer): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R>(effect: Effect<A, E, R>, value: Tracer): Effect<A, E, R>
-} = internal.withTracer
+	(value: Tracer): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R>(effect: Effect<A, E, R>, value: Tracer): Effect<A, E, R>;
+} = internal.withTracer;
 
 /**
  * Enables or disables tracing for spans created by the given effect.
@@ -7360,9 +7763,9 @@ export const withTracer: {
  * @since 2.0.0
  */
 export const withTracerEnabled: {
-  (enabled: boolean): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R>(effect: Effect<A, E, R>, enabled: boolean): Effect<A, E, R>
-} = internal.withTracerEnabled
+	(enabled: boolean): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R>(effect: Effect<A, E, R>, enabled: boolean): Effect<A, E, R>;
+} = internal.withTracerEnabled;
 
 /**
  * Enables or disables tracer timing for the given Effect.
@@ -7383,9 +7786,9 @@ export const withTracerEnabled: {
  * @since 2.0.0
  */
 export const withTracerTiming: {
-  (enabled: boolean): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R>(effect: Effect<A, E, R>, enabled: boolean): Effect<A, E, R>
-} = internal.withTracerTiming
+	(enabled: boolean): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R>(effect: Effect<A, E, R>, enabled: boolean): Effect<A, E, R>;
+} = internal.withTracerTiming;
 
 /**
  * Adds an annotation to each span in this effect.
@@ -7415,23 +7818,23 @@ export const withTracerTiming: {
  * @since 2.0.0
  */
 export const annotateSpans: {
-  (
-    key: string,
-    value: unknown
-  ): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>
-  (
-    values: Record<string, unknown>
-  ): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R>(
-    effect: Effect<A, E, R>,
-    key: string,
-    value: unknown
-  ): Effect<A, E, R>
-  <A, E, R>(
-    effect: Effect<A, E, R>,
-    values: Record<string, unknown>
-  ): Effect<A, E, R>
-} = internal.annotateSpans
+	(
+		key: string,
+		value: unknown,
+	): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>;
+	(
+		values: Record<string, unknown>,
+	): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R>(
+		effect: Effect<A, E, R>,
+		key: string,
+		value: unknown,
+	): Effect<A, E, R>;
+	<A, E, R>(
+		effect: Effect<A, E, R>,
+		values: Record<string, unknown>,
+	): Effect<A, E, R>;
+} = internal.annotateSpans;
 
 /**
  * Adds an annotation to the current span if available.
@@ -7458,9 +7861,9 @@ export const annotateSpans: {
  * @since 2.0.0
  */
 export const annotateCurrentSpan: {
-  (key: string, value: unknown): Effect<void>
-  (values: Record<string, unknown>): Effect<void>
-} = internal.annotateCurrentSpan
+	(key: string, value: unknown): Effect<void>;
+	(values: Record<string, unknown>): Effect<void>;
+} = internal.annotateCurrentSpan;
 
 /**
  * Returns the currently active local tracing span.
@@ -7487,7 +7890,8 @@ export const annotateCurrentSpan: {
  * @category tracing
  * @since 2.0.0
  */
-export const currentSpan: Effect<Span, Cause.NoSuchElementError> = internal.currentSpan
+export const currentSpan: Effect<Span, Cause.NoSuchElementError> =
+	internal.currentSpan;
 
 /**
  * Returns the current parent span from the effect context.
@@ -7520,7 +7924,8 @@ export const currentSpan: Effect<Span, Cause.NoSuchElementError> = internal.curr
  * @category tracing
  * @since 2.0.0
  */
-export const currentParentSpan: Effect<AnySpan, Cause.NoSuchElementError> = internal.currentParentSpan
+export const currentParentSpan: Effect<AnySpan, Cause.NoSuchElementError> =
+	internal.currentParentSpan;
 
 /**
  * Returns the tracing span annotations currently carried in the effect context.
@@ -7554,7 +7959,8 @@ export const currentParentSpan: Effect<AnySpan, Cause.NoSuchElementError> = inte
  * @category tracing
  * @since 2.0.0
  */
-export const spanAnnotations: Effect<Readonly<Record<string, unknown>>> = internal.spanAnnotations
+export const spanAnnotations: Effect<Readonly<Record<string, unknown>>> =
+	internal.spanAnnotations;
 
 /**
  * Returns the tracing span links currently carried in the effect context.
@@ -7580,7 +7986,7 @@ export const spanAnnotations: Effect<Readonly<Record<string, unknown>>> = intern
  * @category tracing
  * @since 2.0.0
  */
-export const spanLinks: Effect<ReadonlyArray<SpanLink>> = internal.spanLinks
+export const spanLinks: Effect<ReadonlyArray<SpanLink>> = internal.spanLinks;
 
 /**
  * For all spans in this effect, add a link with the provided span.
@@ -7637,16 +8043,16 @@ export const spanLinks: Effect<ReadonlyArray<SpanLink>> = internal.spanLinks
  * @since 2.0.0
  */
 export const linkSpans: {
-  (
-    span: AnySpan | ReadonlyArray<AnySpan>,
-    attributes?: Record<string, unknown>
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    span: AnySpan | ReadonlyArray<AnySpan>,
-    attributes?: Record<string, unknown>
-  ): Effect<A, E, R>
-} = internal.linkSpans
+	(
+		span: AnySpan | ReadonlyArray<AnySpan>,
+		attributes?: Record<string, unknown>,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		span: AnySpan | ReadonlyArray<AnySpan>,
+		attributes?: Record<string, unknown>,
+	): Effect<A, E, R>;
+} = internal.linkSpans;
 
 /**
  * Creates a new tracing span and returns it without managing its lifetime.
@@ -7672,7 +8078,10 @@ export const linkSpans: {
  * @category tracing
  * @since 2.0.0
  */
-export const makeSpan: (name: string, options?: SpanOptionsNoTrace) => Effect<Span> = internal.makeSpan
+export const makeSpan: (
+	name: string,
+	options?: SpanOptionsNoTrace,
+) => Effect<Span> = internal.makeSpan;
 
 /**
  * Create a new span for tracing, and automatically close it when the Scope
@@ -7702,9 +8111,9 @@ export const makeSpan: (name: string, options?: SpanOptionsNoTrace) => Effect<Sp
  * @since 2.0.0
  */
 export const makeSpanScoped: (
-  name: string,
-  options?: SpanOptionsNoTrace | undefined
-) => Effect<Span, never, Scope> = internal.makeSpanScoped
+	name: string,
+	options?: SpanOptionsNoTrace | undefined,
+) => Effect<Span, never, Scope> = internal.makeSpanScoped;
 
 /**
  * Create a new span for tracing, and automatically close it when the effect
@@ -7734,9 +8143,16 @@ export const makeSpanScoped: (
  * @since 2.0.0
  */
 export const useSpan: {
-  <A, E, R>(name: string, evaluate: (span: Span) => Effect<A, E, R>): Effect<A, E, R>
-  <A, E, R>(name: string, options: SpanOptionsNoTrace, evaluate: (span: Span) => Effect<A, E, R>): Effect<A, E, R>
-} = internal.useSpan
+	<A, E, R>(
+		name: string,
+		evaluate: (span: Span) => Effect<A, E, R>,
+	): Effect<A, E, R>;
+	<A, E, R>(
+		name: string,
+		options: SpanOptionsNoTrace,
+		evaluate: (span: Span) => Effect<A, E, R>,
+	): Effect<A, E, R>;
+} = internal.useSpan;
 
 /**
  * Wraps the effect with a new span for tracing.
@@ -7760,20 +8176,23 @@ export const useSpan: {
  * @since 2.0.0
  */
 export const withSpan: {
-  <Args extends ReadonlyArray<any>>(
-    name: string,
-    options?:
-      | SpanOptionsNoTrace
-      | ((...args: NoInfer<Args>) => SpanOptionsNoTrace)
-      | undefined,
-    traceOptions?: TraceOptions | undefined
-  ): <A, E, R>(self: Effect<A, E, R>, ...args: Args) => Effect<A, E, Exclude<R, ParentSpan>>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    name: string,
-    options?: SpanOptions | undefined
-  ): Effect<A, E, Exclude<R, ParentSpan>>
-} = internal.withSpan
+	<Args extends ReadonlyArray<any>>(
+		name: string,
+		options?:
+			| SpanOptionsNoTrace
+			| ((...args: NoInfer<Args>) => SpanOptionsNoTrace)
+			| undefined,
+		traceOptions?: TraceOptions | undefined,
+	): <A, E, R>(
+		self: Effect<A, E, R>,
+		...args: Args
+	) => Effect<A, E, Exclude<R, ParentSpan>>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		name: string,
+		options?: SpanOptions | undefined,
+	): Effect<A, E, Exclude<R, ParentSpan>>;
+} = internal.withSpan;
 
 /**
  * Wraps the effect with a new span for tracing.
@@ -7800,18 +8219,18 @@ export const withSpan: {
  * @since 2.0.0
  */
 export const withSpanScoped: {
-  (
-    name: string,
-    options?: SpanOptions
-  ): <A, E, R>(
-    self: Effect<A, E, R>
-  ) => Effect<A, E, Exclude<R, ParentSpan> | Scope>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    name: string,
-    options?: SpanOptions
-  ): Effect<A, E, Exclude<R, ParentSpan> | Scope>
-} = internal.withSpanScoped
+	(
+		name: string,
+		options?: SpanOptions,
+	): <A, E, R>(
+		self: Effect<A, E, R>,
+	) => Effect<A, E, Exclude<R, ParentSpan> | Scope>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		name: string,
+		options?: SpanOptions,
+	): Effect<A, E, Exclude<R, ParentSpan> | Scope>;
+} = internal.withSpanScoped;
 
 /**
  * Adds the provided span to the current span stack.
@@ -7833,9 +8252,16 @@ export const withSpanScoped: {
  * @since 2.0.0
  */
 export const withParentSpan: {
-  (value: AnySpan, options?: TraceOptions): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, ParentSpan>>
-  <A, E, R>(self: Effect<A, E, R>, value: AnySpan, options?: TraceOptions): Effect<A, E, Exclude<R, ParentSpan>>
-} = internal.withParentSpan
+	(
+		value: AnySpan,
+		options?: TraceOptions,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, Exclude<R, ParentSpan>>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		value: AnySpan,
+		options?: TraceOptions,
+	): Effect<A, E, Exclude<R, ParentSpan>>;
+} = internal.withParentSpan;
 
 // -----------------------------------------------------------------------------
 // Batching
@@ -7873,14 +8299,24 @@ export const withParentSpan: {
  * ```
  */
 export const request: {
-  <A extends Request.Any, EX = never, RX = never>(
-    resolver: RequestResolver<A> | Effect<RequestResolver<A>, EX, RX>
-  ): (self: A) => Effect<Request.Success<A>, Request.Error<A> | EX, Request.Services<A> | RX>
-  <A extends Request.Any, EX = never, RX = never>(
-    self: A,
-    resolver: RequestResolver<A> | Effect<RequestResolver<A>, EX, RX>
-  ): Effect<Request.Success<A>, Request.Error<A> | EX, Request.Services<A> | RX>
-} = internalRequest.request
+	<A extends Request.Any, EX = never, RX = never>(
+		resolver: RequestResolver<A> | Effect<RequestResolver<A>, EX, RX>,
+	): (
+		self: A,
+	) => Effect<
+		Request.Success<A>,
+		Request.Error<A> | EX,
+		Request.Services<A> | RX
+	>;
+	<A extends Request.Any, EX = never, RX = never>(
+		self: A,
+		resolver: RequestResolver<A> | Effect<RequestResolver<A>, EX, RX>,
+	): Effect<
+		Request.Success<A>,
+		Request.Error<A> | EX,
+		Request.Services<A> | RX
+	>;
+} = internalRequest.request;
 
 /**
  * Low-level entry point that registers a request with a resolver and delivers the exit value via `onExit`.
@@ -7894,13 +8330,15 @@ export const request: {
  * @since 4.0.0
  */
 export const requestUnsafe: <A extends Request.Any>(
-  self: A,
-  options: {
-    readonly resolver: RequestResolver<A>
-    readonly onExit: (exit: Exit.Exit<Request.Success<A>, Request.Error<A>>) => void
-    readonly context: Context.Context<never>
-  }
-) => () => void = internalRequest.requestUnsafe
+	self: A,
+	options: {
+		readonly resolver: RequestResolver<A>;
+		readonly onExit: (
+			exit: Exit.Exit<Request.Success<A>, Request.Error<A>>,
+		) => void;
+		readonly context: Context.Context<never>;
+	},
+) => () => void = internalRequest.requestUnsafe;
 
 // -----------------------------------------------------------------------------
 // Supervision & Fiber's
@@ -7956,21 +8394,28 @@ export const requestUnsafe: <A extends Request.Any>(
  * @since 4.0.0
  */
 export const forkChild: <
-  Arg extends Effect<any, any, any> | {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  } | undefined = {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  }
+	Arg extends
+		| Effect<any, any, any>
+		| {
+				readonly startImmediately?: boolean | undefined;
+				readonly uninterruptible?: boolean | "inherit" | undefined;
+		  }
+		| undefined = {
+		readonly startImmediately?: boolean | undefined;
+		readonly uninterruptible?: boolean | "inherit" | undefined;
+	},
 >(
-  effectOrOptions?: Arg,
-  options?: {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  } | undefined
-) => [Arg] extends [Effect<infer _A, infer _E, infer _R>] ? Effect<Fiber<_A, _E>, never, _R>
-  : <A, E, R>(self: Effect<A, E, R>) => Effect<Fiber<A, E>, never, R> = internal.forkChild
+	effectOrOptions?: Arg,
+	options?:
+		| {
+				readonly startImmediately?: boolean | undefined;
+				readonly uninterruptible?: boolean | "inherit" | undefined;
+		  }
+		| undefined,
+) => [Arg] extends [Effect<infer _A, infer _E, infer _R>]
+	? Effect<Fiber<_A, _E>, never, _R>
+	: <A, E, R>(self: Effect<A, E, R>) => Effect<Fiber<A, E>, never, R> =
+	internal.forkChild;
 
 /**
  * Forks the effect in the specified scope. The fiber will be interrupted
@@ -8001,22 +8446,22 @@ export const forkChild: <
  * @since 2.0.0
  */
 export const forkIn: {
-  (
-    scope: Scope,
-    options?: {
-      readonly startImmediately?: boolean | undefined
-      readonly uninterruptible?: boolean | "inherit" | undefined
-    }
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<Fiber<A, E>, never, R>
-  <A, E, R>(
-    self: Effect<A, E, R>,
-    scope: Scope,
-    options?: {
-      readonly startImmediately?: boolean | undefined
-      readonly uninterruptible?: boolean | "inherit" | undefined
-    }
-  ): Effect<Fiber<A, E>, never, R>
-} = internal.forkIn
+	(
+		scope: Scope,
+		options?: {
+			readonly startImmediately?: boolean | undefined;
+			readonly uninterruptible?: boolean | "inherit" | undefined;
+		},
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<Fiber<A, E>, never, R>;
+	<A, E, R>(
+		self: Effect<A, E, R>,
+		scope: Scope,
+		options?: {
+			readonly startImmediately?: boolean | undefined;
+			readonly uninterruptible?: boolean | "inherit" | undefined;
+		},
+	): Effect<Fiber<A, E>, never, R>;
+} = internal.forkIn;
 
 /**
  * Forks the fiber in a `Scope`, interrupting it when the scope is closed.
@@ -8052,21 +8497,28 @@ export const forkIn: {
  * @since 2.0.0
  */
 export const forkScoped: <
-  Arg extends Effect<any, any, any> | {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  } | undefined = {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  }
+	Arg extends
+		| Effect<any, any, any>
+		| {
+				readonly startImmediately?: boolean | undefined;
+				readonly uninterruptible?: boolean | "inherit" | undefined;
+		  }
+		| undefined = {
+		readonly startImmediately?: boolean | undefined;
+		readonly uninterruptible?: boolean | "inherit" | undefined;
+	},
 >(
-  effectOrOptions?: Arg,
-  options?: {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  } | undefined
-) => [Arg] extends [Effect<infer _A, infer _E, infer _R>] ? Effect<Fiber<_A, _E>, never, _R | Scope>
-  : <A, E, R>(self: Effect<A, E, R>) => Effect<Fiber<A, E>, never, R | Scope> = internal.forkScoped
+	effectOrOptions?: Arg,
+	options?:
+		| {
+				readonly startImmediately?: boolean | undefined;
+				readonly uninterruptible?: boolean | "inherit" | undefined;
+		  }
+		| undefined,
+) => [Arg] extends [Effect<infer _A, infer _E, infer _R>]
+	? Effect<Fiber<_A, _E>, never, _R | Scope>
+	: <A, E, R>(self: Effect<A, E, R>) => Effect<Fiber<A, E>, never, R | Scope> =
+	internal.forkScoped;
 
 /**
  * Forks the effect into a new fiber attached to the global scope. Because the
@@ -8102,21 +8554,28 @@ export const forkScoped: <
  * @since 4.0.0
  */
 export const forkDetach: <
-  Arg extends Effect<any, any, any> | {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  } | undefined = {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  }
+	Arg extends
+		| Effect<any, any, any>
+		| {
+				readonly startImmediately?: boolean | undefined;
+				readonly uninterruptible?: boolean | "inherit" | undefined;
+		  }
+		| undefined = {
+		readonly startImmediately?: boolean | undefined;
+		readonly uninterruptible?: boolean | "inherit" | undefined;
+	},
 >(
-  effectOrOptions?: Arg,
-  options?: {
-    readonly startImmediately?: boolean | undefined
-    readonly uninterruptible?: boolean | "inherit" | undefined
-  } | undefined
-) => [Arg] extends [Effect<infer _A, infer _E, infer _R>] ? Effect<Fiber<_A, _E>, never, _R>
-  : <A, E, R>(self: Effect<A, E, R>) => Effect<Fiber<A, E>, never, R> = internal.forkDetach
+	effectOrOptions?: Arg,
+	options?:
+		| {
+				readonly startImmediately?: boolean | undefined;
+				readonly uninterruptible?: boolean | "inherit" | undefined;
+		  }
+		| undefined,
+) => [Arg] extends [Effect<infer _A, infer _E, infer _R>]
+	? Effect<Fiber<_A, _E>, never, _R>
+	: <A, E, R>(self: Effect<A, E, R>) => Effect<Fiber<A, E>, never, R> =
+	internal.forkDetach;
 
 /**
  * Waits for all child fibers forked by this effect to complete before this
@@ -8125,7 +8584,9 @@ export const forkDetach: <
  * @category Supervision & Fibers
  * @since 2.0.0
  */
-export const awaitAllChildren: <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R> = internal.awaitAllChildren
+export const awaitAllChildren: <A, E, R>(
+	self: Effect<A, E, R>,
+) => Effect<A, E, R> = internal.awaitAllChildren;
 
 /**
  * Access the fiber currently executing the effect.
@@ -8144,7 +8605,7 @@ export const awaitAllChildren: <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, 
  * @category Supervision & Fibers
  * @since 4.0.0
  */
-export const fiber: Effect<Fiber<unknown, unknown>> = internal.fiber
+export const fiber: Effect<Fiber<unknown, unknown>> = internal.fiber;
 
 /**
  * Access the current fiber id executing the effect.
@@ -8168,7 +8629,7 @@ export const fiber: Effect<Fiber<unknown, unknown>> = internal.fiber
  * @category Supervision & Fibers
  * @since 2.0.0
  */
-export const fiberId: Effect<number> = internal.fiberId
+export const fiberId: Effect<number> = internal.fiberId;
 
 // -----------------------------------------------------------------------------
 // Running Effects
@@ -8182,10 +8643,12 @@ export const fiberId: Effect<number> = internal.fiberId
  * @since 4.0.0
  */
 export interface RunOptions {
-  readonly signal?: AbortSignal | undefined
-  readonly scheduler?: Scheduler | undefined
-  readonly uninterruptible?: boolean | undefined
-  readonly onFiberStart?: ((fiber: Fiber<unknown, unknown>) => void) | undefined
+	readonly signal?: AbortSignal | undefined;
+	readonly scheduler?: Scheduler | undefined;
+	readonly uninterruptible?: boolean | undefined;
+	readonly onFiberStart?:
+		| ((fiber: Fiber<unknown, unknown>) => void)
+		| undefined;
 }
 
 /**
@@ -8225,8 +8688,10 @@ export interface RunOptions {
  * @category Running Effects
  * @since 2.0.0
  */
-export const runFork: <A, E>(effect: Effect<A, E, never>, options?: RunOptions | undefined) => Fiber<A, E> =
-  internal.runFork
+export const runFork: <A, E>(
+	effect: Effect<A, E, never>,
+	options?: RunOptions | undefined,
+) => Fiber<A, E> = internal.runFork;
 
 /**
  * Runs an effect in the background with the provided services.
@@ -8259,8 +8724,11 @@ export const runFork: <A, E>(effect: Effect<A, E, never>, options?: RunOptions |
  * @since 4.0.0
  */
 export const runForkWith: <R>(
-  context: Context.Context<R>
-) => <A, E>(effect: Effect<A, E, R>, options?: RunOptions | undefined) => Fiber<A, E> = internal.runForkWith
+	context: Context.Context<R>,
+) => <A, E>(
+	effect: Effect<A, E, R>,
+	options?: RunOptions | undefined,
+) => Fiber<A, E> = internal.runForkWith;
 
 /**
  * Forks an effect with the provided services, registers `onExit` as a fiber observer, and returns an interruptor.
@@ -8306,11 +8774,13 @@ export const runForkWith: <R>(
  * @since 4.0.0
  */
 export const runCallbackWith: <R>(
-  context: Context.Context<R>
+	context: Context.Context<R>,
 ) => <A, E>(
-  effect: Effect<A, E, R>,
-  options?: (RunOptions & { readonly onExit: (exit: Exit.Exit<A, E>) => void }) | undefined
-) => (interruptor?: number | undefined) => void = internal.runCallbackWith
+	effect: Effect<A, E, R>,
+	options?:
+		| (RunOptions & { readonly onExit: (exit: Exit.Exit<A, E>) => void })
+		| undefined,
+) => (interruptor?: number | undefined) => void = internal.runCallbackWith;
 
 /**
  * Runs an effect asynchronously, registering `onExit` as a fiber observer and
@@ -8353,9 +8823,11 @@ export const runCallbackWith: <R>(
  * @since 2.0.0
  */
 export const runCallback: <A, E>(
-  effect: Effect<A, E, never>,
-  options?: (RunOptions & { readonly onExit: (exit: Exit.Exit<A, E>) => void }) | undefined
-) => (interruptor?: number | undefined) => void = internal.runCallback
+	effect: Effect<A, E, never>,
+	options?:
+		| (RunOptions & { readonly onExit: (exit: Exit.Exit<A, E>) => void })
+		| undefined,
+) => (interruptor?: number | undefined) => void = internal.runCallback;
 
 /**
  * Executes an effect and returns the result as a `Promise`.
@@ -8394,9 +8866,9 @@ export const runCallback: <A, E>(
  * @since 2.0.0
  */
 export const runPromise: <A, E>(
-  effect: Effect<A, E>,
-  options?: RunOptions | undefined
-) => Promise<A> = internal.runPromise
+	effect: Effect<A, E>,
+	options?: RunOptions | undefined,
+) => Promise<A> = internal.runPromise;
 
 /**
  * Executes an effect as a Promise with the provided services.
@@ -8428,8 +8900,11 @@ export const runPromise: <A, E>(
  * @since 4.0.0
  */
 export const runPromiseWith: <R>(
-  context: Context.Context<R>
-) => <A, E>(effect: Effect<A, E, R>, options?: RunOptions | undefined) => Promise<A> = internal.runPromiseWith
+	context: Context.Context<R>,
+) => <A, E>(
+	effect: Effect<A, E, R>,
+	options?: RunOptions | undefined,
+) => Promise<A> = internal.runPromiseWith;
 
 /**
  * Runs an effect and returns a `Promise` that resolves to an `Exit`, which
@@ -8479,9 +8954,9 @@ export const runPromiseWith: <R>(
  * @since 2.0.0
  */
 export const runPromiseExit: <A, E>(
-  effect: Effect<A, E>,
-  options?: RunOptions | undefined
-) => Promise<Exit.Exit<A, E>> = internal.runPromiseExit
+	effect: Effect<A, E>,
+	options?: RunOptions | undefined,
+) => Promise<Exit.Exit<A, E>> = internal.runPromiseExit;
 
 /**
  * Runs an effect and returns a Promise of Exit with provided services.
@@ -8517,9 +8992,11 @@ export const runPromiseExit: <A, E>(
  * @since 4.0.0
  */
 export const runPromiseExitWith: <R>(
-  context: Context.Context<R>
-) => <A, E>(effect: Effect<A, E, R>, options?: RunOptions | undefined) => Promise<Exit.Exit<A, E>> =
-  internal.runPromiseExitWith
+	context: Context.Context<R>,
+) => <A, E>(
+	effect: Effect<A, E, R>,
+	options?: RunOptions | undefined,
+) => Promise<Exit.Exit<A, E>> = internal.runPromiseExitWith;
 
 /**
  * Executes an effect synchronously and returns its success value.
@@ -8580,7 +9057,7 @@ export const runPromiseExitWith: <R>(
  * @category Running Effects
  * @since 2.0.0
  */
-export const runSync: <A, E>(effect: Effect<A, E>) => A = internal.runSync
+export const runSync: <A, E>(effect: Effect<A, E>) => A = internal.runSync;
 
 /**
  * Executes an effect synchronously with provided services.
@@ -8613,8 +9090,8 @@ export const runSync: <A, E>(effect: Effect<A, E>) => A = internal.runSync
  * @since 4.0.0
  */
 export const runSyncWith: <R>(
-  context: Context.Context<R>
-) => <A, E>(effect: Effect<A, E, R>) => A = internal.runSyncWith
+	context: Context.Context<R>,
+) => <A, E>(effect: Effect<A, E, R>) => A = internal.runSyncWith;
 
 /**
  * Runs an effect synchronously and returns the result as an `Exit` type, which
@@ -8687,7 +9164,8 @@ export const runSyncWith: <R>(
  * @category Running Effects
  * @since 2.0.0
  */
-export const runSyncExit: <A, E>(effect: Effect<A, E>) => Exit.Exit<A, E> = internal.runSyncExit
+export const runSyncExit: <A, E>(effect: Effect<A, E>) => Exit.Exit<A, E> =
+	internal.runSyncExit;
 
 /**
  * Runs an effect synchronously with provided services, returning an Exit result.
@@ -8729,8 +9207,9 @@ export const runSyncExit: <A, E>(effect: Effect<A, E>) => Exit.Exit<A, E> = inte
  * @since 4.0.0
  */
 export const runSyncExitWith: <R>(
-  context: Context.Context<R>
-) => <A, E>(effect: Effect<A, E, R>) => Exit.Exit<A, E> = internal.runSyncExitWith
+	context: Context.Context<R>,
+) => <A, E>(effect: Effect<A, E, R>) => Exit.Exit<A, E> =
+	internal.runSyncExitWith;
 
 // -----------------------------------------------------------------------------
 // Function
@@ -8746,4044 +9225,4676 @@ export const runSyncExitWith: <R>(
  * @since 3.11.0
  */
 export declare namespace fn {
-  /**
-   * Generator return type accepted by `Effect.fn` and `Effect.fnUntraced`.
-   *
-   * @category models
-   * @since 3.19.0
-   */
-  export type Return<A, E = never, R = never> = Generator<Effect<any, E, R>, A, any>
+	/**
+	 * Generator return type accepted by `Effect.fn` and `Effect.fnUntraced`.
+	 *
+	 * @category models
+	 * @since 3.19.0
+	 */
+	export type Return<A, E = never, R = never> = Generator<
+		Effect<any, E, R>,
+		A,
+		any
+	>;
 
-  /**
-   * Type of the untraced function builder used by `Effect.fnUntraced`.
-   *
-   * @category models
-   * @since 3.11.0
-   */
-  export type Untraced = {
-    <Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>
-    ): (...args: Args) => Effect<
-      AEff,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-        : never,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-        : never
-    >
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>
-    ): (this: Self, ...args: Args) => Effect<
-      AEff,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-        : never,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-        : never
-    >
+	/**
+	 * Type of the untraced function builder used by `Effect.fnUntraced`.
+	 *
+	 * @category models
+	 * @since 3.11.0
+	 */
+	export type Untraced = {
+		<Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+		): (
+			...args: Args
+		) => Effect<
+			AEff,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+					? E
+					: never,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+					? R
+					: never
+		>;
+		<Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+		): (
+			this: Self,
+			...args: Args
+		) => Effect<
+			AEff,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+					? E
+					: never,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+					? R
+					: never
+		>;
 
-    <Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A
-    ): (...args: Args) => A
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A
-    ): (this: Self, ...args: Args) => A
-    <Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B>(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B
-    ): (...args: Args) => B
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B>(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B
-    ): (this: Self, ...args: Args) => B
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C
-    ): (...args: Args) => C
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C
-    ): (this: Self, ...args: Args) => C
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D
-    >(
-      body: (...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D
-    ): (...args: Args) => D
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D
-    ): (this: Self, ...args: Args) => D
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E
-    ): (...args: Args) => E
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E
-    ): (this: Self, ...args: Args) => E
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F
-    ): (...args: Args) => F
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F
-    ): (this: Self, ...args: Args) => F
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G
-    ): (...args: Args) => G
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G
-    ): (this: Self, ...args: Args) => G
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H
-    ): (...args: Args) => H
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H
-    ): (this: Self, ...args: Args) => H
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I
-    ): (...args: Args) => I
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I
-    ): (this: Self, ...args: Args) => I
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J
-    ): (...args: Args) => J
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J
-    ): (this: Self, ...args: Args) => J
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K
-    ): (...args: Args) => K
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K
-    ): (this: Self, ...args: Args) => K
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L
-    ): (...args: Args) => L
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L
-    ): (this: Self, ...args: Args) => L
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M
-    ): (...args: Args) => M
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M
-    ): (this: Self, ...args: Args) => M
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N
-    ): (...args: Args) => N
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N
-    ): (this: Self, ...args: Args) => N
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O
-    ): (...args: Args) => O
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O
-    ): (this: Self, ...args: Args) => O
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P
-    ): (...args: Args) => P
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P
-    ): (this: Self, ...args: Args) => P
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q
-    ): (...args: Args) => Q
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q
-    ): (this: Self, ...args: Args) => Q
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R
-    ): (...args: Args) => R
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R
-    ): (this: Self, ...args: Args) => R
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S
-    ): (...args: Args) => S
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S
-    ): (this: Self, ...args: Args) => S
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S,
-      T
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S,
-      t: (_: S, ...args: Args) => T
-    ): (...args: Args) => T
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S,
-      T
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S,
-      t: (_: S, ...args: Args) => T
-    ): (this: Self, ...args: Args) => T
-  }
+		<Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+		): (...args: Args) => A;
+		<Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+		): (this: Self, ...args: Args) => A;
+		<Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+		): (...args: Args) => B;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+		): (this: Self, ...args: Args) => B;
+		<Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B, C>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+		): (...args: Args) => C;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+		): (this: Self, ...args: Args) => C;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+		>(
+			body: (...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+		): (...args: Args) => D;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+		): (this: Self, ...args: Args) => D;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+		): (...args: Args) => E;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+		): (this: Self, ...args: Args) => E;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+		): (...args: Args) => F;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+		): (this: Self, ...args: Args) => F;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+		): (...args: Args) => G;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+		): (this: Self, ...args: Args) => G;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+		): (...args: Args) => H;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+		): (this: Self, ...args: Args) => H;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+		): (...args: Args) => I;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+		): (this: Self, ...args: Args) => I;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+		): (...args: Args) => J;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+		): (this: Self, ...args: Args) => J;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+		): (...args: Args) => K;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+		): (this: Self, ...args: Args) => K;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+		): (...args: Args) => L;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+		): (this: Self, ...args: Args) => L;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+		): (...args: Args) => M;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+		): (this: Self, ...args: Args) => M;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+		): (...args: Args) => N;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+		): (this: Self, ...args: Args) => N;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+		): (...args: Args) => O;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+		): (this: Self, ...args: Args) => O;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+		): (...args: Args) => P;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+		): (this: Self, ...args: Args) => P;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+		): (...args: Args) => Q;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+		): (this: Self, ...args: Args) => Q;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+		): (...args: Args) => R;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+		): (this: Self, ...args: Args) => R;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+		): (...args: Args) => S;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+		): (this: Self, ...args: Args) => S;
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+			T,
+		>(
+			body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+			t: (_: S, ...args: Args) => T,
+		): (...args: Args) => T;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+			T,
+		>(
+			body: (this: Self, ...args: Args) => Generator<Eff, AEff, never>,
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+			t: (_: S, ...args: Args) => T,
+		): (this: Self, ...args: Args) => T;
+	};
 
-  /**
-   * Type of the traced function builder used by `Effect.fn`.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export type Traced = {
-    <Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>)
-    ): (...args: Args) => Effect<
-      AEff,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-        : never,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-        : never
-    >
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>)
-    ): (this: Self, ...args: Args) => Effect<
-      AEff,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-        : never,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-        : never
-    >
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>)
-    ): (...args: Args) => Effect<
-      AEff,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-        : never,
-      [Eff] extends [never] ? never
-        : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-        : never
-    >
+	/**
+	 * Type of the traced function builder used by `Effect.fn`.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export type Traced = {
+		<Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+		): (
+			...args: Args
+		) => Effect<
+			AEff,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+					? E
+					: never,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+					? R
+					: never
+		>;
+		<Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+		): (
+			this: Self,
+			...args: Args
+		) => Effect<
+			AEff,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+					? E
+					: never,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+					? R
+					: never
+		>;
+		<Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+		): (
+			...args: Args
+		) => Effect<
+			AEff,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+					? E
+					: never,
+			[Eff] extends [never]
+				? never
+				: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+					? R
+					: never
+		>;
 
-    <Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A
-    ): (...args: Args) => A
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A
-    ): (this: Self, ...args: Args) => A
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A
-    ): (...args: Args) => A
+		<Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+		): (...args: Args) => A;
+		<Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+		): (this: Self, ...args: Args) => A;
+		<Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+		): (...args: Args) => A;
 
-    <Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B>(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B
-    ): (...args: Args) => B
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B>(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B
-    ): (this: Self, ...args: Args) => B
-    <Self, Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B>(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B
-    ): (...args: Args) => B
+		<Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+		): (...args: Args) => B;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+		): (this: Self, ...args: Args) => B;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+		): (...args: Args) => B;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C
-    ): (...args: Args) => C
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C
-    ): (this: Self, ...args: Args) => C
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C
-    ): (...args: Args) => C
+		<Eff extends Effect<any, any, any>, AEff, Args extends Array<any>, A, B, C>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+		): (...args: Args) => C;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+		): (this: Self, ...args: Args) => C;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+		): (...args: Args) => C;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D
-    ): (...args: Args) => D
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D
-    ): (this: Self, ...args: Args) => D
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+		): (...args: Args) => D;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+		): (this: Self, ...args: Args) => D;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D
-    ): (...args: Args) => D
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+		): (...args: Args) => D;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E
-    ): (...args: Args) => E
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E
-    ): (this: Self, ...args: Args) => E
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+		): (...args: Args) => E;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+		): (this: Self, ...args: Args) => E;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E
-    ): (...args: Args) => E
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+		): (...args: Args) => E;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F
-    ): (...args: Args) => F
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F
-    ): (this: Self, ...args: Args) => F
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+		): (...args: Args) => F;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+		): (this: Self, ...args: Args) => F;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F
-    ): (...args: Args) => F
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+		): (...args: Args) => F;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G
-    ): (...args: Args) => G
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G
-    ): (this: Self, ...args: Args) => G
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+		): (...args: Args) => G;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+		): (this: Self, ...args: Args) => G;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G
-    ): (...args: Args) => G
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+		): (...args: Args) => G;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H
-    ): (...args: Args) => H
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H
-    ): (this: Self, ...args: Args) => H
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+		): (...args: Args) => H;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+		): (this: Self, ...args: Args) => H;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H
-    ): (...args: Args) => H
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+		): (...args: Args) => H;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I
-    ): (...args: Args) => I
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I
-    ): (this: Self, ...args: Args) => I
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+		): (...args: Args) => I;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+		): (this: Self, ...args: Args) => I;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I
-    ): (...args: Args) => I
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+		): (...args: Args) => I;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J
-    ): (...args: Args) => J
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J
-    ): (this: Self, ...args: Args) => J
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+		): (...args: Args) => J;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+		): (this: Self, ...args: Args) => J;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J
-    ): (...args: Args) => J
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+		): (...args: Args) => J;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K
-    ): (...args: Args) => K
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K
-    ): (this: Self, ...args: Args) => K
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+		): (...args: Args) => K;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+		): (this: Self, ...args: Args) => K;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K
-    ): (...args: Args) => K
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+		): (...args: Args) => K;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L
-    ): (...args: Args) => L
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L
-    ): (this: Self, ...args: Args) => L
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+		): (...args: Args) => L;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+		): (this: Self, ...args: Args) => L;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L
-    ): (...args: Args) => L
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+		): (...args: Args) => L;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M
-    ): (...args: Args) => M
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M
-    ): (this: Self, ...args: Args) => M
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+		): (...args: Args) => M;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+		): (this: Self, ...args: Args) => M;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M
-    ): (...args: Args) => M
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+		): (...args: Args) => M;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N
-    ): (...args: Args) => N
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N
-    ): (this: Self, ...args: Args) => N
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+		): (...args: Args) => N;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+		): (this: Self, ...args: Args) => N;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N
-    ): (...args: Args) => N
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+		): (...args: Args) => N;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O
-    ): (...args: Args) => O
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O
-    ): (this: Self, ...args: Args) => O
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+		): (...args: Args) => O;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+		): (this: Self, ...args: Args) => O;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O
-    ): (...args: Args) => O
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+		): (...args: Args) => O;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P
-    ): (...args: Args) => P
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P
-    ): (this: Self, ...args: Args) => P
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+		): (...args: Args) => P;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+		): (this: Self, ...args: Args) => P;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P
-    ): (...args: Args) => P
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+		): (...args: Args) => P;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q
-    ): (...args: Args) => Q
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q
-    ): (this: Self, ...args: Args) => Q
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+		): (...args: Args) => Q;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+		): (this: Self, ...args: Args) => Q;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q
-    ): (...args: Args) => Q
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+		): (...args: Args) => Q;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R
-    ): (...args: Args) => R
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R
-    ): (this: Self, ...args: Args) => R
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+		): (...args: Args) => R;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+		): (this: Self, ...args: Args) => R;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R
-    ): (...args: Args) => R
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+		): (...args: Args) => R;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S
-    ): (...args: Args) => S
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S
-    ): (this: Self, ...args: Args) => S
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+		): (...args: Args) => S;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+		): (this: Self, ...args: Args) => S;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S
-    ): (...args: Args) => S
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+		): (...args: Args) => S;
 
-    <
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S,
-      T
-    >(
-      body: (this: unassigned, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S,
-      t: (_: S, ...args: Args) => T
-    ): (...args: Args) => T
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S,
-      T
-    >(
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S,
-      t: (_: S, ...args: Args) => T
-    ): (this: Self, ...args: Args) => T
+		<
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+			T,
+		>(
+			body: (
+				this: unassigned,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+			t: (_: S, ...args: Args) => T,
+		): (...args: Args) => T;
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+			T,
+		>(
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+			t: (_: S, ...args: Args) => T,
+		): (this: Self, ...args: Args) => T;
 
-    <
-      Self,
-      Eff extends Effect<any, any, any>,
-      AEff,
-      Args extends Array<any>,
-      A,
-      B,
-      C,
-      D,
-      E,
-      F,
-      G,
-      H,
-      I,
-      J,
-      K,
-      L,
-      M,
-      N,
-      O,
-      P,
-      Q,
-      R,
-      S,
-      T
-    >(
-      options: { readonly self: Self },
-      body: (this: Self, ...args: Args) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
-      a: (
-        _: Effect<
-          AEff,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer E, infer _R>] ? E
-            : never,
-          [Eff] extends [never] ? never
-            : [Eff] extends [Effect<infer _A, infer _E, infer R>] ? R
-            : never
-        >,
-        ...args: Args
-      ) => A,
-      b: (_: A, ...args: Args) => B,
-      c: (_: B, ...args: Args) => C,
-      d: (_: C, ...args: Args) => D,
-      e: (_: D, ...args: Args) => E,
-      f: (_: E, ...args: Args) => F,
-      g: (_: F, ...args: Args) => G,
-      h: (_: G, ...args: Args) => H,
-      i: (_: H, ...args: Args) => I,
-      j: (_: I, ...args: Args) => J,
-      k: (_: J, ...args: Args) => K,
-      l: (_: K, ...args: Args) => L,
-      m: (_: L, ...args: Args) => M,
-      n: (_: M, ...args: Args) => N,
-      o: (_: N, ...args: Args) => O,
-      p: (_: O, ...args: Args) => P,
-      q: (_: P, ...args: Args) => Q,
-      r: (_: Q, ...args: Args) => R,
-      s: (_: R, ...args: Args) => S,
-      t: (_: S, ...args: Args) => T
-    ): (...args: Args) => T
-  }
+		<
+			Self,
+			Eff extends Effect<any, any, any>,
+			AEff,
+			Args extends Array<any>,
+			A,
+			B,
+			C,
+			D,
+			E,
+			F,
+			G,
+			H,
+			I,
+			J,
+			K,
+			L,
+			M,
+			N,
+			O,
+			P,
+			Q,
+			R,
+			S,
+			T,
+		>(
+			options: { readonly self: Self },
+			body: (
+				this: Self,
+				...args: Args
+			) => Generator<Eff, AEff, never> | (Eff & Effect<AEff, any, any>),
+			a: (
+				_: Effect<
+					AEff,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer E, infer _R>]
+							? E
+							: never,
+					[Eff] extends [never]
+						? never
+						: [Eff] extends [Effect<infer _A, infer _E, infer R>]
+							? R
+							: never
+				>,
+				...args: Args
+			) => A,
+			b: (_: A, ...args: Args) => B,
+			c: (_: B, ...args: Args) => C,
+			d: (_: C, ...args: Args) => D,
+			e: (_: D, ...args: Args) => E,
+			f: (_: E, ...args: Args) => F,
+			g: (_: F, ...args: Args) => G,
+			h: (_: G, ...args: Args) => H,
+			i: (_: H, ...args: Args) => I,
+			j: (_: I, ...args: Args) => J,
+			k: (_: J, ...args: Args) => K,
+			l: (_: K, ...args: Args) => L,
+			m: (_: L, ...args: Args) => M,
+			n: (_: M, ...args: Args) => N,
+			o: (_: N, ...args: Args) => O,
+			p: (_: O, ...args: Args) => P,
+			q: (_: P, ...args: Args) => Q,
+			r: (_: Q, ...args: Args) => R,
+			s: (_: R, ...args: Args) => S,
+			t: (_: S, ...args: Args) => T,
+		): (...args: Args) => T;
+	};
 }
 
 /**
@@ -12809,7 +13920,7 @@ export declare namespace fn {
  * @category Function
  * @since 3.12.0
  */
-export const fnUntraced: fn.Untraced = internal.fnUntraced
+export const fnUntraced: fn.Untraced = internal.fnUntraced;
 
 /**
  * Creates a traced function with an optional span name and `SpanOptionsNoTrace` that adds spans and stack frames, plus pipeable post-processing that receives the Effect and the original arguments.
@@ -12842,8 +13953,8 @@ export const fnUntraced: fn.Untraced = internal.fnUntraced
  * @since 3.11.0
  */
 export const fn: fn.Traced & {
-  (name: string, options?: SpanOptionsNoTrace): fn.Traced
-} = internal.fn
+	(name: string, options?: SpanOptionsNoTrace): fn.Traced;
+} = internal.fn;
 
 // ========================================================================
 // Clock
@@ -12874,8 +13985,8 @@ export const fn: fn.Traced & {
  * @since 2.0.0
  */
 export const clockWith: <A, E, R>(
-  f: (clock: Clock) => Effect<A, E, R>
-) => Effect<A, E, R> = internal.clockWith
+	f: (clock: Clock) => Effect<A, E, R>,
+) => Effect<A, E, R> = internal.clockWith;
 
 // ========================================================================
 // Logging
@@ -12904,8 +14015,9 @@ export const clockWith: <A, E, R>(
  * @category logging
  * @since 2.0.0
  */
-export const logWithLevel: (level?: Severity) => (...message: ReadonlyArray<any>) => Effect<void> =
-  internal.logWithLevel
+export const logWithLevel: (
+	level?: Severity,
+) => (...message: ReadonlyArray<any>) => Effect<void> = internal.logWithLevel;
 
 /**
  * Logs one or more messages using the default log level.
@@ -12934,7 +14046,8 @@ export const logWithLevel: (level?: Severity) => (...message: ReadonlyArray<any>
  * @category logging
  * @since 2.0.0
  */
-export const log: (...message: ReadonlyArray<any>) => Effect<void> = internal.logWithLevel()
+export const log: (...message: ReadonlyArray<any>) => Effect<void> =
+	internal.logWithLevel();
 
 /**
  * Logs one or more messages at the FATAL level.
@@ -12964,7 +14077,8 @@ export const log: (...message: ReadonlyArray<any>) => Effect<void> = internal.lo
  * @category logging
  * @since 2.0.0
  */
-export const logFatal: (...message: ReadonlyArray<any>) => Effect<void> = internal.logWithLevel("Fatal")
+export const logFatal: (...message: ReadonlyArray<any>) => Effect<void> =
+	internal.logWithLevel("Fatal");
 
 /**
  * Logs one or more messages at the WARNING level.
@@ -12995,7 +14109,8 @@ export const logFatal: (...message: ReadonlyArray<any>) => Effect<void> = intern
  * @category logging
  * @since 2.0.0
  */
-export const logWarning: (...message: ReadonlyArray<any>) => Effect<void> = internal.logWithLevel("Warn")
+export const logWarning: (...message: ReadonlyArray<any>) => Effect<void> =
+	internal.logWithLevel("Warn");
 
 /**
  * Logs one or more messages at the ERROR level.
@@ -13029,7 +14144,8 @@ export const logWarning: (...message: ReadonlyArray<any>) => Effect<void> = inte
  * @category logging
  * @since 2.0.0
  */
-export const logError: (...message: ReadonlyArray<any>) => Effect<void> = internal.logWithLevel("Error")
+export const logError: (...message: ReadonlyArray<any>) => Effect<void> =
+	internal.logWithLevel("Error");
 
 /**
  * Logs one or more messages at the INFO level.
@@ -13058,7 +14174,8 @@ export const logError: (...message: ReadonlyArray<any>) => Effect<void> = intern
  * @category logging
  * @since 2.0.0
  */
-export const logInfo: (...message: ReadonlyArray<any>) => Effect<void> = internal.logWithLevel("Info")
+export const logInfo: (...message: ReadonlyArray<any>) => Effect<void> =
+	internal.logWithLevel("Info");
 
 /**
  * Logs one or more messages at the DEBUG level.
@@ -13088,7 +14205,8 @@ export const logInfo: (...message: ReadonlyArray<any>) => Effect<void> = interna
  * @category logging
  * @since 2.0.0
  */
-export const logDebug: (...message: ReadonlyArray<any>) => Effect<void> = internal.logWithLevel("Debug")
+export const logDebug: (...message: ReadonlyArray<any>) => Effect<void> =
+	internal.logWithLevel("Debug");
 
 /**
  * Logs one or more messages at the TRACE level.
@@ -13121,7 +14239,8 @@ export const logDebug: (...message: ReadonlyArray<any>) => Effect<void> = intern
  * @category logging
  * @since 2.0.0
  */
-export const logTrace: (...message: ReadonlyArray<any>) => Effect<void> = internal.logWithLevel("Trace")
+export const logTrace: (...message: ReadonlyArray<any>) => Effect<void> =
+	internal.logWithLevel("Trace");
 
 /**
  * Adds a logger to the set of loggers which will output logs for this effect.
@@ -13152,19 +14271,20 @@ export const logTrace: (...message: ReadonlyArray<any>) => Effect<void> = intern
  * @since 4.0.0
  */
 export const withLogger = dual<
-  <Output>(
-    logger: Logger<unknown, Output>
-  ) => <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>,
-  <A, E, R, Output>(
-    effect: Effect<A, E, R>,
-    logger: Logger<unknown, Output>
-  ) => Effect<A, E, R>
+	<Output>(
+		logger: Logger<unknown, Output>,
+	) => <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>,
+	<A, E, R, Output>(
+		effect: Effect<A, E, R>,
+		logger: Logger<unknown, Output>,
+	) => Effect<A, E, R>
 >(2, (effect, logger) =>
-  internal.updateService(
-    effect,
-    internal.CurrentLoggers,
-    (loggers) => new Set([...loggers, logger])
-  ))
+	internal.updateService(
+		effect,
+		internal.CurrentLoggers,
+		(loggers) => new Set([...loggers, logger]),
+	),
+);
 
 /**
  * Adds an annotation to each log line in this effect.
@@ -13197,42 +14317,42 @@ export const withLogger = dual<
  * @since 2.0.0
  */
 export const annotateLogs = dual<
-  {
-    (
-      key: string,
-      value: unknown
-    ): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>
-    (
-      values: Record<string, unknown>
-    ): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>
-  },
-  {
-    <A, E, R>(
-      effect: Effect<A, E, R>,
-      key: string,
-      value: unknown
-    ): Effect<A, E, R>
-    <A, E, R>(
-      effect: Effect<A, E, R>,
-      values: Record<string, unknown>
-    ): Effect<A, E, R>
-  }
+	{
+		(
+			key: string,
+			value: unknown,
+		): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>;
+		(
+			values: Record<string, unknown>,
+		): <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>;
+	},
+	{
+		<A, E, R>(
+			effect: Effect<A, E, R>,
+			key: string,
+			value: unknown,
+		): Effect<A, E, R>;
+		<A, E, R>(
+			effect: Effect<A, E, R>,
+			values: Record<string, unknown>,
+		): Effect<A, E, R>;
+	}
 >(
-  (args) => isEffect(args[0]),
-  <A, E, R>(
-    effect: Effect<A, E, R>,
-    ...args: [Record<string, unknown>] | [key: string, value: unknown]
-  ): Effect<A, E, R> =>
-    internal.updateService(effect, CurrentLogAnnotations, (annotations) => {
-      const newAnnotations = { ...annotations }
-      if (args.length === 1) {
-        Object.assign(newAnnotations, args[0])
-      } else {
-        newAnnotations[args[0]] = args[1]
-      }
-      return newAnnotations
-    })
-)
+	(args) => isEffect(args[0]),
+	<A, E, R>(
+		effect: Effect<A, E, R>,
+		...args: [Record<string, unknown>] | [key: string, value: unknown]
+	): Effect<A, E, R> =>
+		internal.updateService(effect, CurrentLogAnnotations, (annotations) => {
+			const newAnnotations = { ...annotations };
+			if (args.length === 1) {
+				Object.assign(newAnnotations, args[0]);
+			} else {
+				newAnnotations[args[0]] = args[1];
+			}
+			return newAnnotations;
+		}),
+);
 
 /**
  * Adds log annotations to the current scope.
@@ -13263,9 +14383,9 @@ export const annotateLogs = dual<
  * @since 3.1.0
  */
 export const annotateLogsScoped: {
-  (key: string, value: unknown): Effect<void, never, Scope>
-  (values: Record<string, unknown>): Effect<void, never, Scope>
-} = internal.annotateLogsScoped
+	(key: string, value: unknown): Effect<void, never, Scope>;
+	(values: Record<string, unknown>): Effect<void, never, Scope>;
+} = internal.annotateLogsScoped;
 
 /**
  * Adds a span to each log line in this effect.
@@ -13299,17 +14419,16 @@ export const annotateLogsScoped: {
  * @since 2.0.0
  */
 export const withLogSpan = dual<
-  (label: string) => <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>,
-  <A, E, R>(effect: Effect<A, E, R>, label: string) => Effect<A, E, R>
->(
-  2,
-  (effect, label) =>
-    internal.flatMap(internal.currentTimeMillis, (now) =>
-      internal.updateService(effect, CurrentLogSpans, (spans) => {
-        const span: [label: string, timestamp: number] = [label, now]
-        return [span, ...spans]
-      }))
-)
+	(label: string) => <A, E, R>(effect: Effect<A, E, R>) => Effect<A, E, R>,
+	<A, E, R>(effect: Effect<A, E, R>, label: string) => Effect<A, E, R>
+>(2, (effect, label) =>
+	internal.flatMap(internal.currentTimeMillis, (now) =>
+		internal.updateService(effect, CurrentLogSpans, (spans) => {
+			const span: [label: string, timestamp: number] = [label, now];
+			return [span, ...spans];
+		}),
+	),
+);
 
 // -----------------------------------------------------------------------------
 // Metrics
@@ -13368,34 +14487,34 @@ export const withLogSpan = dual<
  * @since 4.0.0
  */
 export const track: {
-  <Input, State, E, A>(
-    metric: Metric.Metric<Input, State>,
-    f: (exit: Exit.Exit<A, E>) => Input
-  ): <E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <State, E, A>(
-    metric: Metric.Metric<Exit.Exit<NoInfer<A>, NoInfer<E>>, State>
-  ): <R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: (exit: Exit.Exit<A, E>) => Input
-  ): Effect<A, E, R>
-  <A, E, R, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Exit.Exit<NoInfer<A>, NoInfer<E>>, State>
-  ): Effect<A, E, R>
+	<Input, State, E, A>(
+		metric: Metric.Metric<Input, State>,
+		f: (exit: Exit.Exit<A, E>) => Input,
+	): <E, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<State, E, A>(
+		metric: Metric.Metric<Exit.Exit<NoInfer<A>, NoInfer<E>>, State>,
+	): <R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: (exit: Exit.Exit<A, E>) => Input,
+	): Effect<A, E, R>;
+	<A, E, R, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Exit.Exit<NoInfer<A>, NoInfer<E>>, State>,
+	): Effect<A, E, R>;
 } = dual(
-  (args) => isEffect(args[0]),
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: (exit: Exit.Exit<A, E>) => Input
-  ): Effect<A, E, R> =>
-    onExit(self, (exit) => {
-      const input = f === undefined ? exit : internalCall(() => f(exit))
-      return Metric.update(metric, input as any)
-    })
-)
+	(args) => isEffect(args[0]),
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: (exit: Exit.Exit<A, E>) => Input,
+	): Effect<A, E, R> =>
+		onExit(self, (exit) => {
+			const input = f === undefined ? exit : internalCall(() => f(exit));
+			return Metric.update(metric, input as any);
+		}),
+);
 
 /**
  * Updates the provided `Metric` every time the wrapped `Effect` succeeds with
@@ -13447,34 +14566,34 @@ export const track: {
  * @since 4.0.0
  */
 export const trackSuccesses: {
-  <Input, State, A>(
-    metric: Metric.Metric<Input, State>,
-    f: (value: A) => Input
-  ): <E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <State, A>(
-    metric: Metric.Metric<NoInfer<A>, State>
-  ): <E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: (value: A) => Input
-  ): Effect<A, E, R>
-  <A, E, R, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<NoInfer<A>, State>
-  ): Effect<A, E, R>
+	<Input, State, A>(
+		metric: Metric.Metric<Input, State>,
+		f: (value: A) => Input,
+	): <E, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<State, A>(
+		metric: Metric.Metric<NoInfer<A>, State>,
+	): <E, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: (value: A) => Input,
+	): Effect<A, E, R>;
+	<A, E, R, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<NoInfer<A>, State>,
+	): Effect<A, E, R>;
 } = dual(
-  (args) => isEffect(args[0]),
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: ((value: A) => Input) | undefined
-  ): Effect<A, E, R> =>
-    tap(self, (value) => {
-      const input = f === undefined ? value : f(value)
-      return Metric.update(metric, input as any)
-    })
-)
+	(args) => isEffect(args[0]),
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: ((value: A) => Input) | undefined,
+	): Effect<A, E, R> =>
+		tap(self, (value) => {
+			const input = f === undefined ? value : f(value);
+			return Metric.update(metric, input as any);
+		}),
+);
 
 /**
  * Updates the provided `Metric` every time the wrapped `Effect` fails with an
@@ -13528,34 +14647,34 @@ export const trackSuccesses: {
  * @since 4.0.0
  */
 export const trackErrors: {
-  <Input, State, E>(
-    metric: Metric.Metric<Input, State>,
-    f: (error: E) => Input
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <State, E>(
-    metric: Metric.Metric<NoInfer<E>, State>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: (error: E) => Input
-  ): Effect<A, E, R>
-  <A, E, R, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<NoInfer<E>, State>
-  ): Effect<A, E, R>
+	<Input, State, E>(
+		metric: Metric.Metric<Input, State>,
+		f: (error: E) => Input,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<State, E>(
+		metric: Metric.Metric<NoInfer<E>, State>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: (error: E) => Input,
+	): Effect<A, E, R>;
+	<A, E, R, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<NoInfer<E>, State>,
+	): Effect<A, E, R>;
 } = dual(
-  (args) => isEffect(args[0]),
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: ((error: E) => Input) | undefined
-  ): Effect<A, E, R> =>
-    tapError(self, (error) => {
-      const input = f === undefined ? error : internalCall(() => f(error))
-      return Metric.update(metric, input as any)
-    })
-)
+	(args) => isEffect(args[0]),
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: ((error: E) => Input) | undefined,
+	): Effect<A, E, R> =>
+		tapError(self, (error) => {
+			const input = f === undefined ? error : internalCall(() => f(error));
+			return Metric.update(metric, input as any);
+		}),
+);
 
 /**
  * Updates the provided `Metric` every time the wrapped `Effect` fails with an
@@ -13610,30 +14729,30 @@ export const trackErrors: {
  * @since 4.0.0
  */
 export const trackDefects: {
-  <Input, State>(
-    metric: Metric.Metric<Input, State>,
-    f: (defect: unknown) => Input
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <State, E>(
-    metric: Metric.Metric<unknown, State>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: (defect: unknown) => Input
-  ): Effect<A, E, R>
-  <A, E, R, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<unknown, State>
-  ): Effect<A, E, R>
+	<Input, State>(
+		metric: Metric.Metric<Input, State>,
+		f: (defect: unknown) => Input,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<State, E>(
+		metric: Metric.Metric<unknown, State>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: (defect: unknown) => Input,
+	): Effect<A, E, R>;
+	<A, E, R, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<unknown, State>,
+	): Effect<A, E, R>;
 } = dual(
-  (args) => isEffect(args[0]),
-  (self, metric, f) =>
-    tapDefect(self, (defect) => {
-      const input = f === undefined ? defect : internalCall(() => f(defect))
-      return Metric.update(metric, input)
-    })
-)
+	(args) => isEffect(args[0]),
+	(self, metric, f) =>
+		tapDefect(self, (defect) => {
+			const input = f === undefined ? defect : internalCall(() => f(defect));
+			return Metric.update(metric, input);
+		}),
+);
 
 /**
  * Updates the provided `Metric` with the `Duration` of time (in nanoseconds)
@@ -13684,42 +14803,43 @@ export const trackDefects: {
  * @since 4.0.0
  */
 export const trackDuration: {
-  <Input, State>(
-    metric: Metric.Metric<Input, State>,
-    f: (duration: Duration.Duration) => Input
-  ): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <State, E>(
-    metric: Metric.Metric<Duration.Duration, State>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R>
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: (duration: Duration.Duration) => Input
-  ): Effect<A, E, R>
-  <A, E, R, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Duration.Duration, State>
-  ): Effect<A, E, R>
+	<Input, State>(
+		metric: Metric.Metric<Input, State>,
+		f: (duration: Duration.Duration) => Input,
+	): <A, E, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<State, E>(
+		metric: Metric.Metric<Duration.Duration, State>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A, E, R>;
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: (duration: Duration.Duration) => Input,
+	): Effect<A, E, R>;
+	<A, E, R, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Duration.Duration, State>,
+	): Effect<A, E, R>;
 } = dual(
-  (args) => isEffect(args[0]),
-  <A, E, R, Input, State>(
-    self: Effect<A, E, R>,
-    metric: Metric.Metric<Input, State>,
-    f: ((duration: Duration.Duration) => Input) | undefined
-  ): Effect<A, E, R> =>
-    clockWith((clock) => {
-      const startTime = clock.currentTimeNanosUnsafe()
-      return onExit(self, () => {
-        const endTime = clock.currentTimeNanosUnsafe()
-        const duration = Duration.subtract(
-          Duration.fromInputUnsafe(endTime),
-          Duration.fromInputUnsafe(startTime)
-        )
-        const input = f === undefined ? duration : internalCall(() => f(duration))
-        return Metric.update(metric, input as any)
-      })
-    })
-)
+	(args) => isEffect(args[0]),
+	<A, E, R, Input, State>(
+		self: Effect<A, E, R>,
+		metric: Metric.Metric<Input, State>,
+		f: ((duration: Duration.Duration) => Input) | undefined,
+	): Effect<A, E, R> =>
+		clockWith((clock) => {
+			const startTime = clock.currentTimeNanosUnsafe();
+			return onExit(self, () => {
+				const endTime = clock.currentTimeNanosUnsafe();
+				const duration = Duration.subtract(
+					Duration.fromInputUnsafe(endTime),
+					Duration.fromInputUnsafe(startTime),
+				);
+				const input =
+					f === undefined ? duration : internalCall(() => f(duration));
+				return Metric.update(metric, input as any);
+			});
+		}),
+);
 
 // -----------------------------------------------------------------------------
 // Transactions
@@ -13750,17 +14870,17 @@ export const trackDuration: {
  * @since 4.0.0
  */
 export class Transaction extends Context.Service<
-  Transaction,
-  {
-    retry: boolean
-    readonly journal: Map<
-      TxRef<any>,
-      {
-        readonly version: number
-        value: any
-      }
-    >
-  }
+	Transaction,
+	{
+		retry: boolean;
+		readonly journal: Map<
+			TxRef<any>,
+			{
+				readonly version: number;
+				value: any;
+			}
+		>;
+	}
 >()("effect/Effect/Transaction") {}
 
 /**
@@ -13809,92 +14929,95 @@ export class Transaction extends Context.Service<
  * @since 4.0.0
  */
 export const tx = <A, E, R>(
-  effect: Effect<A, E, R>
+	effect: Effect<A, E, R>,
 ): Effect<A, E, Exclude<R, Transaction>> =>
-  withFiber((fiber) => {
-    if (fiber.context.mapUnsafe.has(Transaction.key)) {
-      return effect as Effect<A, E, Exclude<R, Transaction>>
-    }
-    // Create transaction state only at the outermost boundary
-    const state: Transaction["Service"] = { journal: new Map(), retry: false }
-    let result: Exit.Exit<A, E> | undefined
-    return uninterruptibleMask((restore) =>
-      flatMap(
-        whileLoop({
-          while: () => !result,
-          body: constant(
-            restore(effect).pipe(
-              provideService(Transaction, state),
-              tapCause(() => {
-                if (!state.retry) return void_
-                return restore(awaitPendingTransaction(state))
-              }),
-              exit
-            )
-          ),
-          step(exit: Exit.Exit<A, E>) {
-            if (state.retry || !isTransactionConsistent(state)) {
-              return clearTransaction(state)
-            }
-            if (Exit.isSuccess(exit)) {
-              commitTransaction(fiber, state)
-            } else {
-              clearTransaction(state)
-            }
-            result = exit
-          }
-        }),
-        () => result!
-      )
-    )
-  })
+	withFiber((fiber) => {
+		if (fiber.context.mapUnsafe.has(Transaction.key)) {
+			return effect as Effect<A, E, Exclude<R, Transaction>>;
+		}
+		// Create transaction state only at the outermost boundary
+		const state: Transaction["Service"] = { journal: new Map(), retry: false };
+		let result: Exit.Exit<A, E> | undefined;
+		return uninterruptibleMask((restore) =>
+			flatMap(
+				whileLoop({
+					while: () => !result,
+					body: constant(
+						restore(effect).pipe(
+							provideService(Transaction, state),
+							tapCause(() => {
+								if (!state.retry) return void_;
+								return restore(awaitPendingTransaction(state));
+							}),
+							exit,
+						),
+					),
+					step(exit: Exit.Exit<A, E>) {
+						if (state.retry || !isTransactionConsistent(state)) {
+							return clearTransaction(state);
+						}
+						if (Exit.isSuccess(exit)) {
+							commitTransaction(fiber, state);
+						} else {
+							clearTransaction(state);
+						}
+						result = exit;
+					},
+				}),
+				() => result!,
+			),
+		);
+	});
 
 const isTransactionConsistent = (state: Transaction["Service"]) => {
-  for (const [ref, { version }] of state.journal) {
-    if (ref.version !== version) {
-      return false
-    }
-  }
-  return true
-}
+	for (const [ref, { version }] of state.journal) {
+		if (ref.version !== version) {
+			return false;
+		}
+	}
+	return true;
+};
 
 const awaitPendingTransaction = (state: Transaction["Service"]) =>
-  suspend(() => {
-    const key = {}
-    const refs = Array.from(state.journal.keys())
-    const clearPending = () => {
-      for (const clear of refs) {
-        clear.pending.delete(key)
-      }
-    }
-    return callback<void>((resume) => {
-      const onCall = () => {
-        clearPending()
-        resume(void_)
-      }
-      for (const ref of refs) {
-        ref.pending.set(key, onCall)
-      }
-      return sync(clearPending)
-    })
-  })
+	suspend(() => {
+		const key = {};
+		const refs = Array.from(state.journal.keys());
+		const clearPending = () => {
+			for (const clear of refs) {
+				clear.pending.delete(key);
+			}
+		};
+		return callback<void>((resume) => {
+			const onCall = () => {
+				clearPending();
+				resume(void_);
+			};
+			for (const ref of refs) {
+				ref.pending.set(key, onCall);
+			}
+			return sync(clearPending);
+		});
+	});
 
-function commitTransaction(fiber: Fiber<unknown, unknown>, state: Transaction["Service"]) {
-  for (const [ref, { value }] of state.journal) {
-    if (value !== ref.value) {
-      ref.version = ref.version + 1
-      ref.value = value
-    }
-    for (const pending of ref.pending.values()) {
-      fiber.currentDispatcher.scheduleTask(pending, 0)
-    }
-    ref.pending.clear()
-  }
+function commitTransaction(
+	fiber: Fiber<unknown, unknown>,
+	state: Transaction["Service"],
+) {
+	for (const [ref, { value }] of state.journal) {
+		if (value !== ref.value) {
+			ref.version = ref.version + 1;
+			ref.value = value;
+		}
+		for (const pending of ref.pending.values()) {
+			fiber.currentDispatcher.scheduleTask(pending, 0);
+		}
+		ref.pending.clear();
+	}
 }
 
 function clearTransaction(state: Transaction["Service"]) {
-  state.retry = false
-  state.journal.clear()
+	state.retry = false;
+	state.journal.clear();
 }
 
 /**
@@ -13937,256 +15060,543 @@ function clearTransaction(state: Transaction["Service"]) {
  * @since 4.0.0
  */
 export const txRetry: Effect<never, never, Transaction> = flatMap(
-  Transaction,
-  (state) => {
-    state.retry = true
-    return interrupt
-  }
-)
+	Transaction,
+	(state) => {
+		state.retry = true;
+		return interrupt;
+	},
+);
 /**
  * Type helpers for converting callback-based functions into `Effect` functions.
  *
  * @since 4.0.0
  */
 export declare namespace Effectify {
-  interface Callback<E, A> {
-    (err: E, a?: A): void
-  }
+	interface Callback<E, A> {
+		(err: E, a?: A): void;
+	}
 
-  type ArgsWithCallback<Args extends Array<any>, E, A> = [...args: Args, cb: Callback<E, A>]
+	type ArgsWithCallback<Args extends Array<any>, E, A> = [
+		...args: Args,
+		cb: Callback<E, A>,
+	];
 
-  type WithoutNull<A> = unknown extends A ? void : Exclude<A, null | undefined>
+	type WithoutNull<A> = unknown extends A ? void : Exclude<A, null | undefined>;
 
-  /**
-   * Converts a callback-based function type into an `Effect`-returning function type.
-   *
-   * @category Effectify
-   * @since 4.0.0
-   */
-  export type Effectify<T, E> = T extends {
-    (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-    (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-    (...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3
-    (...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>): infer _R4
-    (...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>): infer _R5
-    (...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>): infer _R6
-    (...args: ArgsWithCallback<infer Args7, infer _E7, infer A7>): infer _R7
-    (...args: ArgsWithCallback<infer Args8, infer _E8, infer A8>): infer _R8
-    (...args: ArgsWithCallback<infer Args9, infer _E9, infer A9>): infer _R9
-    (...args: ArgsWithCallback<infer Args10, infer _E10, infer A10>): infer _R10
-  } ? {
-      (...args: Args1): Effect<WithoutNull<A1>, E>
-      (...args: Args2): Effect<WithoutNull<A2>, E>
-      (...args: Args3): Effect<WithoutNull<A3>, E>
-      (...args: Args4): Effect<WithoutNull<A4>, E>
-      (...args: Args5): Effect<WithoutNull<A5>, E>
-      (...args: Args6): Effect<WithoutNull<A6>, E>
-      (...args: Args7): Effect<WithoutNull<A7>, E>
-      (...args: Args8): Effect<WithoutNull<A8>, E>
-      (...args: Args9): Effect<WithoutNull<A9>, E>
-      (...args: Args10): Effect<WithoutNull<A10>, E>
-    }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-      (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-      (...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3
-      (...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>): infer _R4
-      (...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>): infer _R5
-      (...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>): infer _R6
-      (...args: ArgsWithCallback<infer Args7, infer _E7, infer A7>): infer _R7
-      (...args: ArgsWithCallback<infer Args8, infer _E8, infer A8>): infer _R8
-      (...args: ArgsWithCallback<infer Args9, infer _E9, infer A9>): infer _R9
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-        (...args: Args2): Effect<WithoutNull<A2>, E>
-        (...args: Args3): Effect<WithoutNull<A3>, E>
-        (...args: Args4): Effect<WithoutNull<A4>, E>
-        (...args: Args5): Effect<WithoutNull<A5>, E>
-        (...args: Args6): Effect<WithoutNull<A6>, E>
-        (...args: Args7): Effect<WithoutNull<A7>, E>
-        (...args: Args8): Effect<WithoutNull<A8>, E>
-        (...args: Args9): Effect<WithoutNull<A9>, E>
-      }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-      (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-      (...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3
-      (...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>): infer _R4
-      (...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>): infer _R5
-      (...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>): infer _R6
-      (...args: ArgsWithCallback<infer Args7, infer _E7, infer A7>): infer _R7
-      (...args: ArgsWithCallback<infer Args8, infer _E8, infer A8>): infer _R8
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-        (...args: Args2): Effect<WithoutNull<A2>, E>
-        (...args: Args3): Effect<WithoutNull<A3>, E>
-        (...args: Args4): Effect<WithoutNull<A4>, E>
-        (...args: Args5): Effect<WithoutNull<A5>, E>
-        (...args: Args6): Effect<WithoutNull<A6>, E>
-        (...args: Args7): Effect<WithoutNull<A7>, E>
-        (...args: Args8): Effect<WithoutNull<A8>, E>
-      }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-      (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-      (...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3
-      (...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>): infer _R4
-      (...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>): infer _R5
-      (...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>): infer _R6
-      (...args: ArgsWithCallback<infer Args7, infer _E7, infer A7>): infer _R7
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-        (...args: Args2): Effect<WithoutNull<A2>, E>
-        (...args: Args3): Effect<WithoutNull<A3>, E>
-        (...args: Args4): Effect<WithoutNull<A4>, E>
-        (...args: Args5): Effect<WithoutNull<A5>, E>
-        (...args: Args6): Effect<WithoutNull<A6>, E>
-        (...args: Args7): Effect<WithoutNull<A7>, E>
-      }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-      (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-      (...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3
-      (...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>): infer _R4
-      (...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>): infer _R5
-      (...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>): infer _R6
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-        (...args: Args2): Effect<WithoutNull<A2>, E>
-        (...args: Args3): Effect<WithoutNull<A3>, E>
-        (...args: Args4): Effect<WithoutNull<A4>, E>
-        (...args: Args5): Effect<WithoutNull<A5>, E>
-        (...args: Args6): Effect<WithoutNull<A6>, E>
-      }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-      (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-      (...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3
-      (...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>): infer _R4
-      (...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>): infer _R5
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-        (...args: Args2): Effect<WithoutNull<A2>, E>
-        (...args: Args3): Effect<WithoutNull<A3>, E>
-        (...args: Args4): Effect<WithoutNull<A4>, E>
-        (...args: Args5): Effect<WithoutNull<A5>, E>
-      }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-      (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-      (...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3
-      (...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>): infer _R4
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-        (...args: Args2): Effect<WithoutNull<A2>, E>
-        (...args: Args3): Effect<WithoutNull<A3>, E>
-        (...args: Args4): Effect<WithoutNull<A4>, E>
-      }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-      (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-      (...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-        (...args: Args2): Effect<WithoutNull<A2>, E>
-        (...args: Args3): Effect<WithoutNull<A3>, E>
-      }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-      (...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-        (...args: Args2): Effect<WithoutNull<A2>, E>
-      }
-    : T extends {
-      (...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1
-    } ? {
-        (...args: Args1): Effect<WithoutNull<A1>, E>
-      }
-    : never
+	/**
+	 * Converts a callback-based function type into an `Effect`-returning function type.
+	 *
+	 * @category Effectify
+	 * @since 4.0.0
+	 */
+	export type Effectify<T, E> = T extends {
+		(...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>): infer _R1;
+		(...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>): infer _R2;
+		(...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>): infer _R3;
+		(...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>): infer _R4;
+		(...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>): infer _R5;
+		(...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>): infer _R6;
+		(...args: ArgsWithCallback<infer Args7, infer _E7, infer A7>): infer _R7;
+		(...args: ArgsWithCallback<infer Args8, infer _E8, infer A8>): infer _R8;
+		(...args: ArgsWithCallback<infer Args9, infer _E9, infer A9>): infer _R9;
+		(
+			...args: ArgsWithCallback<infer Args10, infer _E10, infer A10>
+		): infer _R10;
+	}
+		? {
+				(...args: Args1): Effect<WithoutNull<A1>, E>;
+				(...args: Args2): Effect<WithoutNull<A2>, E>;
+				(...args: Args3): Effect<WithoutNull<A3>, E>;
+				(...args: Args4): Effect<WithoutNull<A4>, E>;
+				(...args: Args5): Effect<WithoutNull<A5>, E>;
+				(...args: Args6): Effect<WithoutNull<A6>, E>;
+				(...args: Args7): Effect<WithoutNull<A7>, E>;
+				(...args: Args8): Effect<WithoutNull<A8>, E>;
+				(...args: Args9): Effect<WithoutNull<A9>, E>;
+				(...args: Args10): Effect<WithoutNull<A10>, E>;
+			}
+		: T extends {
+					(
+						...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>
+					): infer _R1;
+					(
+						...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>
+					): infer _R2;
+					(
+						...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>
+					): infer _R3;
+					(
+						...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>
+					): infer _R4;
+					(
+						...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>
+					): infer _R5;
+					(
+						...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>
+					): infer _R6;
+					(
+						...args: ArgsWithCallback<infer Args7, infer _E7, infer A7>
+					): infer _R7;
+					(
+						...args: ArgsWithCallback<infer Args8, infer _E8, infer A8>
+					): infer _R8;
+					(
+						...args: ArgsWithCallback<infer Args9, infer _E9, infer A9>
+					): infer _R9;
+				}
+			? {
+					(...args: Args1): Effect<WithoutNull<A1>, E>;
+					(...args: Args2): Effect<WithoutNull<A2>, E>;
+					(...args: Args3): Effect<WithoutNull<A3>, E>;
+					(...args: Args4): Effect<WithoutNull<A4>, E>;
+					(...args: Args5): Effect<WithoutNull<A5>, E>;
+					(...args: Args6): Effect<WithoutNull<A6>, E>;
+					(...args: Args7): Effect<WithoutNull<A7>, E>;
+					(...args: Args8): Effect<WithoutNull<A8>, E>;
+					(...args: Args9): Effect<WithoutNull<A9>, E>;
+				}
+			: T extends {
+						(
+							...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>
+						): infer _R1;
+						(
+							...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>
+						): infer _R2;
+						(
+							...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>
+						): infer _R3;
+						(
+							...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>
+						): infer _R4;
+						(
+							...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>
+						): infer _R5;
+						(
+							...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>
+						): infer _R6;
+						(
+							...args: ArgsWithCallback<infer Args7, infer _E7, infer A7>
+						): infer _R7;
+						(
+							...args: ArgsWithCallback<infer Args8, infer _E8, infer A8>
+						): infer _R8;
+					}
+				? {
+						(...args: Args1): Effect<WithoutNull<A1>, E>;
+						(...args: Args2): Effect<WithoutNull<A2>, E>;
+						(...args: Args3): Effect<WithoutNull<A3>, E>;
+						(...args: Args4): Effect<WithoutNull<A4>, E>;
+						(...args: Args5): Effect<WithoutNull<A5>, E>;
+						(...args: Args6): Effect<WithoutNull<A6>, E>;
+						(...args: Args7): Effect<WithoutNull<A7>, E>;
+						(...args: Args8): Effect<WithoutNull<A8>, E>;
+					}
+				: T extends {
+							(
+								...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>
+							): infer _R1;
+							(
+								...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>
+							): infer _R2;
+							(
+								...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>
+							): infer _R3;
+							(
+								...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>
+							): infer _R4;
+							(
+								...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>
+							): infer _R5;
+							(
+								...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>
+							): infer _R6;
+							(
+								...args: ArgsWithCallback<infer Args7, infer _E7, infer A7>
+							): infer _R7;
+						}
+					? {
+							(...args: Args1): Effect<WithoutNull<A1>, E>;
+							(...args: Args2): Effect<WithoutNull<A2>, E>;
+							(...args: Args3): Effect<WithoutNull<A3>, E>;
+							(...args: Args4): Effect<WithoutNull<A4>, E>;
+							(...args: Args5): Effect<WithoutNull<A5>, E>;
+							(...args: Args6): Effect<WithoutNull<A6>, E>;
+							(...args: Args7): Effect<WithoutNull<A7>, E>;
+						}
+					: T extends {
+								(
+									...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>
+								): infer _R1;
+								(
+									...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>
+								): infer _R2;
+								(
+									...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>
+								): infer _R3;
+								(
+									...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>
+								): infer _R4;
+								(
+									...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>
+								): infer _R5;
+								(
+									...args: ArgsWithCallback<infer Args6, infer _E6, infer A6>
+								): infer _R6;
+							}
+						? {
+								(...args: Args1): Effect<WithoutNull<A1>, E>;
+								(...args: Args2): Effect<WithoutNull<A2>, E>;
+								(...args: Args3): Effect<WithoutNull<A3>, E>;
+								(...args: Args4): Effect<WithoutNull<A4>, E>;
+								(...args: Args5): Effect<WithoutNull<A5>, E>;
+								(...args: Args6): Effect<WithoutNull<A6>, E>;
+							}
+						: T extends {
+									(
+										...args: ArgsWithCallback<infer Args1, infer _E1, infer A1>
+									): infer _R1;
+									(
+										...args: ArgsWithCallback<infer Args2, infer _E2, infer A2>
+									): infer _R2;
+									(
+										...args: ArgsWithCallback<infer Args3, infer _E3, infer A3>
+									): infer _R3;
+									(
+										...args: ArgsWithCallback<infer Args4, infer _E4, infer A4>
+									): infer _R4;
+									(
+										...args: ArgsWithCallback<infer Args5, infer _E5, infer A5>
+									): infer _R5;
+								}
+							? {
+									(...args: Args1): Effect<WithoutNull<A1>, E>;
+									(...args: Args2): Effect<WithoutNull<A2>, E>;
+									(...args: Args3): Effect<WithoutNull<A3>, E>;
+									(...args: Args4): Effect<WithoutNull<A4>, E>;
+									(...args: Args5): Effect<WithoutNull<A5>, E>;
+								}
+							: T extends {
+										(
+											...args: ArgsWithCallback<
+												infer Args1,
+												infer _E1,
+												infer A1
+											>
+										): infer _R1;
+										(
+											...args: ArgsWithCallback<
+												infer Args2,
+												infer _E2,
+												infer A2
+											>
+										): infer _R2;
+										(
+											...args: ArgsWithCallback<
+												infer Args3,
+												infer _E3,
+												infer A3
+											>
+										): infer _R3;
+										(
+											...args: ArgsWithCallback<
+												infer Args4,
+												infer _E4,
+												infer A4
+											>
+										): infer _R4;
+									}
+								? {
+										(...args: Args1): Effect<WithoutNull<A1>, E>;
+										(...args: Args2): Effect<WithoutNull<A2>, E>;
+										(...args: Args3): Effect<WithoutNull<A3>, E>;
+										(...args: Args4): Effect<WithoutNull<A4>, E>;
+									}
+								: T extends {
+											(
+												...args: ArgsWithCallback<
+													infer Args1,
+													infer _E1,
+													infer A1
+												>
+											): infer _R1;
+											(
+												...args: ArgsWithCallback<
+													infer Args2,
+													infer _E2,
+													infer A2
+												>
+											): infer _R2;
+											(
+												...args: ArgsWithCallback<
+													infer Args3,
+													infer _E3,
+													infer A3
+												>
+											): infer _R3;
+										}
+									? {
+											(...args: Args1): Effect<WithoutNull<A1>, E>;
+											(...args: Args2): Effect<WithoutNull<A2>, E>;
+											(...args: Args3): Effect<WithoutNull<A3>, E>;
+										}
+									: T extends {
+												(
+													...args: ArgsWithCallback<
+														infer Args1,
+														infer _E1,
+														infer A1
+													>
+												): infer _R1;
+												(
+													...args: ArgsWithCallback<
+														infer Args2,
+														infer _E2,
+														infer A2
+													>
+												): infer _R2;
+											}
+										? {
+												(...args: Args1): Effect<WithoutNull<A1>, E>;
+												(...args: Args2): Effect<WithoutNull<A2>, E>;
+											}
+										: T extends {
+													(
+														...args: ArgsWithCallback<
+															infer Args1,
+															infer _E1,
+															infer A1
+														>
+													): infer _R1;
+												}
+											? {
+													(...args: Args1): Effect<WithoutNull<A1>, E>;
+												}
+											: never;
 
-  /**
-   * Extracts the callback error type from a callback-based function type.
-   *
-   * @category Util
-   * @since 4.0.0
-   */
-  export type EffectifyError<T> = T extends {
-    (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-    (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-    (...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3
-    (...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>): infer _R4
-    (...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>): infer _R5
-    (...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>): infer _R6
-    (...args: ArgsWithCallback<infer _Args7, infer E7, infer _A7>): infer _R7
-    (...args: ArgsWithCallback<infer _Args8, infer E8, infer _A8>): infer _R8
-    (...args: ArgsWithCallback<infer _Args9, infer E9, infer _A9>): infer _R9
-    (...args: ArgsWithCallback<infer _Args10, infer E10, infer _A10>): infer _R10
-  } ? NonNullable<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9 | E10>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-      (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-      (...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3
-      (...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>): infer _R4
-      (...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>): infer _R5
-      (...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>): infer _R6
-      (...args: ArgsWithCallback<infer _Args7, infer E7, infer _A7>): infer _R7
-      (...args: ArgsWithCallback<infer _Args8, infer E8, infer _A8>): infer _R8
-      (...args: ArgsWithCallback<infer _Args9, infer E9, infer _A9>): infer _R9
-    } ? NonNullable<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-      (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-      (...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3
-      (...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>): infer _R4
-      (...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>): infer _R5
-      (...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>): infer _R6
-      (...args: ArgsWithCallback<infer _Args7, infer E7, infer _A7>): infer _R7
-      (...args: ArgsWithCallback<infer _Args8, infer E8, infer _A8>): infer _R8
-    } ? NonNullable<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-      (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-      (...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3
-      (...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>): infer _R4
-      (...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>): infer _R5
-      (...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>): infer _R6
-      (...args: ArgsWithCallback<infer _Args7, infer E7, infer _A7>): infer _R7
-    } ? NonNullable<E1 | E2 | E3 | E4 | E5 | E6 | E7>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-      (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-      (...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3
-      (...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>): infer _R4
-      (...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>): infer _R5
-      (...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>): infer _R6
-    } ? NonNullable<E1 | E2 | E3 | E4 | E5 | E6>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-      (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-      (...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3
-      (...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>): infer _R4
-      (...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>): infer _R5
-    } ? NonNullable<E1 | E2 | E3 | E4 | E5>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-      (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-      (...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3
-      (...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>): infer _R4
-    } ? NonNullable<E1 | E2 | E3 | E4>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-      (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-      (...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3
-    } ? NonNullable<E1 | E2 | E3>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-      (...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2
-    } ? NonNullable<E1 | E2>
-    : T extends {
-      (...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1
-    } ? NonNullable<E1>
-    : never
+	/**
+	 * Extracts the callback error type from a callback-based function type.
+	 *
+	 * @category Util
+	 * @since 4.0.0
+	 */
+	export type EffectifyError<T> = T extends {
+		(...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>): infer _R1;
+		(...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>): infer _R2;
+		(...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>): infer _R3;
+		(...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>): infer _R4;
+		(...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>): infer _R5;
+		(...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>): infer _R6;
+		(...args: ArgsWithCallback<infer _Args7, infer E7, infer _A7>): infer _R7;
+		(...args: ArgsWithCallback<infer _Args8, infer E8, infer _A8>): infer _R8;
+		(...args: ArgsWithCallback<infer _Args9, infer E9, infer _A9>): infer _R9;
+		(
+			...args: ArgsWithCallback<infer _Args10, infer E10, infer _A10>
+		): infer _R10;
+	}
+		? NonNullable<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9 | E10>
+		: T extends {
+					(
+						...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>
+					): infer _R1;
+					(
+						...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>
+					): infer _R2;
+					(
+						...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>
+					): infer _R3;
+					(
+						...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>
+					): infer _R4;
+					(
+						...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>
+					): infer _R5;
+					(
+						...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>
+					): infer _R6;
+					(
+						...args: ArgsWithCallback<infer _Args7, infer E7, infer _A7>
+					): infer _R7;
+					(
+						...args: ArgsWithCallback<infer _Args8, infer E8, infer _A8>
+					): infer _R8;
+					(
+						...args: ArgsWithCallback<infer _Args9, infer E9, infer _A9>
+					): infer _R9;
+				}
+			? NonNullable<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9>
+			: T extends {
+						(
+							...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>
+						): infer _R1;
+						(
+							...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>
+						): infer _R2;
+						(
+							...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>
+						): infer _R3;
+						(
+							...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>
+						): infer _R4;
+						(
+							...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>
+						): infer _R5;
+						(
+							...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>
+						): infer _R6;
+						(
+							...args: ArgsWithCallback<infer _Args7, infer E7, infer _A7>
+						): infer _R7;
+						(
+							...args: ArgsWithCallback<infer _Args8, infer E8, infer _A8>
+						): infer _R8;
+					}
+				? NonNullable<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8>
+				: T extends {
+							(
+								...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>
+							): infer _R1;
+							(
+								...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>
+							): infer _R2;
+							(
+								...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>
+							): infer _R3;
+							(
+								...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>
+							): infer _R4;
+							(
+								...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>
+							): infer _R5;
+							(
+								...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>
+							): infer _R6;
+							(
+								...args: ArgsWithCallback<infer _Args7, infer E7, infer _A7>
+							): infer _R7;
+						}
+					? NonNullable<E1 | E2 | E3 | E4 | E5 | E6 | E7>
+					: T extends {
+								(
+									...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>
+								): infer _R1;
+								(
+									...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>
+								): infer _R2;
+								(
+									...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>
+								): infer _R3;
+								(
+									...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>
+								): infer _R4;
+								(
+									...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>
+								): infer _R5;
+								(
+									...args: ArgsWithCallback<infer _Args6, infer E6, infer _A6>
+								): infer _R6;
+							}
+						? NonNullable<E1 | E2 | E3 | E4 | E5 | E6>
+						: T extends {
+									(
+										...args: ArgsWithCallback<infer _Args1, infer E1, infer _A1>
+									): infer _R1;
+									(
+										...args: ArgsWithCallback<infer _Args2, infer E2, infer _A2>
+									): infer _R2;
+									(
+										...args: ArgsWithCallback<infer _Args3, infer E3, infer _A3>
+									): infer _R3;
+									(
+										...args: ArgsWithCallback<infer _Args4, infer E4, infer _A4>
+									): infer _R4;
+									(
+										...args: ArgsWithCallback<infer _Args5, infer E5, infer _A5>
+									): infer _R5;
+								}
+							? NonNullable<E1 | E2 | E3 | E4 | E5>
+							: T extends {
+										(
+											...args: ArgsWithCallback<
+												infer _Args1,
+												infer E1,
+												infer _A1
+											>
+										): infer _R1;
+										(
+											...args: ArgsWithCallback<
+												infer _Args2,
+												infer E2,
+												infer _A2
+											>
+										): infer _R2;
+										(
+											...args: ArgsWithCallback<
+												infer _Args3,
+												infer E3,
+												infer _A3
+											>
+										): infer _R3;
+										(
+											...args: ArgsWithCallback<
+												infer _Args4,
+												infer E4,
+												infer _A4
+											>
+										): infer _R4;
+									}
+								? NonNullable<E1 | E2 | E3 | E4>
+								: T extends {
+											(
+												...args: ArgsWithCallback<
+													infer _Args1,
+													infer E1,
+													infer _A1
+												>
+											): infer _R1;
+											(
+												...args: ArgsWithCallback<
+													infer _Args2,
+													infer E2,
+													infer _A2
+												>
+											): infer _R2;
+											(
+												...args: ArgsWithCallback<
+													infer _Args3,
+													infer E3,
+													infer _A3
+												>
+											): infer _R3;
+										}
+									? NonNullable<E1 | E2 | E3>
+									: T extends {
+												(
+													...args: ArgsWithCallback<
+														infer _Args1,
+														infer E1,
+														infer _A1
+													>
+												): infer _R1;
+												(
+													...args: ArgsWithCallback<
+														infer _Args2,
+														infer E2,
+														infer _A2
+													>
+												): infer _R2;
+											}
+										? NonNullable<E1 | E2>
+										: T extends {
+													(
+														...args: ArgsWithCallback<
+															infer _Args1,
+															infer E1,
+															infer _A1
+														>
+													): infer _R1;
+												}
+											? NonNullable<E1>
+											: never;
 }
 
 /**
@@ -14238,32 +15648,37 @@ export declare namespace Effectify {
  * @since 4.0.0
  */
 export const effectify: {
-  <F extends (...args: Array<any>) => any>(fn: F): Effectify.Effectify<F, Effectify.EffectifyError<F>>
-  <F extends (...args: Array<any>) => any, E>(
-    fn: F,
-    onError: (error: Effectify.EffectifyError<F>, args: Parameters<F>) => E
-  ): Effectify.Effectify<F, E>
-  <F extends (...args: Array<any>) => any, E, E2>(
-    fn: F,
-    onError: (error: Effectify.EffectifyError<F>, args: Parameters<F>) => E,
-    onSyncError: (error: unknown, args: Parameters<F>) => E2
-  ): Effectify.Effectify<F, E | E2>
-} =
-  (<A>(fn: Function, onError?: (e: any, args: any) => any, onSyncError?: (e: any, args: any) => any) =>
-  (...args: Array<any>) =>
-    callback<A, globalThis.Error>((resume) => {
-      try {
-        fn(...args, (err: globalThis.Error | null, result: A) => {
-          if (err) {
-            resume(fail(onError ? onError(err, args) : err))
-          } else {
-            resume(succeed(result))
-          }
-        })
-      } catch (err) {
-        resume(onSyncError ? fail(onSyncError(err, args)) : die(err))
-      }
-    })) as any
+	<F extends (...args: Array<any>) => any>(
+		fn: F,
+	): Effectify.Effectify<F, Effectify.EffectifyError<F>>;
+	<F extends (...args: Array<any>) => any, E>(
+		fn: F,
+		onError: (error: Effectify.EffectifyError<F>, args: Parameters<F>) => E,
+	): Effectify.Effectify<F, E>;
+	<F extends (...args: Array<any>) => any, E, E2>(
+		fn: F,
+		onError: (error: Effectify.EffectifyError<F>, args: Parameters<F>) => E,
+		onSyncError: (error: unknown, args: Parameters<F>) => E2,
+	): Effectify.Effectify<F, E | E2>;
+} = (<A>(
+	fn: Function,
+	onError?: (e: any, args: any) => any,
+	onSyncError?: (e: any, args: any) => any,
+) =>
+	(...args: Array<any>) =>
+		callback<A, globalThis.Error>((resume) => {
+			try {
+				fn(...args, (err: globalThis.Error | null, result: A) => {
+					if (err) {
+						resume(fail(onError ? onError(err, args) : err));
+					} else {
+						resume(succeed(result));
+					}
+				});
+			} catch (err) {
+				resume(onSyncError ? fail(onSyncError(err, args)) : die(err));
+			}
+		})) as any;
 
 // -----------------------------------------------------------------------------
 // Type constraints
@@ -14297,7 +15712,10 @@ export const effectify: {
  * @category Type Constraints
  * @since 4.0.0
  */
-export const satisfiesSuccessType = <A>() => <A2 extends A, E, R>(effect: Effect<A2, E, R>): Effect<A2, E, R> => effect
+export const satisfiesSuccessType =
+	<A>() =>
+	<A2 extends A, E, R>(effect: Effect<A2, E, R>): Effect<A2, E, R> =>
+		effect;
 
 /**
  * Ensures that an effect's error type extends a given type `E`.
@@ -14329,7 +15747,10 @@ export const satisfiesSuccessType = <A>() => <A2 extends A, E, R>(effect: Effect
  * @category Type Constraints
  * @since 4.0.0
  */
-export const satisfiesErrorType = <E>() => <A, E2 extends E, R>(effect: Effect<A, E2, R>): Effect<A, E2, R> => effect
+export const satisfiesErrorType =
+	<E>() =>
+	<A, E2 extends E, R>(effect: Effect<A, E2, R>): Effect<A, E2, R> =>
+		effect;
 
 /**
  * Ensures that an effect's requirements type extends a given type `R`.
@@ -14359,7 +15780,10 @@ export const satisfiesErrorType = <E>() => <A, E2 extends E, R>(effect: Effect<A
  * @category Type Constraints
  * @since 4.0.0
  */
-export const satisfiesServicesType = <R>() => <A, E, R2 extends R>(effect: Effect<A, E, R2>): Effect<A, E, R2> => effect
+export const satisfiesServicesType =
+	<R>() =>
+	<A, E, R2 extends R>(effect: Effect<A, E, R2>): Effect<A, E, R2> =>
+		effect;
 
 /**
  * An optimized version of `map` that checks if an effect is already resolved
@@ -14397,9 +15821,9 @@ export const satisfiesServicesType = <R>() => <A, E, R2 extends R>(effect: Effec
  * @since 4.0.0
  */
 export const mapEager: {
-  <A, B>(f: (a: A) => B): <E, R>(self: Effect<A, E, R>) => Effect<B, E, R>
-  <A, E, R, B>(self: Effect<A, E, R>, f: (a: A) => B): Effect<B, E, R>
-} = internal.mapEager
+	<A, B>(f: (a: A) => B): <E, R>(self: Effect<A, E, R>) => Effect<B, E, R>;
+	<A, E, R, B>(self: Effect<A, E, R>, f: (a: A) => B): Effect<B, E, R>;
+} = internal.mapEager;
 
 /**
  * An optimized version of `mapError` that checks if an effect is already resolved
@@ -14440,9 +15864,9 @@ export const mapEager: {
  * @since 4.0.0
  */
 export const mapErrorEager: {
-  <E, E2>(f: (e: E) => E2): <A, R>(self: Effect<A, E, R>) => Effect<A, E2, R>
-  <A, E, R, E2>(self: Effect<A, E, R>, f: (e: E) => E2): Effect<A, E2, R>
-} = internal.mapErrorEager
+	<E, E2>(f: (e: E) => E2): <A, R>(self: Effect<A, E, R>) => Effect<A, E2, R>;
+	<A, E, R, E2>(self: Effect<A, E, R>, f: (e: E) => E2): Effect<A, E2, R>;
+} = internal.mapErrorEager;
 
 /**
  * An optimized version of `mapBoth` that checks if an effect is already resolved
@@ -14485,14 +15909,18 @@ export const mapErrorEager: {
  * @since 4.0.0
  */
 export const mapBothEager: {
-  <E, E2, A, A2>(
-    options: { readonly onFailure: (e: E) => E2; readonly onSuccess: (a: A) => A2 }
-  ): <R>(self: Effect<A, E, R>) => Effect<A2, E2, R>
-  <A, E, R, E2, A2>(
-    self: Effect<A, E, R>,
-    options: { readonly onFailure: (e: E) => E2; readonly onSuccess: (a: A) => A2 }
-  ): Effect<A2, E2, R>
-} = internal.mapBothEager
+	<E, E2, A, A2>(options: {
+		readonly onFailure: (e: E) => E2;
+		readonly onSuccess: (a: A) => A2;
+	}): <R>(self: Effect<A, E, R>) => Effect<A2, E2, R>;
+	<A, E, R, E2, A2>(
+		self: Effect<A, E, R>,
+		options: {
+			readonly onFailure: (e: E) => E2;
+			readonly onSuccess: (a: A) => A2;
+		},
+	): Effect<A2, E2, R>;
+} = internal.mapBothEager;
 
 /**
  * An optimized version of `flatMap` that checks if an effect is already resolved
@@ -14533,9 +15961,14 @@ export const mapBothEager: {
  * @since 4.0.0
  */
 export const flatMapEager: {
-  <A, B, E2, R2>(f: (a: A) => Effect<B, E2, R2>): <E, R>(self: Effect<A, E, R>) => Effect<B, E | E2, R | R2>
-  <A, E, R, B, E2, R2>(self: Effect<A, E, R>, f: (a: A) => Effect<B, E2, R2>): Effect<B, E | E2, R | R2>
-} = internal.flatMapEager
+	<A, B, E2, R2>(
+		f: (a: A) => Effect<B, E2, R2>,
+	): <E, R>(self: Effect<A, E, R>) => Effect<B, E | E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (a: A) => Effect<B, E2, R2>,
+	): Effect<B, E | E2, R | R2>;
+} = internal.flatMapEager;
 
 /**
  * An optimized version of `catch` that checks if an effect is already resolved
@@ -14586,14 +16019,14 @@ export const flatMapEager: {
  * @since 4.0.0
  */
 export const catchEager: {
-  <E, B, E2, R2>(
-    f: (e: NoInfer<E>) => Effect<B, E2, R2>
-  ): <A, R>(self: Effect<A, E, R>) => Effect<A | B, E2, R | R2>
-  <A, E, R, B, E2, R2>(
-    self: Effect<A, E, R>,
-    f: (e: NoInfer<E>) => Effect<B, E2, R2>
-  ): Effect<A | B, E2, R | R2>
-} = internal.catchEager
+	<E, B, E2, R2>(
+		f: (e: NoInfer<E>) => Effect<B, E2, R2>,
+	): <A, R>(self: Effect<A, E, R>) => Effect<A | B, E2, R | R2>;
+	<A, E, R, B, E2, R2>(
+		self: Effect<A, E, R>,
+		f: (e: NoInfer<E>) => Effect<B, E2, R2>,
+	): Effect<A | B, E2, R | R2>;
+} = internal.catchEager;
 
 /**
  * Creates untraced function effects with eager evaluation optimization.
@@ -14620,4 +16053,4 @@ export const catchEager: {
  * @category Eager
  * @since 4.0.0
  */
-export const fnUntracedEager: fn.Untraced = internal.fnUntracedEager
+export const fnUntracedEager: fn.Untraced = internal.fnUntracedEager;

@@ -9,18 +9,18 @@
  *
  * @since 4.0.0
  */
-import * as Chunk from "./Chunk.ts"
-import * as Effect from "./Effect.ts"
-import { format } from "./Formatter.ts"
-import { dual } from "./Function.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import { NodeInspectSymbol, toJson } from "./Inspectable.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { pipeArguments } from "./Pipeable.ts"
-import * as TxRef from "./TxRef.ts"
-import type { NoInfer } from "./Types.ts"
+import * as Chunk from "./Chunk.ts";
+import * as Effect from "./Effect.ts";
+import { format } from "./Formatter.ts";
+import { dual } from "./Function.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import { NodeInspectSymbol, toJson } from "./Inspectable.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { pipeArguments } from "./Pipeable.ts";
+import * as TxRef from "./TxRef.ts";
+import type { NoInfer } from "./Types.ts";
 
-const TypeId = "~effect/transactions/TxChunk"
+const TypeId = "~effect/transactions/TxChunk";
 
 /**
  * TxChunk is a transactional chunk data structure that provides Software Transactional Memory (STM)
@@ -67,27 +67,27 @@ const TypeId = "~effect/transactions/TxChunk"
  * @since 4.0.0
  */
 export interface TxChunk<in out A> extends Inspectable, Pipeable {
-  readonly [TypeId]: typeof TypeId
-  readonly ref: TxRef.TxRef<Chunk.Chunk<A>>
+	readonly [TypeId]: typeof TypeId;
+	readonly ref: TxRef.TxRef<Chunk.Chunk<A>>;
 }
 
 const TxChunkProto = {
-  [NodeInspectSymbol](this: TxChunk<unknown>) {
-    return this.toJSON()
-  },
-  toString(this: TxChunk<unknown>) {
-    return `TxChunk(${format(toJson((this).ref))})`
-  },
-  toJSON(this: TxChunk<unknown>) {
-    return {
-      _id: "TxChunk",
-      ref: toJson((this).ref)
-    }
-  },
-  pipe(this: TxChunk<unknown>) {
-    return pipeArguments(this, arguments)
-  }
-}
+	[NodeInspectSymbol](this: TxChunk<unknown>) {
+		return this.toJSON();
+	},
+	toString(this: TxChunk<unknown>) {
+		return `TxChunk(${format(toJson(this.ref))})`;
+	},
+	toJSON(this: TxChunk<unknown>) {
+		return {
+			_id: "TxChunk",
+			ref: toJson(this.ref),
+		};
+	},
+	pipe(this: TxChunk<unknown>) {
+		return pipeArguments(this, arguments);
+	},
+};
 
 /**
  * Creates a new `TxChunk` with the specified initial chunk.
@@ -117,7 +117,7 @@ const TxChunkProto = {
  * @since 4.0.0
  */
 export const make = <A>(initial: Chunk.Chunk<A>): Effect.Effect<TxChunk<A>> =>
-  Effect.map(TxRef.make(initial), (ref) => makeUnsafe(ref))
+	Effect.map(TxRef.make(initial), (ref) => makeUnsafe(ref));
 
 /**
  * Creates a new empty `TxChunk`.
@@ -152,7 +152,7 @@ export const make = <A>(initial: Chunk.Chunk<A>): Effect.Effect<TxChunk<A>> =>
  * @since 4.0.0
  */
 export const empty = <A = never>(): Effect.Effect<TxChunk<A>> =>
-  Effect.map(TxRef.make(Chunk.empty<A>()), (ref) => makeUnsafe(ref))
+	Effect.map(TxRef.make(Chunk.empty<A>()), (ref) => makeUnsafe(ref));
 
 /**
  * Creates a new `TxChunk` from an iterable.
@@ -191,8 +191,12 @@ export const empty = <A = never>(): Effect.Effect<TxChunk<A>> =>
  * @category constructors
  * @since 4.0.0
  */
-export const fromIterable = <A>(iterable: Iterable<A>): Effect.Effect<TxChunk<A>> =>
-  Effect.map(TxRef.make(Chunk.fromIterable(iterable)), (ref) => makeUnsafe(ref))
+export const fromIterable = <A>(
+	iterable: Iterable<A>,
+): Effect.Effect<TxChunk<A>> =>
+	Effect.map(TxRef.make(Chunk.fromIterable(iterable)), (ref) =>
+		makeUnsafe(ref),
+	);
 
 /**
  * Creates a new `TxChunk` with the specified TxRef.
@@ -216,11 +220,11 @@ export const fromIterable = <A>(iterable: Iterable<A>): Effect.Effect<TxChunk<A>
  * @since 4.0.0
  */
 export const makeUnsafe = <A>(ref: TxRef.TxRef<Chunk.Chunk<A>>): TxChunk<A> => {
-  const txChunk = Object.create(TxChunkProto)
-  txChunk[TypeId] = TypeId
-  txChunk.ref = ref
-  return txChunk
-}
+	const txChunk = Object.create(TxChunkProto);
+	txChunk[TypeId] = TypeId;
+	txChunk.ref = ref;
+	return txChunk;
+};
 
 /**
  * Modifies the value of the `TxChunk` using the provided function.
@@ -255,20 +259,22 @@ export const makeUnsafe = <A>(ref: TxRef.TxRef<Chunk.Chunk<A>>): TxChunk<A> => {
  * @since 4.0.0
  */
 export const modify: {
-  <A, R>(
-    f: (current: Chunk.Chunk<NoInfer<A>>) => [returnValue: R, newValue: Chunk.Chunk<A>]
-  ): (self: TxChunk<A>) => Effect.Effect<R>
-  <A, R>(
-    self: TxChunk<A>,
-    f: (current: Chunk.Chunk<A>) => [returnValue: R, newValue: Chunk.Chunk<A>]
-  ): Effect.Effect<R>
+	<A, R>(
+		f: (
+			current: Chunk.Chunk<NoInfer<A>>,
+		) => [returnValue: R, newValue: Chunk.Chunk<A>],
+	): (self: TxChunk<A>) => Effect.Effect<R>;
+	<A, R>(
+		self: TxChunk<A>,
+		f: (current: Chunk.Chunk<A>) => [returnValue: R, newValue: Chunk.Chunk<A>],
+	): Effect.Effect<R>;
 } = dual(
-  2,
-  <A, R>(
-    self: TxChunk<A>,
-    f: (current: Chunk.Chunk<A>) => [returnValue: R, newValue: Chunk.Chunk<A>]
-  ): Effect.Effect<R> => TxRef.modify(self.ref, f)
-)
+	2,
+	<A, R>(
+		self: TxChunk<A>,
+		f: (current: Chunk.Chunk<A>) => [returnValue: R, newValue: Chunk.Chunk<A>],
+	): Effect.Effect<R> => TxRef.modify(self.ref, f),
+);
 
 /**
  * Updates the value of the `TxChunk` using the provided function.
@@ -298,15 +304,20 @@ export const modify: {
  * @since 4.0.0
  */
 export const update: {
-  <A>(f: (current: Chunk.Chunk<NoInfer<A>>) => Chunk.Chunk<A>): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, f: (current: Chunk.Chunk<A>) => Chunk.Chunk<A>): Effect.Effect<void>
+	<A>(
+		f: (current: Chunk.Chunk<NoInfer<A>>) => Chunk.Chunk<A>,
+	): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(
+		self: TxChunk<A>,
+		f: (current: Chunk.Chunk<A>) => Chunk.Chunk<A>,
+	): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(
-    self: TxChunk<A>,
-    f: (current: Chunk.Chunk<A>) => Chunk.Chunk<A>
-  ): Effect.Effect<void> => TxRef.update(self.ref, f)
-)
+	2,
+	<A>(
+		self: TxChunk<A>,
+		f: (current: Chunk.Chunk<A>) => Chunk.Chunk<A>,
+	): Effect.Effect<void> => TxRef.update(self.ref, f),
+);
 
 /**
  * Reads the current chunk from the `TxChunk`.
@@ -332,7 +343,8 @@ export const update: {
  * @category combinators
  * @since 4.0.0
  */
-export const get = <A>(self: TxChunk<A>): Effect.Effect<Chunk.Chunk<A>> => TxRef.get(self.ref)
+export const get = <A>(self: TxChunk<A>): Effect.Effect<Chunk.Chunk<A>> =>
+	TxRef.get(self.ref);
 
 /**
  * Sets the value of the `TxChunk`.
@@ -363,12 +375,13 @@ export const get = <A>(self: TxChunk<A>): Effect.Effect<Chunk.Chunk<A>> => TxRef
  * @since 4.0.0
  */
 export const set: {
-  <A>(chunk: Chunk.Chunk<A>): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, chunk: Chunk.Chunk<A>): Effect.Effect<void>
+	<A>(chunk: Chunk.Chunk<A>): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, chunk: Chunk.Chunk<A>): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, chunk: Chunk.Chunk<A>): Effect.Effect<void> => TxRef.set(self.ref, chunk)
-)
+	2,
+	<A>(self: TxChunk<A>, chunk: Chunk.Chunk<A>): Effect.Effect<void> =>
+		TxRef.set(self.ref, chunk),
+);
 
 /**
  * Appends an element to the end of the `TxChunk`.
@@ -398,12 +411,13 @@ export const set: {
  * @since 4.0.0
  */
 export const append: {
-  <A>(element: A): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, element: A): Effect.Effect<void>
+	<A>(element: A): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, element: A): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, element: A): Effect.Effect<void> => update(self, (current) => Chunk.append(current, element))
-)
+	2,
+	<A>(self: TxChunk<A>, element: A): Effect.Effect<void> =>
+		update(self, (current) => Chunk.append(current, element)),
+);
 
 /**
  * Prepends an element to the beginning of the `TxChunk`.
@@ -433,12 +447,13 @@ export const append: {
  * @since 4.0.0
  */
 export const prepend: {
-  <A>(element: A): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, element: A): Effect.Effect<void>
+	<A>(element: A): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, element: A): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, element: A): Effect.Effect<void> => update(self, (current) => Chunk.prepend(current, element))
-)
+	2,
+	<A>(self: TxChunk<A>, element: A): Effect.Effect<void> =>
+		update(self, (current) => Chunk.prepend(current, element)),
+);
 
 /**
  * Gets the size of the `TxChunk`.
@@ -466,7 +481,7 @@ export const prepend: {
  * @since 4.0.0
  */
 export const size = <A>(self: TxChunk<A>): Effect.Effect<number> =>
-  modify(self, (current) => [Chunk.size(current), current])
+	modify(self, (current) => [Chunk.size(current), current]);
 
 /**
  * Checks if the `TxChunk` is empty.
@@ -493,7 +508,7 @@ export const size = <A>(self: TxChunk<A>): Effect.Effect<number> =>
  * @since 4.0.0
  */
 export const isEmpty = <A>(self: TxChunk<A>): Effect.Effect<boolean> =>
-  modify(self, (current) => [Chunk.isEmpty(current), current])
+	modify(self, (current) => [Chunk.isEmpty(current), current]);
 
 /**
  * Checks if the `TxChunk` is non-empty.
@@ -520,7 +535,7 @@ export const isEmpty = <A>(self: TxChunk<A>): Effect.Effect<boolean> =>
  * @since 4.0.0
  */
 export const isNonEmpty = <A>(self: TxChunk<A>): Effect.Effect<boolean> =>
-  modify(self, (current) => [Chunk.isNonEmpty(current), current])
+	modify(self, (current) => [Chunk.isNonEmpty(current), current]);
 
 /**
  * Takes the first `n` elements from the `TxChunk`.
@@ -550,12 +565,13 @@ export const isNonEmpty = <A>(self: TxChunk<A>): Effect.Effect<boolean> =>
  * @since 4.0.0
  */
 export const take: {
-  (n: number): <A>(self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, n: number): Effect.Effect<void>
+	(n: number): <A>(self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, n: number): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, n: number): Effect.Effect<void> => update(self, (current) => Chunk.take(current, n))
-)
+	2,
+	<A>(self: TxChunk<A>, n: number): Effect.Effect<void> =>
+		update(self, (current) => Chunk.take(current, n)),
+);
 
 /**
  * Drops the first `n` elements from the `TxChunk`.
@@ -585,12 +601,13 @@ export const take: {
  * @since 4.0.0
  */
 export const drop: {
-  (n: number): <A>(self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, n: number): Effect.Effect<void>
+	(n: number): <A>(self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, n: number): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, n: number): Effect.Effect<void> => update(self, (current) => Chunk.drop(current, n))
-)
+	2,
+	<A>(self: TxChunk<A>, n: number): Effect.Effect<void> =>
+		update(self, (current) => Chunk.drop(current, n)),
+);
 
 /**
  * Takes a slice of the `TxChunk` from `start` to `end` (exclusive).
@@ -620,13 +637,15 @@ export const drop: {
  * @since 4.0.0
  */
 export const slice: {
-  (start: number, end: number): <A>(self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, start: number, end: number): Effect.Effect<void>
+	(start: number, end: number): <A>(self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, start: number, end: number): Effect.Effect<void>;
 } = dual(
-  3,
-  <A>(self: TxChunk<A>, start: number, end: number): Effect.Effect<void> =>
-    update(self, (current) => Chunk.take(Chunk.drop(current, start), end - start))
-)
+	3,
+	<A>(self: TxChunk<A>, start: number, end: number): Effect.Effect<void> =>
+		update(self, (current) =>
+			Chunk.take(Chunk.drop(current, start), end - start),
+		),
+);
 
 /**
  * Maps each element of the `TxChunk` using a function that returns the same
@@ -657,12 +676,13 @@ export const slice: {
  * @since 4.0.0
  */
 export const map: {
-  <A>(f: (a: NoInfer<A>) => A): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, f: (a: A) => A): Effect.Effect<void>
+	<A>(f: (a: NoInfer<A>) => A): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, f: (a: A) => A): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, f: (a: A) => A): Effect.Effect<void> => update(self, (current) => Chunk.map(current, f))
-)
+	2,
+	<A>(self: TxChunk<A>, f: (a: A) => A): Effect.Effect<void> =>
+		update(self, (current) => Chunk.map(current, f)),
+);
 
 /**
  * Filters the `TxChunk` keeping only elements that satisfy the predicate.
@@ -692,15 +712,20 @@ export const map: {
  * @since 4.0.0
  */
 export const filter: {
-  <A, B extends A>(refinement: (a: A) => a is B): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(predicate: (a: A) => boolean): (self: TxChunk<A>) => Effect.Effect<void>
-  <A, B extends A>(self: TxChunk<A>, refinement: (a: A) => a is B): Effect.Effect<void>
-  <A>(self: TxChunk<A>, predicate: (a: A) => boolean): Effect.Effect<void>
+	<A, B extends A>(
+		refinement: (a: A) => a is B,
+	): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(predicate: (a: A) => boolean): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A, B extends A>(
+		self: TxChunk<A>,
+		refinement: (a: A) => a is B,
+	): Effect.Effect<void>;
+	<A>(self: TxChunk<A>, predicate: (a: A) => boolean): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, predicate: (a: A) => boolean): Effect.Effect<void> =>
-    update(self, (current) => Chunk.filter(current, predicate))
-)
+	2,
+	<A>(self: TxChunk<A>, predicate: (a: A) => boolean): Effect.Effect<void> =>
+		update(self, (current) => Chunk.filter(current, predicate)),
+);
 
 /**
  * Concatenates another chunk to the end of the `TxChunk`.
@@ -731,13 +756,13 @@ export const filter: {
  * @since 4.0.0
  */
 export const appendAll: {
-  <A>(other: Chunk.Chunk<A>): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, other: Chunk.Chunk<A>): Effect.Effect<void>
+	<A>(other: Chunk.Chunk<A>): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, other: Chunk.Chunk<A>): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, other: Chunk.Chunk<A>): Effect.Effect<void> =>
-    update(self, (current) => Chunk.appendAll(current, other))
-)
+	2,
+	<A>(self: TxChunk<A>, other: Chunk.Chunk<A>): Effect.Effect<void> =>
+		update(self, (current) => Chunk.appendAll(current, other)),
+);
 
 /**
  * Concatenates another chunk to the beginning of the `TxChunk`.
@@ -768,13 +793,13 @@ export const appendAll: {
  * @since 4.0.0
  */
 export const prependAll: {
-  <A>(other: Chunk.Chunk<A>): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, other: Chunk.Chunk<A>): Effect.Effect<void>
+	<A>(other: Chunk.Chunk<A>): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, other: Chunk.Chunk<A>): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, other: Chunk.Chunk<A>): Effect.Effect<void> =>
-    update(self, (current) => Chunk.prependAll(current, other))
-)
+	2,
+	<A>(self: TxChunk<A>, other: Chunk.Chunk<A>): Effect.Effect<void> =>
+		update(self, (current) => Chunk.prependAll(current, other)),
+);
 
 /**
  * Concatenates another `TxChunk` to the end of this `TxChunk`.
@@ -809,13 +834,13 @@ export const prependAll: {
  * @since 4.0.0
  */
 export const concat: {
-  <A>(other: TxChunk<A>): (self: TxChunk<A>) => Effect.Effect<void>
-  <A>(self: TxChunk<A>, other: TxChunk<A>): Effect.Effect<void>
+	<A>(other: TxChunk<A>): (self: TxChunk<A>) => Effect.Effect<void>;
+	<A>(self: TxChunk<A>, other: TxChunk<A>): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxChunk<A>, other: TxChunk<A>): Effect.Effect<void> =>
-    Effect.gen(function*() {
-      const otherChunk = yield* get(other)
-      yield* appendAll(self, otherChunk)
-    }).pipe(Effect.tx)
-)
+	2,
+	<A>(self: TxChunk<A>, other: TxChunk<A>): Effect.Effect<void> =>
+		Effect.gen(function* () {
+			const otherChunk = yield* get(other);
+			yield* appendAll(self, otherChunk);
+		}).pipe(Effect.tx),
+);

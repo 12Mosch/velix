@@ -57,8 +57,8 @@
  *
  * @since 2.0.0
  */
-import type { Kind, TypeLambda } from "./HKT.ts"
-import type * as Types from "./Types.ts"
+import type { Kind, TypeLambda } from "./HKT.ts";
+import type * as Types from "./Types.ts";
 
 /**
  * An `IterableIterator` that yields its wrapped value exactly once.
@@ -99,39 +99,39 @@ import type * as Types from "./Types.ts"
  * @since 2.0.0
  */
 export class SingleShotGen<T, A> implements IterableIterator<T, A> {
-  private called = false
-  readonly self: T
+	private called = false;
+	readonly self: T;
 
-  constructor(self: T) {
-    this.self = self
-  }
+	constructor(self: T) {
+		this.self = self;
+	}
 
-  /**
-   * Yields the stored value once, then completes with the value sent back in.
-   *
-   * @since 2.0.0
-   */
-  next(a: A): IteratorResult<T, A> {
-    return this.called ?
-      ({
-        value: a,
-        done: true
-      }) :
-      (this.called = true,
-        ({
-          value: this.self,
-          done: false
-        }))
-  }
+	/**
+	 * Yields the stored value once, then completes with the value sent back in.
+	 *
+	 * @since 2.0.0
+	 */
+	next(a: A): IteratorResult<T, A> {
+		return this.called
+			? {
+					value: a,
+					done: true,
+				}
+			: ((this.called = true),
+				{
+					value: this.self,
+					done: false,
+				});
+	}
 
-  /**
-   * Creates a fresh single-shot iterator over the stored value.
-   *
-   * @since 2.0.0
-   */
-  [Symbol.iterator](): IterableIterator<T, A> {
-    return new SingleShotGen<T, A>(this.self)
-  }
+	/**
+	 * Creates a fresh single-shot iterator over the stored value.
+	 *
+	 * @since 2.0.0
+	 */
+	[Symbol.iterator](): IterableIterator<T, A> {
+		return new SingleShotGen<T, A>(this.self);
+	}
 }
 
 /**
@@ -169,10 +169,10 @@ export class SingleShotGen<T, A> implements IterableIterator<T, A> {
  * @since 2.0.0
  */
 export interface Variance<in out F extends TypeLambda, in R, out O, out E> {
-  readonly _F: Types.Invariant<F>
-  readonly _R: Types.Contravariant<R>
-  readonly _O: Types.Covariant<O>
-  readonly _E: Types.Covariant<E>
+	readonly _F: Types.Invariant<F>;
+	readonly _R: Types.Contravariant<R>;
+	readonly _O: Types.Covariant<O>;
+	readonly _E: Types.Covariant<E>;
 }
 
 /**
@@ -206,51 +206,57 @@ export interface Variance<in out F extends TypeLambda, in R, out O, out E> {
  * @since 2.0.0
  */
 export type Gen<F extends TypeLambda> = <
-  Self,
-  K extends Variance<F, any, any, any> | Kind<F, any, any, any, any>,
-  A
+	Self,
+	K extends Variance<F, any, any, any> | Kind<F, any, any, any, any>,
+	A,
 >(
-  ...args:
-    | [
-      self: Self,
-      body: (this: Self) => Generator<K, A, never>
-    ]
-    | [
-      body: () => Generator<K, A, never>
-    ]
+	...args:
+		| [self: Self, body: (this: Self) => Generator<K, A, never>]
+		| [body: () => Generator<K, A, never>]
 ) => Kind<
-  F,
-  [K] extends [Variance<F, infer R, any, any>] ? R
-    : [K] extends [Kind<F, infer R, any, any, any>] ? R
-    : never,
-  [K] extends [Variance<F, any, infer O, any>] ? O
-    : [K] extends [Kind<F, any, infer O, any, any>] ? O
-    : never,
-  [K] extends [Variance<F, any, any, infer E>] ? E
-    : [K] extends [Kind<F, any, any, infer E, any>] ? E
-    : never,
-  A
->
+	F,
+	[K] extends [Variance<F, infer R, any, any>]
+		? R
+		: [K] extends [Kind<F, infer R, any, any, any>]
+			? R
+			: never,
+	[K] extends [Variance<F, any, infer O, any>]
+		? O
+		: [K] extends [Kind<F, any, infer O, any, any>]
+			? O
+			: never,
+	[K] extends [Variance<F, any, any, infer E>]
+		? E
+		: [K] extends [Kind<F, any, any, infer E, any>]
+			? E
+			: never,
+	A
+>;
 
-const InternalTypeId = "~effect/Utils/internal"
+const InternalTypeId = "~effect/Utils/internal";
 
 const standard = {
-  [InternalTypeId]: <A>(body: () => A) => {
-    return body()
-  }
-}
+	[InternalTypeId]: <A>(body: () => A) => {
+		return body();
+	},
+};
 
 const forced = {
-  [InternalTypeId]: <A>(body: () => A) => {
-    try {
-      return body()
-    } finally {
-      //
-    }
-  }
-}
+	[InternalTypeId]: <A>(body: () => A) => {
+		try {
+			return body();
+		} finally {
+			//
+		}
+	},
+};
 
-const isNotOptimizedAway = standard[InternalTypeId](() => new Error().stack)?.includes(InternalTypeId) === true
+const isNotOptimizedAway =
+	standard[InternalTypeId](() => new Error().stack)?.includes(
+		InternalTypeId,
+	) === true;
 
 /** @internal */
-export const internalCall = isNotOptimizedAway ? standard[InternalTypeId] : forced[InternalTypeId]
+export const internalCall = isNotOptimizedAway
+	? standard[InternalTypeId]
+	: forced[InternalTypeId];

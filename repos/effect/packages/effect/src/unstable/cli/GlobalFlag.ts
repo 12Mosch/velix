@@ -25,17 +25,17 @@
  * @since 4.0.0
  */
 
-import * as Console from "../../Console.ts"
-import * as Context from "../../Context.ts"
-import * as Effect from "../../Effect.ts"
-import type { LogLevel as LogLevelType } from "../../LogLevel.ts"
-import * as Option from "../../Option.ts"
-import * as CliOutput from "./CliOutput.ts"
-import type * as Command from "./Command.ts"
-import * as Completions_ from "./Completions.ts"
-import * as Flag from "./Flag.ts"
-import * as CommandDescriptor from "./internal/completions/descriptor.ts"
-import * as HelpInternal from "./internal/help.ts"
+import * as Console from "../../Console.ts";
+import * as Context from "../../Context.ts";
+import * as Effect from "../../Effect.ts";
+import type { LogLevel as LogLevelType } from "../../LogLevel.ts";
+import * as Option from "../../Option.ts";
+import * as CliOutput from "./CliOutput.ts";
+import type * as Command from "./Command.ts";
+import * as Completions_ from "./Completions.ts";
+import * as Flag from "./Flag.ts";
+import * as CommandDescriptor from "./internal/completions/descriptor.ts";
+import * as HelpInternal from "./internal/help.ts";
 
 /* ========================================================================== */
 /* Types                                                                      */
@@ -48,9 +48,9 @@ import * as HelpInternal from "./internal/help.ts"
  * @since 4.0.0
  */
 export interface HandlerContext {
-  readonly command: Command.Command.Any
-  readonly commandPath: ReadonlyArray<string>
-  readonly version: string
+	readonly command: Command.Command.Any;
+	readonly commandPath: ReadonlyArray<string>;
+	readonly version: string;
 }
 
 /**
@@ -60,12 +60,9 @@ export interface HandlerContext {
  * @since 4.0.0
  */
 export interface Action<A> {
-  readonly _tag: "Action"
-  readonly flag: Flag.Flag<A>
-  readonly run: (
-    value: A,
-    context: HandlerContext
-  ) => Effect.Effect<void>
+	readonly _tag: "Action";
+	readonly flag: Flag.Flag<A>;
+	readonly run: (value: A, context: HandlerContext) => Effect.Effect<void>;
 }
 
 /**
@@ -74,10 +71,11 @@ export interface Action<A> {
  * @category models
  * @since 4.0.0
  */
-export interface Setting<Id extends string, A> extends Context.Service<Setting.Identifier<Id>, A> {
-  readonly _tag: "Setting"
-  readonly id: Id
-  readonly flag: Flag.Flag<A>
+export interface Setting<Id extends string, A>
+	extends Context.Service<Setting.Identifier<Id>, A> {
+	readonly _tag: "Setting";
+	readonly id: Id;
+	readonly flag: Flag.Flag<A>;
 }
 
 /**
@@ -86,14 +84,15 @@ export interface Setting<Id extends string, A> extends Context.Service<Setting.I
  * @since 4.0.0
  */
 export declare namespace Setting {
-  /**
-   * Type-level service identifier used by `Setting` global flags for the
-   * parsed value associated with a setting id.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export type Identifier<Id extends string> = `effect/unstable/cli/GlobalFlag/${Id}`
+	/**
+	 * Type-level service identifier used by `Setting` global flags for the
+	 * parsed value associated with a setting id.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export type Identifier<Id extends string> =
+		`effect/unstable/cli/GlobalFlag/${Id}`;
 }
 
 /**
@@ -102,7 +101,7 @@ export declare namespace Setting {
  * @category models
  * @since 4.0.0
  */
-export type GlobalFlag<A> = Action<A> | Setting<any, A>
+export type GlobalFlag<A> = Action<A> | Setting<any, A>;
 
 /* ========================================================================== */
 /* Constructors                                                               */
@@ -115,16 +114,13 @@ export type GlobalFlag<A> = Action<A> | Setting<any, A>
  * @since 4.0.0
  */
 export const action = <A>(options: {
-  readonly flag: Flag.Flag<A>
-  readonly run: (
-    value: A,
-    context: HandlerContext
-  ) => Effect.Effect<void>
+	readonly flag: Flag.Flag<A>;
+	readonly run: (value: A, context: HandlerContext) => Effect.Effect<void>;
 }): Action<A> => ({
-  _tag: "Action",
-  flag: options.flag,
-  run: options.run
-})
+	_tag: "Action",
+	flag: options.flag,
+	run: options.run,
+});
 
 /**
  * Creates a Setting flag that configures the command handler's environment.
@@ -132,24 +128,21 @@ export const action = <A>(options: {
  * @category constructors
  * @since 4.0.0
  */
-export const setting = <const Id extends string>(
-  id: Id
-) =>
-<A>(options: {
-  readonly flag: Flag.Flag<A>
-}): Setting<Id, A> => {
-  settingIdCounter += 1
-  const ref = Context.Service<Setting.Identifier<Id>, A>(
-    `effect/unstable/cli/GlobalFlag/${id}/${settingIdCounter}`
-  )
-  return Object.assign(ref, {
-    _tag: "Setting" as const,
-    id,
-    flag: options.flag
-  })
-}
+export const setting =
+	<const Id extends string>(id: Id) =>
+	<A>(options: { readonly flag: Flag.Flag<A> }): Setting<Id, A> => {
+		settingIdCounter += 1;
+		const ref = Context.Service<Setting.Identifier<Id>, A>(
+			`effect/unstable/cli/GlobalFlag/${id}/${settingIdCounter}`,
+		);
+		return Object.assign(ref, {
+			_tag: "Setting" as const,
+			id,
+			flag: options.flag,
+		});
+	};
 
-let settingIdCounter = 0
+let settingIdCounter = 0;
 
 /* ========================================================================== */
 /* Built-in Flag References                                                   */
@@ -163,17 +156,21 @@ let settingIdCounter = 0
  * @since 4.0.0
  */
 export const Help: Action<boolean> = action({
-  flag: Flag.boolean("help").pipe(
-    Flag.withAlias("h"),
-    Flag.withDescription("Show help information")
-  ),
-  run: (_, { command, commandPath }) =>
-    Effect.gen(function*() {
-      const formatter = yield* CliOutput.Formatter
-      const helpDoc = yield* HelpInternal.getHelpForCommandPath(command, commandPath, BuiltIns)
-      yield* Console.log(formatter.formatHelpDoc(helpDoc))
-    })
-})
+	flag: Flag.boolean("help").pipe(
+		Flag.withAlias("h"),
+		Flag.withDescription("Show help information"),
+	),
+	run: (_, { command, commandPath }) =>
+		Effect.gen(function* () {
+			const formatter = yield* CliOutput.Formatter;
+			const helpDoc = yield* HelpInternal.getHelpForCommandPath(
+				command,
+				commandPath,
+				BuiltIns,
+			);
+			yield* Console.log(formatter.formatHelpDoc(helpDoc));
+		}),
+});
 
 /**
  * The `--version` global flag.
@@ -183,15 +180,15 @@ export const Help: Action<boolean> = action({
  * @since 4.0.0
  */
 export const Version: Action<boolean> = action({
-  flag: Flag.boolean("version").pipe(
-    Flag.withDescription("Show version information")
-  ),
-  run: (_, { command, version }) =>
-    Effect.gen(function*() {
-      const formatter = yield* CliOutput.Formatter
-      yield* Console.log(formatter.formatVersion(command.name, version))
-    })
-})
+	flag: Flag.boolean("version").pipe(
+		Flag.withDescription("Show version information"),
+	),
+	run: (_, { command, version }) =>
+		Effect.gen(function* () {
+			const formatter = yield* CliOutput.Formatter;
+			yield* Console.log(formatter.formatVersion(command.name, version));
+		}),
+});
 
 /**
  * The `--completions` global flag.
@@ -200,22 +197,27 @@ export const Version: Action<boolean> = action({
  * @category references
  * @since 4.0.0
  */
-export const Completions: Action<Option.Option<"bash" | "zsh" | "fish">> = action({
-  flag: Flag.choice("completions", ["bash", "zsh", "fish", "sh"] as const)
-    .pipe(
-      Flag.optional,
-      Flag.map((v) => Option.map(v, (s) => s === "sh" ? "bash" : s)),
-      Flag.withDescription("Print shell completion script")
-    ),
-  run: (shell, { command }) =>
-    Effect.gen(function*() {
-      if (Option.isNone(shell)) return
-      const descriptor = CommandDescriptor.fromCommand(command)
-      yield* Console.log(
-        Completions_.generate(command.name, shell.value, descriptor)
-      )
-    })
-})
+export const Completions: Action<Option.Option<"bash" | "zsh" | "fish">> =
+	action({
+		flag: Flag.choice("completions", [
+			"bash",
+			"zsh",
+			"fish",
+			"sh",
+		] as const).pipe(
+			Flag.optional,
+			Flag.map((v) => Option.map(v, (s) => (s === "sh" ? "bash" : s))),
+			Flag.withDescription("Print shell completion script"),
+		),
+		run: (shell, { command }) =>
+			Effect.gen(function* () {
+				if (Option.isNone(shell)) return;
+				const descriptor = CommandDescriptor.fromCommand(command);
+				yield* Console.log(
+					Completions_.generate(command.name, shell.value, descriptor),
+				);
+			}),
+	});
 
 /**
  * The `--log-level` global flag.
@@ -224,25 +226,25 @@ export const Completions: Action<Option.Option<"bash" | "zsh" | "fish">> = actio
  * @category references
  * @since 4.0.0
  */
-export const LogLevel: Setting<"log-level", Option.Option<LogLevelType>> = setting("log-level")({
-  flag: Flag.choiceWithValue(
-    "log-level",
-    [
-      ["all", "All"],
-      ["trace", "Trace"],
-      ["debug", "Debug"],
-      ["info", "Info"],
-      ["warn", "Warn"],
-      ["warning", "Warn"],
-      ["error", "Error"],
-      ["fatal", "Fatal"],
-      ["none", "None"]
-    ] as const
-  ).pipe(
-    Flag.optional,
-    Flag.withDescription("Sets the minimum log level")
-  )
-})
+export const LogLevel: Setting<
+	"log-level",
+	Option.Option<LogLevelType>
+> = setting("log-level")({
+	flag: Flag.choiceWithValue("log-level", [
+		["all", "All"],
+		["trace", "Trace"],
+		["debug", "Debug"],
+		["info", "Info"],
+		["warn", "Warn"],
+		["warning", "Warn"],
+		["error", "Error"],
+		["fatal", "Fatal"],
+		["none", "None"],
+	] as const).pipe(
+		Flag.optional,
+		Flag.withDescription("Sets the minimum log level"),
+	),
+});
 
 /* ========================================================================== */
 /* References                                                                 */
@@ -255,11 +257,11 @@ export const LogLevel: Setting<"log-level", Option.Option<LogLevelType>> = setti
  * @since 4.0.0
  */
 export const BuiltIns: ReadonlyArray<GlobalFlag<any>> = [
-  Help,
-  Version,
-  Completions,
-  LogLevel
-]
+	Help,
+	Version,
+	Completions,
+	LogLevel,
+];
 
 /**
  * Built-in setting context identifiers.
@@ -267,4 +269,4 @@ export const BuiltIns: ReadonlyArray<GlobalFlag<any>> = [
  * @category models
  * @since 4.0.0
  */
-export type BuiltInSettingContext = Setting.Identifier<"log-level">
+export type BuiltInSettingContext = Setting.Identifier<"log-level">;

@@ -28,7 +28,7 @@
  *
  * @since 4.0.0
  */
-export * as KeyValueStore from "./KeyValueStore.ts"
+export * as KeyValueStore from "./KeyValueStore.ts";
 
 /**
  * Defines the request-side contract used by the persistence layer.
@@ -53,7 +53,7 @@ export * as KeyValueStore from "./KeyValueStore.ts"
  *
  * @since 4.0.0
  */
-export * as Persistable from "./Persistable.ts"
+export * as Persistable from "./Persistable.ts";
 
 /**
  * Persistent caching for `Persistable` request keys.
@@ -75,7 +75,7 @@ export * as Persistable from "./Persistable.ts"
  *
  * @since 4.0.0
  */
-export * as PersistedCache from "./PersistedCache.ts"
+export * as PersistedCache from "./PersistedCache.ts";
 
 /**
  * Schema-aware persisted queues for background work.
@@ -105,7 +105,7 @@ export * as PersistedCache from "./PersistedCache.ts"
  *
  * @since 4.0.0
  */
-export * as PersistedQueue from "./PersistedQueue.ts"
+export * as PersistedQueue from "./PersistedQueue.ts";
 
 /**
  * Durable storage for encoded `Persistable` request results.
@@ -133,7 +133,7 @@ export * as PersistedQueue from "./PersistedQueue.ts"
  *
  * @since 4.0.0
  */
-export * as Persistence from "./Persistence.ts"
+export * as Persistence from "./Persistence.ts";
 
 /**
  * Persistent rate limiting for effects that need to coordinate token
@@ -163,7 +163,7 @@ export * as Persistence from "./Persistence.ts"
  *
  * @since 4.0.0
  */
-export * as RateLimiter from "./RateLimiter.ts"
+export * as RateLimiter from "./RateLimiter.ts";
 
 /**
  * Low-level Redis integration for the persistence modules.
@@ -184,4 +184,4 @@ export * as RateLimiter from "./RateLimiter.ts"
  *
  * @since 4.0.0
  */
-export * as Redis from "./Redis.ts"
+export * as Redis from "./Redis.ts";

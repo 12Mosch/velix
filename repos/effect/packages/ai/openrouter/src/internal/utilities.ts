@@ -1,23 +1,23 @@
-import * as Predicate from "effect/Predicate"
-import type * as Response from "effect/unstable/ai/Response"
-import type { ReasoningDetails } from "../OpenRouterLanguageModel.ts"
+import * as Predicate from "effect/Predicate";
+import type * as Response from "effect/unstable/ai/Response";
+import type { ReasoningDetails } from "../OpenRouterLanguageModel.ts";
 
 const finishReasonMap: Record<string, Response.FinishReason> = {
-  content_filter: "content-filter",
-  error: "error",
-  function_call: "tool-calls",
-  length: "length",
-  tool_calls: "tool-calls",
-  stop: "stop"
-}
+	content_filter: "content-filter",
+	error: "error",
+	function_call: "tool-calls",
+	length: "length",
+	tool_calls: "tool-calls",
+	stop: "stop",
+};
 
 /** @internal */
 export const resolveFinishReason = (
-  finishReason: string | null | undefined
+	finishReason: string | null | undefined,
 ): Response.FinishReason =>
-  Predicate.isNotNullish(finishReason)
-    ? finishReasonMap[finishReason]
-    : "other"
+	Predicate.isNotNullish(finishReason)
+		? finishReasonMap[finishReason]
+		: "other";
 
 /**
  * Tracks ReasoningDetailUnion entries and deduplicates them based
@@ -36,57 +36,57 @@ export const resolveFinishReason = (
  * @internal
  */
 export class ReasoningDetailsDuplicateTracker {
-  readonly #seenKeys = new Set<string>()
+	readonly #seenKeys = new Set<string>();
 
-  /**
-   * Attempts to track a detail.
-   *
-   * or `false` if it was skipped (no valid key) or already seen (duplicate).
-   */
-  upsert(detail: ReasoningDetails[number]): boolean {
-    const key = this.getCanonicalKey(detail)
+	/**
+	 * Attempts to track a detail.
+	 *
+	 * or `false` if it was skipped (no valid key) or already seen (duplicate).
+	 */
+	upsert(detail: ReasoningDetails[number]): boolean {
+		const key = this.getCanonicalKey(detail);
 
-    if (Predicate.isNull(key)) {
-      return false
-    }
+		if (Predicate.isNull(key)) {
+			return false;
+		}
 
-    if (this.#seenKeys.has(key)) {
-      return false
-    }
+		if (this.#seenKeys.has(key)) {
+			return false;
+		}
 
-    this.#seenKeys.add(key)
+		this.#seenKeys.add(key);
 
-    return true
-  }
+		return true;
+	}
 
-  private getCanonicalKey(detail: ReasoningDetails[number]): string | null {
-    // This logic matches the OpenRouter API's deduplication exactly.
-    // See: openrouter-web/packages/llm-interfaces/reasonings/duplicate-tracker.ts
-    switch (detail.type) {
-      case "reasoning.summary": {
-        return detail.summary
-      }
+	private getCanonicalKey(detail: ReasoningDetails[number]): string | null {
+		// This logic matches the OpenRouter API's deduplication exactly.
+		// See: openrouter-web/packages/llm-interfaces/reasonings/duplicate-tracker.ts
+		switch (detail.type) {
+			case "reasoning.summary": {
+				return detail.summary;
+			}
 
-      case "reasoning.encrypted": {
-        return Predicate.isNotNullish(detail.id) ? detail.id : detail.data
-      }
+			case "reasoning.encrypted": {
+				return Predicate.isNotNullish(detail.id) ? detail.id : detail.data;
+			}
 
-      case "reasoning.text": {
-        if (Predicate.isNotNullish(detail.text)) {
-          return detail.text
-        }
+			case "reasoning.text": {
+				if (Predicate.isNotNullish(detail.text)) {
+					return detail.text;
+				}
 
-        if (Predicate.isNotNullish(detail.signature)) {
-          return detail.signature
-        }
+				if (Predicate.isNotNullish(detail.signature)) {
+					return detail.signature;
+				}
 
-        return null
-      }
+				return null;
+			}
 
-      default: {
-        // Handle unknown types gracefully
-        return null
-      }
-    }
-  }
+			default: {
+				// Handle unknown types gracefully
+				return null;
+			}
+		}
+	}
 }

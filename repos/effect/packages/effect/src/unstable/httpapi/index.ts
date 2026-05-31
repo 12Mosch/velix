@@ -30,7 +30,7 @@
  *
  * @since 4.0.0
  */
-export * as HttpApi from "./HttpApi.ts"
+export * as HttpApi from "./HttpApi.ts";
 
 /**
  * The `HttpApiBuilder` module connects declarative `HttpApi` definitions to
@@ -62,7 +62,7 @@ export * as HttpApi from "./HttpApi.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiBuilder from "./HttpApiBuilder.ts"
+export * as HttpApiBuilder from "./HttpApiBuilder.ts";
 
 /**
  * Builds type-safe clients and URL builders from `HttpApi` declarations.
@@ -88,7 +88,7 @@ export * as HttpApiBuilder from "./HttpApiBuilder.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiClient from "./HttpApiClient.ts"
+export * as HttpApiClient from "./HttpApiClient.ts";
 
 /**
  * The `HttpApiEndpoint` module defines the per-route contracts used inside an
@@ -117,7 +117,7 @@ export * as HttpApiClient from "./HttpApiClient.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiEndpoint from "./HttpApiEndpoint.ts"
+export * as HttpApiEndpoint from "./HttpApiEndpoint.ts";
 
 /**
  * The `HttpApiError` module defines the built-in error types used by Effect's
@@ -141,7 +141,7 @@ export * as HttpApiEndpoint from "./HttpApiEndpoint.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiError from "./HttpApiError.ts"
+export * as HttpApiError from "./HttpApiError.ts";
 
 /**
  * The `HttpApiGroup` module defines named collections of `HttpApiEndpoint`s
@@ -170,7 +170,7 @@ export * as HttpApiError from "./HttpApiError.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiGroup from "./HttpApiGroup.ts"
+export * as HttpApiGroup from "./HttpApiGroup.ts";
 
 /**
  * The `HttpApiMiddleware` module defines middleware services that can wrap
@@ -200,7 +200,7 @@ export * as HttpApiGroup from "./HttpApiGroup.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiMiddleware from "./HttpApiMiddleware.ts"
+export * as HttpApiMiddleware from "./HttpApiMiddleware.ts";
 
 /**
  * The `HttpApiScalar` module mounts an interactive Scalar API reference for a
@@ -224,7 +224,7 @@ export * as HttpApiMiddleware from "./HttpApiMiddleware.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiScalar from "./HttpApiScalar.ts"
+export * as HttpApiScalar from "./HttpApiScalar.ts";
 
 /**
  * Helpers for attaching HTTP API metadata to Effect Schema values.
@@ -266,7 +266,7 @@ export * as HttpApiScalar from "./HttpApiScalar.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiSchema from "./HttpApiSchema.ts"
+export * as HttpApiSchema from "./HttpApiSchema.ts";
 
 /**
  * The `HttpApiSecurity` module defines the security scheme values used by
@@ -295,7 +295,7 @@ export * as HttpApiSchema from "./HttpApiSchema.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiSecurity from "./HttpApiSecurity.ts"
+export * as HttpApiSecurity from "./HttpApiSecurity.ts";
 
 /**
  * Serves Swagger UI for an `HttpApi` by rendering the OpenAPI document generated
@@ -319,7 +319,7 @@ export * as HttpApiSecurity from "./HttpApiSecurity.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiSwagger from "./HttpApiSwagger.ts"
+export * as HttpApiSwagger from "./HttpApiSwagger.ts";
 
 /**
  * The `HttpApiTest` module provides helpers for testing `HttpApi`
@@ -344,7 +344,7 @@ export * as HttpApiSwagger from "./HttpApiSwagger.ts"
  *
  * @since 4.0.0
  */
-export * as HttpApiTest from "./HttpApiTest.ts"
+export * as HttpApiTest from "./HttpApiTest.ts";
 
 /**
  * The `OpenApi` module converts declarative `HttpApi` definitions into
@@ -378,4 +378,4 @@ export * as HttpApiTest from "./HttpApiTest.ts"
  *
  * @since 4.0.0
  */
-export * as OpenApi from "./OpenApi.ts"
+export * as OpenApi from "./OpenApi.ts";

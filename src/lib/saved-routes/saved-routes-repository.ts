@@ -7,6 +7,7 @@ import {
 	type SavedRouteVersion,
 } from "$lib/saved-routes-core";
 import type { BrowserStorage } from "$lib/storage/browser-storage";
+import { Data, Effect } from "effect";
 
 export const SYNCED_MIGRATIONS_STORAGE_KEY =
 	"velix.savedRoutes.syncedMigrations";
@@ -45,38 +46,78 @@ export type SavedRouteVersionIndexedDbRow = {
 };
 
 export type SavedRoutesRepository = {
-	init: () => Promise<void>;
-	readRoutes: (scope: SavedRouteScope) => Promise<SavedRoute[]>;
+	init: () => Effect.Effect<void, SavedRoutesRepositoryError>;
+	readRoutes: (
+		scope: SavedRouteScope,
+	) => Effect.Effect<SavedRoute[], SavedRoutesRepositoryError>;
 	replaceRoutes: (
 		scope: SavedRouteScope,
 		savedRoutes: SavedRoute[],
-	) => Promise<void>;
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
 	upsertRoute: (
 		scope: SavedRouteScope,
 		savedRoute: SavedRoute,
-	) => Promise<void>;
-	deleteRoute: (scope: SavedRouteScope, routeId: string) => Promise<void>;
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	deleteRoute: (
+		scope: SavedRouteScope,
+		routeId: string,
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
 	readRouteVersions: (
 		scope: SavedRouteScope,
 		routeId: string,
-	) => Promise<SavedRouteVersion[]>;
+	) => Effect.Effect<SavedRouteVersion[], SavedRoutesRepositoryError>;
 	replaceRouteVersions: (
 		scope: SavedRouteScope,
 		routeId: string,
 		versions: SavedRouteVersion[],
-	) => Promise<void>;
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
 	addRouteVersion: (
 		scope: SavedRouteScope,
 		version: SavedRouteVersion,
-	) => Promise<void>;
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
 	deleteRouteVersions: (
 		scope: SavedRouteScope,
 		routeId: string,
-	) => Promise<void>;
-	readMergedUserIds: () => Set<string>;
-	writeMergedUserIds: (userIds: Set<string>) => void;
-	clear: () => Promise<void>;
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	readMergedUserIds: () => Effect.Effect<
+		Set<string>,
+		SavedRoutesRepositoryError
+	>;
+	writeMergedUserIds: (
+		userIds: Set<string>,
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	clear: () => Effect.Effect<void, SavedRoutesRepositoryError>;
 };
+
+type SavedRoutesRepositoryOperation =
+	| "open"
+	| "init"
+	| "migrateLegacyRoutes"
+	| "readRoutes"
+	| "replaceRoutes"
+	| "upsertRoute"
+	| "deleteRoute"
+	| "readRouteVersions"
+	| "replaceRouteVersions"
+	| "addRouteVersion"
+	| "deleteRouteVersions"
+	| "readMergedUserIds"
+	| "writeMergedUserIds"
+	| "clear";
+
+export class SavedRoutesRepositoryError extends Data.TaggedError(
+	"SavedRoutesRepositoryError",
+)<{
+	readonly operation: SavedRoutesRepositoryOperation;
+	readonly cause: unknown;
+}> {}
+
+function repositoryError(
+	operation: SavedRoutesRepositoryOperation,
+	cause: unknown,
+) {
+	return new SavedRoutesRepositoryError({ operation, cause });
+}
 
 export function getSyncedRoutesStorageKey(userId: string) {
 	return `${SYNCED_ROUTES_STORAGE_KEY_PREFIX}${userId}`;
@@ -235,30 +276,56 @@ function toVersionRow(
 	};
 }
 
-function requestToPromise<T>(request: IDBRequest<T>) {
-	return new Promise<T>((resolve, reject) => {
-		request.onsuccess = () => resolve(request.result);
+function getIdbRequestError<T>(request: IDBRequest<T>) {
+	return request.error ?? new Error("IndexedDB request failed.");
+}
+
+function getIdbTransactionError(transaction: IDBTransaction) {
+	return transaction.error ?? new Error("IndexedDB transaction failed.");
+}
+
+function requestToEffect<T>(
+	operation: SavedRoutesRepositoryOperation,
+	request: IDBRequest<T>,
+) {
+	return Effect.callback<T, SavedRoutesRepositoryError>((resume) => {
+		request.onsuccess = () => resume(Effect.succeed(request.result));
 		request.onerror = () =>
-			reject(request.error ?? new Error("IndexedDB request failed."));
+			resume(
+				Effect.fail(repositoryError(operation, getIdbRequestError(request))),
+			);
 	});
 }
 
-function transactionDone(transaction: IDBTransaction) {
-	return new Promise<void>((resolve, reject) => {
-		transaction.oncomplete = () => resolve();
+function transactionDoneEffect(
+	operation: SavedRoutesRepositoryOperation,
+	transaction: IDBTransaction,
+) {
+	return Effect.callback<void, SavedRoutesRepositoryError>((resume) => {
+		transaction.oncomplete = () => resume(Effect.void);
 		transaction.onabort = () =>
-			reject(transaction.error ?? new Error("IndexedDB transaction aborted."));
+			resume(
+				Effect.fail(
+					repositoryError(operation, getIdbTransactionError(transaction)),
+				),
+			);
 		transaction.onerror = () =>
-			reject(transaction.error ?? new Error("IndexedDB transaction failed."));
+			resume(
+				Effect.fail(
+					repositoryError(operation, getIdbTransactionError(transaction)),
+				),
+			);
 	});
 }
 
 function openSavedRoutesDb() {
 	if (!globalThis.indexedDB) {
-		return Promise.reject(new Error("IndexedDB is unavailable."));
+		return Effect.fail(
+			repositoryError("open", new Error("IndexedDB is unavailable.")),
+		);
 	}
 
-	return new Promise<IDBDatabase>((resolve, reject) => {
+	return Effect.callback<IDBDatabase, SavedRoutesRepositoryError>((resume) => {
 		const request = indexedDB.open(
 			SAVED_ROUTES_DB_NAME,
 			SAVED_ROUTES_DB_VERSION,
@@ -297,225 +364,325 @@ function openSavedRoutesDb() {
 				);
 			}
 		};
-		request.onsuccess = () => resolve(request.result);
+		request.onsuccess = () => resume(Effect.succeed(request.result));
 		request.onerror = () =>
-			reject(request.error ?? new Error("Could not open IndexedDB."));
-		request.onblocked = () => reject(new Error("IndexedDB open was blocked."));
+			resume(
+				Effect.fail(
+					repositoryError(
+						"open",
+						request.error ?? new Error("Could not open IndexedDB."),
+					),
+				),
+			);
+		request.onblocked = () =>
+			resume(
+				Effect.fail(
+					repositoryError("open", new Error("IndexedDB open was blocked.")),
+				),
+			);
 	});
 }
 
-async function getRowsForScope(db: IDBDatabase, scope: SavedRouteScope) {
-	const transaction = db.transaction(SAVED_ROUTES_STORE_NAME, "readonly");
-	const done = transactionDone(transaction);
-	const store = transaction.objectStore(SAVED_ROUTES_STORE_NAME);
-	const index = store.index(SAVED_ROUTES_SCOPE_INDEX);
-	const rows = await requestToPromise<SavedRouteIndexedDbRow[]>(
-		index.getAll(getSavedRouteScopeKey(scope)),
-	);
-	await done;
-	return rows;
+function getRowsForScope(db: IDBDatabase, scope: SavedRouteScope) {
+	return Effect.gen(function* () {
+		const transaction = db.transaction(SAVED_ROUTES_STORE_NAME, "readonly");
+		const done = transactionDoneEffect("readRoutes", transaction);
+		const store = transaction.objectStore(SAVED_ROUTES_STORE_NAME);
+		const index = store.index(SAVED_ROUTES_SCOPE_INDEX);
+		const rows = yield* requestToEffect<SavedRouteIndexedDbRow[]>(
+			"readRoutes",
+			index.getAll(getSavedRouteScopeKey(scope)),
+		);
+		yield* done;
+		return rows;
+	});
 }
 
-async function replaceScopeRows(
+function replaceScopeRows(
 	db: IDBDatabase,
 	scope: SavedRouteScope,
 	savedRoutes: SavedRoute[],
 ) {
-	const transaction = db.transaction(SAVED_ROUTES_STORE_NAME, "readwrite");
-	const done = transactionDone(transaction);
-	const store = transaction.objectStore(SAVED_ROUTES_STORE_NAME);
-	const index = store.index(SAVED_ROUTES_SCOPE_INDEX);
-	const existingRows = await requestToPromise<SavedRouteIndexedDbRow[]>(
-		index.getAll(getSavedRouteScopeKey(scope)),
-	);
+	return Effect.callback<void, SavedRoutesRepositoryError>((resume) => {
+		const transaction = db.transaction(SAVED_ROUTES_STORE_NAME, "readwrite");
+		const store = transaction.objectStore(SAVED_ROUTES_STORE_NAME);
+		const index = store.index(SAVED_ROUTES_SCOPE_INDEX);
+		const request = index.getAll(getSavedRouteScopeKey(scope));
 
-	for (const row of existingRows) {
-		store.delete(row.storageKey);
-	}
+		request.onsuccess = () => {
+			for (const row of request.result) {
+				store.delete(row.storageKey);
+			}
 
-	for (const savedRoute of savedRoutes) {
-		store.put(toRow(scope, savedRoute));
-	}
-
-	await done;
+			for (const savedRoute of savedRoutes) {
+				store.put(toRow(scope, savedRoute));
+			}
+		};
+		request.onerror = () =>
+			resume(
+				Effect.fail(
+					repositoryError("replaceRoutes", getIdbRequestError(request)),
+				),
+			);
+		transaction.oncomplete = () => resume(Effect.void);
+		transaction.onabort = () =>
+			resume(
+				Effect.fail(
+					repositoryError("replaceRoutes", getIdbTransactionError(transaction)),
+				),
+			);
+		transaction.onerror = () =>
+			resume(
+				Effect.fail(
+					repositoryError("replaceRoutes", getIdbTransactionError(transaction)),
+				),
+			);
+	});
 }
 
-async function getVersionRowsForRoute(
+function getVersionRowsForRoute(
 	db: IDBDatabase,
 	scope: SavedRouteScope,
 	routeId: string,
 ) {
-	const transaction = db.transaction(
-		SAVED_ROUTE_VERSIONS_STORE_NAME,
-		"readonly",
-	);
-	const done = transactionDone(transaction);
-	const store = transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME);
-	const index = store.index(SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX);
-	const rows = await requestToPromise<SavedRouteVersionIndexedDbRow[]>(
-		index.getAll([getSavedRouteScopeKey(scope), routeId]),
-	);
-	await done;
-	return rows;
+	return Effect.gen(function* () {
+		const transaction = db.transaction(
+			SAVED_ROUTE_VERSIONS_STORE_NAME,
+			"readonly",
+		);
+		const done = transactionDoneEffect("readRouteVersions", transaction);
+		const store = transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME);
+		const index = store.index(SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX);
+		const rows = yield* requestToEffect<SavedRouteVersionIndexedDbRow[]>(
+			"readRouteVersions",
+			index.getAll([getSavedRouteScopeKey(scope), routeId]),
+		);
+		yield* done;
+		return rows;
+	});
 }
 
-async function replaceVersionRowsForRoute(
+function replaceVersionRowsForRoute(
 	db: IDBDatabase,
 	scope: SavedRouteScope,
 	routeId: string,
 	versions: SavedRouteVersion[],
 ) {
-	const transaction = db.transaction(
-		SAVED_ROUTE_VERSIONS_STORE_NAME,
-		"readwrite",
-	);
-	const done = transactionDone(transaction);
-	const store = transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME);
-	const index = store.index(SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX);
-	const existingRows = await requestToPromise<SavedRouteVersionIndexedDbRow[]>(
-		index.getAll([getSavedRouteScopeKey(scope), routeId]),
-	);
+	return Effect.callback<void, SavedRoutesRepositoryError>((resume) => {
+		const transaction = db.transaction(
+			SAVED_ROUTE_VERSIONS_STORE_NAME,
+			"readwrite",
+		);
+		const store = transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME);
+		const index = store.index(SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX);
+		const request = index.getAll([getSavedRouteScopeKey(scope), routeId]);
 
-	for (const row of existingRows) {
-		store.delete(row.storageKey);
-	}
+		request.onsuccess = () => {
+			for (const row of request.result) {
+				store.delete(row.storageKey);
+			}
 
-	for (const version of normalizeRouteScopedVersions(routeId, versions)) {
-		store.put(toVersionRow(scope, version));
-	}
-
-	await done;
+			for (const version of normalizeRouteScopedVersions(routeId, versions)) {
+				store.put(toVersionRow(scope, version));
+			}
+		};
+		request.onerror = () =>
+			resume(
+				Effect.fail(
+					repositoryError("replaceRouteVersions", getIdbRequestError(request)),
+				),
+			);
+		transaction.oncomplete = () => resume(Effect.void);
+		transaction.onabort = () =>
+			resume(
+				Effect.fail(
+					repositoryError(
+						"replaceRouteVersions",
+						getIdbTransactionError(transaction),
+					),
+				),
+			);
+		transaction.onerror = () =>
+			resume(
+				Effect.fail(
+					repositoryError(
+						"replaceRouteVersions",
+						getIdbTransactionError(transaction),
+					),
+				),
+			);
+	});
 }
 
-function createIndexedDbDriver(db: IDBDatabase) {
+type SavedRoutesDriver = {
+	readRoutes: (
+		scope: SavedRouteScope,
+	) => Effect.Effect<SavedRoute[], SavedRoutesRepositoryError>;
+	replaceRoutes: (
+		scope: SavedRouteScope,
+		savedRoutes: SavedRoute[],
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	upsertRoute: (
+		scope: SavedRouteScope,
+		savedRoute: SavedRoute,
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	deleteRoute: (
+		scope: SavedRouteScope,
+		routeId: string,
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	readRouteVersions: (
+		scope: SavedRouteScope,
+		routeId: string,
+	) => Effect.Effect<SavedRouteVersion[], SavedRoutesRepositoryError>;
+	replaceRouteVersions: (
+		scope: SavedRouteScope,
+		routeId: string,
+		versions: SavedRouteVersion[],
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	addRouteVersion: (
+		scope: SavedRouteScope,
+		version: SavedRouteVersion,
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	deleteRouteVersions: (
+		scope: SavedRouteScope,
+		routeId: string,
+	) => Effect.Effect<void, SavedRoutesRepositoryError>;
+	clear: () => Effect.Effect<void, SavedRoutesRepositoryError>;
+};
+
+function createIndexedDbDriver(db: IDBDatabase): SavedRoutesDriver {
 	return {
-		async readRoutes(scope: SavedRouteScope) {
-			return normalizeRows(await getRowsForScope(db, scope));
+		readRoutes(scope: SavedRouteScope) {
+			return getRowsForScope(db, scope).pipe(Effect.map(normalizeRows));
 		},
-		async replaceRoutes(scope: SavedRouteScope, savedRoutes: SavedRoute[]) {
-			await replaceScopeRows(db, scope, savedRoutes);
+		replaceRoutes(scope: SavedRouteScope, savedRoutes: SavedRoute[]) {
+			return replaceScopeRows(db, scope, savedRoutes);
 		},
-		async upsertRoute(scope: SavedRouteScope, savedRoute: SavedRoute) {
-			const transaction = db.transaction(SAVED_ROUTES_STORE_NAME, "readwrite");
-			const done = transactionDone(transaction);
-			transaction
-				.objectStore(SAVED_ROUTES_STORE_NAME)
-				.put(toRow(scope, savedRoute));
-			await done;
+		upsertRoute(scope: SavedRouteScope, savedRoute: SavedRoute) {
+			return Effect.gen(function* () {
+				const transaction = db.transaction(
+					SAVED_ROUTES_STORE_NAME,
+					"readwrite",
+				);
+				const done = transactionDoneEffect("upsertRoute", transaction);
+				transaction
+					.objectStore(SAVED_ROUTES_STORE_NAME)
+					.put(toRow(scope, savedRoute));
+				yield* done;
+			});
 		},
-		async deleteRoute(scope: SavedRouteScope, routeId: string) {
-			const transaction = db.transaction(
-				[SAVED_ROUTES_STORE_NAME, SAVED_ROUTE_VERSIONS_STORE_NAME],
-				"readwrite",
+		deleteRoute(scope: SavedRouteScope, routeId: string) {
+			return Effect.callback<void, SavedRoutesRepositoryError>((resume) => {
+				const transaction = db.transaction(
+					[SAVED_ROUTES_STORE_NAME, SAVED_ROUTE_VERSIONS_STORE_NAME],
+					"readwrite",
+				);
+				transaction
+					.objectStore(SAVED_ROUTES_STORE_NAME)
+					.delete(getSavedRouteStorageKey(scope, routeId));
+				const versionStore = transaction.objectStore(
+					SAVED_ROUTE_VERSIONS_STORE_NAME,
+				);
+				const versionIndex = versionStore.index(
+					SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX,
+				);
+				const request = versionIndex.getAll([
+					getSavedRouteScopeKey(scope),
+					routeId,
+				]);
+
+				request.onsuccess = () => {
+					for (const row of request.result) {
+						versionStore.delete(row.storageKey);
+					}
+				};
+				request.onerror = () =>
+					resume(
+						Effect.fail(
+							repositoryError("deleteRoute", getIdbRequestError(request)),
+						),
+					);
+				transaction.oncomplete = () => resume(Effect.void);
+				transaction.onabort = () =>
+					resume(
+						Effect.fail(
+							repositoryError(
+								"deleteRoute",
+								getIdbTransactionError(transaction),
+							),
+						),
+					);
+				transaction.onerror = () =>
+					resume(
+						Effect.fail(
+							repositoryError(
+								"deleteRoute",
+								getIdbTransactionError(transaction),
+							),
+						),
+					);
+			});
+		},
+		readRouteVersions(scope: SavedRouteScope, routeId: string) {
+			return getVersionRowsForRoute(db, scope, routeId).pipe(
+				Effect.map(normalizeVersionRows),
 			);
-			const done = transactionDone(transaction);
-			transaction
-				.objectStore(SAVED_ROUTES_STORE_NAME)
-				.delete(getSavedRouteStorageKey(scope, routeId));
-			const versionStore = transaction.objectStore(
-				SAVED_ROUTE_VERSIONS_STORE_NAME,
-			);
-			const versionIndex = versionStore.index(
-				SAVED_ROUTE_VERSIONS_SCOPE_ROUTE_INDEX,
-			);
-			const versionRows = await requestToPromise<
-				SavedRouteVersionIndexedDbRow[]
-			>(versionIndex.getAll([getSavedRouteScopeKey(scope), routeId]));
-			for (const row of versionRows) {
-				versionStore.delete(row.storageKey);
-			}
-			await done;
 		},
-		async readRouteVersions(scope: SavedRouteScope, routeId: string) {
-			return normalizeVersionRows(
-				await getVersionRowsForRoute(db, scope, routeId),
-			);
-		},
-		async replaceRouteVersions(
+		replaceRouteVersions(
 			scope: SavedRouteScope,
 			routeId: string,
 			versions: SavedRouteVersion[],
 		) {
-			await replaceVersionRowsForRoute(db, scope, routeId, versions);
+			return replaceVersionRowsForRoute(db, scope, routeId, versions);
 		},
-		async addRouteVersion(scope: SavedRouteScope, version: SavedRouteVersion) {
-			const versions = normalizeVersionRows(
-				await getVersionRowsForRoute(db, scope, version.routeId),
-			);
-			await replaceVersionRowsForRoute(db, scope, version.routeId, [
-				version,
-				...versions.filter((entry) => entry.versionId !== version.versionId),
-			]);
+		addRouteVersion(scope: SavedRouteScope, version: SavedRouteVersion) {
+			return Effect.gen(function* () {
+				const versions = normalizeVersionRows(
+					yield* getVersionRowsForRoute(db, scope, version.routeId),
+				);
+				yield* replaceVersionRowsForRoute(db, scope, version.routeId, [
+					version,
+					...versions.filter((entry) => entry.versionId !== version.versionId),
+				]);
+			});
 		},
-		async deleteRouteVersions(scope: SavedRouteScope, routeId: string) {
-			await replaceVersionRowsForRoute(db, scope, routeId, []);
+		deleteRouteVersions(scope: SavedRouteScope, routeId: string) {
+			return replaceVersionRowsForRoute(db, scope, routeId, []);
 		},
-		async clear() {
-			const transaction = db.transaction(
-				[SAVED_ROUTES_STORE_NAME, SAVED_ROUTE_VERSIONS_STORE_NAME],
-				"readwrite",
-			);
-			const done = transactionDone(transaction);
-			transaction.objectStore(SAVED_ROUTES_STORE_NAME).clear();
-			transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME).clear();
-			await done;
+		clear() {
+			return Effect.gen(function* () {
+				const transaction = db.transaction(
+					[SAVED_ROUTES_STORE_NAME, SAVED_ROUTE_VERSIONS_STORE_NAME],
+					"readwrite",
+				);
+				const done = transactionDoneEffect("clear", transaction);
+				transaction.objectStore(SAVED_ROUTES_STORE_NAME).clear();
+				transaction.objectStore(SAVED_ROUTE_VERSIONS_STORE_NAME).clear();
+				yield* done;
+			});
 		},
 	};
 }
 
-function createMemoryDriver() {
+function createMemoryDriver(): SavedRoutesDriver {
 	const rows = new Map<string, SavedRouteIndexedDbRow>();
 	const versionRows = new Map<string, SavedRouteVersionIndexedDbRow>();
-
-	return {
-		async readRoutes(scope: SavedRouteScope) {
-			return normalizeRows(
-				[...rows.values()].filter(
-					(row) => row.scope === getSavedRouteScopeKey(scope),
-				),
-			);
-		},
-		async replaceRoutes(scope: SavedRouteScope, savedRoutes: SavedRoute[]) {
-			const scopeKey = getSavedRouteScopeKey(scope);
-			for (const row of [...rows.values()]) {
-				if (row.scope === scopeKey) {
-					rows.delete(row.storageKey);
-				}
-			}
-			for (const savedRoute of savedRoutes) {
-				const row = toRow(scope, savedRoute);
-				rows.set(row.storageKey, row);
-			}
-		},
-		async upsertRoute(scope: SavedRouteScope, savedRoute: SavedRoute) {
-			const row = toRow(scope, savedRoute);
-			rows.set(row.storageKey, row);
-		},
-		async deleteRoute(scope: SavedRouteScope, routeId: string) {
-			rows.delete(getSavedRouteStorageKey(scope, routeId));
-			for (const row of [...versionRows.values()]) {
-				if (
-					row.scope === getSavedRouteScopeKey(scope) &&
-					row.routeId === routeId
-				) {
-					versionRows.delete(row.storageKey);
-				}
-			}
-		},
-		async readRouteVersions(scope: SavedRouteScope, routeId: string) {
-			return normalizeVersionRows(
+	const readRouteVersions = (scope: SavedRouteScope, routeId: string) =>
+		Effect.sync(() =>
+			normalizeVersionRows(
 				[...versionRows.values()].filter(
 					(row) =>
 						row.scope === getSavedRouteScopeKey(scope) &&
 						row.routeId === routeId,
 				),
-			);
-		},
-		async replaceRouteVersions(
-			scope: SavedRouteScope,
-			routeId: string,
-			versions: SavedRouteVersion[],
-		) {
+			),
+		);
+	const replaceRouteVersions = (
+		scope: SavedRouteScope,
+		routeId: string,
+		versions: SavedRouteVersion[],
+	) =>
+		Effect.sync(() => {
 			const scopeKey = getSavedRouteScopeKey(scope);
 			for (const row of [...versionRows.values()]) {
 				if (row.scope === scopeKey && row.routeId === routeId) {
@@ -526,151 +693,270 @@ function createMemoryDriver() {
 				const row = toVersionRow(scope, version);
 				versionRows.set(row.storageKey, row);
 			}
+		});
+
+	return {
+		readRoutes(scope: SavedRouteScope) {
+			return Effect.sync(() =>
+				normalizeRows(
+					[...rows.values()].filter(
+						(row) => row.scope === getSavedRouteScopeKey(scope),
+					),
+				),
+			);
 		},
-		async addRouteVersion(scope: SavedRouteScope, version: SavedRouteVersion) {
-			const versions = await this.readRouteVersions(scope, version.routeId);
-			await this.replaceRouteVersions(scope, version.routeId, [
-				version,
-				...versions.filter((entry) => entry.versionId !== version.versionId),
-			]);
+		replaceRoutes(scope: SavedRouteScope, savedRoutes: SavedRoute[]) {
+			return Effect.sync(() => {
+				const scopeKey = getSavedRouteScopeKey(scope);
+				for (const row of [...rows.values()]) {
+					if (row.scope === scopeKey) {
+						rows.delete(row.storageKey);
+					}
+				}
+				for (const savedRoute of savedRoutes) {
+					const row = toRow(scope, savedRoute);
+					rows.set(row.storageKey, row);
+				}
+			});
 		},
-		async deleteRouteVersions(scope: SavedRouteScope, routeId: string) {
-			await this.replaceRouteVersions(scope, routeId, []);
+		upsertRoute(scope: SavedRouteScope, savedRoute: SavedRoute) {
+			return Effect.sync(() => {
+				const row = toRow(scope, savedRoute);
+				rows.set(row.storageKey, row);
+			});
 		},
-		async clear() {
-			rows.clear();
-			versionRows.clear();
+		deleteRoute(scope: SavedRouteScope, routeId: string) {
+			return Effect.sync(() => {
+				rows.delete(getSavedRouteStorageKey(scope, routeId));
+				for (const row of [...versionRows.values()]) {
+					if (
+						row.scope === getSavedRouteScopeKey(scope) &&
+						row.routeId === routeId
+					) {
+						versionRows.delete(row.storageKey);
+					}
+				}
+			});
+		},
+		readRouteVersions(scope: SavedRouteScope, routeId: string) {
+			return readRouteVersions(scope, routeId);
+		},
+		replaceRouteVersions(
+			scope: SavedRouteScope,
+			routeId: string,
+			versions: SavedRouteVersion[],
+		) {
+			return replaceRouteVersions(scope, routeId, versions);
+		},
+		addRouteVersion(scope: SavedRouteScope, version: SavedRouteVersion) {
+			return Effect.gen(function* () {
+				const versions = yield* readRouteVersions(scope, version.routeId);
+				yield* replaceRouteVersions(scope, version.routeId, [
+					version,
+					...versions.filter((entry) => entry.versionId !== version.versionId),
+				]);
+			});
+		},
+		deleteRouteVersions(scope: SavedRouteScope, routeId: string) {
+			return replaceRouteVersions(scope, routeId, []);
+		},
+		clear() {
+			return Effect.sync(() => {
+				rows.clear();
+				versionRows.clear();
+			});
 		},
 	};
 }
 
-type SavedRoutesDriver = ReturnType<typeof createMemoryDriver>;
-
 export function createSavedRoutesRepository(
 	storage: BrowserStorage | null,
 ): SavedRoutesRepository {
-	let initPromise: Promise<void> | null = null;
+	let cachedInit: Effect.Effect<void, SavedRoutesRepositoryError> | null = null;
 	let driver: SavedRoutesDriver | null = null;
 
-	async function getDriver() {
-		await init();
-		return driver ?? createMemoryDriver();
+	function getDriver() {
+		return Effect.gen(function* () {
+			yield* init();
+			return driver ?? createMemoryDriver();
+		});
 	}
 
-	async function migrateLegacyRoutes(nextDriver: SavedRoutesDriver) {
+	function migrateLegacyRoutes(nextDriver: SavedRoutesDriver) {
 		if (!storage) {
-			return;
+			return Effect.void;
 		}
 
-		const migrations: Array<{
-			scope: SavedRouteScope;
-			routes: SavedRoute[];
-			storageKey: string;
-		}> = [];
-		const anonymousRoutes = parseSavedRoutes(
-			storage.getItem(SAVED_ROUTES_STORAGE_KEY),
-		);
+		return Effect.gen(function* () {
+			const migrations: Array<{
+				scope: SavedRouteScope;
+				routes: SavedRoute[];
+				storageKey: string;
+			}> = [];
+			const anonymousRoutes = parseSavedRoutes(
+				storage.getItem(SAVED_ROUTES_STORAGE_KEY),
+			);
 
-		if (anonymousRoutes.length > 0) {
-			migrations.push({
-				scope: { kind: "anonymous" },
-				routes: anonymousRoutes,
-				storageKey: SAVED_ROUTES_STORAGE_KEY,
-			});
-		}
-
-		for (const storageKey of getLegacyUserStorageKeys(storage)) {
-			const userId = storageKey.slice(SYNCED_ROUTES_STORAGE_KEY_PREFIX.length);
-			const routes = parseSavedRoutes(storage.getItem(storageKey));
-
-			if (userId.length > 0 && routes.length > 0) {
+			if (anonymousRoutes.length > 0) {
 				migrations.push({
-					scope: { kind: "user", userId },
-					routes,
-					storageKey,
+					scope: { kind: "anonymous" },
+					routes: anonymousRoutes,
+					storageKey: SAVED_ROUTES_STORAGE_KEY,
 				});
 			}
-		}
 
-		if (migrations.length === 0) {
-			return;
-		}
+			for (const storageKey of getLegacyUserStorageKeys(storage)) {
+				const userId = storageKey.slice(
+					SYNCED_ROUTES_STORAGE_KEY_PREFIX.length,
+				);
+				const routes = parseSavedRoutes(storage.getItem(storageKey));
 
-		for (const migration of migrations) {
-			await nextDriver.replaceRoutes(migration.scope, migration.routes);
-		}
-
-		for (const migration of migrations) {
-			storage.removeItem(migration.storageKey);
-		}
-	}
-
-	async function init() {
-		if (!initPromise) {
-			initPromise = (async () => {
-				try {
-					driver = createIndexedDbDriver(await openSavedRoutesDb());
-				} catch {
-					driver = createMemoryDriver();
+				if (userId.length > 0 && routes.length > 0) {
+					migrations.push({
+						scope: { kind: "user", userId },
+						routes,
+						storageKey,
+					});
 				}
+			}
 
-				await migrateLegacyRoutes(driver);
-			})();
-		}
+			if (migrations.length === 0) {
+				return;
+			}
 
-		await initPromise;
+			for (const migration of migrations) {
+				yield* nextDriver.replaceRoutes(migration.scope, migration.routes);
+			}
+
+			for (const migration of migrations) {
+				storage.removeItem(migration.storageKey);
+			}
+		}).pipe(
+			Effect.catchDefect((cause) =>
+				Effect.fail(repositoryError("migrateLegacyRoutes", cause)),
+			),
+		);
 	}
 
-	async function clearLegacyStorage() {
+	function init() {
+		if (!cachedInit) {
+			const initProgram = Effect.gen(function* () {
+				const nextDriver = yield* openSavedRoutesDb().pipe(
+					Effect.map(createIndexedDbDriver),
+					Effect.catchTag("SavedRoutesRepositoryError", () =>
+						Effect.succeed(createMemoryDriver()),
+					),
+				);
+				driver = nextDriver;
+				yield* migrateLegacyRoutes(nextDriver);
+			}).pipe(
+				Effect.catchDefect((cause) =>
+					Effect.fail(repositoryError("init", cause)),
+				),
+			);
+			cachedInit = Effect.cached(initProgram).pipe(
+				Effect.flatMap((effect) =>
+					Effect.sync(() => {
+						cachedInit = effect;
+						return effect;
+					}),
+				),
+				Effect.flatten,
+			);
+		}
+
+		return cachedInit;
+	}
+
+	function clearLegacyStorage() {
 		if (!storage) {
-			return;
+			return Effect.void;
 		}
 
-		const userScopedKeys = getLegacyUserStorageKeys(storage);
-		storage.removeItem(SAVED_ROUTES_STORAGE_KEY);
-		storage.removeItem(SYNCED_MIGRATIONS_STORAGE_KEY);
+		return Effect.try({
+			try: () => {
+				const userScopedKeys = getLegacyUserStorageKeys(storage);
+				storage.removeItem(SAVED_ROUTES_STORAGE_KEY);
+				storage.removeItem(SYNCED_MIGRATIONS_STORAGE_KEY);
 
-		for (const storageKey of userScopedKeys) {
-			storage.removeItem(storageKey);
-		}
+				for (const storageKey of userScopedKeys) {
+					storage.removeItem(storageKey);
+				}
+			},
+			catch: (cause) => repositoryError("clear", cause),
+		});
 	}
 
 	return {
 		init,
-		async readRoutes(scope) {
-			return (await getDriver()).readRoutes(scope);
+		readRoutes(scope) {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				return yield* nextDriver.readRoutes(scope);
+			});
 		},
-		async replaceRoutes(scope, savedRoutes) {
-			await (await getDriver()).replaceRoutes(scope, savedRoutes);
+		replaceRoutes(scope, savedRoutes) {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				yield* nextDriver.replaceRoutes(scope, savedRoutes);
+			});
 		},
-		async upsertRoute(scope, savedRoute) {
-			await (await getDriver()).upsertRoute(scope, savedRoute);
+		upsertRoute(scope, savedRoute) {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				yield* nextDriver.upsertRoute(scope, savedRoute);
+			});
 		},
-		async deleteRoute(scope, routeId) {
-			await (await getDriver()).deleteRoute(scope, routeId);
+		deleteRoute(scope, routeId) {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				yield* nextDriver.deleteRoute(scope, routeId);
+			});
 		},
-		async readRouteVersions(scope, routeId) {
-			return (await getDriver()).readRouteVersions(scope, routeId);
+		readRouteVersions(scope, routeId) {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				return yield* nextDriver.readRouteVersions(scope, routeId);
+			});
 		},
-		async replaceRouteVersions(scope, routeId, versions) {
-			await (await getDriver()).replaceRouteVersions(scope, routeId, versions);
+		replaceRouteVersions(scope, routeId, versions) {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				yield* nextDriver.replaceRouteVersions(scope, routeId, versions);
+			});
 		},
-		async addRouteVersion(scope, version) {
-			await (await getDriver()).addRouteVersion(scope, version);
+		addRouteVersion(scope, version) {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				yield* nextDriver.addRouteVersion(scope, version);
+			});
 		},
-		async deleteRouteVersions(scope, routeId) {
-			await (await getDriver()).deleteRouteVersions(scope, routeId);
+		deleteRouteVersions(scope, routeId) {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				yield* nextDriver.deleteRouteVersions(scope, routeId);
+			});
 		},
 		readMergedUserIds() {
-			return readMergedUserIds(storage);
+			return Effect.try({
+				try: () => readMergedUserIds(storage),
+				catch: (cause) => repositoryError("readMergedUserIds", cause),
+			});
 		},
 		writeMergedUserIds(userIds) {
-			writeMergedUserIds(storage, userIds);
+			return Effect.try({
+				try: () => writeMergedUserIds(storage, userIds),
+				catch: (cause) => repositoryError("writeMergedUserIds", cause),
+			});
 		},
-		async clear() {
-			await (await getDriver()).clear();
-			await clearLegacyStorage();
-			initPromise = null;
+		clear() {
+			return Effect.gen(function* () {
+				const nextDriver = yield* getDriver();
+				yield* nextDriver.clear();
+				yield* clearLegacyStorage();
+				cachedInit = null;
+				driver = null;
+			});
 		},
 	};
 }

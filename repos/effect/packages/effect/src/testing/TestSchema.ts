@@ -66,16 +66,16 @@
  *
  * @since 4.0.0
  */
-import * as assert from "node:assert"
-import type * as Context from "../Context.ts"
-import * as Effect from "../Effect.ts"
-import * as Record from "../Record.ts"
-import * as Result from "../Result.ts"
-import * as Schema from "../Schema.ts"
-import * as AST from "../SchemaAST.ts"
-import type * as Issue from "../SchemaIssue.ts"
-import * as Parser from "../SchemaParser.ts"
-import * as FastCheck from "../testing/FastCheck.ts"
+import * as assert from "node:assert";
+import type * as Context from "../Context.ts";
+import * as Effect from "../Effect.ts";
+import * as Record from "../Record.ts";
+import * as Result from "../Result.ts";
+import * as Schema from "../Schema.ts";
+import * as AST from "../SchemaAST.ts";
+import type * as Issue from "../SchemaIssue.ts";
+import * as Parser from "../SchemaParser.ts";
+import * as FastCheck from "../testing/FastCheck.ts";
 
 /**
  * Entry point for schema test assertions. Wraps a schema and exposes operation-specific helpers for decoding, encoding, make, arbitrary generation, and round-trip verification.
@@ -106,204 +106,214 @@ import * as FastCheck from "../testing/FastCheck.ts"
  * @since 4.0.0
  */
 export class Asserts<S extends Schema.Top> {
-  /**
-   * Static helpers for comparing schema AST structures.
-   *
-   * **Details**
-   *
-   * `ast.fields.equals(a, b)` compares struct field ASTs via `assert.deepStrictEqual`. `ast.elements.equals(a, b)` compares tuple element ASTs via `assert.deepStrictEqual`.
-   *
-   * **Example** (Comparing struct fields)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const fieldsA = { name: Schema.String }
-   * const fieldsB = { name: Schema.String }
-   * TestSchema.Asserts.ast.fields.equals(fieldsA, fieldsB) // no error
-   * ```
-   */
-  static ast = {
-    fields: {
-      equals: (a: Schema.Struct.Fields, b: Schema.Struct.Fields) => {
-        assert.deepStrictEqual(Record.map(a, AST.getAST), Record.map(b, AST.getAST))
-      }
-    },
-    elements: {
-      equals: (a: Schema.Tuple.Elements, b: Schema.Tuple.Elements) => {
-        assert.deepStrictEqual(a.map(AST.getAST), b.map(AST.getAST))
-      }
-    }
-  } as const
+	/**
+	 * Static helpers for comparing schema AST structures.
+	 *
+	 * **Details**
+	 *
+	 * `ast.fields.equals(a, b)` compares struct field ASTs via `assert.deepStrictEqual`. `ast.elements.equals(a, b)` compares tuple element ASTs via `assert.deepStrictEqual`.
+	 *
+	 * **Example** (Comparing struct fields)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const fieldsA = { name: Schema.String }
+	 * const fieldsB = { name: Schema.String }
+	 * TestSchema.Asserts.ast.fields.equals(fieldsA, fieldsB) // no error
+	 * ```
+	 */
+	static ast = {
+		fields: {
+			equals: (a: Schema.Struct.Fields, b: Schema.Struct.Fields) => {
+				assert.deepStrictEqual(
+					Record.map(a, AST.getAST),
+					Record.map(b, AST.getAST),
+				);
+			},
+		},
+		elements: {
+			equals: (a: Schema.Tuple.Elements, b: Schema.Tuple.Elements) => {
+				assert.deepStrictEqual(a.map(AST.getAST), b.map(AST.getAST));
+			},
+		},
+	} as const;
 
-  readonly schema: S
-  constructor(schema: S) {
-    this.schema = schema
-  }
-  /**
-   * Returns an object with `succeed` and `fail` helpers for testing the schema's `make` operation.
-   *
-   * **Details**
-   *
-   * `succeed(input)` asserts make returns the input unchanged. `succeed(input, expected)` asserts make returns `expected`. `fail(input, message)` asserts make fails with `message`.
-   *
-   * **Example** (Testing make)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const schema = Schema.String
-   * const asserts = new TestSchema.Asserts(schema)
-   * await asserts.make().succeed("hello")
-   * ```
-   */
-  make(options?: Schema.MakeOptions) {
-    const makeEffect = Parser.makeEffect(this.schema)
-    async function succeed(input: S["Type"]): Promise<void>
-    async function succeed(input: S["~type.make.in"], expected: S["Type"]): Promise<void>
-    async function succeed(input: S["~type.make.in"], expected?: S["Type"]) {
-      const r = await Effect.runPromise(
-        makeEffect(input, options).pipe(
-          Effect.mapErrorEager((issue) => issue.toString()),
-          Effect.result
-        )
-      )
-      expected = arguments.length === 1 ? input : expected
-      assert.deepStrictEqual(r, Result.succeed(expected))
-    }
-    return {
-      succeed,
-      async fail(input: unknown, message: string) {
-        const r = await Effect.runPromise(
-          makeEffect(input, options).pipe(
-            Effect.mapErrorEager((issue) => issue.toString()),
-            Effect.result
-          )
-        )
-        assert.deepStrictEqual(r, Result.fail(message))
-      }
-    }
-  }
-  /**
-   * Runs a property-based test that encodes arbitrary values and then decodes them, asserting the decoded value equals the original.
-   *
-   * **Details**
-   *
-   * FastCheck generates arbitrary values matching the schema's `Type`. The assertion fails if any generated value does not round-trip. Pass `options.params` to control FastCheck parameters such as `numRuns`.
-   *
-   * **Example** (Round-trip verification)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const asserts = new TestSchema.Asserts(Schema.NumberFromString)
-   * await asserts.verifyLosslessTransformation()
-   * ```
-   */
-  verifyLosslessTransformation<S extends Schema.Codec<unknown, unknown>>(this: Asserts<S>, options?: {
-    readonly params?: FastCheck.Parameters<[S["Type"]]>
-  }) {
-    const decodeUnknownEffect = Parser.decodeUnknownEffect(this.schema)
-    const encodeEffect = Parser.encodeEffect(this.schema)
-    const arbitrary = Schema.toArbitrary(this.schema)
-    return FastCheck.assert(
-      FastCheck.asyncProperty(arbitrary, async (t) => {
-        const r = await Effect.runPromise(
-          encodeEffect(t).pipe(
-            Effect.flatMapEager((e) => decodeUnknownEffect(e)),
-            Effect.mapErrorEager((issue) => issue.toString()),
-            Effect.result
-          )
-        )
-        assert.deepStrictEqual(r, Result.succeed(t))
-      }),
-      options?.params
-    )
-  }
-  /**
-   * Returns a {@link Decoding} instance for this schema with helpers for decoding assertions.
-   *
-   * **Details**
-   *
-   * Pass `parseOptions` to control error reporting, for example `{ errors: "all" }`.
-   *
-   * **Example** (Decoding assertions)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const asserts = new TestSchema.Asserts(Schema.NumberFromString)
-   * const decoding = asserts.decoding()
-   * await decoding.succeed("42", 42)
-   * await decoding.fail(null, "Expected string, got null")
-   * ```
-   *
-   * @see {@link Decoding}
-   */
-  decoding(options?: {
-    readonly parseOptions?: AST.ParseOptions | undefined
-  }) {
-    return new Decoding(this.schema, options)
-  }
-  /**
-   * Returns an {@link Encoding} instance for this schema with helpers for encoding assertions.
-   *
-   * **Details**
-   *
-   * Pass `parseOptions` to control error reporting, for example `{ errors: "all" }`.
-   *
-   * **Example** (Encoding assertions)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const asserts = new TestSchema.Asserts(Schema.NumberFromString)
-   * const encoding = asserts.encoding()
-   * await encoding.succeed(42, "42")
-   * ```
-   *
-   * @see {@link Encoding}
-   */
-  encoding(options?: {
-    readonly parseOptions?: AST.ParseOptions | undefined
-  }) {
-    return new Encoding(this.schema, options)
-  }
-  /**
-   * Returns an object with property-based testing helpers for the schema's arbitrary generator.
-   *
-   * **Details**
-   *
-   * `verifyGeneration()` generates arbitrary values and asserts each value satisfies the schema's `is` predicate. It defaults to 20 runs. Pass `options.params` to override FastCheck parameters.
-   *
-   * **Example** (Verifying arbitrary generation)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const asserts = new TestSchema.Asserts(Schema.String)
-   * asserts.arbitrary().verifyGeneration()
-   * ```
-   */
-  arbitrary<S extends Schema.Codec<unknown, unknown, never, unknown>>(this: Asserts<S>) {
-    const schema = this.schema
-    return {
-      verifyGeneration(options?: {
-        readonly params?: FastCheck.Parameters<[S["Type"]]> | undefined
-      }) {
-        const params = options?.params
-        const is = Schema.is(schema)
-        const arb = Schema.toArbitrary(schema)
-        FastCheck.assert(FastCheck.property(arb, (a) => is(a)), { numRuns: 20, ...params })
-      }
-    }
-  }
+	readonly schema: S;
+	constructor(schema: S) {
+		this.schema = schema;
+	}
+	/**
+	 * Returns an object with `succeed` and `fail` helpers for testing the schema's `make` operation.
+	 *
+	 * **Details**
+	 *
+	 * `succeed(input)` asserts make returns the input unchanged. `succeed(input, expected)` asserts make returns `expected`. `fail(input, message)` asserts make fails with `message`.
+	 *
+	 * **Example** (Testing make)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const schema = Schema.String
+	 * const asserts = new TestSchema.Asserts(schema)
+	 * await asserts.make().succeed("hello")
+	 * ```
+	 */
+	make(options?: Schema.MakeOptions) {
+		const makeEffect = Parser.makeEffect(this.schema);
+		async function succeed(input: S["Type"]): Promise<void>;
+		async function succeed(
+			input: S["~type.make.in"],
+			expected: S["Type"],
+		): Promise<void>;
+		async function succeed(input: S["~type.make.in"], expected?: S["Type"]) {
+			const r = await Effect.runPromise(
+				makeEffect(input, options).pipe(
+					Effect.mapErrorEager((issue) => issue.toString()),
+					Effect.result,
+				),
+			);
+			expected = arguments.length === 1 ? input : expected;
+			assert.deepStrictEqual(r, Result.succeed(expected));
+		}
+		return {
+			succeed,
+			async fail(input: unknown, message: string) {
+				const r = await Effect.runPromise(
+					makeEffect(input, options).pipe(
+						Effect.mapErrorEager((issue) => issue.toString()),
+						Effect.result,
+					),
+				);
+				assert.deepStrictEqual(r, Result.fail(message));
+			},
+		};
+	}
+	/**
+	 * Runs a property-based test that encodes arbitrary values and then decodes them, asserting the decoded value equals the original.
+	 *
+	 * **Details**
+	 *
+	 * FastCheck generates arbitrary values matching the schema's `Type`. The assertion fails if any generated value does not round-trip. Pass `options.params` to control FastCheck parameters such as `numRuns`.
+	 *
+	 * **Example** (Round-trip verification)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const asserts = new TestSchema.Asserts(Schema.NumberFromString)
+	 * await asserts.verifyLosslessTransformation()
+	 * ```
+	 */
+	verifyLosslessTransformation<S extends Schema.Codec<unknown, unknown>>(
+		this: Asserts<S>,
+		options?: {
+			readonly params?: FastCheck.Parameters<[S["Type"]]>;
+		},
+	) {
+		const decodeUnknownEffect = Parser.decodeUnknownEffect(this.schema);
+		const encodeEffect = Parser.encodeEffect(this.schema);
+		const arbitrary = Schema.toArbitrary(this.schema);
+		return FastCheck.assert(
+			FastCheck.asyncProperty(arbitrary, async (t) => {
+				const r = await Effect.runPromise(
+					encodeEffect(t).pipe(
+						Effect.flatMapEager((e) => decodeUnknownEffect(e)),
+						Effect.mapErrorEager((issue) => issue.toString()),
+						Effect.result,
+					),
+				);
+				assert.deepStrictEqual(r, Result.succeed(t));
+			}),
+			options?.params,
+		);
+	}
+	/**
+	 * Returns a {@link Decoding} instance for this schema with helpers for decoding assertions.
+	 *
+	 * **Details**
+	 *
+	 * Pass `parseOptions` to control error reporting, for example `{ errors: "all" }`.
+	 *
+	 * **Example** (Decoding assertions)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const asserts = new TestSchema.Asserts(Schema.NumberFromString)
+	 * const decoding = asserts.decoding()
+	 * await decoding.succeed("42", 42)
+	 * await decoding.fail(null, "Expected string, got null")
+	 * ```
+	 *
+	 * @see {@link Decoding}
+	 */
+	decoding(options?: { readonly parseOptions?: AST.ParseOptions | undefined }) {
+		return new Decoding(this.schema, options);
+	}
+	/**
+	 * Returns an {@link Encoding} instance for this schema with helpers for encoding assertions.
+	 *
+	 * **Details**
+	 *
+	 * Pass `parseOptions` to control error reporting, for example `{ errors: "all" }`.
+	 *
+	 * **Example** (Encoding assertions)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const asserts = new TestSchema.Asserts(Schema.NumberFromString)
+	 * const encoding = asserts.encoding()
+	 * await encoding.succeed(42, "42")
+	 * ```
+	 *
+	 * @see {@link Encoding}
+	 */
+	encoding(options?: { readonly parseOptions?: AST.ParseOptions | undefined }) {
+		return new Encoding(this.schema, options);
+	}
+	/**
+	 * Returns an object with property-based testing helpers for the schema's arbitrary generator.
+	 *
+	 * **Details**
+	 *
+	 * `verifyGeneration()` generates arbitrary values and asserts each value satisfies the schema's `is` predicate. It defaults to 20 runs. Pass `options.params` to override FastCheck parameters.
+	 *
+	 * **Example** (Verifying arbitrary generation)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const asserts = new TestSchema.Asserts(Schema.String)
+	 * asserts.arbitrary().verifyGeneration()
+	 * ```
+	 */
+	arbitrary<S extends Schema.Codec<unknown, unknown, never, unknown>>(
+		this: Asserts<S>,
+	) {
+		const schema = this.schema;
+		return {
+			verifyGeneration(options?: {
+				readonly params?: FastCheck.Parameters<[S["Type"]]> | undefined;
+			}) {
+				const params = options?.params;
+				const is = Schema.is(schema);
+				const arb = Schema.toArbitrary(schema);
+				FastCheck.assert(
+					FastCheck.property(arb, (a) => is(a)),
+					{ numRuns: 20, ...params },
+				);
+			},
+		};
+	}
 }
 
 /**
@@ -334,108 +344,119 @@ export class Asserts<S extends Schema.Top> {
  * @since 4.0.0
  */
 export class Decoding<S extends Schema.Top> {
-  readonly schema: S
-  readonly decodeUnknownEffect: (
-    input: unknown,
-    options?: AST.ParseOptions
-  ) => Effect.Effect<S["Type"], Issue.Issue, S["DecodingServices"]>
-  readonly options?: {
-    readonly parseOptions?: AST.ParseOptions | undefined
-  } | undefined
-  constructor(schema: S, options?: {
-    readonly parseOptions?: AST.ParseOptions | undefined
-  }) {
-    this.schema = schema
-    this.decodeUnknownEffect = Parser.decodeUnknownEffect(schema)
-    this.options = options
-  }
-  /**
-   * Asserts that decoding `input` succeeds. With one argument, asserts the
-   * output equals the input. With two arguments, asserts the output equals
-   * `expected`.
-   *
-   * **Example** (Identity and transformed decoding)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const decoding = new TestSchema.Asserts(Schema.NumberFromString).decoding()
-   * await decoding.succeed("1", 1) // transformed
-   * ```
-   */
-  async succeed<S extends Schema.Decoder<unknown, never>>(
-    this: Decoding<S>,
-    input: unknown
-  ): Promise<void>
-  async succeed<S extends Schema.Decoder<unknown, never>>(
-    this: Decoding<S>,
-    input: unknown,
-    expected: S["Type"]
-  ): Promise<void>
-  async succeed<S extends Schema.Decoder<unknown, never>>(
-    this: Decoding<S>,
-    input: unknown,
-    expected?: S["Type"]
-  ) {
-    const r = await Effect.runPromise(
-      this.decodeUnknownEffect(input, this.options?.parseOptions).pipe(
-        Effect.mapErrorEager((issue) => issue.toString()),
-        Effect.result
-      )
-    )
-    expected = arguments.length === 1 ? input : expected
-    assert.deepStrictEqual(r, Result.succeed(expected))
-  }
-  /**
-   * Asserts that decoding `input` fails and the stringified issue equals
-   * `message`.
-   *
-   * **Example** (Asserting a decoding failure)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const decoding = new TestSchema.Asserts(Schema.String).decoding()
-   * await decoding.fail(42, "Expected string, got 42")
-   * ```
-   */
-  async fail<S extends Schema.Decoder<unknown, never>>(
-    this: Decoding<S>,
-    input: unknown,
-    message: string
-  ) {
-    const r = await Effect.runPromise(
-      this.decodeUnknownEffect(input, this.options?.parseOptions).pipe(
-        Effect.mapErrorEager((issue) => issue.toString()),
-        Effect.result
-      )
-    )
-    assert.deepStrictEqual(r, Result.fail(message))
-  }
-  /**
-   * Returns a new {@link Decoding} instance with the given service injected into the decoding effect context.
-   *
-   * **When to use**
-   *
-   * Use this when the schema's decoder requires a service dependency.
-   *
-   * **Details**
-   *
-   * This method does not mutate the current instance.
-   *
-   * @see {@link Encoding.provide}
-   */
-  provide<Id, Service>(
-    service: Context.Key<Id, Service>,
-    implementation: Service
-  ): Decoding<Schema.middlewareDecoding<S, Exclude<S["DecodingServices"], Id>>> {
-    return new Decoding(
-      this.schema.pipe(Schema.middlewareDecoding(Effect.provideService(service, implementation))),
-      this.options
-    )
-  }
+	readonly schema: S;
+	readonly decodeUnknownEffect: (
+		input: unknown,
+		options?: AST.ParseOptions,
+	) => Effect.Effect<S["Type"], Issue.Issue, S["DecodingServices"]>;
+	readonly options?:
+		| {
+				readonly parseOptions?: AST.ParseOptions | undefined;
+		  }
+		| undefined;
+	constructor(
+		schema: S,
+		options?: {
+			readonly parseOptions?: AST.ParseOptions | undefined;
+		},
+	) {
+		this.schema = schema;
+		this.decodeUnknownEffect = Parser.decodeUnknownEffect(schema);
+		this.options = options;
+	}
+	/**
+	 * Asserts that decoding `input` succeeds. With one argument, asserts the
+	 * output equals the input. With two arguments, asserts the output equals
+	 * `expected`.
+	 *
+	 * **Example** (Identity and transformed decoding)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const decoding = new TestSchema.Asserts(Schema.NumberFromString).decoding()
+	 * await decoding.succeed("1", 1) // transformed
+	 * ```
+	 */
+	async succeed<S extends Schema.Decoder<unknown, never>>(
+		this: Decoding<S>,
+		input: unknown,
+	): Promise<void>;
+	async succeed<S extends Schema.Decoder<unknown, never>>(
+		this: Decoding<S>,
+		input: unknown,
+		expected: S["Type"],
+	): Promise<void>;
+	async succeed<S extends Schema.Decoder<unknown, never>>(
+		this: Decoding<S>,
+		input: unknown,
+		expected?: S["Type"],
+	) {
+		const r = await Effect.runPromise(
+			this.decodeUnknownEffect(input, this.options?.parseOptions).pipe(
+				Effect.mapErrorEager((issue) => issue.toString()),
+				Effect.result,
+			),
+		);
+		expected = arguments.length === 1 ? input : expected;
+		assert.deepStrictEqual(r, Result.succeed(expected));
+	}
+	/**
+	 * Asserts that decoding `input` fails and the stringified issue equals
+	 * `message`.
+	 *
+	 * **Example** (Asserting a decoding failure)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const decoding = new TestSchema.Asserts(Schema.String).decoding()
+	 * await decoding.fail(42, "Expected string, got 42")
+	 * ```
+	 */
+	async fail<S extends Schema.Decoder<unknown, never>>(
+		this: Decoding<S>,
+		input: unknown,
+		message: string,
+	) {
+		const r = await Effect.runPromise(
+			this.decodeUnknownEffect(input, this.options?.parseOptions).pipe(
+				Effect.mapErrorEager((issue) => issue.toString()),
+				Effect.result,
+			),
+		);
+		assert.deepStrictEqual(r, Result.fail(message));
+	}
+	/**
+	 * Returns a new {@link Decoding} instance with the given service injected into the decoding effect context.
+	 *
+	 * **When to use**
+	 *
+	 * Use this when the schema's decoder requires a service dependency.
+	 *
+	 * **Details**
+	 *
+	 * This method does not mutate the current instance.
+	 *
+	 * @see {@link Encoding.provide}
+	 */
+	provide<Id, Service>(
+		service: Context.Key<Id, Service>,
+		implementation: Service,
+	): Decoding<
+		Schema.middlewareDecoding<S, Exclude<S["DecodingServices"], Id>>
+	> {
+		return new Decoding(
+			this.schema.pipe(
+				Schema.middlewareDecoding(
+					Effect.provideService(service, implementation),
+				),
+			),
+			this.options,
+		);
+	}
 }
 
 /**
@@ -473,102 +494,113 @@ export class Decoding<S extends Schema.Top> {
  * @since 4.0.0
  */
 class Encoding<S extends Schema.Top> {
-  readonly schema: S
-  readonly encodeUnknownEffect: (
-    input: unknown,
-    options?: AST.ParseOptions
-  ) => Effect.Effect<S["Type"], Issue.Issue, S["EncodingServices"]>
-  readonly options?: {
-    readonly parseOptions?: AST.ParseOptions | undefined
-  } | undefined
-  constructor(schema: S, options?: {
-    readonly parseOptions?: AST.ParseOptions | undefined
-  }) {
-    this.schema = schema
-    this.encodeUnknownEffect = Parser.encodeUnknownEffect(schema)
-    this.options = options
-  }
-  /**
-   * Asserts that encoding `input` succeeds. With one argument, asserts the
-   * output equals the input. With two arguments, asserts the output equals
-   * `expected`.
-   *
-   * **Example** (Identity and transformed encoding)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const encoding = new TestSchema.Asserts(Schema.NumberFromString).encoding()
-   * await encoding.succeed(1, "1") // transformed
-   * ```
-   */
-  async succeed<S extends Schema.Encoder<unknown, never>>(
-    this: Encoding<S>,
-    input: unknown
-  ): Promise<void>
-  async succeed<S extends Schema.Encoder<unknown, never>>(
-    this: Encoding<S>,
-    input: unknown,
-    expected: S["Encoded"]
-  ): Promise<void>
-  async succeed<S extends Schema.Encoder<unknown, never>>(
-    this: Encoding<S>,
-    input: unknown,
-    expected?: S["Encoded"]
-  ) {
-    const r = await Effect.runPromise(
-      this.encodeUnknownEffect(input, this.options?.parseOptions).pipe(
-        Effect.mapErrorEager((issue) => issue.toString()),
-        Effect.result
-      )
-    )
-    expected = arguments.length === 1 ? input : expected
-    assert.deepStrictEqual(r, Result.succeed(expected))
-  }
-  /**
-   * Asserts that encoding `input` fails and the stringified issue equals
-   * `message`.
-   *
-   * **Example** (Asserting an encoding failure)
-   *
-   * ```ts
-   * import { Schema } from "effect"
-   * import { TestSchema } from "effect/testing"
-   *
-   * const encoding = new TestSchema.Asserts(Schema.NumberFromString).encoding()
-   * await encoding.fail("not-a-number", "Expected number, got \"not-a-number\"")
-   * ```
-   */
-  async fail<S extends Schema.Encoder<unknown, never>>(
-    this: Encoding<S>,
-    input: unknown,
-    message: string
-  ) {
-    const r = await Effect.runPromise(
-      this.encodeUnknownEffect(input, this.options?.parseOptions).pipe(
-        Effect.mapErrorEager((issue) => issue.toString()),
-        Effect.result
-      )
-    )
-    assert.deepStrictEqual(r, Result.fail(message))
-  }
-  /**
-   * Returns a new {@link Encoding} instance with the given service injected
-   * into the encoding effect context. Use this when the schema's encoder
-   * requires a service dependency.
-   *
-   * - Does not mutate the current instance; returns a new one.
-   *
-   * @see {@link Decoding.provide}
-   */
-  provide<Id, Service>(
-    service: Context.Key<Id, Service>,
-    implementation: Service
-  ): Encoding<Schema.middlewareEncoding<S, Exclude<S["EncodingServices"], Id>>> {
-    return new Encoding(
-      this.schema.pipe(Schema.middlewareEncoding(Effect.provideService(service, implementation))),
-      this.options
-    )
-  }
+	readonly schema: S;
+	readonly encodeUnknownEffect: (
+		input: unknown,
+		options?: AST.ParseOptions,
+	) => Effect.Effect<S["Type"], Issue.Issue, S["EncodingServices"]>;
+	readonly options?:
+		| {
+				readonly parseOptions?: AST.ParseOptions | undefined;
+		  }
+		| undefined;
+	constructor(
+		schema: S,
+		options?: {
+			readonly parseOptions?: AST.ParseOptions | undefined;
+		},
+	) {
+		this.schema = schema;
+		this.encodeUnknownEffect = Parser.encodeUnknownEffect(schema);
+		this.options = options;
+	}
+	/**
+	 * Asserts that encoding `input` succeeds. With one argument, asserts the
+	 * output equals the input. With two arguments, asserts the output equals
+	 * `expected`.
+	 *
+	 * **Example** (Identity and transformed encoding)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const encoding = new TestSchema.Asserts(Schema.NumberFromString).encoding()
+	 * await encoding.succeed(1, "1") // transformed
+	 * ```
+	 */
+	async succeed<S extends Schema.Encoder<unknown, never>>(
+		this: Encoding<S>,
+		input: unknown,
+	): Promise<void>;
+	async succeed<S extends Schema.Encoder<unknown, never>>(
+		this: Encoding<S>,
+		input: unknown,
+		expected: S["Encoded"],
+	): Promise<void>;
+	async succeed<S extends Schema.Encoder<unknown, never>>(
+		this: Encoding<S>,
+		input: unknown,
+		expected?: S["Encoded"],
+	) {
+		const r = await Effect.runPromise(
+			this.encodeUnknownEffect(input, this.options?.parseOptions).pipe(
+				Effect.mapErrorEager((issue) => issue.toString()),
+				Effect.result,
+			),
+		);
+		expected = arguments.length === 1 ? input : expected;
+		assert.deepStrictEqual(r, Result.succeed(expected));
+	}
+	/**
+	 * Asserts that encoding `input` fails and the stringified issue equals
+	 * `message`.
+	 *
+	 * **Example** (Asserting an encoding failure)
+	 *
+	 * ```ts
+	 * import { Schema } from "effect"
+	 * import { TestSchema } from "effect/testing"
+	 *
+	 * const encoding = new TestSchema.Asserts(Schema.NumberFromString).encoding()
+	 * await encoding.fail("not-a-number", "Expected number, got \"not-a-number\"")
+	 * ```
+	 */
+	async fail<S extends Schema.Encoder<unknown, never>>(
+		this: Encoding<S>,
+		input: unknown,
+		message: string,
+	) {
+		const r = await Effect.runPromise(
+			this.encodeUnknownEffect(input, this.options?.parseOptions).pipe(
+				Effect.mapErrorEager((issue) => issue.toString()),
+				Effect.result,
+			),
+		);
+		assert.deepStrictEqual(r, Result.fail(message));
+	}
+	/**
+	 * Returns a new {@link Encoding} instance with the given service injected
+	 * into the encoding effect context. Use this when the schema's encoder
+	 * requires a service dependency.
+	 *
+	 * - Does not mutate the current instance; returns a new one.
+	 *
+	 * @see {@link Decoding.provide}
+	 */
+	provide<Id, Service>(
+		service: Context.Key<Id, Service>,
+		implementation: Service,
+	): Encoding<
+		Schema.middlewareEncoding<S, Exclude<S["EncodingServices"], Id>>
+	> {
+		return new Encoding(
+			this.schema.pipe(
+				Schema.middlewareEncoding(
+					Effect.provideService(service, implementation),
+				),
+			),
+			this.options,
+		);
+	}
 }

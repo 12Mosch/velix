@@ -22,19 +22,19 @@
  * @since 4.0.0
  */
 export type OpenAiErrorMetadata = {
-  /**
-   * The OpenAI error code returned by the API.
-   */
-  readonly errorCode: string | null
-  /**
-   * The OpenAI error type returned by the API.
-   */
-  readonly errorType: string | null
-  /**
-   * The unique request ID for debugging with OpenAI support.
-   */
-  readonly requestId: string | null
-}
+	/**
+	 * The OpenAI error code returned by the API.
+	 */
+	readonly errorCode: string | null;
+	/**
+	 * The OpenAI error type returned by the API.
+	 */
+	readonly errorType: string | null;
+	/**
+	 * The unique request ID for debugging with OpenAI support.
+	 */
+	readonly requestId: string | null;
+};
 
 /**
  * OpenAI-specific rate limit metadata fields.
@@ -48,131 +48,131 @@ export type OpenAiErrorMetadata = {
  * @since 4.0.0
  */
 export type OpenAiRateLimitMetadata = OpenAiErrorMetadata & {
-  /**
-   * The rate limit type (e.g. "requests", "tokens").
-   */
-  readonly limit: string | null
-  /**
-   * Number of remaining requests in the current window.
-   */
-  readonly remaining: number | null
-  /**
-   * Time until the request rate limit resets.
-   */
-  readonly resetRequests: string | null
-  /**
-   * Time until the token rate limit resets.
-   */
-  readonly resetTokens: string | null
-}
+	/**
+	 * The rate limit type (e.g. "requests", "tokens").
+	 */
+	readonly limit: string | null;
+	/**
+	 * Number of remaining requests in the current window.
+	 */
+	readonly remaining: number | null;
+	/**
+	 * Time until the request rate limit resets.
+	 */
+	readonly resetRequests: string | null;
+	/**
+	 * Time until the token rate limit resets.
+	 */
+	readonly resetTokens: string | null;
+};
 
 declare module "effect/unstable/ai/AiError" {
-  /**
-   * Metadata attached to rate limit errors returned by OpenAI-compatible APIs.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface RateLimitErrorMetadata {
-    readonly openai?: OpenAiRateLimitMetadata | null
-  }
+	/**
+	 * Metadata attached to rate limit errors returned by OpenAI-compatible APIs.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface RateLimitErrorMetadata {
+		readonly openai?: OpenAiRateLimitMetadata | null;
+	}
 
-  /**
-   * Metadata attached when an OpenAI-compatible provider reports that quota or
-   * billing limits have been exhausted.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface QuotaExhaustedErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached when an OpenAI-compatible provider reports that quota or
+	 * billing limits have been exhausted.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface QuotaExhaustedErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 
-  /**
-   * Metadata attached to authentication failures from OpenAI-compatible APIs,
-   * such as invalid, missing, or unauthorized API credentials.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface AuthenticationErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached to authentication failures from OpenAI-compatible APIs,
+	 * such as invalid, missing, or unauthorized API credentials.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface AuthenticationErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 
-  /**
-   * Metadata attached when an OpenAI-compatible provider rejects content because
-   * it violates a safety or usage policy.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface ContentPolicyErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached when an OpenAI-compatible provider rejects content because
+	 * it violates a safety or usage policy.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface ContentPolicyErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 
-  /**
-   * Metadata attached to malformed or unsupported requests rejected by an
-   * OpenAI-compatible API before model execution.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface InvalidRequestErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached to malformed or unsupported requests rejected by an
+	 * OpenAI-compatible API before model execution.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface InvalidRequestErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 
-  /**
-   * Metadata attached to unexpected server-side failures reported by an
-   * OpenAI-compatible provider.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface InternalProviderErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached to unexpected server-side failures reported by an
+	 * OpenAI-compatible provider.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface InternalProviderErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 
-  /**
-   * Metadata attached when an OpenAI-compatible response cannot be converted
-   * into the expected AI package output shape.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface InvalidOutputErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached when an OpenAI-compatible response cannot be converted
+	 * into the expected AI package output shape.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface InvalidOutputErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 
-  /**
-   * Metadata attached when an OpenAI-compatible structured output response does
-   * not satisfy the requested schema or parsing constraints.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface StructuredOutputErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached when an OpenAI-compatible structured output response does
+	 * not satisfy the requested schema or parsing constraints.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface StructuredOutputErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 
-  /**
-   * Metadata attached when an OpenAI-compatible provider cannot support the
-   * schema supplied for structured output or tool definitions.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface UnsupportedSchemaErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached when an OpenAI-compatible provider cannot support the
+	 * schema supplied for structured output or tool definitions.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface UnsupportedSchemaErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 
-  /**
-   * Metadata attached when an OpenAI-compatible error response cannot be mapped
-   * to a more specific shared AI error category.
-   *
-   * @category models
-   * @since 4.0.0
-   */
-  export interface UnknownErrorMetadata {
-    readonly openai?: OpenAiErrorMetadata | null
-  }
+	/**
+	 * Metadata attached when an OpenAI-compatible error response cannot be mapped
+	 * to a more specific shared AI error category.
+	 *
+	 * @category models
+	 * @since 4.0.0
+	 */
+	export interface UnknownErrorMetadata {
+		readonly openai?: OpenAiErrorMetadata | null;
+	}
 }

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlannedRoute } from "$lib/route-planning";
 import {
 	createSavedRoutesRepository,
+	SavedRoutesRepositoryError,
 	type SavedRoutesRepository,
 } from "$lib/saved-routes/saved-routes-repository";
 import {
@@ -181,7 +182,9 @@ describe("saved routes use cases", () => {
 		expect(state.savedRoutes).toEqual([savedRoute]);
 		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_1" }),
+			),
 		).toEqual([savedRoute]);
 	});
 
@@ -209,7 +212,9 @@ describe("saved routes use cases", () => {
 		expect(state.savedRoutes).toEqual([]);
 		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
 		expect(
-			await repository.readRoutes({ kind: "user", userId: "user_1" }),
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_1" }),
+			),
 		).toEqual([]);
 	});
 
@@ -272,7 +277,14 @@ describe("saved routes use cases", () => {
 	it("sets localSaveError after local persistence failure without losing the optimistic route", async () => {
 		const failingRepository: SavedRoutesRepository = {
 			...repository,
-			upsertRoute: vi.fn().mockRejectedValue(new Error("idb down")),
+			upsertRoute: vi.fn(() =>
+				Effect.fail(
+					new SavedRoutesRepositoryError({
+						operation: "upsertRoute",
+						cause: new Error("idb down"),
+					}),
+				),
+			),
 		};
 		useCases = new SavedRoutesUseCases(failingRepository);
 
@@ -288,7 +300,11 @@ describe("saved routes use cases", () => {
 		const deferred = createDeferred();
 		const slowRepository: SavedRoutesRepository = {
 			...repository,
-			upsertRoute: vi.fn(() => deferred.promise),
+			upsertRoute: vi.fn(() =>
+				Effect.callback<void>((resume) => {
+					void deferred.promise.then(() => resume(Effect.void));
+				}),
+			),
 		};
 		useCases = new SavedRoutesUseCases(slowRepository);
 
@@ -482,7 +498,9 @@ describe("saved routes use cases", () => {
 
 		expect(state.authStatus).toBe("signedOut");
 		expect(state.syncError).toBeNull();
-		expect(repository.readMergedUserIds().has("user_1")).toBe(false);
+		expect(
+			(await Effect.runPromise(repository.readMergedUserIds())).has("user_1"),
+		).toBe(false);
 	});
 
 	it("keeps optimistic delete and sets syncError after remote delete failure", async () => {
@@ -522,7 +540,9 @@ describe("saved routes use cases", () => {
 			useCases.upsertSavedRoute(state, route, savedRoute.id),
 		);
 		expect(
-			await repository.readRouteVersions({ kind: "anonymous" }, savedRoute.id),
+			await Effect.runPromise(
+				repository.readRouteVersions({ kind: "anonymous" }, savedRoute.id),
+			),
 		).toEqual([]);
 
 		await Effect.runPromise(
@@ -533,9 +553,8 @@ describe("saved routes use cases", () => {
 			),
 		);
 
-		const versions = await repository.readRouteVersions(
-			{ kind: "anonymous" },
-			savedRoute.id,
+		const versions = await Effect.runPromise(
+			repository.readRouteVersions({ kind: "anonymous" }, savedRoute.id),
 		);
 		expect(versions).toHaveLength(1);
 		expect(versions[0]?.savedRoute.route.destinationLabel).toBe(
@@ -565,9 +584,8 @@ describe("saved routes use cases", () => {
 		expect(state.savedRoutes[0]?.route.destinationLabel).toBe(
 			"Schliersee, Germany",
 		);
-		const versions = await repository.readRouteVersions(
-			{ kind: "anonymous" },
-			original.id,
+		const versions = await Effect.runPromise(
+			repository.readRouteVersions({ kind: "anonymous" }, original.id),
 		);
 		expect(versions[0]?.savedRoute.route.destinationLabel).toBe(
 			"Garmisch-Partenkirchen",
@@ -657,18 +675,20 @@ describe("saved routes use cases", () => {
 				}),
 			]),
 		);
-		await repository.addRouteVersion(
-			{ kind: "user", userId: "user_1" },
-			{
-				versionId: "local-version-older",
-				routeId: "route-1",
-				capturedAt: "2026-04-19T09:30:00.000Z",
-				savedRoute: {
-					id: "route-1",
-					createdAt: "2026-04-19T09:30:00.000Z",
-					route: { ...route, destinationLabel: "Older local version" },
+		await Effect.runPromise(
+			repository.addRouteVersion(
+				{ kind: "user", userId: "user_1" },
+				{
+					versionId: "local-version-older",
+					routeId: "route-1",
+					capturedAt: "2026-04-19T09:30:00.000Z",
+					savedRoute: {
+						id: "route-1",
+						createdAt: "2026-04-19T09:30:00.000Z",
+						route: { ...route, destinationLabel: "Older local version" },
+					},
 				},
-			},
+			),
 		);
 
 		const versions = await Effect.runPromise(

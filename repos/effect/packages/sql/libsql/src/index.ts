@@ -24,7 +24,7 @@
  *
  * @since 4.0.0
  */
-export * as LibsqlClient from "./LibsqlClient.ts"
+export * as LibsqlClient from "./LibsqlClient.ts";
 
 /**
  * Utilities for applying Effect SQL migrations to libSQL and Turso databases.
@@ -49,4 +49,4 @@ export * as LibsqlClient from "./LibsqlClient.ts"
  *
  * @since 4.0.0
  */
-export * as LibsqlMigrator from "./LibsqlMigrator.ts"
+export * as LibsqlMigrator from "./LibsqlMigrator.ts";

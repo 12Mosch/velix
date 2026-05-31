@@ -5,21 +5,21 @@
  * @since 4.0.0
  */
 
-import type { Chunk } from "./Chunk.ts"
-import * as C from "./Chunk.ts"
-import * as Effect from "./Effect.ts"
-import { dual } from "./Function.ts"
-import type { Inspectable } from "./Inspectable.ts"
-import { NodeInspectSymbol, toJson } from "./Inspectable.ts"
-import type { Option } from "./Option.ts"
-import * as O from "./Option.ts"
-import type { Order } from "./Order.ts"
-import type { Pipeable } from "./Pipeable.ts"
-import { pipeArguments } from "./Pipeable.ts"
-import { hasProperty, type Predicate } from "./Predicate.ts"
-import * as TxRef from "./TxRef.ts"
+import type { Chunk } from "./Chunk.ts";
+import * as C from "./Chunk.ts";
+import * as Effect from "./Effect.ts";
+import { dual } from "./Function.ts";
+import type { Inspectable } from "./Inspectable.ts";
+import { NodeInspectSymbol, toJson } from "./Inspectable.ts";
+import type { Option } from "./Option.ts";
+import * as O from "./Option.ts";
+import type { Order } from "./Order.ts";
+import type { Pipeable } from "./Pipeable.ts";
+import { pipeArguments } from "./Pipeable.ts";
+import { hasProperty, type Predicate } from "./Predicate.ts";
+import * as TxRef from "./TxRef.ts";
 
-const TypeId = "~effect/transactions/TxPriorityQueue"
+const TypeId = "~effect/transactions/TxPriorityQueue";
 
 /**
  * A transactional priority queue backed by a sorted `Chunk`.
@@ -49,51 +49,61 @@ const TypeId = "~effect/transactions/TxPriorityQueue"
  * @since 4.0.0
  */
 export interface TxPriorityQueue<in out A> extends Inspectable, Pipeable {
-  readonly [TypeId]: typeof TypeId
-  readonly ref: TxRef.TxRef<Chunk<A>>
-  readonly ord: Order<A>
+	readonly [TypeId]: typeof TypeId;
+	readonly ref: TxRef.TxRef<Chunk<A>>;
+	readonly ord: Order<A>;
 }
 
-const TxPriorityQueueProto: Omit<TxPriorityQueue<unknown>, typeof TypeId | "ref" | "ord"> = {
-  [NodeInspectSymbol](this: TxPriorityQueue<unknown>) {
-    return toJson(this)
-  },
-  toJSON(this: TxPriorityQueue<unknown>) {
-    return {
-      _id: "TxPriorityQueue"
-    }
-  },
-  pipe() {
-    return pipeArguments(this, arguments)
-  }
-}
+const TxPriorityQueueProto: Omit<
+	TxPriorityQueue<unknown>,
+	typeof TypeId | "ref" | "ord"
+> = {
+	[NodeInspectSymbol](this: TxPriorityQueue<unknown>) {
+		return toJson(this);
+	},
+	toJSON(this: TxPriorityQueue<unknown>) {
+		return {
+			_id: "TxPriorityQueue",
+		};
+	},
+	pipe() {
+		return pipeArguments(this, arguments);
+	},
+};
 
-const makeTxPriorityQueue = <A>(ref: TxRef.TxRef<Chunk<A>>, ord: Order<A>): TxPriorityQueue<A> => {
-  const self = Object.create(TxPriorityQueueProto)
-  self[TypeId] = TypeId
-  self.ref = ref
-  self.ord = ord
-  return self
-}
+const makeTxPriorityQueue = <A>(
+	ref: TxRef.TxRef<Chunk<A>>,
+	ord: Order<A>,
+): TxPriorityQueue<A> => {
+	const self = Object.create(TxPriorityQueueProto);
+	self[TypeId] = TypeId;
+	self.ref = ref;
+	self.ord = ord;
+	return self;
+};
 
-const insertSorted = <A>(chunk: Chunk<A>, value: A, ord: Order<A>): Chunk<A> => {
-  const arr = C.toArray(chunk) as Array<A>
-  let lo = 0
-  let hi = arr.length
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1
-    if (ord(arr[mid], value) <= 0) {
-      lo = mid + 1
-    } else {
-      hi = mid
-    }
-  }
-  const out = Array(arr.length + 1) as Array<A>
-  for (let i = 0; i < lo; i++) out[i] = arr[i]
-  out[lo] = value
-  for (let i = lo; i < arr.length; i++) out[i + 1] = arr[i]
-  return C.fromIterable(out)
-}
+const insertSorted = <A>(
+	chunk: Chunk<A>,
+	value: A,
+	ord: Order<A>,
+): Chunk<A> => {
+	const arr = C.toArray(chunk) as Array<A>;
+	let lo = 0;
+	let hi = arr.length;
+	while (lo < hi) {
+		const mid = (lo + hi) >>> 1;
+		if (ord(arr[mid], value) <= 0) {
+			lo = mid + 1;
+		} else {
+			hi = mid;
+		}
+	}
+	const out = Array(arr.length + 1) as Array<A>;
+	for (let i = 0; i < lo; i++) out[i] = arr[i];
+	out[lo] = value;
+	for (let i = lo; i < arr.length; i++) out[i + 1] = arr[i];
+	return C.fromIterable(out);
+};
 
 /**
  * Creates an empty `TxPriorityQueue` with the given ordering.
@@ -114,7 +124,9 @@ const insertSorted = <A>(chunk: Chunk<A>, value: A, ord: Order<A>): Chunk<A> => 
  * @since 2.0.0
  */
 export const empty = <A>(order: Order<A>): Effect.Effect<TxPriorityQueue<A>> =>
-  Effect.map(TxRef.make<Chunk<A>>(C.empty()), (ref) => makeTxPriorityQueue(ref, order))
+	Effect.map(TxRef.make<Chunk<A>>(C.empty()), (ref) =>
+		makeTxPriorityQueue(ref, order),
+	);
 
 /**
  * Creates a `TxPriorityQueue` from an iterable of elements.
@@ -135,18 +147,25 @@ export const empty = <A>(order: Order<A>): Effect.Effect<TxPriorityQueue<A>> =>
  * @since 2.0.0
  */
 export const fromIterable: {
-  <A>(order: Order<A>): (iterable: Iterable<A>) => Effect.Effect<TxPriorityQueue<A>>
-  <A>(order: Order<A>, iterable: Iterable<A>): Effect.Effect<TxPriorityQueue<A>>
+	<A>(
+		order: Order<A>,
+	): (iterable: Iterable<A>) => Effect.Effect<TxPriorityQueue<A>>;
+	<A>(
+		order: Order<A>,
+		iterable: Iterable<A>,
+	): Effect.Effect<TxPriorityQueue<A>>;
 } = dual(
-  2,
-  <A>(order: Order<A>, iterable: Iterable<A>): Effect.Effect<TxPriorityQueue<A>> => {
-    const arr = Array.from(iterable).sort((a, b) => order(a, b))
-    return Effect.map(
-      TxRef.make<Chunk<A>>(C.fromIterable(arr)),
-      (ref) => makeTxPriorityQueue(ref, order)
-    )
-  }
-)
+	2,
+	<A>(
+		order: Order<A>,
+		iterable: Iterable<A>,
+	): Effect.Effect<TxPriorityQueue<A>> => {
+		const arr = Array.from(iterable).sort((a, b) => order(a, b));
+		return Effect.map(TxRef.make<Chunk<A>>(C.fromIterable(arr)), (ref) =>
+			makeTxPriorityQueue(ref, order),
+		);
+	},
+);
 
 /**
  * Creates a `TxPriorityQueue` from variadic elements.
@@ -166,8 +185,10 @@ export const fromIterable: {
  * @category constructors
  * @since 2.0.0
  */
-export const make = <A>(order: Order<A>) => (...elements: Array<A>): Effect.Effect<TxPriorityQueue<A>> =>
-  fromIterable(order, elements)
+export const make =
+	<A>(order: Order<A>) =>
+	(...elements: Array<A>): Effect.Effect<TxPriorityQueue<A>> =>
+		fromIterable(order, elements);
 
 /**
  * Returns the number of elements in the queue.
@@ -187,7 +208,8 @@ export const make = <A>(order: Order<A>) => (...elements: Array<A>): Effect.Effe
  * @category getters
  * @since 2.0.0
  */
-export const size = <A>(self: TxPriorityQueue<A>): Effect.Effect<number> => Effect.map(TxRef.get(self.ref), C.size)
+export const size = <A>(self: TxPriorityQueue<A>): Effect.Effect<number> =>
+	Effect.map(TxRef.get(self.ref), C.size);
 
 /**
  * Returns `true` if the queue is empty.
@@ -207,7 +229,8 @@ export const size = <A>(self: TxPriorityQueue<A>): Effect.Effect<number> => Effe
  * @category getters
  * @since 2.0.0
  */
-export const isEmpty = <A>(self: TxPriorityQueue<A>): Effect.Effect<boolean> => Effect.map(size(self), (n) => n === 0)
+export const isEmpty = <A>(self: TxPriorityQueue<A>): Effect.Effect<boolean> =>
+	Effect.map(size(self), (n) => n === 0);
 
 /**
  * Returns `true` if the queue has at least one element.
@@ -227,7 +250,9 @@ export const isEmpty = <A>(self: TxPriorityQueue<A>): Effect.Effect<boolean> => 
  * @category getters
  * @since 2.0.0
  */
-export const isNonEmpty = <A>(self: TxPriorityQueue<A>): Effect.Effect<boolean> => Effect.map(size(self), (n) => n > 0)
+export const isNonEmpty = <A>(
+	self: TxPriorityQueue<A>,
+): Effect.Effect<boolean> => Effect.map(size(self), (n) => n > 0);
 
 /**
  * Observes the smallest element without removing it. Retries if the queue is
@@ -249,14 +274,14 @@ export const isNonEmpty = <A>(self: TxPriorityQueue<A>): Effect.Effect<boolean> 
  * @since 2.0.0
  */
 export const peek = <A>(self: TxPriorityQueue<A>): Effect.Effect<A> =>
-  Effect.gen(function*() {
-    const chunk = yield* TxRef.get(self.ref)
-    const head = C.head(chunk)
-    if (O.isNone(head)) {
-      return yield* Effect.txRetry
-    }
-    return head.value
-  }).pipe(Effect.tx)
+	Effect.gen(function* () {
+		const chunk = yield* TxRef.get(self.ref);
+		const head = C.head(chunk);
+		if (O.isNone(head)) {
+			return yield* Effect.txRetry;
+		}
+		return head.value;
+	}).pipe(Effect.tx);
 
 /**
  * Observes the smallest element without removing it. Returns `None` if the
@@ -277,8 +302,9 @@ export const peek = <A>(self: TxPriorityQueue<A>): Effect.Effect<A> =>
  * @category getters
  * @since 2.0.0
  */
-export const peekOption = <A>(self: TxPriorityQueue<A>): Effect.Effect<Option<A>> =>
-  Effect.map(TxRef.get(self.ref), C.head)
+export const peekOption = <A>(
+	self: TxPriorityQueue<A>,
+): Effect.Effect<Option<A>> => Effect.map(TxRef.get(self.ref), C.head);
 
 /**
  * Inserts an element into the queue in sorted position.
@@ -301,13 +327,13 @@ export const peekOption = <A>(self: TxPriorityQueue<A>): Effect.Effect<Option<A>
  * @since 2.0.0
  */
 export const offer: {
-  <A>(value: A): (self: TxPriorityQueue<A>) => Effect.Effect<void>
-  <A>(self: TxPriorityQueue<A>, value: A): Effect.Effect<void>
+	<A>(value: A): (self: TxPriorityQueue<A>) => Effect.Effect<void>;
+	<A>(self: TxPriorityQueue<A>, value: A): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxPriorityQueue<A>, value: A): Effect.Effect<void> =>
-    TxRef.update(self.ref, (chunk) => insertSorted(chunk, value, self.ord))
-)
+	2,
+	<A>(self: TxPriorityQueue<A>, value: A): Effect.Effect<void> =>
+		TxRef.update(self.ref, (chunk) => insertSorted(chunk, value, self.ord)),
+);
 
 /**
  * Inserts all elements from an iterable into the queue.
@@ -329,16 +355,18 @@ export const offer: {
  * @since 2.0.0
  */
 export const offerAll: {
-  <A>(values: Iterable<A>): (self: TxPriorityQueue<A>) => Effect.Effect<void>
-  <A>(self: TxPriorityQueue<A>, values: Iterable<A>): Effect.Effect<void>
+	<A>(values: Iterable<A>): (self: TxPriorityQueue<A>) => Effect.Effect<void>;
+	<A>(self: TxPriorityQueue<A>, values: Iterable<A>): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxPriorityQueue<A>, values: Iterable<A>): Effect.Effect<void> =>
-    TxRef.update(self.ref, (chunk) => {
-      const arr = [...C.toArray(chunk), ...values].sort((a, b) => self.ord(a, b))
-      return C.fromIterable(arr)
-    })
-)
+	2,
+	<A>(self: TxPriorityQueue<A>, values: Iterable<A>): Effect.Effect<void> =>
+		TxRef.update(self.ref, (chunk) => {
+			const arr = [...C.toArray(chunk), ...values].sort((a, b) =>
+				self.ord(a, b),
+			);
+			return C.fromIterable(arr);
+		}),
+);
 
 /**
  * Takes the smallest element from the queue. Retries if the queue is empty.
@@ -359,15 +387,15 @@ export const offerAll: {
  * @since 2.0.0
  */
 export const take = <A>(self: TxPriorityQueue<A>): Effect.Effect<A> =>
-  Effect.gen(function*() {
-    const chunk = yield* TxRef.get(self.ref)
-    const head = C.head(chunk)
-    if (O.isNone(head)) {
-      return yield* Effect.txRetry
-    }
-    yield* TxRef.set(self.ref, C.drop(chunk, 1))
-    return head.value
-  }).pipe(Effect.tx)
+	Effect.gen(function* () {
+		const chunk = yield* TxRef.get(self.ref);
+		const head = C.head(chunk);
+		if (O.isNone(head)) {
+			return yield* Effect.txRetry;
+		}
+		yield* TxRef.set(self.ref, C.drop(chunk, 1));
+		return head.value;
+	}).pipe(Effect.tx);
 
 /**
  * Takes all elements from the queue, returning them in priority order.
@@ -388,10 +416,10 @@ export const take = <A>(self: TxPriorityQueue<A>): Effect.Effect<A> =>
  * @since 2.0.0
  */
 export const takeAll = <A>(self: TxPriorityQueue<A>): Effect.Effect<Array<A>> =>
-  Effect.map(
-    TxRef.modify(self.ref, (chunk) => [chunk, C.empty()]),
-    C.toArray
-  )
+	Effect.map(
+		TxRef.modify(self.ref, (chunk) => [chunk, C.empty()]),
+		C.toArray,
+	);
 
 /**
  * Tries to take the smallest element. Returns `None` if the queue is empty.
@@ -411,14 +439,16 @@ export const takeAll = <A>(self: TxPriorityQueue<A>): Effect.Effect<Array<A>> =>
  * @category mutations
  * @since 2.0.0
  */
-export const takeOption = <A>(self: TxPriorityQueue<A>): Effect.Effect<Option<A>> =>
-  TxRef.modify(self.ref, (chunk) => {
-    const head = C.head(chunk)
-    if (O.isNone(head)) {
-      return [O.none<A>(), chunk]
-    }
-    return [O.some(head.value), C.drop(chunk, 1)]
-  })
+export const takeOption = <A>(
+	self: TxPriorityQueue<A>,
+): Effect.Effect<Option<A>> =>
+	TxRef.modify(self.ref, (chunk) => {
+		const head = C.head(chunk);
+		if (O.isNone(head)) {
+			return [O.none<A>(), chunk];
+		}
+		return [O.some(head.value), C.drop(chunk, 1)];
+	});
 
 /**
  * Takes up to `n` elements from the queue in priority order.
@@ -439,20 +469,20 @@ export const takeOption = <A>(self: TxPriorityQueue<A>): Effect.Effect<Option<A>
  * @since 2.0.0
  */
 export const takeUpTo: {
-  (n: number): <A>(self: TxPriorityQueue<A>) => Effect.Effect<Array<A>>
-  <A>(self: TxPriorityQueue<A>, n: number): Effect.Effect<Array<A>>
+	(n: number): <A>(self: TxPriorityQueue<A>) => Effect.Effect<Array<A>>;
+	<A>(self: TxPriorityQueue<A>, n: number): Effect.Effect<Array<A>>;
 } = dual(
-  2,
-  <A>(self: TxPriorityQueue<A>, n: number): Effect.Effect<Array<A>> =>
-    Effect.map(
-      TxRef.modify(self.ref, (chunk) => {
-        const taken = C.take(chunk, n)
-        const rest = C.drop(chunk, n)
-        return [taken, rest]
-      }),
-      C.toArray
-    )
-)
+	2,
+	<A>(self: TxPriorityQueue<A>, n: number): Effect.Effect<Array<A>> =>
+		Effect.map(
+			TxRef.modify(self.ref, (chunk) => {
+				const taken = C.take(chunk, n);
+				const rest = C.drop(chunk, n);
+				return [taken, rest];
+			}),
+			C.toArray,
+		),
+);
 
 /**
  * Removes elements matching the predicate.
@@ -474,13 +504,15 @@ export const takeUpTo: {
  * @since 2.0.0
  */
 export const removeIf: {
-  <A>(predicate: Predicate<A>): (self: TxPriorityQueue<A>) => Effect.Effect<void>
-  <A>(self: TxPriorityQueue<A>, predicate: Predicate<A>): Effect.Effect<void>
+	<A>(
+		predicate: Predicate<A>,
+	): (self: TxPriorityQueue<A>) => Effect.Effect<void>;
+	<A>(self: TxPriorityQueue<A>, predicate: Predicate<A>): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxPriorityQueue<A>, predicate: Predicate<A>): Effect.Effect<void> =>
-    TxRef.update(self.ref, (chunk) => C.filter(chunk, (a) => !predicate(a)))
-)
+	2,
+	<A>(self: TxPriorityQueue<A>, predicate: Predicate<A>): Effect.Effect<void> =>
+		TxRef.update(self.ref, (chunk) => C.filter(chunk, (a) => !predicate(a))),
+);
 
 /**
  * Retains only elements matching the predicate.
@@ -502,13 +534,15 @@ export const removeIf: {
  * @since 2.0.0
  */
 export const retainIf: {
-  <A>(predicate: Predicate<A>): (self: TxPriorityQueue<A>) => Effect.Effect<void>
-  <A>(self: TxPriorityQueue<A>, predicate: Predicate<A>): Effect.Effect<void>
+	<A>(
+		predicate: Predicate<A>,
+	): (self: TxPriorityQueue<A>) => Effect.Effect<void>;
+	<A>(self: TxPriorityQueue<A>, predicate: Predicate<A>): Effect.Effect<void>;
 } = dual(
-  2,
-  <A>(self: TxPriorityQueue<A>, predicate: Predicate<A>): Effect.Effect<void> =>
-    TxRef.update(self.ref, (chunk) => C.filter(chunk, predicate))
-)
+	2,
+	<A>(self: TxPriorityQueue<A>, predicate: Predicate<A>): Effect.Effect<void> =>
+		TxRef.update(self.ref, (chunk) => C.filter(chunk, predicate)),
+);
 
 /**
  * Returns all elements in priority order without removing them.
@@ -529,7 +563,7 @@ export const retainIf: {
  * @since 2.0.0
  */
 export const toArray = <A>(self: TxPriorityQueue<A>): Effect.Effect<Array<A>> =>
-  Effect.map(TxRef.get(self.ref), C.toArray)
+	Effect.map(TxRef.get(self.ref), C.toArray);
 
 /**
  * Determines if the provided value is a `TxPriorityQueue`.
@@ -549,4 +583,5 @@ export const toArray = <A>(self: TxPriorityQueue<A>): Effect.Effect<Array<A>> =>
  * @category guards
  * @since 4.0.0
  */
-export const isTxPriorityQueue = (u: unknown): u is TxPriorityQueue<unknown> => hasProperty(u, TypeId)
+export const isTxPriorityQueue = (u: unknown): u is TxPriorityQueue<unknown> =>
+	hasProperty(u, TypeId);

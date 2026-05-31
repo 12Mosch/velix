@@ -3,31 +3,31 @@
  */
 
 export {
-  /**
-   * @since 2.0.0
-   */
-  absurd,
-  /**
-   * @since 2.0.0
-   */
-  cast,
-  /**
-   * @since 2.0.0
-   */
-  flow,
-  /**
-   * @since 2.0.0
-   */
-  hole,
-  /**
-   * @since 2.0.0
-   */
-  identity,
-  /**
-   * @since 2.0.0
-   */
-  pipe
-} from "./Function.ts"
+	/**
+	 * @since 2.0.0
+	 */
+	absurd,
+	/**
+	 * @since 2.0.0
+	 */
+	cast,
+	/**
+	 * @since 2.0.0
+	 */
+	flow,
+	/**
+	 * @since 2.0.0
+	 */
+	hole,
+	/**
+	 * @since 2.0.0
+	 */
+	identity,
+	/**
+	 * @since 2.0.0
+	 */
+	pipe,
+} from "./Function.ts";
 
 // @barrel: Auto-generated exports. Do not edit manually.
 
@@ -116,7 +116,7 @@ export {
  *
  * @since 2.0.0
  */
-export * as Array from "./Array.ts"
+export * as Array from "./Array.ts";
 
 /**
  * This module provides utility functions and type class instances for working with the `BigDecimal` type in TypeScript.
@@ -133,7 +133,7 @@ export * as Array from "./Array.ts"
  *
  * @since 2.0.0
  */
-export * as BigDecimal from "./BigDecimal.ts"
+export * as BigDecimal from "./BigDecimal.ts";
 
 /**
  * This module provides utility functions and type class instances for working with the `bigint` type in TypeScript.
@@ -141,7 +141,7 @@ export * as BigDecimal from "./BigDecimal.ts"
  *
  * @since 2.0.0
  */
-export * as BigInt from "./BigInt.ts"
+export * as BigInt from "./BigInt.ts";
 
 /**
  * This module provides utility functions and type class instances for working with the `boolean` type in TypeScript.
@@ -149,7 +149,7 @@ export * as BigInt from "./BigInt.ts"
  *
  * @since 2.0.0
  */
-export * as Boolean from "./Boolean.ts"
+export * as Boolean from "./Boolean.ts";
 
 /**
  * This module provides types and utility functions to create and work with
@@ -158,7 +158,7 @@ export * as Boolean from "./Boolean.ts"
  *
  * @since 2.0.0
  */
-export * as Brand from "./Brand.ts"
+export * as Brand from "./Brand.ts";
 
 /**
  * The `Cache` module provides an effectful, mutable key-value cache for values
@@ -198,7 +198,7 @@ export * as Brand from "./Brand.ts"
  *
  * @since 4.0.0
  */
-export * as Cache from "./Cache.ts"
+export * as Cache from "./Cache.ts";
 
 /**
  * Structured representation of how an Effect can fail.
@@ -279,7 +279,7 @@ export * as Cache from "./Cache.ts"
  *
  * @since 2.0.0
  */
-export * as Cause from "./Cause.ts"
+export * as Cause from "./Cause.ts";
 
 /**
  * The `Channel` module provides a powerful abstraction for bi-directional communication
@@ -341,7 +341,7 @@ export * as Cause from "./Cause.ts"
  *
  * @since 2.0.0
  */
-export * as Channel from "./Channel.ts"
+export * as Channel from "./Channel.ts";
 
 /**
  * The `ChannelSchema` module provides helpers for applying `Schema` encoding
@@ -388,7 +388,7 @@ export * as Channel from "./Channel.ts"
  *
  * @since 4.0.0
  */
-export * as ChannelSchema from "./ChannelSchema.ts"
+export * as ChannelSchema from "./ChannelSchema.ts";
 
 /**
  * The `Chunk` module provides an immutable, high-performance sequence data structure
@@ -462,7 +462,7 @@ export * as ChannelSchema from "./ChannelSchema.ts"
  *
  * @since 2.0.0
  */
-export * as Chunk from "./Chunk.ts"
+export * as Chunk from "./Chunk.ts";
 
 /**
  * The `Clock` module provides functionality for time-based operations in Effect applications.
@@ -524,7 +524,7 @@ export * as Chunk from "./Chunk.ts"
  *
  * @since 2.0.0
  */
-export * as Clock from "./Clock.ts"
+export * as Clock from "./Clock.ts";
 
 /**
  * A module for combining two values of the same type into one.
@@ -588,7 +588,7 @@ export * as Clock from "./Clock.ts"
  *
  * @since 4.0.0
  */
-export * as Combiner from "./Combiner.ts"
+export * as Combiner from "./Combiner.ts";
 
 /**
  * Declarative, schema-driven configuration loading. A `Config<T>` describes
@@ -663,7 +663,7 @@ export * as Combiner from "./Combiner.ts"
  *
  * @since 4.0.0
  */
-export * as Config from "./Config.ts"
+export * as Config from "./Config.ts";
 
 /**
  * Provides the data source layer for the `Config` module. A `ConfigProvider`
@@ -744,7 +744,7 @@ export * as Config from "./Config.ts"
  *
  * @since 4.0.0
  */
-export * as ConfigProvider from "./ConfigProvider.ts"
+export * as ConfigProvider from "./ConfigProvider.ts";
 
 /**
  * The `Console` module provides a functional interface for console operations within
@@ -821,7 +821,7 @@ export * as ConfigProvider from "./ConfigProvider.ts"
  *
  * @since 2.0.0
  */
-export * as Console from "./Console.ts"
+export * as Console from "./Console.ts";
 
 /**
  * This module provides a data structure called `Context` that can be used
@@ -835,7 +835,7 @@ export * as Console from "./Console.ts"
  *
  * @since 4.0.0
  */
-export * as Context from "./Context.ts"
+export * as Context from "./Context.ts";
 
 /**
  * The `Cron` module provides utilities for representing recurring calendar
@@ -882,7 +882,7 @@ export * as Context from "./Context.ts"
  *
  * @since 2.0.0
  */
-export * as Cron from "./Cron.ts"
+export * as Cron from "./Cron.ts";
 
 /**
  * The `Crypto` module provides a platform-agnostic service for cryptographic
@@ -939,7 +939,7 @@ export * as Cron from "./Cron.ts"
  *
  * @since 4.0.0
  */
-export * as Crypto from "./Crypto.ts"
+export * as Crypto from "./Crypto.ts";
 
 /**
  * Immutable data constructors with discriminated-union support.
@@ -1014,7 +1014,7 @@ export * as Crypto from "./Crypto.ts"
  *
  * @since 2.0.0
  */
-export * as Data from "./Data.ts"
+export * as Data from "./Data.ts";
 
 /**
  * The `DateTime` module provides immutable data types and utilities for working
@@ -1068,7 +1068,7 @@ export * as Data from "./Data.ts"
  *
  * @since 3.6.0
  */
-export * as DateTime from "./DateTime.ts"
+export * as DateTime from "./DateTime.ts";
 
 /**
  * This module provides utilities for working with `Deferred`, a powerful concurrency
@@ -1139,7 +1139,7 @@ export * as DateTime from "./DateTime.ts"
  *
  * @since 2.0.0
  */
-export * as Deferred from "./Deferred.ts"
+export * as Deferred from "./Deferred.ts";
 
 /**
  * The `Differ` module defines the core abstraction for describing changes to a
@@ -1180,7 +1180,7 @@ export * as Deferred from "./Deferred.ts"
  *
  * @since 4.0.0
  */
-export * as Differ from "./Differ.ts"
+export * as Differ from "./Differ.ts";
 
 /**
  * This module provides utilities for working with durations of time. A `Duration`
@@ -1197,7 +1197,7 @@ export * as Differ from "./Differ.ts"
  *
  * @since 2.0.0
  */
-export * as Duration from "./Duration.ts"
+export * as Duration from "./Duration.ts";
 
 /**
  * The `Effect` module is the core of the Effect library, providing a powerful and expressive
@@ -1271,7 +1271,7 @@ export * as Duration from "./Duration.ts"
  *
  * @since 2.0.0
  */
-export * as Effect from "./Effect.ts"
+export * as Effect from "./Effect.ts";
 
 /**
  * The `Effectable` module provides low-level building blocks for defining
@@ -1311,14 +1311,14 @@ export * as Effect from "./Effect.ts"
  *
  * @since 4.0.0
  */
-export * as Effectable from "./Effectable.ts"
+export * as Effectable from "./Effectable.ts";
 
 /**
  * Encoding & decoding for Base64 (RFC4648), Base64Url, and Hex.
  *
  * @since 4.0.0
  */
-export * as Encoding from "./Encoding.ts"
+export * as Encoding from "./Encoding.ts";
 
 /**
  * Structural and custom equality for Effect values.
@@ -1391,7 +1391,7 @@ export * as Encoding from "./Encoding.ts"
  *
  * @since 2.0.0
  */
-export * as Equal from "./Equal.ts"
+export * as Equal from "./Equal.ts";
 
 /**
  * Utilities for defining equivalence relations - binary relations that determine when two values
@@ -1446,7 +1446,7 @@ export * as Equal from "./Equal.ts"
  *
  * @since 2.0.0
  */
-export * as Equivalence from "./Equivalence.ts"
+export * as Equivalence from "./Equivalence.ts";
 
 /**
  * Pluggable error reporting for Effect programs.
@@ -1499,7 +1499,7 @@ export * as Equivalence from "./Equivalence.ts"
  *
  * @since 4.0.0
  */
-export * as ErrorReporter from "./ErrorReporter.ts"
+export * as ErrorReporter from "./ErrorReporter.ts";
 
 /**
  * The `ExecutionPlan` module provides a way to describe ordered fallback
@@ -1541,7 +1541,7 @@ export * as ErrorReporter from "./ErrorReporter.ts"
  *
  * @since 3.16.0
  */
-export * as ExecutionPlan from "./ExecutionPlan.ts"
+export * as ExecutionPlan from "./ExecutionPlan.ts";
 
 /**
  * Represents the outcome of an Effect computation as a plain, synchronously
@@ -1601,7 +1601,7 @@ export * as ExecutionPlan from "./ExecutionPlan.ts"
  *
  * @since 2.0.0
  */
-export * as Exit from "./Exit.ts"
+export * as Exit from "./Exit.ts";
 
 /**
  * This module provides utilities for working with `Fiber`, the fundamental unit of
@@ -1678,7 +1678,7 @@ export * as Exit from "./Exit.ts"
  *
  * @since 2.0.0
  */
-export * as Fiber from "./Fiber.ts"
+export * as Fiber from "./Fiber.ts";
 
 /**
  * The `FiberHandle` module provides a scoped handle for managing the lifecycle
@@ -1722,7 +1722,7 @@ export * as Fiber from "./Fiber.ts"
  *
  * @since 2.0.0
  */
-export * as FiberHandle from "./FiberHandle.ts"
+export * as FiberHandle from "./FiberHandle.ts";
 
 /**
  * The `FiberMap` module provides a scoped, mutable collection for managing
@@ -1762,7 +1762,7 @@ export * as FiberHandle from "./FiberHandle.ts"
  *
  * @since 2.0.0
  */
-export * as FiberMap from "./FiberMap.ts"
+export * as FiberMap from "./FiberMap.ts";
 
 /**
  * The `FiberSet` module provides a scoped container for managing many fibers as
@@ -1804,7 +1804,7 @@ export * as FiberMap from "./FiberMap.ts"
  *
  * @since 2.0.0
  */
-export * as FiberSet from "./FiberSet.ts"
+export * as FiberSet from "./FiberSet.ts";
 
 /**
  * This module provides a comprehensive file system abstraction that supports both synchronous
@@ -1844,7 +1844,7 @@ export * as FiberSet from "./FiberSet.ts"
  *
  * @since 4.0.0
  */
-export * as FileSystem from "./FileSystem.ts"
+export * as FileSystem from "./FileSystem.ts";
 
 /**
  * The `Filter` module provides composable functions for accepting, rejecting,
@@ -1883,7 +1883,7 @@ export * as FileSystem from "./FileSystem.ts"
  *
  * @since 4.0.0
  */
-export * as Filter from "./Filter.ts"
+export * as Filter from "./Filter.ts";
 
 /**
  * Utilities for converting arbitrary JavaScript values into human-readable
@@ -1939,7 +1939,7 @@ export * as Filter from "./Filter.ts"
  *
  * @since 4.0.0
  */
-export * as Formatter from "./Formatter.ts"
+export * as Formatter from "./Formatter.ts";
 
 /**
  * The `Function` module provides small, pure helpers for defining, composing,
@@ -1989,7 +1989,7 @@ export * as Formatter from "./Formatter.ts"
  *
  * @since 2.0.0
  */
-export * as Function from "./Function.ts"
+export * as Function from "./Function.ts";
 
 /**
  * The `Graph` module provides immutable and scoped-mutable graph data
@@ -2044,7 +2044,7 @@ export * as Function from "./Function.ts"
  *
  * @since 4.0.0
  */
-export * as Graph from "./Graph.ts"
+export * as Graph from "./Graph.ts";
 
 /**
  * This module provides utilities for hashing values in TypeScript.
@@ -2055,7 +2055,7 @@ export * as Graph from "./Graph.ts"
  *
  * @since 2.0.0
  */
-export * as Hash from "./Hash.ts"
+export * as Hash from "./Hash.ts";
 
 /**
  * The `HashMap` module provides an immutable key-value data structure with
@@ -2133,7 +2133,7 @@ export * as Hash from "./Hash.ts"
  *
  * @since 2.0.0
  */
-export * as HashMap from "./HashMap.ts"
+export * as HashMap from "./HashMap.ts";
 
 /**
  * The `HashRing` module provides a weighted consistent-hashing data structure
@@ -2196,7 +2196,7 @@ export * as HashMap from "./HashMap.ts"
  *
  * @since 4.0.0
  */
-export * as HashRing from "./HashRing.ts"
+export * as HashRing from "./HashRing.ts";
 
 /**
  * The `HashSet` module provides an immutable set data structure for storing
@@ -2238,7 +2238,7 @@ export * as HashRing from "./HashRing.ts"
  *
  * @since 2.0.0
  */
-export * as HashSet from "./HashSet.ts"
+export * as HashSet from "./HashSet.ts";
 
 /**
  * This module provides utilities for Higher-Kinded Types (HKT) in TypeScript.
@@ -2277,7 +2277,7 @@ export * as HashSet from "./HashSet.ts"
  *
  * @since 2.0.0
  */
-export * as HKT from "./HKT.ts"
+export * as HKT from "./HKT.ts";
 
 /**
  * This module provides utilities for making values inspectable and debuggable in TypeScript.
@@ -2318,7 +2318,7 @@ export * as HKT from "./HKT.ts"
  *
  * @since 2.0.0
  */
-export * as Inspectable from "./Inspectable.ts"
+export * as Inspectable from "./Inspectable.ts";
 
 /**
  * This module provides utility functions for working with Iterables in TypeScript.
@@ -2352,7 +2352,7 @@ export * as Inspectable from "./Inspectable.ts"
  *
  * @since 2.0.0
  */
-export * as Iterable from "./Iterable.ts"
+export * as Iterable from "./Iterable.ts";
 
 /**
  * JSON Patch operations for transforming JSON documents.
@@ -2408,7 +2408,7 @@ export * as Iterable from "./Iterable.ts"
  *
  * @since 4.0.0
  */
-export * as JsonPatch from "./JsonPatch.ts"
+export * as JsonPatch from "./JsonPatch.ts";
 
 /**
  * Utilities for escaping and unescaping JSON Pointer reference tokens according to RFC 6901.
@@ -2463,7 +2463,7 @@ export * as JsonPatch from "./JsonPatch.ts"
  *
  * @since 4.0.0
  */
-export * as JsonPointer from "./JsonPointer.ts"
+export * as JsonPointer from "./JsonPointer.ts";
 
 /**
  * Convert JSON Schema documents between dialects (Draft-07, Draft-2020-12,
@@ -2551,7 +2551,7 @@ export * as JsonPointer from "./JsonPointer.ts"
  *
  * @since 4.0.0
  */
-export * as JsonSchema from "./JsonSchema.ts"
+export * as JsonSchema from "./JsonSchema.ts";
 
 /**
  * The `Latch` module provides a reusable synchronization primitive for
@@ -2588,7 +2588,7 @@ export * as JsonSchema from "./JsonSchema.ts"
  *
  * @since 4.0.0
  */
-export * as Latch from "./Latch.ts"
+export * as Latch from "./Latch.ts";
 
 /**
  * A `Layer<ROut, E, RIn>` describes how to build one or more services in your
@@ -2620,7 +2620,7 @@ export * as Latch from "./Latch.ts"
  *
  * @since 2.0.0
  */
-export * as Layer from "./Layer.ts"
+export * as Layer from "./Layer.ts";
 
 /**
  * The `LayerMap` module provides utilities for managing scoped resources that
@@ -2658,7 +2658,7 @@ export * as Layer from "./Layer.ts"
  *
  * @since 3.14.0
  */
-export * as LayerMap from "./LayerMap.ts"
+export * as LayerMap from "./LayerMap.ts";
 
 /**
  * The `Logger` module defines the logging model used by the Effect runtime and
@@ -2745,7 +2745,7 @@ export * as LayerMap from "./LayerMap.ts"
  *
  * @since 2.0.0
  */
-export * as Logger from "./Logger.ts"
+export * as Logger from "./Logger.ts";
 
 /**
  * The `LogLevel` module defines the levels used by Effect logging and the
@@ -2786,7 +2786,7 @@ export * as Logger from "./Logger.ts"
  *
  * @since 2.0.0
  */
-export * as LogLevel from "./LogLevel.ts"
+export * as LogLevel from "./LogLevel.ts";
 
 /**
  * The `ManagedRuntime` module provides a way to build a reusable runtime from
@@ -2829,7 +2829,7 @@ export * as LogLevel from "./LogLevel.ts"
  *
  * @since 2.0.0
  */
-export * as ManagedRuntime from "./ManagedRuntime.ts"
+export * as ManagedRuntime from "./ManagedRuntime.ts";
 
 /**
  * The `effect/match` module provides a type-safe pattern matching system for
@@ -2859,7 +2859,7 @@ export * as ManagedRuntime from "./ManagedRuntime.ts"
  *
  * @since 4.0.0
  */
-export * as Match from "./Match.ts"
+export * as Match from "./Match.ts";
 
 /**
  * The `Metric` module provides tools for defining, updating, tagging, and
@@ -2946,7 +2946,7 @@ export * as Match from "./Match.ts"
  *
  * @since 2.0.0
  */
-export * as Metric from "./Metric.ts"
+export * as Metric from "./Metric.ts";
 
 /**
  * MutableHashMap is a high-performance, mutable hash map implementation designed for efficient key-value storage
@@ -2973,7 +2973,7 @@ export * as Metric from "./Metric.ts"
  *
  * @since 2.0.0
  */
-export * as MutableHashMap from "./MutableHashMap.ts"
+export * as MutableHashMap from "./MutableHashMap.ts";
 
 /**
  * The `MutableHashSet` module provides a mutable hash set for storing unique
@@ -3047,7 +3047,7 @@ export * as MutableHashMap from "./MutableHashMap.ts"
  *
  * @since 2.0.0
  */
-export * as MutableHashSet from "./MutableHashSet.ts"
+export * as MutableHashSet from "./MutableHashSet.ts";
 
 /**
  * The `MutableList` module provides a mutable linked list for accumulating,
@@ -3099,7 +3099,7 @@ export * as MutableHashSet from "./MutableHashSet.ts"
  *
  * @since 4.0.0
  */
-export * as MutableList from "./MutableList.ts"
+export * as MutableList from "./MutableList.ts";
 
 /**
  * The `MutableRef` module provides a small synchronous container for mutable
@@ -3135,7 +3135,7 @@ export * as MutableList from "./MutableList.ts"
  *
  * @since 2.0.0
  */
-export * as MutableRef from "./MutableRef.ts"
+export * as MutableRef from "./MutableRef.ts";
 
 /**
  * Lightweight wrapper types that prevent accidental mixing of structurally
@@ -3202,7 +3202,7 @@ export * as MutableRef from "./MutableRef.ts"
  *
  * @since 4.0.0
  */
-export * as Newtype from "./Newtype.ts"
+export * as Newtype from "./Newtype.ts";
 
 /**
  * The `NonEmptyIterable` module provides a type-level representation of any
@@ -3347,7 +3347,7 @@ export * as Newtype from "./Newtype.ts"
  *
  * @since 2.0.0
  */
-export * as NonEmptyIterable from "./NonEmptyIterable.ts"
+export * as NonEmptyIterable from "./NonEmptyIterable.ts";
 
 /**
  * This module provides utility functions and type class instances for working with the `number` type in TypeScript.
@@ -3355,7 +3355,7 @@ export * as NonEmptyIterable from "./NonEmptyIterable.ts"
  *
  * @since 2.0.0
  */
-export * as Number from "./Number.ts"
+export * as Number from "./Number.ts";
 
 /**
  * Composable, immutable accessors for reading and updating nested data
@@ -3452,7 +3452,7 @@ export * as Number from "./Number.ts"
  *
  * @since 4.0.0
  */
-export * as Optic from "./Optic.ts"
+export * as Optic from "./Optic.ts";
 
 /**
  * The `Option` module provides a type-safe way to represent values that may or
@@ -3527,7 +3527,7 @@ export * as Optic from "./Optic.ts"
  *
  * @since 2.0.0
  */
-export * as Option from "./Option.ts"
+export * as Option from "./Option.ts";
 
 /**
  * This module provides the `Order` type class for defining total orderings on types.
@@ -3580,7 +3580,7 @@ export * as Option from "./Option.ts"
  *
  * @since 2.0.0
  */
-export * as Order from "./Order.ts"
+export * as Order from "./Order.ts";
 
 /**
  * The `Ordering` module provides the standard representation for the result of
@@ -3617,7 +3617,7 @@ export * as Order from "./Order.ts"
  *
  * @since 2.0.0
  */
-export * as Ordering from "./Ordering.ts"
+export * as Ordering from "./Ordering.ts";
 
 /**
  * The `PartitionedSemaphore` module provides a semaphore for limiting
@@ -3656,7 +3656,7 @@ export * as Ordering from "./Ordering.ts"
  *
  * @since 4.0.0
  */
-export * as PartitionedSemaphore from "./PartitionedSemaphore.ts"
+export * as PartitionedSemaphore from "./PartitionedSemaphore.ts";
 
 /**
  * The `Path` module provides a platform path service for manipulating file
@@ -3691,7 +3691,7 @@ export * as PartitionedSemaphore from "./PartitionedSemaphore.ts"
  *
  * @since 4.0.0
  */
-export * as Path from "./Path.ts"
+export * as Path from "./Path.ts";
 
 /**
  * The `Pipeable` module defines the shared interface and implementation helpers
@@ -3716,7 +3716,7 @@ export * as Path from "./Path.ts"
  *
  * @since 2.0.0
  */
-export * as Pipeable from "./Pipeable.ts"
+export * as Pipeable from "./Pipeable.ts";
 
 /**
  * The `PlatformError` module defines the normalized error model used by
@@ -3751,7 +3751,7 @@ export * as Pipeable from "./Pipeable.ts"
  *
  * @since 4.0.0
  */
-export * as PlatformError from "./PlatformError.ts"
+export * as PlatformError from "./PlatformError.ts";
 
 /**
  * The `Pool` module provides scoped resource pools for sharing expensive or
@@ -3784,7 +3784,7 @@ export * as PlatformError from "./PlatformError.ts"
  *
  * @since 2.0.0
  */
-export * as Pool from "./Pool.ts"
+export * as Pool from "./Pool.ts";
 
 /**
  * Predicate and Refinement helpers for runtime checks, filtering, and type narrowing.
@@ -3827,7 +3827,7 @@ export * as Pool from "./Pool.ts"
  *
  * @since 2.0.0
  */
-export * as Predicate from "./Predicate.ts"
+export * as Predicate from "./Predicate.ts";
 
 /**
  * This module provides functionality for working with primary keys.
@@ -3840,7 +3840,7 @@ export * as Predicate from "./Predicate.ts"
  *
  * @since 2.0.0
  */
-export * as PrimaryKey from "./PrimaryKey.ts"
+export * as PrimaryKey from "./PrimaryKey.ts";
 
 /**
  * This module provides utilities for working with publish-subscribe (PubSub) systems.
@@ -3874,7 +3874,7 @@ export * as PrimaryKey from "./PrimaryKey.ts"
  *
  * @since 2.0.0
  */
-export * as PubSub from "./PubSub.ts"
+export * as PubSub from "./PubSub.ts";
 
 /**
  * The `Pull` module provides the low-level pull-step abstraction used by
@@ -3905,7 +3905,7 @@ export * as PubSub from "./PubSub.ts"
  *
  * @since 4.0.0
  */
-export * as Pull from "./Pull.ts"
+export * as Pull from "./Pull.ts";
 
 /**
  * The `Queue` module provides asynchronous queues for communicating between
@@ -3962,7 +3962,7 @@ export * as Pull from "./Pull.ts"
  *
  * @since 3.8.0
  */
-export * as Queue from "./Queue.ts"
+export * as Queue from "./Queue.ts";
 
 /**
  * The `Random` module provides a service for generating pseudo-random numbers
@@ -3996,7 +3996,7 @@ export * as Queue from "./Queue.ts"
  *
  * @since 4.0.0
  */
-export * as Random from "./Random.ts"
+export * as Random from "./Random.ts";
 
 /**
  * The `RcMap` module provides a scoped, reference-counted map for sharing
@@ -4019,7 +4019,7 @@ export * as Random from "./Random.ts"
  *
  * @since 3.5.0
  */
-export * as RcMap from "./RcMap.ts"
+export * as RcMap from "./RcMap.ts";
 
 /**
  * The `RcRef` module provides reference-counted access to a shared resource
@@ -4040,14 +4040,14 @@ export * as RcMap from "./RcMap.ts"
  *
  * @since 3.5.0
  */
-export * as RcRef from "./RcRef.ts"
+export * as RcRef from "./RcRef.ts";
 
 /**
  * This module provides utility functions for working with records in TypeScript.
  *
  * @since 2.0.0
  */
-export * as Record from "./Record.ts"
+export * as Record from "./Record.ts";
 
 /**
  * Context-aware redaction for sensitive values.
@@ -4117,7 +4117,7 @@ export * as Record from "./Record.ts"
  *
  * @since 4.0.0
  */
-export * as Redactable from "./Redactable.ts"
+export * as Redactable from "./Redactable.ts";
 
 /**
  * The Redacted module provides functionality for handling sensitive information
@@ -4127,7 +4127,7 @@ export * as Redactable from "./Redactable.ts"
  *
  * @since 3.3.0
  */
-export * as Redacted from "./Redacted.ts"
+export * as Redacted from "./Redacted.ts";
 
 /**
  * A module for reducing collections of values into a single result.
@@ -4197,7 +4197,7 @@ export * as Redacted from "./Redacted.ts"
  *
  * @since 4.0.0
  */
-export * as Reducer from "./Reducer.ts"
+export * as Reducer from "./Reducer.ts";
 
 /**
  * This module provides utilities for working with mutable references in a functional context.
@@ -4230,7 +4230,7 @@ export * as Reducer from "./Reducer.ts"
  *
  * @since 2.0.0
  */
-export * as Ref from "./Ref.ts"
+export * as Ref from "./Ref.ts";
 
 /**
  * This module provides a collection of reference implementations for commonly used
@@ -4244,14 +4244,14 @@ export * as Ref from "./Ref.ts"
  *
  * @since 4.0.0
  */
-export * as References from "./References.ts"
+export * as References from "./References.ts";
 
 /**
  * This module provides utility functions for working with RegExp in TypeScript.
  *
  * @since 2.0.0
  */
-export * as RegExp from "./RegExp.ts"
+export * as RegExp from "./RegExp.ts";
 
 /**
  * The `Request` module provides a way to model requests to external data sources
@@ -4268,7 +4268,7 @@ export * as RegExp from "./RegExp.ts"
  *
  * @since 2.0.0
  */
-export * as Request from "./Request.ts"
+export * as Request from "./Request.ts";
 
 /**
  * The `RequestResolver` module provides the data-loading side of
@@ -4316,7 +4316,7 @@ export * as Request from "./Request.ts"
  *
  * @since 2.0.0
  */
-export * as RequestResolver from "./RequestResolver.ts"
+export * as RequestResolver from "./RequestResolver.ts";
 
 /**
  * The `Resource` module provides refreshable, scoped values. A
@@ -4353,7 +4353,7 @@ export * as RequestResolver from "./RequestResolver.ts"
  *
  * @since 2.0.0
  */
-export * as Resource from "./Resource.ts"
+export * as Resource from "./Resource.ts";
 
 /**
  * A synchronous, pure type for representing computations that can succeed
@@ -4424,7 +4424,7 @@ export * as Resource from "./Resource.ts"
  *
  * @since 4.0.0
  */
-export * as Result from "./Result.ts"
+export * as Result from "./Result.ts";
 
 /**
  * This module provides utilities for running Effect programs and managing their execution lifecycle.
@@ -4455,7 +4455,7 @@ export * as Result from "./Result.ts"
  *
  * @since 4.0.0
  */
-export * as Runtime from "./Runtime.ts"
+export * as Runtime from "./Runtime.ts";
 
 /**
  * This module provides utilities for creating and composing schedules for retrying operations,
@@ -4489,7 +4489,7 @@ export * as Runtime from "./Runtime.ts"
  *
  * @since 2.0.0
  */
-export * as Schedule from "./Schedule.ts"
+export * as Schedule from "./Schedule.ts";
 
 /**
  * The `Scheduler` module defines the runtime scheduling services used by
@@ -4513,7 +4513,7 @@ export * as Schedule from "./Schedule.ts"
  *
  * @since 2.0.0
  */
-export * as Scheduler from "./Scheduler.ts"
+export * as Scheduler from "./Scheduler.ts";
 
 /**
  * Define data shapes, validate unknown input, and transform values between formats.
@@ -4600,7 +4600,7 @@ export * as Scheduler from "./Scheduler.ts"
  *
  * @since 4.0.0
  */
-export * as Schema from "./Schema.ts"
+export * as Schema from "./Schema.ts";
 
 /**
  * Abstract Syntax Tree (AST) representation for Effect schemas.
@@ -4676,7 +4676,7 @@ export * as Schema from "./Schema.ts"
  *
  * @since 4.0.0
  */
-export * as SchemaAST from "./SchemaAST.ts"
+export * as SchemaAST from "./SchemaAST.ts";
 
 /**
  * Composable transformation primitives for the Effect Schema system.
@@ -4765,7 +4765,7 @@ export * as SchemaAST from "./SchemaAST.ts"
  *
  * @since 4.0.0
  */
-export * as SchemaGetter from "./SchemaGetter.ts"
+export * as SchemaGetter from "./SchemaGetter.ts";
 
 /**
  * Structured validation errors produced by the Effect Schema system.
@@ -4847,7 +4847,7 @@ export * as SchemaGetter from "./SchemaGetter.ts"
  *
  * @since 4.0.0
  */
-export * as SchemaIssue from "./SchemaIssue.ts"
+export * as SchemaIssue from "./SchemaIssue.ts";
 
 /**
  * The `SchemaParser` module turns schemas into reusable runtime operations for
@@ -4871,7 +4871,7 @@ export * as SchemaIssue from "./SchemaIssue.ts"
  *
  * @since 4.0.0
  */
-export * as SchemaParser from "./SchemaParser.ts"
+export * as SchemaParser from "./SchemaParser.ts";
 
 /**
  * Serializable intermediate representation (IR) of Effect Schema types.
@@ -4961,7 +4961,7 @@ export * as SchemaParser from "./SchemaParser.ts"
  *
  * @since 4.0.0
  */
-export * as SchemaRepresentation from "./SchemaRepresentation.ts"
+export * as SchemaRepresentation from "./SchemaRepresentation.ts";
 
 /**
  * Bidirectional transformations for the Effect Schema system.
@@ -5049,7 +5049,7 @@ export * as SchemaRepresentation from "./SchemaRepresentation.ts"
  *
  * @since 4.0.0
  */
-export * as SchemaTransformation from "./SchemaTransformation.ts"
+export * as SchemaTransformation from "./SchemaTransformation.ts";
 
 /**
  * The `SchemaUtils` module contains focused helpers for schema patterns that
@@ -5070,7 +5070,7 @@ export * as SchemaTransformation from "./SchemaTransformation.ts"
  *
  * @since 4.0.0
  */
-export * as SchemaUtils from "./SchemaUtils.ts"
+export * as SchemaUtils from "./SchemaUtils.ts";
 
 /**
  * The `Scope` module provides functionality for managing resource lifecycles
@@ -5087,7 +5087,7 @@ export * as SchemaUtils from "./SchemaUtils.ts"
  *
  * @since 2.0.0
  */
-export * as Scope from "./Scope.ts"
+export * as Scope from "./Scope.ts";
 
 /**
  * The `ScopedCache` module provides a cache for values that acquire scoped
@@ -5116,7 +5116,7 @@ export * as Scope from "./Scope.ts"
  *
  * @since 4.0.0
  */
-export * as ScopedCache from "./ScopedCache.ts"
+export * as ScopedCache from "./ScopedCache.ts";
 
 /**
  * The `ScopedRef` module provides a mutable reference for values that are tied
@@ -5141,7 +5141,7 @@ export * as ScopedCache from "./ScopedCache.ts"
  *
  * @since 2.0.0
  */
-export * as ScopedRef from "./ScopedRef.ts"
+export * as ScopedRef from "./ScopedRef.ts";
 
 /**
  * The `Semaphore` module provides a counting semaphore for coordinating
@@ -5165,7 +5165,7 @@ export * as ScopedRef from "./ScopedRef.ts"
  *
  * @since 4.0.0
  */
-export * as Semaphore from "./Semaphore.ts"
+export * as Semaphore from "./Semaphore.ts";
 
 /**
  * The `Sink` module provides composable consumers for `Stream` values. A
@@ -5201,7 +5201,7 @@ export * as Semaphore from "./Semaphore.ts"
  *
  * @since 2.0.0
  */
-export * as Sink from "./Sink.ts"
+export * as Sink from "./Sink.ts";
 
 /**
  * The `Stdio` module defines the service interface used by Effect programs to
@@ -5222,7 +5222,7 @@ export * as Sink from "./Sink.ts"
  *
  * @since 4.0.0
  */
-export * as Stdio from "./Stdio.ts"
+export * as Stdio from "./Stdio.ts";
 
 /**
  * The `Stream` module provides a typed, composable way to describe effectful
@@ -5264,7 +5264,7 @@ export * as Stdio from "./Stdio.ts"
  *
  * @since 2.0.0
  */
-export * as Stream from "./Stream.ts"
+export * as Stream from "./Stream.ts";
 
 /**
  * This module provides utility functions and type class instances for working with the `string` type in TypeScript.
@@ -5272,7 +5272,7 @@ export * as Stream from "./Stream.ts"
  *
  * @since 2.0.0
  */
-export * as String from "./String.ts"
+export * as String from "./String.ts";
 
 /**
  * Utilities for creating, transforming, and comparing plain TypeScript objects
@@ -5349,7 +5349,7 @@ export * as String from "./String.ts"
  *
  * @since 2.0.0
  */
-export * as Struct from "./Struct.ts"
+export * as Struct from "./Struct.ts";
 
 /**
  * The `SubscriptionRef` module provides a mutable reference that can be read
@@ -5368,7 +5368,7 @@ export * as Struct from "./Struct.ts"
  *
  * @since 2.0.0
  */
-export * as SubscriptionRef from "./SubscriptionRef.ts"
+export * as SubscriptionRef from "./SubscriptionRef.ts";
 
 /**
  * The `Symbol` module provides a small runtime guard for working with
@@ -5381,7 +5381,7 @@ export * as SubscriptionRef from "./SubscriptionRef.ts"
  *
  * @since 2.0.0
  */
-export * as Symbol from "./Symbol.ts"
+export * as Symbol from "./Symbol.ts";
 
 /**
  * The `SynchronizedRef` module provides mutable references whose updates are
@@ -5408,7 +5408,7 @@ export * as Symbol from "./Symbol.ts"
  *
  * @since 2.0.0
  */
-export * as SynchronizedRef from "./SynchronizedRef.ts"
+export * as SynchronizedRef from "./SynchronizedRef.ts";
 
 /**
  * The `Take` module provides the representation used by stream-like producers
@@ -5431,7 +5431,7 @@ export * as SynchronizedRef from "./SynchronizedRef.ts"
  *
  * @since 2.0.0
  */
-export * as Take from "./Take.ts"
+export * as Take from "./Take.ts";
 
 /**
  * The `Terminal` module defines the service interface used by platform
@@ -5452,7 +5452,7 @@ export * as Take from "./Take.ts"
  *
  * @since 4.0.0
  */
-export * as Terminal from "./Terminal.ts"
+export * as Terminal from "./Terminal.ts";
 
 /**
  * The `Tracer` module defines the low-level tracing model used by Effect to
@@ -5495,7 +5495,7 @@ export * as Terminal from "./Terminal.ts"
  *
  * @since 2.0.0
  */
-export * as Tracer from "./Tracer.ts"
+export * as Tracer from "./Tracer.ts";
 
 /**
  * A `Trie` is used for locating specific `string` keys from within a set.
@@ -5514,7 +5514,7 @@ export * as Tracer from "./Tracer.ts"
  *
  * @since 2.0.0
  */
-export * as Trie from "./Trie.ts"
+export * as Trie from "./Trie.ts";
 
 /**
  * Utilities for creating, accessing, transforming, and comparing fixed-length
@@ -5587,7 +5587,7 @@ export * as Trie from "./Trie.ts"
  *
  * @since 2.0.0
  */
-export * as Tuple from "./Tuple.ts"
+export * as Tuple from "./Tuple.ts";
 
 /**
  * TxChunk is a transactional chunk data structure that provides Software Transactional Memory (STM)
@@ -5600,7 +5600,7 @@ export * as Tuple from "./Tuple.ts"
  *
  * @since 4.0.0
  */
-export * as TxChunk from "./TxChunk.ts"
+export * as TxChunk from "./TxChunk.ts";
 
 /**
  * A transactional deferred value — a write-once cell that can be read within transactions.
@@ -5608,7 +5608,7 @@ export * as TxChunk from "./TxChunk.ts"
  *
  * @since 4.0.0
  */
-export * as TxDeferred from "./TxDeferred.ts"
+export * as TxDeferred from "./TxDeferred.ts";
 
 /**
  * The `TxHashMap` module provides a transactional hash map for storing and
@@ -5638,7 +5638,7 @@ export * as TxDeferred from "./TxDeferred.ts"
  *
  * @since 2.0.0
  */
-export * as TxHashMap from "./TxHashMap.ts"
+export * as TxHashMap from "./TxHashMap.ts";
 
 /**
  * The `TxHashSet` module provides a transactional hash set for storing unique
@@ -5663,7 +5663,7 @@ export * as TxHashMap from "./TxHashMap.ts"
  *
  * @since 2.0.0
  */
-export * as TxHashSet from "./TxHashSet.ts"
+export * as TxHashSet from "./TxHashSet.ts";
 
 /**
  * A transactional priority queue. Elements are dequeued in order determined by the
@@ -5671,7 +5671,7 @@ export * as TxHashSet from "./TxHashSet.ts"
  *
  * @since 4.0.0
  */
-export * as TxPriorityQueue from "./TxPriorityQueue.ts"
+export * as TxPriorityQueue from "./TxPriorityQueue.ts";
 
 /**
  * TxPubSub is a transactional publish/subscribe hub that provides Software Transactional Memory
@@ -5682,7 +5682,7 @@ export * as TxPriorityQueue from "./TxPriorityQueue.ts"
  *
  * @since 4.0.0
  */
-export * as TxPubSub from "./TxPubSub.ts"
+export * as TxPubSub from "./TxPubSub.ts";
 
 /**
  * TxQueue is a transactional queue data structure that provides Software Transactional Memory (STM)
@@ -5695,7 +5695,7 @@ export * as TxPubSub from "./TxPubSub.ts"
  *
  * @since 4.0.0
  */
-export * as TxQueue from "./TxQueue.ts"
+export * as TxQueue from "./TxQueue.ts";
 
 /**
  * TxReentrantLock is a transactional read/write lock with reentrant semantics using Software
@@ -5705,7 +5705,7 @@ export * as TxQueue from "./TxQueue.ts"
  *
  * @since 4.0.0
  */
-export * as TxReentrantLock from "./TxReentrantLock.ts"
+export * as TxReentrantLock from "./TxReentrantLock.ts";
 
 /**
  * TxRef is a transactional value, it can be read and modified within the body of a transaction.
@@ -5717,7 +5717,7 @@ export * as TxReentrantLock from "./TxReentrantLock.ts"
  *
  * @since 4.0.0
  */
-export * as TxRef from "./TxRef.ts"
+export * as TxRef from "./TxRef.ts";
 
 /**
  * The `TxSemaphore` module provides a transactional semaphore for coordinating
@@ -5740,7 +5740,7 @@ export * as TxRef from "./TxRef.ts"
  *
  * @since 4.0.0
  */
-export * as TxSemaphore from "./TxSemaphore.ts"
+export * as TxSemaphore from "./TxSemaphore.ts";
 
 /**
  * TxSubscriptionRef is a TxRef that allows subscribing to all committed changes. Subscribers
@@ -5748,7 +5748,7 @@ export * as TxSemaphore from "./TxSemaphore.ts"
  *
  * @since 4.0.0
  */
-export * as TxSubscriptionRef from "./TxSubscriptionRef.ts"
+export * as TxSubscriptionRef from "./TxSubscriptionRef.ts";
 
 /**
  * Type-level utility types for TypeScript.
@@ -5804,7 +5804,7 @@ export * as TxSubscriptionRef from "./TxSubscriptionRef.ts"
  *
  * @since 4.0.0
  */
-export * as Types from "./Types.ts"
+export * as Types from "./Types.ts";
 
 /**
  * This module provides small, allocation-free utilities for working with values of type
@@ -5835,7 +5835,7 @@ export * as Types from "./Types.ts"
  *
  * @since 4.0.0
  */
-export * as UndefinedOr from "./UndefinedOr.ts"
+export * as UndefinedOr from "./UndefinedOr.ts";
 
 /**
  * The `Unify` module contains the type-level protocol Effect uses to normalize
@@ -5853,7 +5853,7 @@ export * as UndefinedOr from "./UndefinedOr.ts"
  *
  * @since 2.0.0
  */
-export * as Unify from "./Unify.ts"
+export * as Unify from "./Unify.ts";
 
 /**
  * Internal utilities for the Effect ecosystem's generator-based syntax and
@@ -5914,4 +5914,4 @@ export * as Unify from "./Unify.ts"
  *
  * @since 2.0.0
  */
-export * as Utils from "./Utils.ts"
+export * as Utils from "./Utils.ts";

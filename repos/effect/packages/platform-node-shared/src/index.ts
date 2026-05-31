@@ -9,7 +9,7 @@
  *
  * @since 4.0.0
  */
-export * as NodeChildProcessSpawner from "./NodeChildProcessSpawner.ts"
+export * as NodeChildProcessSpawner from "./NodeChildProcessSpawner.ts";
 
 /**
  * Node TCP socket integration for Effect Cluster runner communication.
@@ -32,14 +32,14 @@ export * as NodeChildProcessSpawner from "./NodeChildProcessSpawner.ts"
  *
  * @since 4.0.0
  */
-export * as NodeClusterSocket from "./NodeClusterSocket.ts"
+export * as NodeClusterSocket from "./NodeClusterSocket.ts";
 
 /**
  * Node.js implementation of the Crypto service.
  *
  * @since 1.0.0
  */
-export * as NodeCrypto from "./NodeCrypto.ts"
+export * as NodeCrypto from "./NodeCrypto.ts";
 
 /**
  * Shared Node-compatible implementation of Effect's `FileSystem` service.
@@ -62,7 +62,7 @@ export * as NodeCrypto from "./NodeCrypto.ts"
  *
  * @since 4.0.0
  */
-export * as NodeFileSystem from "./NodeFileSystem.ts"
+export * as NodeFileSystem from "./NodeFileSystem.ts";
 
 /**
  * Shared Node-compatible implementation of Effect's `Path` service.
@@ -81,7 +81,7 @@ export * as NodeFileSystem from "./NodeFileSystem.ts"
  *
  * @since 4.0.0
  */
-export * as NodePath from "./NodePath.ts"
+export * as NodePath from "./NodePath.ts";
 
 /**
  * Shared runtime helpers for running Effect programs as Node-compatible
@@ -103,7 +103,7 @@ export * as NodePath from "./NodePath.ts"
  *
  * @since 4.0.0
  */
-export * as NodeRuntime from "./NodeRuntime.ts"
+export * as NodeRuntime from "./NodeRuntime.ts";
 
 /**
  * Sink adapters for writing Effect stream chunks into Node writable streams.
@@ -125,7 +125,7 @@ export * as NodeRuntime from "./NodeRuntime.ts"
  *
  * @since 4.0.0
  */
-export * as NodeSink from "./NodeSink.ts"
+export * as NodeSink from "./NodeSink.ts";
 
 /**
  * Shared Node socket constructors for adapting `node:net` connections and
@@ -144,7 +144,7 @@ export * as NodeSink from "./NodeSink.ts"
  *
  * @since 4.0.0
  */
-export * as NodeSocket from "./NodeSocket.ts"
+export * as NodeSocket from "./NodeSocket.ts";
 
 /**
  * Shared Node socket server constructors for exposing `node:net` servers and
@@ -166,7 +166,7 @@ export * as NodeSocket from "./NodeSocket.ts"
  *
  * @since 4.0.0
  */
-export * as NodeSocketServer from "./NodeSocketServer.ts"
+export * as NodeSocketServer from "./NodeSocketServer.ts";
 
 /**
  * Shared Node.js implementation of the Effect `Stdio` service.
@@ -187,7 +187,7 @@ export * as NodeSocketServer from "./NodeSocketServer.ts"
  *
  * @since 4.0.0
  */
-export * as NodeStdio from "./NodeStdio.ts"
+export * as NodeStdio from "./NodeStdio.ts";
 
 /**
  * Interoperability between Node streams and Effect streams and channels.
@@ -208,7 +208,7 @@ export * as NodeStdio from "./NodeStdio.ts"
  *
  * @since 4.0.0
  */
-export * as NodeStream from "./NodeStream.ts"
+export * as NodeStream from "./NodeStream.ts";
 
 /**
  * Shared Node.js implementation of Effect's `Terminal` service.
@@ -230,4 +230,4 @@ export * as NodeStream from "./NodeStream.ts"
  *
  * @since 4.0.0
  */
-export * as NodeTerminal from "./NodeTerminal.ts"
+export * as NodeTerminal from "./NodeTerminal.ts";

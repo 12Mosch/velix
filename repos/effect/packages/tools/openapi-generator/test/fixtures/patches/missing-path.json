@@ -1,6 +1,6 @@
 [
-  {
-    "op": "add",
-    "value": "test"
-  }
+	{
+		"op": "add",
+		"value": "test"
+	}
 ]

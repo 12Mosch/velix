@@ -1,3 +1,3 @@
 export class A {
-  constructor(public readonly a: string) {}
+	constructor(public readonly a: string) {}
 }

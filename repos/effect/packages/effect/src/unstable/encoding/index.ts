@@ -23,7 +23,7 @@
  *
  * @since 4.0.0
  */
-export * as Msgpack from "./Msgpack.ts"
+export * as Msgpack from "./Msgpack.ts";
 
 /**
  * Utilities for encoding Effect channel payloads and schema values as
@@ -44,7 +44,7 @@ export * as Msgpack from "./Msgpack.ts"
  *
  * @since 4.0.0
  */
-export * as Ndjson from "./Ndjson.ts"
+export * as Ndjson from "./Ndjson.ts";
 
 /**
  * Utilities for parsing and rendering Server-Sent Events text streams.
@@ -66,4 +66,4 @@ export * as Ndjson from "./Ndjson.ts"
  *
  * @since 4.0.0
  */
-export * as Sse from "./Sse.ts"
+export * as Sse from "./Sse.ts";

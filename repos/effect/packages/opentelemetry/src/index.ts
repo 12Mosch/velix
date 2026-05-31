@@ -28,7 +28,7 @@
  *
  * @since 4.0.0
  */
-export * as Logger from "./Logger.ts"
+export * as Logger from "./Logger.ts";
 
 /**
  * Bridges Effect metrics into OpenTelemetry by exposing the current Effect
@@ -49,7 +49,7 @@ export * as Logger from "./Logger.ts"
  *
  * @since 4.0.0
  */
-export * as Metrics from "./Metrics.ts"
+export * as Metrics from "./Metrics.ts";
 
 /**
  * Provides an Effect layer for configuring OpenTelemetry in Node.js
@@ -76,7 +76,7 @@ export * as Metrics from "./Metrics.ts"
  *
  * @since 4.0.0
  */
-export * as NodeSdk from "./NodeSdk.ts"
+export * as NodeSdk from "./NodeSdk.ts";
 
 /**
  * Provides the OpenTelemetry resource used by the Effect OpenTelemetry layers.
@@ -98,7 +98,7 @@ export * as NodeSdk from "./NodeSdk.ts"
  *
  * @since 4.0.0
  */
-export * as Resource from "./Resource.ts"
+export * as Resource from "./Resource.ts";
 
 /**
  * Bridges Effect tracing into OpenTelemetry by installing an Effect `Tracer`
@@ -120,7 +120,7 @@ export * as Resource from "./Resource.ts"
  *
  * @since 4.0.0
  */
-export * as Tracer from "./Tracer.ts"
+export * as Tracer from "./Tracer.ts";
 
 /**
  * Provides an Effect layer for configuring OpenTelemetry in browser
@@ -151,4 +151,4 @@ export * as Tracer from "./Tracer.ts"
  *
  * @since 4.0.0
  */
-export * as WebSdk from "./WebSdk.ts"
+export * as WebSdk from "./WebSdk.ts";

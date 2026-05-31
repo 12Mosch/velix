@@ -37,7 +37,7 @@
  *
  * @since 4.0.0
  */
-export * as Rpc from "./Rpc.ts"
+export * as Rpc from "./Rpc.ts";
 
 /**
  * Client-side support for calling RPCs defined in an `RpcGroup`.
@@ -68,7 +68,7 @@ export * as Rpc from "./Rpc.ts"
  *
  * @since 4.0.0
  */
-export * as RpcClient from "./RpcClient.ts"
+export * as RpcClient from "./RpcClient.ts";
 
 /**
  * Shared error types for the RPC client protocol layer.
@@ -89,7 +89,7 @@ export * as RpcClient from "./RpcClient.ts"
  *
  * @since 4.0.0
  */
-export * as RpcClientError from "./RpcClientError.ts"
+export * as RpcClientError from "./RpcClientError.ts";
 
 /**
  * Groups typed `Rpc` definitions into a protocol that can be shared by
@@ -115,7 +115,7 @@ export * as RpcClientError from "./RpcClientError.ts"
  *
  * @since 4.0.0
  */
-export * as RpcGroup from "./RpcGroup.ts"
+export * as RpcGroup from "./RpcGroup.ts";
 
 /**
  * Defines the protocol message envelopes shared by unstable RPC clients,
@@ -137,7 +137,7 @@ export * as RpcGroup from "./RpcGroup.ts"
  *
  * @since 4.0.0
  */
-export * as RpcMessage from "./RpcMessage.ts"
+export * as RpcMessage from "./RpcMessage.ts";
 
 /**
  * The `RpcMiddleware` module defines middleware services that can wrap RPC
@@ -168,7 +168,7 @@ export * as RpcMessage from "./RpcMessage.ts"
  *
  * @since 4.0.0
  */
-export * as RpcMiddleware from "./RpcMiddleware.ts"
+export * as RpcMiddleware from "./RpcMiddleware.ts";
 
 /**
  * The `RpcSchema` module contains the RPC-specific schema markers and cause
@@ -195,7 +195,7 @@ export * as RpcMiddleware from "./RpcMiddleware.ts"
  *
  * @since 4.0.0
  */
-export * as RpcSchema from "./RpcSchema.ts"
+export * as RpcSchema from "./RpcSchema.ts";
 
 /**
  * Serialization support for the unstable RPC protocol.
@@ -224,7 +224,7 @@ export * as RpcSchema from "./RpcSchema.ts"
  *
  * @since 4.0.0
  */
-export * as RpcSerialization from "./RpcSerialization.ts"
+export * as RpcSerialization from "./RpcSerialization.ts";
 
 /**
  * Server-side support for running RPCs defined in an `RpcGroup`.
@@ -263,7 +263,7 @@ export * as RpcSerialization from "./RpcSerialization.ts"
  *
  * @since 4.0.0
  */
-export * as RpcServer from "./RpcServer.ts"
+export * as RpcServer from "./RpcServer.ts";
 
 /**
  * Utilities for testing RPC groups without opening a network transport.
@@ -284,7 +284,7 @@ export * as RpcServer from "./RpcServer.ts"
  *
  * @since 4.0.0
  */
-export * as RpcTest from "./RpcTest.ts"
+export * as RpcTest from "./RpcTest.ts";
 
 /**
  * Helpers for passing a schema-encoded bootstrap message to worker-backed RPC
@@ -306,7 +306,7 @@ export * as RpcTest from "./RpcTest.ts"
  *
  * @since 4.0.0
  */
-export * as RpcWorker from "./RpcWorker.ts"
+export * as RpcWorker from "./RpcWorker.ts";
 
 /**
  * Internal helpers for constructing RPC protocol services whose receive loop is
@@ -334,4 +334,4 @@ export * as RpcWorker from "./RpcWorker.ts"
  *
  * @since 4.0.0
  */
-export * as Utils from "./Utils.ts"
+export * as Utils from "./Utils.ts";

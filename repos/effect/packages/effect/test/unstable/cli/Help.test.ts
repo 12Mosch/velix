@@ -1,48 +1,51 @@
-import { describe, expect, it } from "@effect/vitest"
-import { Effect, FileSystem, Layer, Path, Stdio } from "effect"
-import { TestConsole } from "effect/testing"
-import { CliOutput, Command, Flag } from "effect/unstable/cli"
-import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
-import * as Cli from "./fixtures/ComprehensiveCli.ts"
-import * as MockTerminal from "./services/MockTerminal.ts"
-import * as TestActions from "./services/TestActions.ts"
+import { describe, expect, it } from "@effect/vitest";
+import { Effect, FileSystem, Layer, Path, Stdio } from "effect";
+import { TestConsole } from "effect/testing";
+import { CliOutput, Command, Flag } from "effect/unstable/cli";
+import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
+import * as Cli from "./fixtures/ComprehensiveCli.ts";
+import * as MockTerminal from "./services/MockTerminal.ts";
+import * as TestActions from "./services/TestActions.ts";
 
-const ActionsLayer = TestActions.layer
-const ConsoleLayer = TestConsole.layer
-const FileSystemLayer = FileSystem.layerNoop({})
-const PathLayer = Path.layer
-const TerminalLayer = MockTerminal.layer
+const ActionsLayer = TestActions.layer;
+const ConsoleLayer = TestConsole.layer;
+const FileSystemLayer = FileSystem.layerNoop({});
+const PathLayer = Path.layer;
+const TerminalLayer = MockTerminal.layer;
 const CliOutputLayer = CliOutput.layer(
-  CliOutput.defaultFormatter({
-    colors: false
-  })
-)
+	CliOutput.defaultFormatter({
+		colors: false,
+	}),
+);
 
 const TestLayer = Layer.mergeAll(
-  ActionsLayer,
-  ConsoleLayer,
-  FileSystemLayer,
-  PathLayer,
-  TerminalLayer,
-  CliOutputLayer,
-  Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, ChildProcessSpawner.make(() => Effect.die("Not implemented"))),
-  Stdio.layerTest({})
-)
+	ActionsLayer,
+	ConsoleLayer,
+	FileSystemLayer,
+	PathLayer,
+	TerminalLayer,
+	CliOutputLayer,
+	Layer.succeed(
+		ChildProcessSpawner.ChildProcessSpawner,
+		ChildProcessSpawner.make(() => Effect.die("Not implemented")),
+	),
+	Stdio.layerTest({}),
+);
 
-const runCommand = Effect.fnUntraced(
-  function*(command: ReadonlyArray<string>) {
-    yield* Cli.run(command)
-    const output = yield* TestConsole.logLines
-    return output.join("\n")
-  }
-)
+const runCommand = Effect.fnUntraced(function* (
+	command: ReadonlyArray<string>,
+) {
+	yield* Cli.run(command);
+	const output = yield* TestConsole.logLines;
+	return output.join("\n");
+});
 
 describe("Command help output", () => {
-  it.effect("renders root command help", () =>
-    Effect.gen(function*() {
-      const helpText = yield* runCommand(["--help"])
+	it.effect("renders root command help", () =>
+		Effect.gen(function* () {
+			const helpText = yield* runCommand(["--help"]);
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "DESCRIPTION
           A comprehensive CLI tool demonstrating all features
 
@@ -71,175 +74,211 @@ describe("Command help output", () => {
           test-failing     Test command that always fails
           app              Application management
           app-nested       Application with nested services"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("aligns flag descriptions when flag names are long", () =>
-    Effect.gen(function*() {
-      const command = Command.make("tool", {
-        short: Flag.string("short").pipe(Flag.withDescription("Short flag description")),
-        veryLong: Flag.string("this-is-a-very-very-long-flag-name").pipe(
-          Flag.withDescription("Long flag description")
-        )
-      })
-      const run = Command.runWith(command, { version: "1.0.0" })
+	it.effect("aligns flag descriptions when flag names are long", () =>
+		Effect.gen(function* () {
+			const command = Command.make("tool", {
+				short: Flag.string("short").pipe(
+					Flag.withDescription("Short flag description"),
+				),
+				veryLong: Flag.string("this-is-a-very-very-long-flag-name").pipe(
+					Flag.withDescription("Long flag description"),
+				),
+			});
+			const run = Command.runWith(command, { version: "1.0.0" });
 
-      yield* run(["--help"])
+			yield* run(["--help"]);
 
-      const helpText = (yield* TestConsole.logLines).join("\n")
-      const lines = helpText.split("\n")
-      const shortLine = lines.find((line) => line.includes("--short"))
-      const longLine = lines.find((line) => line.includes("--this-is-a-very-very-long-flag-name"))
+			const helpText = (yield* TestConsole.logLines).join("\n");
+			const lines = helpText.split("\n");
+			const shortLine = lines.find((line) => line.includes("--short"));
+			const longLine = lines.find((line) =>
+				line.includes("--this-is-a-very-very-long-flag-name"),
+			);
 
-      expect(shortLine).toBeDefined()
-      expect(longLine).toBeDefined()
-      expect(shortLine!.indexOf("Short flag description")).toBe(longLine!.indexOf("Long flag description"))
-    }).pipe(Effect.provide(TestLayer)))
+			expect(shortLine).toBeDefined();
+			expect(longLine).toBeDefined();
+			expect(shortLine!.indexOf("Short flag description")).toBe(
+				longLine!.indexOf("Long flag description"),
+			);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("hides flags marked with withHidden from help output", () =>
-    Effect.gen(function*() {
-      const command = Command.make("tool", {
-        visible: Flag.string("visible").pipe(Flag.withDescription("Visible flag")),
-        secret: Flag.string("experimental-foo").pipe(
-          Flag.withDescription("Should not appear"),
-          Flag.withHidden
-        )
-      })
-      const run = Command.runWith(command, { version: "1.0.0" })
+	it.effect("hides flags marked with withHidden from help output", () =>
+		Effect.gen(function* () {
+			const command = Command.make("tool", {
+				visible: Flag.string("visible").pipe(
+					Flag.withDescription("Visible flag"),
+				),
+				secret: Flag.string("experimental-foo").pipe(
+					Flag.withDescription("Should not appear"),
+					Flag.withHidden,
+				),
+			});
+			const run = Command.runWith(command, { version: "1.0.0" });
 
-      yield* run(["--help"])
+			yield* run(["--help"]);
 
-      const helpText = (yield* TestConsole.logLines).join("\n")
-      expect(helpText).toContain("--visible")
-      expect(helpText).not.toContain("--experimental-foo")
-      expect(helpText).not.toContain("Should not appear")
-    }).pipe(Effect.provide(TestLayer)))
+			const helpText = (yield* TestConsole.logLines).join("\n");
+			expect(helpText).toContain("--visible");
+			expect(helpText).not.toContain("--experimental-foo");
+			expect(helpText).not.toContain("Should not appear");
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("hidden flag still parses on the command line", () =>
-    Effect.gen(function*() {
-      let captured: string | undefined
-      const command = Command.make("tool", {
-        secret: Flag.string("experimental-foo").pipe(Flag.withHidden)
-      }, (config) =>
-        Effect.sync(() => {
-          captured = config.secret
-        }))
-      const run = Command.runWith(command, { version: "1.0.0" })
+	it.effect("hidden flag still parses on the command line", () =>
+		Effect.gen(function* () {
+			let captured: string | undefined;
+			const command = Command.make(
+				"tool",
+				{
+					secret: Flag.string("experimental-foo").pipe(Flag.withHidden),
+				},
+				(config) =>
+					Effect.sync(() => {
+						captured = config.secret;
+					}),
+			);
+			const run = Command.runWith(command, { version: "1.0.0" });
 
-      yield* run(["--experimental-foo", "value"])
+			yield* run(["--experimental-foo", "value"]);
 
-      expect(captured).toBe("value")
-    }).pipe(Effect.provide(TestLayer)))
+			expect(captured).toBe("value");
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("hidden flag name does not leak through unrecognized-flag suggestions", () =>
-    Effect.gen(function*() {
-      const command = Command.make("tool", {
-        secret: Flag.string("experimental-foo").pipe(Flag.withHidden)
-      }, () => Effect.void)
-      const run = Command.runWith(command, { version: "1.0.0" })
+	it.effect(
+		"hidden flag name does not leak through unrecognized-flag suggestions",
+		() =>
+			Effect.gen(function* () {
+				const command = Command.make(
+					"tool",
+					{
+						secret: Flag.string("experimental-foo").pipe(Flag.withHidden),
+					},
+					() => Effect.void,
+				);
+				const run = Command.runWith(command, { version: "1.0.0" });
 
-      yield* run(["--experimental-fo", "value"]).pipe(
-        Effect.catchTag("ShowHelp", () => Effect.void)
-      )
+				yield* run(["--experimental-fo", "value"]).pipe(
+					Effect.catchTag("ShowHelp", () => Effect.void),
+				);
 
-      const errorText = (yield* TestConsole.errorLines).join("\n")
-      const helpText = (yield* TestConsole.logLines).join("\n")
-      expect(errorText + helpText).not.toContain("experimental-foo")
-    }).pipe(Effect.provide(TestLayer)))
+				const errorText = (yield* TestConsole.errorLines).join("\n");
+				const helpText = (yield* TestConsole.logLines).join("\n");
+				expect(errorText + helpText).not.toContain("experimental-foo");
+			}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("hides subcommands marked with withHidden from help output", () =>
-    Effect.gen(function*() {
-      const visible = Command.make("visible").pipe(
-        Command.withDescription("A visible subcommand")
-      )
-      const secret = Command.make("experimental-foo").pipe(
-        Command.withDescription("Should not appear"),
-        Command.withHidden
-      )
-      const root = Command.make("tool").pipe(
-        Command.withSubcommands([visible, secret])
-      )
-      const run = Command.runWith(root, { version: "1.0.0" })
+	it.effect("hides subcommands marked with withHidden from help output", () =>
+		Effect.gen(function* () {
+			const visible = Command.make("visible").pipe(
+				Command.withDescription("A visible subcommand"),
+			);
+			const secret = Command.make("experimental-foo").pipe(
+				Command.withDescription("Should not appear"),
+				Command.withHidden,
+			);
+			const root = Command.make("tool").pipe(
+				Command.withSubcommands([visible, secret]),
+			);
+			const run = Command.runWith(root, { version: "1.0.0" });
 
-      yield* run(["--help"])
+			yield* run(["--help"]);
 
-      const helpText = (yield* TestConsole.logLines).join("\n")
-      expect(helpText).toContain("visible")
-      expect(helpText).not.toContain("experimental-foo")
-      expect(helpText).not.toContain("Should not appear")
-    }).pipe(Effect.provide(TestLayer)))
+			const helpText = (yield* TestConsole.logLines).join("\n");
+			expect(helpText).toContain("visible");
+			expect(helpText).not.toContain("experimental-foo");
+			expect(helpText).not.toContain("Should not appear");
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("hidden subcommand still parses on the command line", () =>
-    Effect.gen(function*() {
-      let invoked = false
-      const secret = Command.make("experimental-foo").pipe(
-        Command.withHidden,
-        Command.withHandler(() =>
-          Effect.sync(() => {
-            invoked = true
-          })
-        )
-      )
-      const root = Command.make("tool").pipe(
-        Command.withSubcommands([secret])
-      )
-      const run = Command.runWith(root, { version: "1.0.0" })
+	it.effect("hidden subcommand still parses on the command line", () =>
+		Effect.gen(function* () {
+			let invoked = false;
+			const secret = Command.make("experimental-foo").pipe(
+				Command.withHidden,
+				Command.withHandler(() =>
+					Effect.sync(() => {
+						invoked = true;
+					}),
+				),
+			);
+			const root = Command.make("tool").pipe(Command.withSubcommands([secret]));
+			const run = Command.runWith(root, { version: "1.0.0" });
 
-      yield* run(["experimental-foo"])
+			yield* run(["experimental-foo"]);
 
-      expect(invoked).toBe(true)
-    }).pipe(Effect.provide(TestLayer)))
+			expect(invoked).toBe(true);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("hidden subcommand name does not leak through unknown-subcommand suggestions", () =>
-    Effect.gen(function*() {
-      const secret = Command.make("experimental-foo").pipe(Command.withHidden)
-      const root = Command.make("tool").pipe(
-        Command.withSubcommands([secret])
-      )
-      const run = Command.runWith(root, { version: "1.0.0" })
+	it.effect(
+		"hidden subcommand name does not leak through unknown-subcommand suggestions",
+		() =>
+			Effect.gen(function* () {
+				const secret = Command.make("experimental-foo").pipe(
+					Command.withHidden,
+				);
+				const root = Command.make("tool").pipe(
+					Command.withSubcommands([secret]),
+				);
+				const run = Command.runWith(root, { version: "1.0.0" });
 
-      yield* run(["experimental-fo"]).pipe(
-        Effect.catchTag("ShowHelp", () => Effect.void)
-      )
+				yield* run(["experimental-fo"]).pipe(
+					Effect.catchTag("ShowHelp", () => Effect.void),
+				);
 
-      const errorText = (yield* TestConsole.errorLines).join("\n")
-      const helpText = (yield* TestConsole.logLines).join("\n")
-      expect(errorText + helpText).not.toContain("experimental-foo")
-    }).pipe(Effect.provide(TestLayer)))
+				const errorText = (yield* TestConsole.errorLines).join("\n");
+				const helpText = (yield* TestConsole.logLines).join("\n");
+				expect(errorText + helpText).not.toContain("experimental-foo");
+			}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("subcommand group with only hidden commands disappears entirely", () =>
-    Effect.gen(function*() {
-      const secret = Command.make("experimental-foo").pipe(Command.withHidden)
-      const root = Command.make("tool").pipe(
-        Command.withSubcommands([secret])
-      )
-      const run = Command.runWith(root, { version: "1.0.0" })
+	it.effect(
+		"subcommand group with only hidden commands disappears entirely",
+		() =>
+			Effect.gen(function* () {
+				const secret = Command.make("experimental-foo").pipe(
+					Command.withHidden,
+				);
+				const root = Command.make("tool").pipe(
+					Command.withSubcommands([secret]),
+				);
+				const run = Command.runWith(root, { version: "1.0.0" });
 
-      yield* run(["--help"])
+				yield* run(["--help"]);
 
-      const helpText = (yield* TestConsole.logLines).join("\n")
-      expect(helpText).not.toContain("SUBCOMMANDS")
-      expect(helpText).not.toContain("<subcommand>")
-    }).pipe(Effect.provide(TestLayer)))
+				const helpText = (yield* TestConsole.logLines).join("\n");
+				expect(helpText).not.toContain("SUBCOMMANDS");
+				expect(helpText).not.toContain("<subcommand>");
+			}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders command examples", () =>
-    Effect.gen(function*() {
-      const command = Command.make("login").pipe(
-        Command.withDescription("Authenticate with Supabase"),
-        Command.withExamples([
-          { command: "myapp login", description: "Log in with browser OAuth" },
-          { command: "myapp login --token sbp_abc123", description: "Log in with a token" },
-          { command: "myapp login --logout" },
-          { command: "myapp login --logout" },
-          { command: "myapp login", description: "Log in with browser OAuth" }
-        ])
-      )
-      const runLogin = Command.runWith(command, { version: "1.0.0" })
+	it.effect("renders command examples", () =>
+		Effect.gen(function* () {
+			const command = Command.make("login").pipe(
+				Command.withDescription("Authenticate with Supabase"),
+				Command.withExamples([
+					{ command: "myapp login", description: "Log in with browser OAuth" },
+					{
+						command: "myapp login --token sbp_abc123",
+						description: "Log in with a token",
+					},
+					{ command: "myapp login --logout" },
+					{ command: "myapp login --logout" },
+					{ command: "myapp login", description: "Log in with browser OAuth" },
+				]),
+			);
+			const runLogin = Command.runWith(command, { version: "1.0.0" });
 
-      yield* runLogin(["--help"])
+			yield* runLogin(["--help"]);
 
-      const output = (yield* TestConsole.logLines).join("\n")
-      expect(output).toMatchInlineSnapshot(`
+			const output = (yield* TestConsole.logLines).join("\n");
+			expect(output).toMatchInlineSnapshot(`
         "DESCRIPTION
           Authenticate with Supabase
 
@@ -264,14 +303,15 @@ describe("Command help output", () => {
 
           # Log in with browser OAuth
           myapp login"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders file command positional arguments", () =>
-    Effect.gen(function*() {
-      const helpText = yield* runCommand(["copy", "--help"])
+	it.effect("renders file command positional arguments", () =>
+		Effect.gen(function* () {
+			const helpText = yield* runCommand(["copy", "--help"]);
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "DESCRIPTION
           Copy files or directories
 
@@ -295,14 +335,15 @@ describe("Command help output", () => {
           --version               Show version information
           --completions choice    Print shell completion script (choices: bash, zsh, fish, sh)
           --log-level choice      Sets the minimum log level (choices: all, trace, debug, info, warn, warning, error, fatal, none)"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders variadic arguments", () =>
-    Effect.gen(function*() {
-      const helpText = yield* runCommand(["remove", "--help"])
+	it.effect("renders variadic arguments", () =>
+		Effect.gen(function* () {
+			const helpText = yield* runCommand(["remove", "--help"]);
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "DESCRIPTION
           Remove files or directories
 
@@ -325,14 +366,15 @@ describe("Command help output", () => {
           --version               Show version information
           --completions choice    Print shell completion script (choices: bash, zsh, fish, sh)
           --log-level choice      Sets the minimum log level (choices: all, trace, debug, info, warn, warning, error, fatal, none)"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders deeply nested subcommand help", () =>
-    Effect.gen(function*() {
-      const helpText = yield* runCommand(["admin", "users", "list", "--help"])
+	it.effect("renders deeply nested subcommand help", () =>
+		Effect.gen(function* () {
+			const helpText = yield* runCommand(["admin", "users", "list", "--help"]);
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "DESCRIPTION
           List all users in the system
 
@@ -353,14 +395,20 @@ describe("Command help output", () => {
           --version               Show version information
           --completions choice    Print shell completion script (choices: bash, zsh, fish, sh)
           --log-level choice      Sets the minimum log level (choices: all, trace, debug, info, warn, warning, error, fatal, none)"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders mixed required and optional positional arguments", () =>
-    Effect.gen(function*() {
-      const helpText = yield* runCommand(["admin", "users", "create", "--help"])
+	it.effect("renders mixed required and optional positional arguments", () =>
+		Effect.gen(function* () {
+			const helpText = yield* runCommand([
+				"admin",
+				"users",
+				"create",
+				"--help",
+			]);
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "DESCRIPTION
           Create a new user account
 
@@ -384,14 +432,15 @@ describe("Command help output", () => {
           --version               Show version information
           --completions choice    Print shell completion script (choices: bash, zsh, fish, sh)
           --log-level choice      Sets the minimum log level (choices: all, trace, debug, info, warn, warning, error, fatal, none)"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders intermediate subcommand shared flags and children", () =>
-    Effect.gen(function*() {
-      const helpText = yield* runCommand(["admin", "config", "--help"])
+	it.effect("renders intermediate subcommand shared flags and children", () =>
+		Effect.gen(function* () {
+			const helpText = yield* runCommand(["admin", "config", "--help"]);
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "DESCRIPTION
           Manage application configuration
 
@@ -414,14 +463,15 @@ describe("Command help output", () => {
         SUBCOMMANDS
           set    Set configuration values
           get    Get configuration value"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders variadic arguments with a minimum count", () =>
-    Effect.gen(function*() {
-      const helpText = yield* runCommand(["admin", "config", "set", "--help"])
+	it.effect("renders variadic arguments with a minimum count", () =>
+		Effect.gen(function* () {
+			const helpText = yield* runCommand(["admin", "config", "set", "--help"]);
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "DESCRIPTION
           Set configuration values
 
@@ -444,76 +494,104 @@ describe("Command help output", () => {
           --version               Show version information
           --completions choice    Print shell completion script (choices: bash, zsh, fish, sh)
           --log-level choice      Sets the minimum log level (choices: all, trace, debug, info, warn, warning, error, fatal, none)"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("shared flags are visible in subcommand help while local flags stay local", () =>
-    Effect.gen(function*() {
-      const root = Command.make("tool", {
-        workspace: Flag.string("workspace")
-      }).pipe(
-        Command.withSharedFlags({
-          model: Flag.string("model")
-        }),
-        Command.withSubcommands([
-          Command.make("chat", {
-            topic: Flag.string("topic")
-          })
-        ])
-      )
+	it.effect(
+		"shared flags are visible in subcommand help while local flags stay local",
+		() =>
+			Effect.gen(function* () {
+				const root = Command.make("tool", {
+					workspace: Flag.string("workspace"),
+				}).pipe(
+					Command.withSharedFlags({
+						model: Flag.string("model"),
+					}),
+					Command.withSubcommands([
+						Command.make("chat", {
+							topic: Flag.string("topic"),
+						}),
+					]),
+				);
 
-      const runRoot = Command.runWith(root, { version: "1.0.0" })
+				const runRoot = Command.runWith(root, { version: "1.0.0" });
 
-      yield* runRoot(["--help"])
-      const rootHelp = yield* TestConsole.logLines
-      expect(rootHelp.some((line) => String(line).includes("--workspace"))).toBe(true)
-      expect(rootHelp.some((line) => String(line).includes("--model"))).toBe(true)
+				yield* runRoot(["--help"]);
+				const rootHelp = yield* TestConsole.logLines;
+				expect(
+					rootHelp.some((line) => String(line).includes("--workspace")),
+				).toBe(true);
+				expect(rootHelp.some((line) => String(line).includes("--model"))).toBe(
+					true,
+				);
 
-      yield* runRoot(["chat", "--help"])
-      const allHelp = yield* TestConsole.logLines
-      const chatHelp = allHelp.slice(rootHelp.length)
-      expect(chatHelp.some((line) => String(line).includes("--workspace"))).toBe(false)
-      expect(chatHelp.some((line) => String(line).includes("--model"))).toBe(true)
-      expect(chatHelp.some((line) => String(line).includes("--topic"))).toBe(true)
-    }).pipe(Effect.provide(TestLayer)))
+				yield* runRoot(["chat", "--help"]);
+				const allHelp = yield* TestConsole.logLines;
+				const chatHelp = allHelp.slice(rootHelp.length);
+				expect(
+					chatHelp.some((line) => String(line).includes("--workspace")),
+				).toBe(false);
+				expect(chatHelp.some((line) => String(line).includes("--model"))).toBe(
+					true,
+				);
+				expect(chatHelp.some((line) => String(line).includes("--topic"))).toBe(
+					true,
+				);
+			}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders grouped subcommands", () =>
-    Effect.gen(function*() {
-      const ungrouped = Command.make("ungrouped").pipe(
-        Command.withDescription("This command is not in a group")
-      )
-      const init = Command.make("init").pipe(Command.withDescription("Create a new project"))
-      const login = Command.make("login").pipe(Command.withDescription("Authenticate with the platform"))
-      const start = Command.make("start").pipe(Command.withDescription("Start local services"))
-      const stop = Command.make("stop").pipe(Command.withDescription("Stop local services"))
-      const db = Command.make("db").pipe(Command.withDescription("Manage local database"))
-      const projects = Command.make("projects").pipe(Command.withDescription("Manage cloud projects"))
-      const functions = Command.make("functions").pipe(Command.withDescription("Manage edge functions"))
+	it.effect("renders grouped subcommands", () =>
+		Effect.gen(function* () {
+			const ungrouped = Command.make("ungrouped").pipe(
+				Command.withDescription("This command is not in a group"),
+			);
+			const init = Command.make("init").pipe(
+				Command.withDescription("Create a new project"),
+			);
+			const login = Command.make("login").pipe(
+				Command.withDescription("Authenticate with the platform"),
+			);
+			const start = Command.make("start").pipe(
+				Command.withDescription("Start local services"),
+			);
+			const stop = Command.make("stop").pipe(
+				Command.withDescription("Stop local services"),
+			);
+			const db = Command.make("db").pipe(
+				Command.withDescription("Manage local database"),
+			);
+			const projects = Command.make("projects").pipe(
+				Command.withDescription("Manage cloud projects"),
+			);
+			const functions = Command.make("functions").pipe(
+				Command.withDescription("Manage edge functions"),
+			);
 
-      const grouped = Command.make("tool").pipe(
-        Command.withSubcommands([
-          {
-            group: "Quick Start",
-            commands: [init, login]
-          },
-          {
-            group: "Local Development",
-            commands: [start, stop, db]
-          },
-          {
-            group: "Management APIs",
-            commands: [projects, functions]
-          },
-          ungrouped
-        ])
-      )
+			const grouped = Command.make("tool").pipe(
+				Command.withSubcommands([
+					{
+						group: "Quick Start",
+						commands: [init, login],
+					},
+					{
+						group: "Local Development",
+						commands: [start, stop, db],
+					},
+					{
+						group: "Management APIs",
+						commands: [projects, functions],
+					},
+					ungrouped,
+				]),
+			);
 
-      const runGrouped = Command.runWith(grouped, { version: "1.0.0" })
-      yield* runGrouped(["--help"])
+			const runGrouped = Command.runWith(grouped, { version: "1.0.0" });
+			yield* runGrouped(["--help"]);
 
-      const helpText = (yield* TestConsole.logLines).join("\n")
+			const helpText = (yield* TestConsole.logLines).join("\n");
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "USAGE
           tool <subcommand> [flags]
 
@@ -538,24 +616,25 @@ describe("Command help output", () => {
         Management APIs:
           projects     Manage cloud projects
           functions    Manage edge functions"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-  it.effect("renders subcommand aliases in listings", () =>
-    Effect.gen(function*() {
-      const plan = Command.make("plan").pipe(
-        Command.withAlias("p"),
-        Command.withDescription("Draft a plan in your editor")
-      )
+	it.effect("renders subcommand aliases in listings", () =>
+		Effect.gen(function* () {
+			const plan = Command.make("plan").pipe(
+				Command.withAlias("p"),
+				Command.withDescription("Draft a plan in your editor"),
+			);
 
-      const root = Command.make("tool").pipe(Command.withSubcommands([plan]))
-      const runRoot = Command.runWith(root, { version: "1.0.0" })
+			const root = Command.make("tool").pipe(Command.withSubcommands([plan]));
+			const runRoot = Command.runWith(root, { version: "1.0.0" });
 
-      yield* runRoot(["--help"])
+			yield* runRoot(["--help"]);
 
-      const helpText = (yield* TestConsole.logLines).join("\n")
+			const helpText = (yield* TestConsole.logLines).join("\n");
 
-      expect(helpText).toMatchInlineSnapshot(`
+			expect(helpText).toMatchInlineSnapshot(`
         "USAGE
           tool <subcommand> [flags]
 
@@ -567,6 +646,7 @@ describe("Command help output", () => {
 
         SUBCOMMANDS
           plan, p    Draft a plan in your editor"
-      `)
-    }).pipe(Effect.provide(TestLayer)))
-})
+      `);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+});

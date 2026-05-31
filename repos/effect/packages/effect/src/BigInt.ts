@@ -5,14 +5,14 @@
  * @since 2.0.0
  */
 
-import * as Combiner from "./Combiner.ts"
-import * as Equ from "./Equivalence.ts"
-import { dual } from "./Function.ts"
-import * as Option from "./Option.ts"
-import * as order from "./Order.ts"
-import type { Ordering } from "./Ordering.ts"
-import * as predicate from "./Predicate.ts"
-import * as Reducer from "./Reducer.ts"
+import * as Combiner from "./Combiner.ts";
+import * as Equ from "./Equivalence.ts";
+import { dual } from "./Function.ts";
+import * as Option from "./Option.ts";
+import * as order from "./Order.ts";
+import type { Ordering } from "./Ordering.ts";
+import * as predicate from "./Predicate.ts";
+import * as Reducer from "./Reducer.ts";
 
 /**
  * Reference to the global BigInt constructor.
@@ -32,11 +32,11 @@ import * as Reducer from "./Reducer.ts"
  * @category constructors
  * @since 4.0.0
  */
-export const BigInt = globalThis.BigInt
+export const BigInt = globalThis.BigInt;
 
-const bigint0 = BigInt(0)
-const bigint1 = BigInt(1)
-const bigint2 = BigInt(2)
+const bigint0 = BigInt(0);
+const bigint1 = BigInt(1);
+const bigint2 = BigInt(2);
 
 /**
  * Tests if a value is a `bigint`.
@@ -54,7 +54,7 @@ const bigint2 = BigInt(2)
  * @category guards
  * @since 2.0.0
  */
-export const isBigInt: (u: unknown) => u is bigint = predicate.isBigInt
+export const isBigInt: (u: unknown) => u is bigint = predicate.isBigInt;
 
 /**
  * Provides an addition operation on `bigint`s.
@@ -72,9 +72,9 @@ export const isBigInt: (u: unknown) => u is bigint = predicate.isBigInt
  * @since 2.0.0
  */
 export const sum: {
-  (that: bigint): (self: bigint) => bigint
-  (self: bigint, that: bigint): bigint
-} = dual(2, (self: bigint, that: bigint): bigint => self + that)
+	(that: bigint): (self: bigint) => bigint;
+	(self: bigint, that: bigint): bigint;
+} = dual(2, (self: bigint, that: bigint): bigint => self + that);
 
 /**
  * Provides a multiplication operation on `bigint`s.
@@ -92,9 +92,9 @@ export const sum: {
  * @since 2.0.0
  */
 export const multiply: {
-  (that: bigint): (self: bigint) => bigint
-  (self: bigint, that: bigint): bigint
-} = dual(2, (self: bigint, that: bigint): bigint => self * that)
+	(that: bigint): (self: bigint) => bigint;
+	(self: bigint, that: bigint): bigint;
+} = dual(2, (self: bigint, that: bigint): bigint => self * that);
 
 /**
  * Provides a subtraction operation on `bigint`s.
@@ -112,9 +112,9 @@ export const multiply: {
  * @since 2.0.0
  */
 export const subtract: {
-  (that: bigint): (self: bigint) => bigint
-  (self: bigint, that: bigint): bigint
-} = dual(2, (self: bigint, that: bigint): bigint => self - that)
+	(that: bigint): (self: bigint) => bigint;
+	(self: bigint, that: bigint): bigint;
+} = dual(2, (self: bigint, that: bigint): bigint => self - that);
 
 /**
  * Safely divides one `bigint` by another.
@@ -138,12 +138,13 @@ export const subtract: {
  * @since 2.0.0
  */
 export const divide: {
-  (that: bigint): (self: bigint) => Option.Option<bigint>
-  (self: bigint, that: bigint): Option.Option<bigint>
+	(that: bigint): (self: bigint) => Option.Option<bigint>;
+	(self: bigint, that: bigint): Option.Option<bigint>;
 } = dual(
-  2,
-  (self: bigint, that: bigint): Option.Option<bigint> => that === bigint0 ? Option.none() : Option.some(self / that)
-)
+	2,
+	(self: bigint, that: bigint): Option.Option<bigint> =>
+		that === bigint0 ? Option.none() : Option.some(self / that),
+);
 
 /**
  * Divides one `bigint` by another, throwing if the divisor is zero.
@@ -171,9 +172,9 @@ export const divide: {
  * @since 4.0.0
  */
 export const divideUnsafe: {
-  (that: bigint): (self: bigint) => bigint
-  (self: bigint, that: bigint): bigint
-} = dual(2, (self: bigint, that: bigint): bigint => self / that)
+	(that: bigint): (self: bigint) => bigint;
+	(self: bigint, that: bigint): bigint;
+} = dual(2, (self: bigint, that: bigint): bigint => self / that);
 
 /**
  * Returns the result of adding `1n` to a `bigint`.
@@ -190,7 +191,7 @@ export const divideUnsafe: {
  * @category math
  * @since 2.0.0
  */
-export const increment = (n: bigint): bigint => n + bigint1
+export const increment = (n: bigint): bigint => n + bigint1;
 
 /**
  * Returns the result of subtracting `1n` from a `bigint`.
@@ -207,7 +208,7 @@ export const increment = (n: bigint): bigint => n + bigint1
  * @category math
  * @since 2.0.0
  */
-export const decrement = (n: bigint): bigint => n - bigint1
+export const decrement = (n: bigint): bigint => n - bigint1;
 
 /**
  * Provides an `Order` instance for `bigint` that allows comparing and sorting BigInt values.
@@ -229,7 +230,7 @@ export const decrement = (n: bigint): bigint => n - bigint1
  * @category instances
  * @since 2.0.0
  */
-export const Order: order.Order<bigint> = order.BigInt
+export const Order: order.Order<bigint> = order.BigInt;
 
 /**
  * An `Equivalence` instance for bigints using strict equality (`===`).
@@ -246,7 +247,7 @@ export const Order: order.Order<bigint> = order.BigInt
  * @category instances
  * @since 2.0.0
  */
-export const Equivalence: Equ.Equivalence<bigint> = Equ.BigInt
+export const Equivalence: Equ.Equivalence<bigint> = Equ.BigInt;
 
 /**
  * Returns `true` if the first argument is less than the second, otherwise `false`.
@@ -266,9 +267,9 @@ export const Equivalence: Equ.Equivalence<bigint> = Equ.BigInt
  * @since 4.0.0
  */
 export const isLessThan: {
-  (that: bigint): (self: bigint) => boolean
-  (self: bigint, that: bigint): boolean
-} = order.isLessThan(Order)
+	(that: bigint): (self: bigint) => boolean;
+	(self: bigint, that: bigint): boolean;
+} = order.isLessThan(Order);
 
 /**
  * Returns a function that checks if a given `bigint` is less than or equal to the provided one.
@@ -288,9 +289,9 @@ export const isLessThan: {
  * @since 4.0.0
  */
 export const isLessThanOrEqualTo: {
-  (that: bigint): (self: bigint) => boolean
-  (self: bigint, that: bigint): boolean
-} = order.isLessThanOrEqualTo(Order)
+	(that: bigint): (self: bigint) => boolean;
+	(self: bigint, that: bigint): boolean;
+} = order.isLessThanOrEqualTo(Order);
 
 /**
  * Returns `true` if the first argument is greater than the second, otherwise `false`.
@@ -310,9 +311,9 @@ export const isLessThanOrEqualTo: {
  * @since 4.0.0
  */
 export const isGreaterThan: {
-  (that: bigint): (self: bigint) => boolean
-  (self: bigint, that: bigint): boolean
-} = order.isGreaterThan(Order)
+	(that: bigint): (self: bigint) => boolean;
+	(self: bigint, that: bigint): boolean;
+} = order.isGreaterThan(Order);
 
 /**
  * Returns a function that checks if a given `bigint` is greater than or equal to the provided one.
@@ -332,9 +333,9 @@ export const isGreaterThan: {
  * @since 4.0.0
  */
 export const isGreaterThanOrEqualTo: {
-  (that: bigint): (self: bigint) => boolean
-  (self: bigint, that: bigint): boolean
-} = order.isGreaterThanOrEqualTo(Order)
+	(that: bigint): (self: bigint) => boolean;
+	(self: bigint, that: bigint): boolean;
+} = order.isGreaterThanOrEqualTo(Order);
 
 /**
  * Checks if a `bigint` is between a `minimum` and `maximum` value (inclusive).
@@ -356,15 +357,15 @@ export const isGreaterThanOrEqualTo: {
  * @since 2.0.0
  */
 export const between: {
-  (options: {
-    minimum: bigint
-    maximum: bigint
-  }): (self: bigint) => boolean
-  (self: bigint, options: {
-    minimum: bigint
-    maximum: bigint
-  }): boolean
-} = order.isBetween(Order)
+	(options: { minimum: bigint; maximum: bigint }): (self: bigint) => boolean;
+	(
+		self: bigint,
+		options: {
+			minimum: bigint;
+			maximum: bigint;
+		},
+	): boolean;
+} = order.isBetween(Order);
 
 /**
  * Restricts the given `bigint` to be within the range specified by the `minimum` and `maximum` values.
@@ -392,15 +393,15 @@ export const between: {
  * @since 2.0.0
  */
 export const clamp: {
-  (options: {
-    minimum: bigint
-    maximum: bigint
-  }): (self: bigint) => bigint
-  (self: bigint, options: {
-    minimum: bigint
-    maximum: bigint
-  }): bigint
-} = order.clamp(Order)
+	(options: { minimum: bigint; maximum: bigint }): (self: bigint) => bigint;
+	(
+		self: bigint,
+		options: {
+			minimum: bigint;
+			maximum: bigint;
+		},
+	): bigint;
+} = order.clamp(Order);
 
 /**
  * Returns the minimum between two `bigint`s.
@@ -418,9 +419,9 @@ export const clamp: {
  * @since 2.0.0
  */
 export const min: {
-  (that: bigint): (self: bigint) => bigint
-  (self: bigint, that: bigint): bigint
-} = order.min(Order)
+	(that: bigint): (self: bigint) => bigint;
+	(self: bigint, that: bigint): bigint;
+} = order.min(Order);
 
 /**
  * Returns the maximum between two `bigint`s.
@@ -438,9 +439,9 @@ export const min: {
  * @since 2.0.0
  */
 export const max: {
-  (that: bigint): (self: bigint) => bigint
-  (self: bigint, that: bigint): bigint
-} = order.max(Order)
+	(that: bigint): (self: bigint) => bigint;
+	(self: bigint, that: bigint): bigint;
+} = order.max(Order);
 
 /**
  * Determines the sign of a given `bigint`.
@@ -459,7 +460,7 @@ export const max: {
  * @category math
  * @since 2.0.0
  */
-export const sign = (n: bigint): Ordering => order.BigInt(n, bigint0)
+export const sign = (n: bigint): Ordering => order.BigInt(n, bigint0);
 
 /**
  * Determines the absolute value of a given `bigint`.
@@ -478,7 +479,7 @@ export const sign = (n: bigint): Ordering => order.BigInt(n, bigint0)
  * @category math
  * @since 2.0.0
  */
-export const abs = (n: bigint): bigint => (n < bigint0 ? -n : n)
+export const abs = (n: bigint): bigint => (n < bigint0 ? -n : n);
 
 /**
  * Determines the greatest common divisor of two `bigint`s.
@@ -498,16 +499,16 @@ export const abs = (n: bigint): bigint => (n < bigint0 ? -n : n)
  * @since 2.0.0
  */
 export const gcd: {
-  (that: bigint): (self: bigint) => bigint
-  (self: bigint, that: bigint): bigint
+	(that: bigint): (self: bigint) => bigint;
+	(self: bigint, that: bigint): bigint;
 } = dual(2, (self: bigint, that: bigint): bigint => {
-  while (that !== bigint0) {
-    const t = that
-    that = self % that
-    self = t
-  }
-  return self
-})
+	while (that !== bigint0) {
+		const t = that;
+		that = self % that;
+		self = t;
+	}
+	return self;
+});
 
 /**
  * Determines the least common multiple of two `bigint`s.
@@ -527,9 +528,12 @@ export const gcd: {
  * @since 2.0.0
  */
 export const lcm: {
-  (that: bigint): (self: bigint) => bigint
-  (self: bigint, that: bigint): bigint
-} = dual(2, (self: bigint, that: bigint): bigint => (self * that) / gcd(self, that))
+	(that: bigint): (self: bigint) => bigint;
+	(self: bigint, that: bigint): bigint;
+} = dual(
+	2,
+	(self: bigint, that: bigint): bigint => (self * that) / gcd(self, that),
+);
 
 /**
  * Returns the integer square root of a non-negative `bigint`.
@@ -558,18 +562,18 @@ export const lcm: {
  * @since 4.0.0
  */
 export const sqrtUnsafe = (n: bigint): bigint => {
-  if (n < bigint0) {
-    throw new RangeError("Cannot take the square root of a negative number")
-  }
-  if (n < bigint2) {
-    return n
-  }
-  let x = n / bigint2
-  while (x * x > n) {
-    x = ((n / x) + x) / bigint2
-  }
-  return x
-}
+	if (n < bigint0) {
+		throw new RangeError("Cannot take the square root of a negative number");
+	}
+	if (n < bigint2) {
+		return n;
+	}
+	let x = n / bigint2;
+	while (x * x > n) {
+		x = (n / x + x) / bigint2;
+	}
+	return x;
+};
 
 /**
  * Safely returns the integer square root of a `bigint`.
@@ -595,7 +599,9 @@ export const sqrtUnsafe = (n: bigint): bigint => {
  * @since 2.0.0
  */
 export const sqrt = (n: bigint): Option.Option<bigint> =>
-  isGreaterThanOrEqualTo(n, bigint0) ? Option.some(sqrtUnsafe(n)) : Option.none()
+	isGreaterThanOrEqualTo(n, bigint0)
+		? Option.some(sqrtUnsafe(n))
+		: Option.none();
 
 /**
  * Takes an `Iterable` of `bigint`s and returns their sum as a single `bigint`. Returns `0n` for an empty iterable.
@@ -613,12 +619,12 @@ export const sqrt = (n: bigint): Option.Option<bigint> =>
  * @since 2.0.0
  */
 export const sumAll = (collection: Iterable<bigint>): bigint => {
-  let out = bigint0
-  for (const n of collection) {
-    out += n
-  }
-  return out
-}
+	let out = bigint0;
+	for (const n of collection) {
+		out += n;
+	}
+	return out;
+};
 
 /**
  * Takes an `Iterable` of `bigint`s and returns their product as a single `bigint`. Returns `1n` for an empty iterable.
@@ -636,15 +642,15 @@ export const sumAll = (collection: Iterable<bigint>): bigint => {
  * @since 2.0.0
  */
 export const multiplyAll = (collection: Iterable<bigint>): bigint => {
-  let out = bigint1
-  for (const n of collection) {
-    if (n === bigint0) {
-      return bigint0
-    }
-    out *= n
-  }
-  return out
-}
+	let out = bigint1;
+	for (const n of collection) {
+		if (n === bigint0) {
+			return bigint0;
+		}
+		out *= n;
+	}
+	return out;
+};
 
 /**
  * Converts a `bigint` to a `number`.
@@ -668,11 +674,14 @@ export const multiplyAll = (collection: Iterable<bigint>): bigint => {
  * @since 2.0.0
  */
 export const toNumber = (b: bigint): Option.Option<number> => {
-  if (b > BigInt(Number.MAX_SAFE_INTEGER) || b < BigInt(Number.MIN_SAFE_INTEGER)) {
-    return Option.none()
-  }
-  return Option.some(Number(b))
-}
+	if (
+		b > BigInt(Number.MAX_SAFE_INTEGER) ||
+		b < BigInt(Number.MIN_SAFE_INTEGER)
+	) {
+		return Option.none();
+	}
+	return Option.some(Number(b));
+};
 
 /**
  * Converts a string to a `bigint`.
@@ -696,14 +705,12 @@ export const toNumber = (b: bigint): Option.Option<number> => {
  * @since 2.4.12
  */
 export const fromString = (s: string): Option.Option<bigint> => {
-  try {
-    return s.trim() === ""
-      ? Option.none()
-      : Option.some(BigInt(s))
-  } catch {
-    return Option.none()
-  }
-}
+	try {
+		return s.trim() === "" ? Option.none() : Option.some(BigInt(s));
+	} catch {
+		return Option.none();
+	}
+};
 
 /**
  * Converts a number to a `bigint`.
@@ -729,15 +736,15 @@ export const fromString = (s: string): Option.Option<bigint> => {
  * @since 2.4.12
  */
 export function fromNumber(n: number): Option.Option<bigint> {
-  if (n > Number.MAX_SAFE_INTEGER || n < Number.MIN_SAFE_INTEGER) {
-    return Option.none()
-  }
+	if (n > Number.MAX_SAFE_INTEGER || n < Number.MIN_SAFE_INTEGER) {
+		return Option.none();
+	}
 
-  try {
-    return Option.some(BigInt(n))
-  } catch {
-    return Option.none()
-  }
+	try {
+		return Option.some(BigInt(n));
+	} catch {
+		return Option.none();
+	}
 }
 
 /**
@@ -766,9 +773,9 @@ export function fromNumber(n: number): Option.Option<bigint> {
  * @since 4.0.0
  */
 export const remainder: {
-  (divisor: bigint): (self: bigint) => bigint
-  (self: bigint, divisor: bigint): bigint
-} = dual(2, (self: bigint, divisor: bigint): bigint => self % divisor)
+	(divisor: bigint): (self: bigint) => bigint;
+	(self: bigint, divisor: bigint): bigint;
+} = dual(2, (self: bigint, divisor: bigint): bigint => self % divisor);
 
 /**
  * A `Reducer` for combining `bigint`s using addition.
@@ -776,7 +783,10 @@ export const remainder: {
  * @category math
  * @since 4.0.0
  */
-export const ReducerSum: Reducer.Reducer<bigint> = Reducer.make((a, b) => a + b, bigint0)
+export const ReducerSum: Reducer.Reducer<bigint> = Reducer.make(
+	(a, b) => a + b,
+	bigint0,
+);
 
 /**
  * A `Reducer` for combining `bigint`s using multiplication.
@@ -784,14 +794,18 @@ export const ReducerSum: Reducer.Reducer<bigint> = Reducer.make((a, b) => a + b,
  * @category math
  * @since 4.0.0
  */
-export const ReducerMultiply: Reducer.Reducer<bigint> = Reducer.make((a, b) => a * b, bigint1, (collection) => {
-  let acc = bigint1
-  for (const n of collection) {
-    if (n === bigint0) return bigint0
-    acc *= n
-  }
-  return acc
-})
+export const ReducerMultiply: Reducer.Reducer<bigint> = Reducer.make(
+	(a, b) => a * b,
+	bigint1,
+	(collection) => {
+		let acc = bigint1;
+		for (const n of collection) {
+			if (n === bigint0) return bigint0;
+			acc *= n;
+		}
+		return acc;
+	},
+);
 
 /**
  * A `Combiner` that returns the maximum `bigint`.
@@ -799,7 +813,7 @@ export const ReducerMultiply: Reducer.Reducer<bigint> = Reducer.make((a, b) => a
  * @category math
  * @since 4.0.0
  */
-export const CombinerMax: Combiner.Combiner<bigint> = Combiner.max(Order)
+export const CombinerMax: Combiner.Combiner<bigint> = Combiner.max(Order);
 
 /**
  * A `Combiner` that returns the minimum `bigint`.
@@ -807,4 +821,4 @@ export const CombinerMax: Combiner.Combiner<bigint> = Combiner.max(Order)
  * @category math
  * @since 4.0.0
  */
-export const CombinerMin: Combiner.Combiner<bigint> = Combiner.min(Order)
+export const CombinerMin: Combiner.Combiner<bigint> = Combiner.min(Order);

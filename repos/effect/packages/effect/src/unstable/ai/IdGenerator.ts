@@ -47,12 +47,12 @@
  *
  * @since 4.0.0
  */
-import * as Cause from "../../Cause.ts"
-import * as Context from "../../Context.ts"
-import * as Effect from "../../Effect.ts"
-import * as Layer from "../../Layer.ts"
-import * as Predicate from "../../Predicate.ts"
-import * as Random from "../../Random.ts"
+import * as Cause from "../../Cause.ts";
+import * as Context from "../../Context.ts";
+import * as Effect from "../../Effect.ts";
+import * as Layer from "../../Layer.ts";
+import * as Predicate from "../../Predicate.ts";
+import * as Random from "../../Random.ts";
 
 /**
  * The `IdGenerator` service tag for dependency injection.
@@ -80,7 +80,7 @@ import * as Random from "../../Random.ts"
  * @since 4.0.0
  */
 export class IdGenerator extends Context.Service<IdGenerator, Service>()(
-  "@effect/ai/IdGenerator"
+	"@effect/ai/IdGenerator",
 ) {}
 
 /**
@@ -115,7 +115,7 @@ export class IdGenerator extends Context.Service<IdGenerator, Service>()(
  * @since 4.0.0
  */
 export interface Service {
-  readonly generateId: () => Effect.Effect<string>
+	readonly generateId: () => Effect.Effect<string>;
 }
 
 /**
@@ -141,48 +141,49 @@ export interface Service {
  * @since 4.0.0
  */
 export interface MakeOptions {
-  /**
-   * The character set to use for generating the random portion of IDs.
-   */
-  readonly alphabet: string
-  /**
-   * Optional prefix to prepend to generated IDs.
-   */
-  readonly prefix?: string | undefined
-  /**
-   * Character used to separate the prefix from the random portion.
-   */
-  readonly separator: string
-  /**
-   * Length of the random portion of the generated ID.
-   */
-  readonly size: number
+	/**
+	 * The character set to use for generating the random portion of IDs.
+	 */
+	readonly alphabet: string;
+	/**
+	 * Optional prefix to prepend to generated IDs.
+	 */
+	readonly prefix?: string | undefined;
+	/**
+	 * Character used to separate the prefix from the random portion.
+	 */
+	readonly separator: string;
+	/**
+	 * Length of the random portion of the generated ID.
+	 */
+	readonly size: number;
 }
 
-const DEFAULT_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-const DEFAULT_SEPARATOR = "_"
-const DEFAULT_SIZE = 16
+const DEFAULT_ALPHABET =
+	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const DEFAULT_SEPARATOR = "_";
+const DEFAULT_SIZE = 16;
 
 const makeGenerator = ({
-  alphabet = DEFAULT_ALPHABET,
-  prefix,
-  separator = DEFAULT_SEPARATOR,
-  size = DEFAULT_SIZE
+	alphabet = DEFAULT_ALPHABET,
+	prefix,
+	separator = DEFAULT_SEPARATOR,
+	size = DEFAULT_SIZE,
 }: Partial<MakeOptions>) => {
-  const alphabetLength = alphabet.length
-  return Effect.fnUntraced(function*() {
-    const chars = new Array(size)
-    for (let i = 0; i < size; i++) {
-      const index = yield* Random.next
-      chars[i] = alphabet[(index * alphabetLength) | 0]
-    }
-    const identifier = chars.join("")
-    if (Predicate.isUndefined(prefix)) {
-      return identifier
-    }
-    return `${prefix}${separator}${identifier}`
-  })
-}
+	const alphabetLength = alphabet.length;
+	return Effect.fnUntraced(function* () {
+		const chars = new Array(size);
+		for (let i = 0; i < size; i++) {
+			const index = yield* Random.next;
+			chars[i] = alphabet[(index * alphabetLength) | 0];
+		}
+		const identifier = chars.join("");
+		if (Predicate.isUndefined(prefix)) {
+			return identifier;
+		}
+		return `${prefix}${separator}${identifier}`;
+	});
+};
 
 /**
  * Default ID generator service implementation.
@@ -218,8 +219,8 @@ const makeGenerator = ({
  * @since 4.0.0
  */
 export const defaultIdGenerator: Service = {
-  generateId: makeGenerator({ prefix: "id" })
-}
+	generateId: makeGenerator({ prefix: "id" }),
+};
 
 /**
  * Creates a custom ID generator service with the specified options.
@@ -277,23 +278,23 @@ export const defaultIdGenerator: Service = {
  * @category constructors
  * @since 4.0.0
  */
-export const make = Effect.fnUntraced(function*({
-  alphabet = DEFAULT_ALPHABET,
-  prefix,
-  separator = DEFAULT_SEPARATOR,
-  size = DEFAULT_SIZE
+export const make = Effect.fnUntraced(function* ({
+	alphabet = DEFAULT_ALPHABET,
+	prefix,
+	separator = DEFAULT_SEPARATOR,
+	size = DEFAULT_SIZE,
 }: MakeOptions) {
-  if (alphabet.includes(separator)) {
-    const message = `The separator "${separator}" must not be part of the alphabet "${alphabet}".`
-    return yield* new Cause.IllegalArgumentError(message)
-  }
+	if (alphabet.includes(separator)) {
+		const message = `The separator "${separator}" must not be part of the alphabet "${alphabet}".`;
+		return yield* new Cause.IllegalArgumentError(message);
+	}
 
-  const generateId = makeGenerator({ alphabet, prefix, separator, size })
+	const generateId = makeGenerator({ alphabet, prefix, separator, size });
 
-  return {
-    generateId
-  } as const
-})
+	return {
+		generateId,
+	} as const;
+});
 
 /**
  * Creates a Layer that provides the IdGenerator service with custom
@@ -330,5 +331,7 @@ export const make = Effect.fnUntraced(function*({
  * @category constructors
  * @since 4.0.0
  */
-export const layer = (options: MakeOptions): Layer.Layer<IdGenerator, Cause.IllegalArgumentError> =>
-  Layer.effect(IdGenerator)(make(options))
+export const layer = (
+	options: MakeOptions,
+): Layer.Layer<IdGenerator, Cause.IllegalArgumentError> =>
+	Layer.effect(IdGenerator)(make(options));
