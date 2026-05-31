@@ -1,4 +1,16 @@
+import { Data, Effect } from "effect";
+
 const shareTokenByteLength = 16;
+
+export class ShareTokenGenerationError extends Data.TaggedError(
+	"ShareTokenGenerationError",
+)<{
+	readonly cause: unknown;
+}> {}
+
+export class ClipboardCopyError extends Data.TaggedError("ClipboardCopyError")<{
+	readonly cause: unknown;
+}> {}
 
 function bytesToBase64Url(bytes: Uint8Array): string {
 	let binary = "";
@@ -32,6 +44,15 @@ export function generateShareToken(): string {
 	throw new Error("Secure random token generation is unavailable.");
 }
 
+export const generateShareTokenEffect = Effect.fn("generateShareTokenEffect")(
+	function* () {
+		return yield* Effect.try({
+			try: generateShareToken,
+			catch: (cause) => new ShareTokenGenerationError({ cause }),
+		});
+	},
+);
+
 export function buildShareUrl(origin: string, shareToken: string): string {
 	return `${origin.replace(/\/+$/u, "")}/share/${shareToken}`;
 }
@@ -44,3 +65,15 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
 		return false;
 	}
 }
+
+export const copyTextToClipboardEffect = Effect.fn("copyTextToClipboardEffect")(
+	function* (text: string) {
+		return yield* Effect.tryPromise({
+			try: () => navigator.clipboard.writeText(text),
+			catch: (cause) => new ClipboardCopyError({ cause }),
+		}).pipe(
+			Effect.as(true),
+			Effect.catchTag("ClipboardCopyError", () => Effect.succeed(false)),
+		);
+	},
+);
