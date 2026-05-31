@@ -79,6 +79,10 @@ function createDeferred<T = void>() {
 	return { promise, resolve, reject };
 }
 
+class TestRemoteError extends Error {
+	readonly _tag = "TestRemoteError";
+}
+
 async function flushPromises() {
 	await Promise.resolve();
 	await Promise.resolve();
@@ -97,14 +101,16 @@ describe("saved routes use cases", () => {
 	});
 
 	it("optimistically saves signed-in routes and clears pending state after remote success", async () => {
-		const save = vi.fn().mockResolvedValue(undefined);
+		const save = vi.fn(() => Effect.void);
 
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save,
-				delete: vi.fn(),
-				mergeLocalRoutes: vi.fn(),
+				delete: vi.fn(() => Effect.void),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
 			}),
 		);
 
@@ -166,9 +172,11 @@ describe("saved routes use cases", () => {
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn(() => new Promise<void>(() => {})),
-				delete: vi.fn(),
-				mergeLocalRoutes: vi.fn(),
+				save: vi.fn(() => Effect.never),
+				delete: vi.fn(() => Effect.void),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
 			}),
 		);
 		const savedRoute = await Effect.runPromise(
@@ -192,9 +200,11 @@ describe("saved routes use cases", () => {
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn().mockResolvedValue(undefined),
-				delete: vi.fn(() => new Promise<void>(() => {})),
-				mergeLocalRoutes: vi.fn(),
+				save: vi.fn(() => Effect.void),
+				delete: vi.fn(() => Effect.never),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
 			}),
 		);
 		const savedRoute = await Effect.runPromise(
@@ -222,18 +232,20 @@ describe("saved routes use cases", () => {
 		const anonymous = await Effect.runPromise(
 			useCases.createSavedRoute(state, route),
 		);
-		const mergeLocalRoutes = vi.fn().mockResolvedValue({
-			inserted: 1,
-			skipped: 0,
-			invalid: 0,
-			duplicate: 0,
-		});
+		const mergeLocalRoutes = vi.fn(() =>
+			Effect.succeed({
+				inserted: 1,
+				skipped: 0,
+				invalid: 0,
+				duplicate: 0,
+			}),
+		);
 
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn(),
-				delete: vi.fn(),
+				save: vi.fn(() => Effect.void),
+				delete: vi.fn(() => Effect.void),
 				mergeLocalRoutes,
 			}),
 		);
@@ -255,9 +267,11 @@ describe("saved routes use cases", () => {
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn().mockRejectedValue(new Error("network down")),
-				delete: vi.fn(),
-				mergeLocalRoutes: vi.fn(),
+				save: vi.fn(() => Effect.fail(new TestRemoteError("network down"))),
+				delete: vi.fn(() => Effect.void),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
 			}),
 		);
 
@@ -327,13 +341,20 @@ describe("saved routes use cases", () => {
 		vi.useFakeTimers();
 
 		try {
-			const save = vi.fn().mockResolvedValue(undefined);
+			const save = vi.fn(() => Effect.void);
 			await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 			await Effect.runPromise(
 				useCases.setRemoteRepository({
 					save,
-					delete: vi.fn(),
-					mergeLocalRoutes: vi.fn(),
+					delete: vi.fn(() => Effect.void),
+					mergeLocalRoutes: vi.fn(() =>
+						Effect.succeed({
+							inserted: 0,
+							skipped: 0,
+							invalid: 0,
+							duplicate: 0,
+						}),
+					),
 				}),
 			);
 			await Effect.runPromise(
@@ -386,14 +407,15 @@ describe("saved routes use cases", () => {
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn(
-					() =>
-						new Promise<void>((_, reject) => {
-							rejectSave = reject;
-						}),
+				save: vi.fn(() =>
+					Effect.callback<void, Error>((resume) => {
+						rejectSave = (error) => resume(Effect.fail(error));
+					}),
 				),
-				delete: vi.fn(),
-				mergeLocalRoutes: vi.fn(),
+				delete: vi.fn(() => Effect.void),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
 			}),
 		);
 		const savedRoute = await Effect.runPromise(
@@ -415,29 +437,30 @@ describe("saved routes use cases", () => {
 			useCases.createSavedRoute(state, route),
 		);
 		let resolveMerge: () => void = () => {};
-		const mergeLocalRoutes = vi.fn(
-			() =>
-				new Promise<{
-					inserted: number;
-					skipped: number;
-					invalid: number;
-					duplicate: number;
-				}>((resolve) => {
-					resolveMerge = () =>
-						resolve({
+		const mergeLocalRoutes = vi.fn(() =>
+			Effect.callback<{
+				inserted: number;
+				skipped: number;
+				invalid: number;
+				duplicate: number;
+			}>((resume) => {
+				resolveMerge = () =>
+					resume(
+						Effect.succeed({
 							inserted: 1,
 							skipped: 0,
 							invalid: 0,
 							duplicate: 0,
-						});
-				}),
+						}),
+					);
+			}),
 		);
 
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn(),
-				delete: vi.fn(),
+				save: vi.fn(() => Effect.void),
+				delete: vi.fn(() => Effect.void),
 				mergeLocalRoutes,
 			}),
 		);
@@ -464,23 +487,25 @@ describe("saved routes use cases", () => {
 	it("does not apply stale local merge failures after sign-out", async () => {
 		await Effect.runPromise(useCases.createSavedRoute(state, route));
 		let rejectMerge: (error: Error) => void = () => {};
-		const mergeLocalRoutes = vi.fn(
-			() =>
-				new Promise<{
+		const mergeLocalRoutes = vi.fn(() =>
+			Effect.callback<
+				{
 					inserted: number;
 					skipped: number;
 					invalid: number;
 					duplicate: number;
-				}>((_, reject) => {
-					rejectMerge = reject;
-				}),
+				},
+				Error
+			>((resume) => {
+				rejectMerge = (error) => resume(Effect.fail(error));
+			}),
 		);
 
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn(),
-				delete: vi.fn(),
+				save: vi.fn(() => Effect.void),
+				delete: vi.fn(() => Effect.void),
 				mergeLocalRoutes,
 			}),
 		);
@@ -507,9 +532,11 @@ describe("saved routes use cases", () => {
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn().mockResolvedValue(undefined),
-				delete: vi.fn().mockRejectedValue(new Error("delete down")),
-				mergeLocalRoutes: vi.fn(),
+				save: vi.fn(() => Effect.void),
+				delete: vi.fn(() => Effect.fail(new TestRemoteError("delete down"))),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
 			}),
 		);
 		const savedRoute = await Effect.runPromise(
@@ -593,27 +620,31 @@ describe("saved routes use cases", () => {
 	});
 
 	it("loads remote versions on demand before signed-in restore", async () => {
-		const save = vi.fn().mockResolvedValue(undefined);
-		const listVersions = vi.fn().mockResolvedValue([
-			{
-				versionId: "remote-version-1",
-				routeId: "route-1",
-				capturedAt: "2026-04-20T09:30:00.000Z",
-				savedRoute: serializeSavedRouteForRemote({
-					id: "route-1",
-					createdAt: "2026-04-19T09:30:00.000Z",
-					route,
-				}),
-			},
-		]);
+		const save = vi.fn(() => Effect.void);
+		const listVersions = vi.fn(() =>
+			Effect.succeed([
+				{
+					versionId: "remote-version-1",
+					routeId: "route-1",
+					capturedAt: "2026-04-20T09:30:00.000Z",
+					savedRoute: serializeSavedRouteForRemote({
+						id: "route-1",
+						createdAt: "2026-04-19T09:30:00.000Z",
+						route,
+					}),
+				},
+			]),
+		);
 
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
 				save,
-				delete: vi.fn(),
+				delete: vi.fn(() => Effect.void),
 				listVersions,
-				mergeLocalRoutes: vi.fn(),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
 			}),
 		);
 		await Effect.runPromise(
@@ -644,26 +675,30 @@ describe("saved routes use cases", () => {
 	});
 
 	it("loads remote versions on demand before listing signed-in history", async () => {
-		const listVersions = vi.fn().mockResolvedValue([
-			{
-				versionId: "remote-version-1",
-				routeId: "route-1",
-				capturedAt: "2026-04-20T09:30:00.000Z",
-				savedRoute: serializeSavedRouteForRemote({
-					id: "route-1",
-					createdAt: "2026-04-19T09:30:00.000Z",
-					route,
-				}),
-			},
-		]);
+		const listVersions = vi.fn(() =>
+			Effect.succeed([
+				{
+					versionId: "remote-version-1",
+					routeId: "route-1",
+					capturedAt: "2026-04-20T09:30:00.000Z",
+					savedRoute: serializeSavedRouteForRemote({
+						id: "route-1",
+						createdAt: "2026-04-19T09:30:00.000Z",
+						route,
+					}),
+				},
+			]),
+		);
 
 		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
 		await Effect.runPromise(
 			useCases.setRemoteRepository({
-				save: vi.fn(),
-				delete: vi.fn(),
+				save: vi.fn(() => Effect.void),
+				delete: vi.fn(() => Effect.void),
 				listVersions,
-				mergeLocalRoutes: vi.fn(),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
 			}),
 		);
 		await Effect.runPromise(

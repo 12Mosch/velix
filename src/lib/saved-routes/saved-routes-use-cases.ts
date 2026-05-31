@@ -42,17 +42,20 @@ function toSavedRoutesOperationError(
 }
 
 export type SavedRoutesRemoteRepository = {
-	save: (savedRoute: RemoteSavedRoutePayload) => Promise<void>;
-	delete: (routeId: string) => Promise<void>;
+	save: (savedRoute: RemoteSavedRoutePayload) => Effect.Effect<void, Error>;
+	delete: (routeId: string) => Effect.Effect<void, Error>;
 	listVersions?: (
 		routeId: string,
-	) => Promise<RemoteSavedRouteVersionPayload[] | unknown[]>;
-	mergeLocalRoutes: (routes: RemoteSavedRoutePayload[]) => Promise<{
-		inserted: number;
-		skipped: number;
-		invalid: number;
-		duplicate: number;
-	}>;
+	) => Effect.Effect<RemoteSavedRouteVersionPayload[] | unknown[], Error>;
+	mergeLocalRoutes: (routes: RemoteSavedRoutePayload[]) => Effect.Effect<
+		{
+			inserted: number;
+			skipped: number;
+			invalid: number;
+			duplicate: number;
+		},
+		Error
+	>;
 };
 
 export type SavedRoutesStateModel = {
@@ -83,7 +86,7 @@ function sortSavedRouteVersionsNewestFirst(
 
 export class SavedRoutesUseCases {
 	private remoteRepository: SavedRoutesRemoteRepository | null = null;
-	private readonly inFlightMerges = new Map<string, Promise<void>>();
+	private readonly inFlightMerges = new Map<string, Effect.Effect<void>>();
 	private pendingRemoteSaves = new Map<string, SavedRoute>();
 	private remoteSaveFlushTimer: ReturnType<typeof setTimeout> | null = null;
 	private remoteSessionVersion = 0;
@@ -256,14 +259,7 @@ export class SavedRoutesUseCases {
 
 			const inFlightMerge = this.inFlightMerges.get(userId);
 			if (inFlightMerge) {
-				yield* Effect.tryPromise({
-					try: () => inFlightMerge,
-					catch: (cause) =>
-						toSavedRoutesOperationError(
-							cause,
-							"Could not wait for saved routes merge.",
-						),
-				}).pipe(Effect.catch(() => Effect.void));
+				yield* inFlightMerge;
 				return;
 			}
 
@@ -289,31 +285,28 @@ export class SavedRoutesUseCases {
 				}
 
 				let mergeFailed = false;
-				yield* Effect.tryPromise({
-					try: () =>
-						remoteRepository.mergeLocalRoutes(
-							localRoutes.map(serializeSavedRouteForRemote),
+				yield* remoteRepository
+					.mergeLocalRoutes(localRoutes.map(serializeSavedRouteForRemote))
+					.pipe(
+						Effect.mapError((cause) =>
+							toSavedRoutesOperationError(
+								cause,
+								"Could not merge local saved routes.",
+							),
 						),
-					catch: (cause) =>
-						toSavedRoutesOperationError(
-							cause,
-							"Could not merge local saved routes.",
-						),
-				}).pipe(
-					Effect.catch((error) =>
-						Effect.sync(() => {
-							if (!this.isCurrentRemoteSession(state, userId, sessionVersion)) {
-								return;
-							}
+						Effect.catch((error) =>
+							Effect.sync(() => {
+								if (
+									!this.isCurrentRemoteSession(state, userId, sessionVersion)
+								) {
+									return;
+								}
 
-							mergeFailed = true;
-							state.syncError =
-								error instanceof Error
-									? `Could not sync local routes: ${error.message}`
-									: "Could not sync local routes.";
-						}),
-					),
-				);
+								mergeFailed = true;
+								state.syncError = `Could not sync local routes: ${error.message}`;
+							}),
+						),
+					);
 
 				if (
 					mergeFailed ||
@@ -328,25 +321,22 @@ export class SavedRoutesUseCases {
 					.pipe(Effect.catch(() => Effect.void));
 				state.syncError = null;
 			});
-			let mergePromise: Promise<void>;
-			mergePromise = Effect.runPromise(mergeEffect).finally(() => {
-				if (
-					this.isCurrentRemoteSession(state, userId, sessionVersion) &&
-					this.inFlightMerges.get(userId) === mergePromise
-				) {
-					this.inFlightMerges.delete(userId);
-				}
-			});
+			const cachedMerge = Effect.runSync(Effect.cached(mergeEffect));
+			const trackedMerge = cachedMerge.pipe(
+				Effect.ensuring(
+					Effect.sync(() => {
+						if (
+							this.isCurrentRemoteSession(state, userId, sessionVersion) &&
+							this.inFlightMerges.get(userId) === trackedMerge
+						) {
+							this.inFlightMerges.delete(userId);
+						}
+					}),
+				),
+			);
 
-			this.inFlightMerges.set(userId, mergePromise);
-			yield* Effect.tryPromise({
-				try: () => mergePromise,
-				catch: (cause) =>
-					toSavedRoutesOperationError(
-						cause,
-						"Could not wait for saved routes merge.",
-					),
-			}).pipe(Effect.catch(() => Effect.void));
+			this.inFlightMerges.set(userId, trackedMerge);
+			yield* trackedMerge;
 		});
 	}
 
@@ -634,22 +624,19 @@ export class SavedRoutesUseCases {
 			const userId = state.authUserId;
 			const sessionVersion = this.remoteSessionVersion;
 			const remoteRepository = this.remoteRepository;
-			const versions = yield* Effect.tryPromise({
-				try: () =>
-					remoteRepository.listVersions?.(routeId) ?? Promise.resolve([]),
-				catch: (cause) =>
+			const versions = yield* (
+				remoteRepository.listVersions?.(routeId) ?? Effect.succeed([])
+			).pipe(
+				Effect.mapError((cause) =>
 					toSavedRoutesOperationError(
 						cause,
 						"Could not load remote route versions.",
 					),
-			}).pipe(
+				),
 				Effect.catch((error) =>
 					Effect.sync(() => {
 						if (this.isCurrentRemoteSession(state, userId, sessionVersion)) {
-							state.syncError =
-								error instanceof Error
-									? `Could not load previous versions: ${error.message}`
-									: "Could not load previous versions.";
+							state.syncError = `Could not load previous versions: ${error.message}`;
 						}
 						return null;
 					}),
@@ -811,35 +798,33 @@ export class SavedRoutesUseCases {
 			this.pendingRemoteSaves.clear();
 
 			for (const savedRoute of pendingSaves) {
-				yield* Effect.tryPromise({
-					try: () =>
-						remoteRepository.save(serializeSavedRouteForRemote(savedRoute)),
-					catch: (cause) =>
-						toSavedRoutesOperationError(cause, "Could not sync saved route."),
-				}).pipe(
-					Effect.flatMap(() =>
-						this.isCurrentRemoteSession(state, userId, sessionVersion)
-							? this.clearPendingRemoteRouteEffect(state, savedRoute.id).pipe(
-									Effect.andThen(() =>
-										Effect.sync(() => {
-											state.syncError = null;
-										}),
-									),
-								)
-							: Effect.void,
-					),
-					Effect.catch((error) =>
-						this.isCurrentRemoteSession(state, userId, sessionVersion)
-							? this.setRemoteFailureEffect(
-									state,
-									savedRoute.id,
-									error instanceof Error
-										? `Could not sync saved route: ${error.message}`
-										: "Could not sync saved route.",
-								)
-							: Effect.void,
-					),
-				);
+				yield* remoteRepository
+					.save(serializeSavedRouteForRemote(savedRoute))
+					.pipe(
+						Effect.mapError((cause) =>
+							toSavedRoutesOperationError(cause, "Could not sync saved route."),
+						),
+						Effect.flatMap(() =>
+							this.isCurrentRemoteSession(state, userId, sessionVersion)
+								? this.clearPendingRemoteRouteEffect(state, savedRoute.id).pipe(
+										Effect.andThen(() =>
+											Effect.sync(() => {
+												state.syncError = null;
+											}),
+										),
+									)
+								: Effect.void,
+						),
+						Effect.catch((error) =>
+							this.isCurrentRemoteSession(state, userId, sessionVersion)
+								? this.setRemoteFailureEffect(
+										state,
+										savedRoute.id,
+										`Could not sync saved route: ${error.message}`,
+									)
+								: Effect.void,
+						),
+					);
 			}
 		});
 	}
@@ -859,14 +844,13 @@ export class SavedRoutesUseCases {
 			this.pendingRemoteSaves.delete(routeId);
 			yield* this.trackPendingRemoteRouteEffect(state, routeId);
 			yield* this.forkBackgroundEffect(() =>
-				Effect.tryPromise({
-					try: () => remoteRepository.delete(routeId),
-					catch: (cause) =>
+				remoteRepository.delete(routeId).pipe(
+					Effect.mapError((cause) =>
 						toSavedRoutesOperationError(
 							cause,
 							"Could not delete synced route.",
 						),
-				}).pipe(
+					),
 					Effect.flatMap(() =>
 						this.isCurrentRemoteSession(state, userId, sessionVersion)
 							? this.clearPendingRemoteRouteEffect(state, routeId).pipe(
@@ -883,9 +867,7 @@ export class SavedRoutesUseCases {
 							? this.setRemoteFailureEffect(
 									state,
 									routeId,
-									error instanceof Error
-										? `Could not delete synced route: ${error.message}`
-										: "Could not delete synced route.",
+									`Could not delete synced route: ${error.message}`,
 								)
 							: Effect.void,
 					),

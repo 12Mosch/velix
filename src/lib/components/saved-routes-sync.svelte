@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Effect } from "effect";
 	import { useConvexClient, useQuery } from "convex-svelte";
 	import { userPrefersMode } from "mode-watcher";
 	import { untrack } from "svelte";
@@ -204,13 +205,15 @@
 		untrack(() => {
 			savedRoutesState.setRemoteAdapter(adapter);
 			savedRoutesState.syncError = null;
-			void syncSavedRoutesOnce({
-				client,
-				getCurrentRequestId: () => syncRequestId,
-				requestId,
-				state: savedRoutesState,
-				userId,
-			});
+			void Effect.runPromise(
+				syncSavedRoutesOnce({
+					client,
+					getCurrentRequestId: () => syncRequestId,
+					requestId,
+					state: savedRoutesState,
+					userId,
+				}),
+			);
 		});
 
 		return () => {
@@ -251,14 +254,16 @@
 		const requestId = ++preferencesRequestId;
 
 		untrack(() => {
-			void syncUserPreferencesSnapshot({
-				adapter,
-				getCurrentRequestId: () => preferencesRequestId,
-				remotePreferences,
-				requestId,
-				state: userPreferencesState,
-				userId,
-			}).then((persistedPreferences) => {
+			void Effect.runPromise(
+				syncUserPreferencesSnapshot({
+					adapter,
+					getCurrentRequestId: () => preferencesRequestId,
+					remotePreferences,
+					requestId,
+					state: userPreferencesState,
+					userId,
+				}),
+			).then((persistedPreferences) => {
 				if (preferencesRequestId !== requestId || !persistedPreferences) {
 					return;
 				}
@@ -315,16 +320,19 @@
 		const requestId = preferencesRequestId;
 		rememberPersistedPreferences(nextPreferences);
 
-		void adapter.save(patch).catch((error) => {
-			if (preferencesRequestId !== requestId) {
-				return;
-			}
+		void Effect.runPromise(
+			adapter.save(patch).pipe(
+				Effect.catch((error) =>
+					Effect.sync(() => {
+						if (preferencesRequestId !== requestId) {
+							return;
+						}
 
-			savedRoutesState.syncError =
-				error instanceof Error
-					? `Could not save account preferences: ${error.message}`
-					: "Could not save account preferences.";
-		});
+						savedRoutesState.syncError = `Could not save account preferences: ${error.message}`;
+					}),
+				),
+			),
+		);
 	});
 
 	$effect(() => {

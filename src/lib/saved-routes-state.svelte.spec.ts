@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
 import type { PlannedRoute } from "$lib/route-planning";
 import {
@@ -48,6 +49,10 @@ async function flushPromises() {
 	await Promise.resolve();
 	await Promise.resolve();
 	await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+class TestRemoteError extends Error {
+	readonly _tag = "TestRemoteError";
 }
 
 describe("savedRoutesState", () => {
@@ -134,17 +139,19 @@ describe("savedRoutesState", () => {
 
 	it("auto-merges anonymous routes once per user and dedupes by route id", async () => {
 		await seedSavedRoutesForTests([savedRoute, savedRoute]);
-		const mergeLocalRoutes = vi.fn().mockResolvedValue({
-			inserted: 1,
-			skipped: 0,
-			invalid: 0,
-			duplicate: 0,
-		});
+		const mergeLocalRoutes = vi.fn(() =>
+			Effect.succeed({
+				inserted: 1,
+				skipped: 0,
+				invalid: 0,
+				duplicate: 0,
+			}),
+		);
 
 		await savedRoutesState.setAuthUser("user_1");
 		savedRoutesState.setRemoteAdapter({
-			save: vi.fn(),
-			delete: vi.fn(),
+			save: vi.fn(() => Effect.void),
+			delete: vi.fn(() => Effect.void),
 			mergeLocalRoutes,
 		});
 
@@ -179,28 +186,29 @@ describe("savedRoutesState", () => {
 	it("reuses an in-flight anonymous route merge for concurrent calls", async () => {
 		await seedSavedRoutesForTests([savedRoute]);
 		let resolveMerge: () => void = () => {};
-		const mergeLocalRoutes = vi.fn(
-			() =>
-				new Promise<{
-					inserted: number;
-					skipped: number;
-					invalid: number;
-					duplicate: number;
-				}>((resolve) => {
-					resolveMerge = () =>
-						resolve({
+		const mergeLocalRoutes = vi.fn(() =>
+			Effect.callback<{
+				inserted: number;
+				skipped: number;
+				invalid: number;
+				duplicate: number;
+			}>((resume) => {
+				resolveMerge = () =>
+					resume(
+						Effect.succeed({
 							inserted: 1,
 							skipped: 0,
 							invalid: 0,
 							duplicate: 0,
-						});
-				}),
+						}),
+					);
+			}),
 		);
 
 		await savedRoutesState.setAuthUser("user_1");
 		savedRoutesState.setRemoteAdapter({
-			save: vi.fn(),
-			delete: vi.fn(),
+			save: vi.fn(() => Effect.void),
+			delete: vi.fn(() => Effect.void),
 			mergeLocalRoutes,
 		});
 
@@ -218,9 +226,11 @@ describe("savedRoutesState", () => {
 
 	it("sets syncError after remote save failure without losing the optimistic route", async () => {
 		const adapter: SavedRoutesRemoteAdapter = {
-			save: vi.fn().mockRejectedValue(new Error("network down")),
-			delete: vi.fn(),
-			mergeLocalRoutes: vi.fn(),
+			save: vi.fn(() => Effect.fail(new TestRemoteError("network down"))),
+			delete: vi.fn(() => Effect.void),
+			mergeLocalRoutes: vi.fn(() =>
+				Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+			),
 		};
 
 		await savedRoutesState.setAuthUser("user_1");
@@ -235,11 +245,13 @@ describe("savedRoutesState", () => {
 	});
 
 	it("signed-in upsert calls the remote adapter save with the updated saved route", async () => {
-		const save = vi.fn().mockResolvedValue(undefined);
+		const save = vi.fn(() => Effect.void);
 		const adapter: SavedRoutesRemoteAdapter = {
 			save,
-			delete: vi.fn(),
-			mergeLocalRoutes: vi.fn(),
+			delete: vi.fn(() => Effect.void),
+			mergeLocalRoutes: vi.fn(() =>
+				Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+			),
 		};
 
 		await savedRoutesState.setAuthUser("user_1");
@@ -266,9 +278,11 @@ describe("savedRoutesState", () => {
 
 	it("remote upsert failure leaves the optimistic updated route and sets syncError", async () => {
 		const adapter: SavedRoutesRemoteAdapter = {
-			save: vi.fn().mockRejectedValue(new Error("network down")),
-			delete: vi.fn(),
-			mergeLocalRoutes: vi.fn(),
+			save: vi.fn(() => Effect.fail(new TestRemoteError("network down"))),
+			delete: vi.fn(() => Effect.void),
+			mergeLocalRoutes: vi.fn(() =>
+				Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+			),
 		};
 
 		await savedRoutesState.setAuthUser("user_1");
@@ -296,9 +310,11 @@ describe("savedRoutesState", () => {
 
 	it("sets syncError after remote delete failure while keeping the optimistic delete", async () => {
 		const adapter: SavedRoutesRemoteAdapter = {
-			save: vi.fn(),
-			delete: vi.fn().mockRejectedValue(new Error("network down")),
-			mergeLocalRoutes: vi.fn(),
+			save: vi.fn(() => Effect.void),
+			delete: vi.fn(() => Effect.fail(new TestRemoteError("network down"))),
+			mergeLocalRoutes: vi.fn(() =>
+				Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+			),
 		};
 
 		await savedRoutesState.setAuthUser("user_1");

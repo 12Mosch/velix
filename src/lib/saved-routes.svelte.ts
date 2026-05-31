@@ -66,6 +66,10 @@ class SavedRoutesState {
 		);
 	}
 
+	applyRemoteRoutesEffect(userId: string, routes: unknown[]) {
+		return savedRoutesUseCases.applyRemoteSavedRoutes(this, userId, routes);
+	}
+
 	setRemoteAdapter(adapter: SavedRoutesRemoteRepository | null) {
 		Effect.runSync(savedRoutesUseCases.setRemoteRepository(adapter));
 	}
@@ -80,6 +84,10 @@ class SavedRoutesState {
 		await Effect.runPromise(
 			savedRoutesUseCases.runLocalSavedRoutesMergeOnce(this, userId),
 		);
+	}
+
+	runLocalMergeOnceEffect(userId: string) {
+		return savedRoutesUseCases.runLocalSavedRoutesMergeOnce(this, userId);
 	}
 
 	addSavedRoute(route: PlannedRoute): Promise<SavedRoute> {

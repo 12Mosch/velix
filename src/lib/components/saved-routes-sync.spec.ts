@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
 import { api } from "../../convex/_generated/api";
 import {
@@ -11,8 +12,8 @@ import {
 type MockFn = ReturnType<typeof vi.fn>;
 
 type TestState = SavedRoutesSyncState & {
-	applyRemoteRoutes: MockFn;
-	runLocalMergeOnce: MockFn;
+	applyRemoteRoutesEffect: MockFn;
+	runLocalMergeOnceEffect: MockFn;
 };
 
 type TestClient = SavedRoutesConvexClient & {
@@ -20,10 +21,14 @@ type TestClient = SavedRoutesConvexClient & {
 	query: MockFn;
 };
 
+class TestRemoteError extends Error {
+	readonly _tag = "TestRemoteError";
+}
+
 function createState(overrides: Partial<TestState> = {}): TestState {
 	return {
-		applyRemoteRoutes: vi.fn(),
-		runLocalMergeOnce: vi.fn().mockResolvedValue(undefined),
+		applyRemoteRoutesEffect: vi.fn(() => Effect.void),
+		runLocalMergeOnceEffect: vi.fn(() => Effect.void),
 		syncError: null,
 		...overrides,
 	} as TestState;
@@ -52,12 +57,16 @@ describe("saved routes one-shot sync", () => {
 		const events: string[] = [];
 		const remoteRoutes = [{ ...savedRoute, id: "remote-route" }];
 		const state = createState({
-			applyRemoteRoutes: vi.fn(async () => {
-				events.push("apply");
-			}),
-			runLocalMergeOnce: vi.fn(async () => {
-				events.push("merge");
-			}),
+			applyRemoteRoutesEffect: vi.fn(() =>
+				Effect.sync(() => {
+					events.push("apply");
+				}),
+			),
+			runLocalMergeOnceEffect: vi.fn(() =>
+				Effect.sync(() => {
+					events.push("merge");
+				}),
+			),
 		});
 		const client = createClient({
 			query: vi.fn(async () => {
@@ -70,13 +79,15 @@ describe("saved routes one-shot sync", () => {
 			}),
 		});
 
-		await syncSavedRoutesOnce({
-			client,
-			getCurrentRequestId: () => 1,
-			requestId: 1,
-			state,
-			userId: "user_1",
-		});
+		await Effect.runPromise(
+			syncSavedRoutesOnce({
+				client,
+				getCurrentRequestId: () => 1,
+				requestId: 1,
+				state,
+				userId: "user_1",
+			}),
+		);
 
 		expect(events).toEqual(["merge", "query", "apply"]);
 		expect(client.query).toHaveBeenCalledTimes(1);
@@ -90,7 +101,7 @@ describe("saved routes one-shot sync", () => {
 				},
 			},
 		);
-		expect(state.applyRemoteRoutes).toHaveBeenCalledWith(
+		expect(state.applyRemoteRoutesEffect).toHaveBeenCalledWith(
 			"user_1",
 			remoteRoutes,
 		);
@@ -115,13 +126,15 @@ describe("saved routes one-shot sync", () => {
 				}),
 		});
 
-		await syncSavedRoutesOnce({
-			client,
-			getCurrentRequestId: () => 1,
-			requestId: 1,
-			state,
-			userId: "user_1",
-		});
+		await Effect.runPromise(
+			syncSavedRoutesOnce({
+				client,
+				getCurrentRequestId: () => 1,
+				requestId: 1,
+				state,
+				userId: "user_1",
+			}),
+		);
 
 		expect(client.query).toHaveBeenCalledTimes(2);
 		expect(client.query).toHaveBeenNthCalledWith(
@@ -146,7 +159,7 @@ describe("saved routes one-shot sync", () => {
 				},
 			},
 		);
-		expect(state.applyRemoteRoutes).toHaveBeenCalledWith("user_1", [
+		expect(state.applyRemoteRoutesEffect).toHaveBeenCalledWith("user_1", [
 			routeA,
 			routeB,
 		]);
@@ -166,37 +179,43 @@ describe("saved routes one-shot sync", () => {
 			}),
 		});
 
-		await syncSavedRoutesOnce({
-			client,
-			getCurrentRequestId: () => currentRequestId,
-			requestId: 1,
-			state,
-			userId: "user_1",
-		});
+		await Effect.runPromise(
+			syncSavedRoutesOnce({
+				client,
+				getCurrentRequestId: () => currentRequestId,
+				requestId: 1,
+				state,
+				userId: "user_1",
+			}),
+		);
 
 		expect(client.query).toHaveBeenCalledTimes(1);
-		expect(state.applyRemoteRoutes).not.toHaveBeenCalled();
+		expect(state.applyRemoteRoutesEffect).not.toHaveBeenCalled();
 	});
 
 	it("ignores stale results when auth changes before the one-shot query starts", async () => {
 		let currentRequestId = 1;
 		const state = createState({
-			runLocalMergeOnce: vi.fn(async () => {
-				currentRequestId = 2;
-			}),
+			runLocalMergeOnceEffect: vi.fn(() =>
+				Effect.sync(() => {
+					currentRequestId = 2;
+				}),
+			),
 		});
 		const client = createClient();
 
-		await syncSavedRoutesOnce({
-			client,
-			getCurrentRequestId: () => currentRequestId,
-			requestId: 1,
-			state,
-			userId: "user_1",
-		});
+		await Effect.runPromise(
+			syncSavedRoutesOnce({
+				client,
+				getCurrentRequestId: () => currentRequestId,
+				requestId: 1,
+				state,
+				userId: "user_1",
+			}),
+		);
 
 		expect(client.query).not.toHaveBeenCalled();
-		expect(state.applyRemoteRoutes).not.toHaveBeenCalled();
+		expect(state.applyRemoteRoutesEffect).not.toHaveBeenCalled();
 	});
 
 	it("ignores stale results when auth changes while the one-shot query is in flight", async () => {
@@ -213,16 +232,18 @@ describe("saved routes one-shot sync", () => {
 			}),
 		});
 
-		await syncSavedRoutesOnce({
-			client,
-			getCurrentRequestId: () => currentRequestId,
-			requestId: 1,
-			state,
-			userId: "user_1",
-		});
+		await Effect.runPromise(
+			syncSavedRoutesOnce({
+				client,
+				getCurrentRequestId: () => currentRequestId,
+				requestId: 1,
+				state,
+				userId: "user_1",
+			}),
+		);
 
 		expect(client.query).toHaveBeenCalledTimes(1);
-		expect(state.applyRemoteRoutes).not.toHaveBeenCalled();
+		expect(state.applyRemoteRoutesEffect).not.toHaveBeenCalled();
 	});
 
 	it("sets the existing load error message when the one-shot query fails", async () => {
@@ -231,33 +252,39 @@ describe("saved routes one-shot sync", () => {
 			query: vi.fn().mockRejectedValue(new Error("network down")),
 		});
 
-		await syncSavedRoutesOnce({
-			client,
-			getCurrentRequestId: () => 1,
-			requestId: 1,
-			state,
-			userId: "user_1",
-		});
+		await Effect.runPromise(
+			syncSavedRoutesOnce({
+				client,
+				getCurrentRequestId: () => 1,
+				requestId: 1,
+				state,
+				userId: "user_1",
+			}),
+		);
 
 		expect(state.syncError).toBe("Could not load synced routes: network down");
 	});
 
 	it("sets the existing load error message when local merge fails", async () => {
 		const state = createState({
-			runLocalMergeOnce: vi.fn().mockRejectedValue(new Error("merge down")),
+			runLocalMergeOnceEffect: vi.fn(() =>
+				Effect.fail(new TestRemoteError("merge down")),
+			),
 		});
 		const client = createClient();
 
-		await syncSavedRoutesOnce({
-			client,
-			getCurrentRequestId: () => 1,
-			requestId: 1,
-			state,
-			userId: "user_1",
-		});
+		await Effect.runPromise(
+			syncSavedRoutesOnce({
+				client,
+				getCurrentRequestId: () => 1,
+				requestId: 1,
+				state,
+				userId: "user_1",
+			}),
+		);
 
 		expect(state.syncError).toBe("Could not load synced routes: merge down");
-		expect(state.applyRemoteRoutes).not.toHaveBeenCalled();
+		expect(state.applyRemoteRoutesEffect).not.toHaveBeenCalled();
 		expect(client.query).not.toHaveBeenCalled();
 	});
 
@@ -265,9 +292,9 @@ describe("saved routes one-shot sync", () => {
 		const client = createClient();
 		const adapter = createSavedRoutesRemoteAdapter(client);
 
-		await adapter.save(savedRoute);
-		await adapter.delete("route_1");
-		await adapter.mergeLocalRoutes([savedRoute]);
+		await Effect.runPromise(adapter.save(savedRoute));
+		await Effect.runPromise(adapter.delete("route_1"));
+		await Effect.runPromise(adapter.mergeLocalRoutes([savedRoute]));
 
 		expect(client.mutation).toHaveBeenCalledTimes(3);
 		expect(client.mutation).toHaveBeenNthCalledWith(1, api.savedRoutes.upsert, {

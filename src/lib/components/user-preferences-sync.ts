@@ -8,6 +8,7 @@ import { api } from "../../convex/_generated/api";
 import type { BasemapId } from "$lib/map-style-settings.svelte";
 import type { ThemeMode } from "$lib/theme-settings.svelte";
 import type { DistanceUnit } from "$lib/unit-settings.svelte";
+import { Effect } from "effect";
 
 export type UserPreferencesRemoteSnapshot = FunctionReturnType<
 	typeof api.userPreferences.getForCurrentUser
@@ -31,7 +32,7 @@ export type UserPreferencesConvexClient = {
 };
 
 export type UserPreferencesRemoteAdapter = {
-	save: (preferences: UserPreferencesPatch) => Promise<void>;
+	save: (preferences: UserPreferencesPatch) => Effect.Effect<void, Error>;
 };
 
 export type UserPreferencesSyncState = {
@@ -43,19 +44,43 @@ export type UserPreferencesSyncState = {
 	syncError: string | null;
 };
 
+class UserPreferencesSyncError extends Error {
+	readonly _tag = "UserPreferencesSyncError";
+
+	constructor(cause: unknown, fallbackMessage: string) {
+		super(cause instanceof Error ? cause.message : fallbackMessage, { cause });
+	}
+}
+
+function toSyncError(cause: unknown, fallbackMessage: string) {
+	return new UserPreferencesSyncError(cause, fallbackMessage);
+}
+
+function convexMutationEffect<Mutation extends FunctionReference<"mutation">>(
+	client: UserPreferencesConvexClient,
+	mutationRef: Mutation,
+	args: FunctionArgs<Mutation>,
+): Effect.Effect<FunctionReturnType<Mutation>, Error> {
+	return Effect.tryPromise({
+		try: () => client.mutation(mutationRef, args),
+		catch: (cause) => toSyncError(cause, "Convex mutation failed."),
+	});
+}
+
 export function createUserPreferencesRemoteAdapter(
 	client: UserPreferencesConvexClient,
 ): UserPreferencesRemoteAdapter {
 	return {
-		save: async (preferences) => {
-			await client.mutation(api.userPreferences.upsertForCurrentUser, {
+		save: (preferences) =>
+			convexMutationEffect(client, api.userPreferences.upsertForCurrentUser, {
 				preferences,
-			});
-		},
+			}).pipe(Effect.asVoid),
 	};
 }
 
-export async function syncUserPreferencesSnapshot({
+export const syncUserPreferencesSnapshot = Effect.fn(
+	"syncUserPreferencesSnapshot",
+)(function* ({
 	adapter,
 	getCurrentRequestId,
 	remotePreferences,
@@ -69,36 +94,42 @@ export async function syncUserPreferencesSnapshot({
 	requestId: number;
 	state: UserPreferencesSyncState;
 	userId: string;
-}) {
-	try {
+}): Effect.fn.Return<UserPreferencesPatch | null, never> {
+	return yield* Effect.gen(function* () {
 		if (remotePreferences === null) {
-			const localPreferences = state.readLocalPreferences();
-			await adapter.save(localPreferences);
+			const localPreferences = yield* Effect.try({
+				try: () => state.readLocalPreferences(),
+				catch: (cause) =>
+					toSyncError(cause, "Could not read local account preferences."),
+			});
+			yield* adapter.save(localPreferences);
 			return localPreferences;
 		}
 
-		const appliedPreferences = state.applyRemotePreferences(
-			userId,
-			remotePreferences,
-		);
+		const appliedPreferences = yield* Effect.try({
+			try: () => state.applyRemotePreferences(userId, remotePreferences),
+			catch: (cause) =>
+				toSyncError(cause, "Could not apply account preferences."),
+		});
 
 		if (getCurrentRequestId() !== requestId) {
 			return null;
 		}
 
 		return appliedPreferences;
-	} catch (error) {
-		if (getCurrentRequestId() !== requestId) {
-			return null;
-		}
+	}).pipe(
+		Effect.catch((error) =>
+			Effect.sync(() => {
+				if (getCurrentRequestId() !== requestId) {
+					return null;
+				}
 
-		state.syncError =
-			error instanceof Error
-				? `Could not sync account preferences: ${error.message}`
-				: "Could not sync account preferences.";
-		return null;
-	}
-}
+				state.syncError = `Could not sync account preferences: ${error.message}`;
+				return null;
+			}),
+		),
+	);
+});
 
 export function serializeUserPreferencesPatch(
 	preferences: UserPreferencesPatch,
