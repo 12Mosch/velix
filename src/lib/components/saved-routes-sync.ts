@@ -6,6 +6,7 @@ import type {
 import type { SavedRoutesRemoteAdapter } from "$lib/saved-routes.svelte";
 import type { RemoteSavedRoutePayload } from "$lib/saved-routes-core";
 import { api } from "../../convex/_generated/api";
+import { Effect } from "effect";
 
 type SavedRoutesRemotePage = FunctionReturnType<
 	typeof api.savedRoutes.listForCurrentUser
@@ -16,11 +17,11 @@ const savedRoutesSyncPageSize = 25;
 const savedRoutesSyncMaximumRowsRead = 25;
 
 export type SavedRoutesSyncState = {
-	applyRemoteRoutes: (
+	applyRemoteRoutesEffect: (
 		userId: string,
 		routes: SavedRoutesRemoteSnapshot,
-	) => Promise<void>;
-	runLocalMergeOnce: (userId: string) => Promise<void>;
+	) => Effect.Effect<void>;
+	runLocalMergeOnceEffect: (userId: string) => Effect.Effect<void, Error>;
 	syncError: string | null;
 };
 
@@ -35,30 +36,64 @@ export type SavedRoutesConvexClient = {
 	): Promise<FunctionReturnType<Mutation>>;
 };
 
+class SavedRoutesConvexError extends Error {
+	readonly _tag = "SavedRoutesConvexError";
+
+	constructor(cause: unknown, fallbackMessage: string) {
+		super(cause instanceof Error ? cause.message : fallbackMessage, { cause });
+	}
+}
+
+function toConvexError(cause: unknown, fallbackMessage: string) {
+	return new SavedRoutesConvexError(cause, fallbackMessage);
+}
+
+function convexQueryEffect<Query extends FunctionReference<"query">>(
+	client: SavedRoutesConvexClient,
+	queryRef: Query,
+	args: FunctionArgs<Query>,
+): Effect.Effect<FunctionReturnType<Query>, Error> {
+	return Effect.tryPromise({
+		try: () => client.query(queryRef, args),
+		catch: (cause) => toConvexError(cause, "Convex query failed."),
+	});
+}
+
+function convexMutationEffect<Mutation extends FunctionReference<"mutation">>(
+	client: SavedRoutesConvexClient,
+	mutationRef: Mutation,
+	args: FunctionArgs<Mutation>,
+): Effect.Effect<FunctionReturnType<Mutation>, Error> {
+	return Effect.tryPromise({
+		try: () => client.mutation(mutationRef, args),
+		catch: (cause) => toConvexError(cause, "Convex mutation failed."),
+	});
+}
+
 export function createSavedRoutesRemoteAdapter(
 	client: SavedRoutesConvexClient,
 ): SavedRoutesRemoteAdapter {
 	return {
-		save: async (savedRoute: RemoteSavedRoutePayload) => {
-			await client.mutation(api.savedRoutes.upsert, { savedRoute });
-		},
-		delete: async (routeId: string) => {
-			await client.mutation(api.savedRoutes.remove, { routeId });
-		},
-		listVersions: async (routeId: string) => {
-			return await client.query(api.savedRoutes.listVersionsForRoute, {
+		save: (savedRoute: RemoteSavedRoutePayload) =>
+			convexMutationEffect(client, api.savedRoutes.upsert, { savedRoute }).pipe(
+				Effect.asVoid,
+			),
+		delete: (routeId: string) =>
+			convexMutationEffect(client, api.savedRoutes.remove, { routeId }).pipe(
+				Effect.asVoid,
+			),
+		listVersions: (routeId: string) =>
+			convexQueryEffect(client, api.savedRoutes.listVersionsForRoute, {
 				routeId,
-			});
-		},
-		mergeLocalRoutes: async (savedRoutes: RemoteSavedRoutePayload[]) => {
-			return await client.mutation(api.savedRoutes.mergeLocalRoutes, {
+			}),
+		mergeLocalRoutes: (savedRoutes: RemoteSavedRoutePayload[]) =>
+			convexMutationEffect(client, api.savedRoutes.mergeLocalRoutes, {
 				savedRoutes,
-			});
-		},
+			}),
 	};
 }
 
-export async function syncSavedRoutesOnce({
+export const syncSavedRoutesOnce = Effect.fn("syncSavedRoutesOnce")(function* ({
 	client,
 	getCurrentRequestId,
 	requestId,
@@ -70,9 +105,9 @@ export async function syncSavedRoutesOnce({
 	requestId: number;
 	state: SavedRoutesSyncState;
 	userId: string;
-}) {
-	try {
-		await state.runLocalMergeOnce(userId);
+}): Effect.fn.Return<void, never> {
+	yield* Effect.gen(function* () {
+		yield* state.runLocalMergeOnceEffect(userId);
 
 		if (getCurrentRequestId() !== requestId) {
 			return;
@@ -82,7 +117,8 @@ export async function syncSavedRoutesOnce({
 		const remoteRoutes: RemoteSavedRoutePayload[] = [];
 
 		do {
-			const page: SavedRoutesRemotePage = await client.query(
+			const page: SavedRoutesRemotePage = yield* convexQueryEffect(
+				client,
 				api.savedRoutes.listForCurrentUser,
 				{
 					paginationOpts: {
@@ -105,15 +141,16 @@ export async function syncSavedRoutesOnce({
 			return;
 		}
 
-		await state.applyRemoteRoutes(userId, remoteRoutes);
-	} catch (error) {
-		if (getCurrentRequestId() !== requestId) {
-			return;
-		}
+		yield* state.applyRemoteRoutesEffect(userId, remoteRoutes);
+	}).pipe(
+		Effect.catch((error) =>
+			Effect.sync(() => {
+				if (getCurrentRequestId() !== requestId) {
+					return;
+				}
 
-		state.syncError =
-			error instanceof Error
-				? `Could not load synced routes: ${error.message}`
-				: "Could not load synced routes.";
-	}
-}
+				state.syncError = `Could not load synced routes: ${error.message}`;
+			}),
+		),
+	);
+});

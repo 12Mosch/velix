@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
 import { api } from "../../convex/_generated/api";
 import {
@@ -60,17 +61,19 @@ describe("user preference account sync", () => {
 		const state = createState({
 			applyRemotePreferences: vi.fn(() => appliedPreferences),
 		});
-		const adapter = { save: vi.fn() };
+		const adapter = { save: vi.fn(() => Effect.void) };
 
 		await expect(
-			syncUserPreferencesSnapshot({
-				adapter,
-				getCurrentRequestId: () => 1,
-				remotePreferences,
-				requestId: 1,
-				state,
-				userId: "user_1",
-			}),
+			Effect.runPromise(
+				syncUserPreferencesSnapshot({
+					adapter,
+					getCurrentRequestId: () => 1,
+					remotePreferences,
+					requestId: 1,
+					state,
+					userId: "user_1",
+				}),
+			),
 		).resolves.toEqual(appliedPreferences);
 
 		expect(state.applyRemotePreferences).toHaveBeenCalledWith(
@@ -89,17 +92,19 @@ describe("user preference account sync", () => {
 		const state = createState({
 			readLocalPreferences: vi.fn(() => localPreferences),
 		});
-		const adapter = { save: vi.fn().mockResolvedValue(undefined) };
+		const adapter = { save: vi.fn(() => Effect.void) };
 
 		await expect(
-			syncUserPreferencesSnapshot({
-				adapter,
-				getCurrentRequestId: () => 1,
-				remotePreferences: null,
-				requestId: 1,
-				state,
-				userId: "user_1",
-			}),
+			Effect.runPromise(
+				syncUserPreferencesSnapshot({
+					adapter,
+					getCurrentRequestId: () => 1,
+					remotePreferences: null,
+					requestId: 1,
+					state,
+					userId: "user_1",
+				}),
+			),
 		).resolves.toEqual(localPreferences);
 
 		expect(adapter.save).toHaveBeenCalledWith(localPreferences);
@@ -124,7 +129,7 @@ describe("user preference account sync", () => {
 			nextPreferences,
 		);
 
-		await adapter.save(patch);
+		await Effect.runPromise(adapter.save(patch));
 
 		expect(client.mutation).toHaveBeenCalledWith(
 			api.userPreferences.upsertForCurrentUser,
@@ -147,23 +152,25 @@ describe("user preference account sync", () => {
 				return appliedPreferences;
 			}),
 		});
-		const adapter = { save: vi.fn() };
+		const adapter = { save: vi.fn(() => Effect.void) };
 
 		await expect(
-			syncUserPreferencesSnapshot({
-				adapter,
-				getCurrentRequestId: () => currentRequestId,
-				remotePreferences: {
-					themeMode: "dark",
-					mapStyle: "maptiler-outdoor",
-					distanceUnit: "mi",
-					createdAtMs: 1000,
-					updatedAtMs: 1000,
-				},
-				requestId: 1,
-				state,
-				userId: "user_1",
-			}),
+			Effect.runPromise(
+				syncUserPreferencesSnapshot({
+					adapter,
+					getCurrentRequestId: () => currentRequestId,
+					remotePreferences: {
+						themeMode: "dark",
+						mapStyle: "maptiler-outdoor",
+						distanceUnit: "mi",
+						createdAtMs: 1000,
+						updatedAtMs: 1000,
+					},
+					requestId: 1,
+					state,
+					userId: "user_1",
+				}),
+			),
 		).resolves.toBeNull();
 	});
 });
