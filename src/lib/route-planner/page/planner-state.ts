@@ -1,5 +1,6 @@
 import { cloneRoute } from "$lib/saved-routes-core";
 import { formatDistance, formatDistanceInput } from "$lib/unit-settings.svelte";
+import { Effect } from "effect";
 import {
 	getRouteSegmentCount,
 	type ManualRouteEditingState,
@@ -122,6 +123,12 @@ export function cloneAvoidances(
 		centerline: avoidance.centerline.map((point) => [point[0], point[1]]),
 		polygon: avoidance.polygon.map((point) => [point[0], point[1]]),
 	}));
+}
+
+export function cloneWorkoutTarget(
+	target: Extract<RoundCourseTarget, { kind: "workout" }> | null,
+): Extract<RoundCourseTarget, { kind: "workout" }> | null {
+	return target ? { ...target } : null;
 }
 
 export function getRouteStopInput(stop: PlannerStop): RouteStopInput {
@@ -301,9 +308,11 @@ export function getDefaultSpatialConstraintState(): Pick<
 	};
 }
 
-export function hydratePlannerStateFromRoute(
+export const hydratePlannerStateFromRoute = Effect.fn(
+	"hydratePlannerStateFromRoute",
+)(function* (
 	route: PlannedRoute,
-): HydratedPlannerStateFromRoute {
+): Effect.fn.Return<HydratedPlannerStateFromRoute> {
 	const roundCourseTarget = getRoundCourseTarget(route);
 	const routeStops = getRouteStopInputs(route);
 	const [start] = routeStops;
@@ -353,8 +362,9 @@ export function hydratePlannerStateFromRoute(
 					roundCourseTarget?.kind === "ascend"
 						? Math.round(roundCourseTarget.ascendMeters).toString()
 						: "",
-				roundCourseWorkoutTarget:
+				roundCourseWorkoutTarget: cloneWorkoutTarget(
 					roundCourseTarget?.kind === "workout" ? roundCourseTarget : null,
+				),
 				...spatialConstraintDefaults,
 			},
 			avoidedRoads: cloneAvoidances(route.avoidances ?? []),
@@ -397,8 +407,9 @@ export function hydratePlannerStateFromRoute(
 					roundCourseTarget?.kind === "ascend"
 						? Math.round(roundCourseTarget.ascendMeters).toString()
 						: "",
-				roundCourseWorkoutTarget:
+				roundCourseWorkoutTarget: cloneWorkoutTarget(
 					roundCourseTarget?.kind === "workout" ? roundCourseTarget : null,
+				),
 				spatialConstraintKind: "area",
 				spatialConstraintEnforcement: route.spatialConstraint.enforcement,
 				constraintCenterStop: createPlannerStop(
@@ -451,8 +462,9 @@ export function hydratePlannerStateFromRoute(
 				roundCourseTarget?.kind === "ascend"
 					? Math.round(roundCourseTarget.ascendMeters).toString()
 					: "",
-			roundCourseWorkoutTarget:
+			roundCourseWorkoutTarget: cloneWorkoutTarget(
 				roundCourseTarget?.kind === "workout" ? roundCourseTarget : null,
+			),
 			spatialConstraintKind: "corridor",
 			spatialConstraintEnforcement: route.spatialConstraint.enforcement,
 			constraintCenterStop: createPlannerStop(),
@@ -465,76 +477,85 @@ export function hydratePlannerStateFromRoute(
 		},
 		avoidedRoads: cloneAvoidances(route.avoidances ?? []),
 	};
-}
+});
 
 export function withManualEditingState(
 	route: PlannedRoute,
 	indexes: number[],
-): PlannedRoute {
-	const lockedSegmentIndexes = sanitizeLockedSegmentIndexes(
-		indexes,
-		getRouteSegmentCount(route),
-	);
-	const { manualEditing: _manualEditing, ...routeWithoutManualEditing } = route;
+): Effect.Effect<PlannedRoute> {
+	return Effect.sync(() => {
+		const lockedSegmentIndexes = sanitizeLockedSegmentIndexes(
+			indexes,
+			getRouteSegmentCount(route),
+		);
+		const { manualEditing: _manualEditing, ...routeWithoutManualEditing } =
+			route;
 
-	return lockedSegmentIndexes.length > 0
-		? {
-				...routeWithoutManualEditing,
-				manualEditing: {
-					lockedSegmentIndexes,
-				},
-			}
-		: routeWithoutManualEditing;
+		return lockedSegmentIndexes.length > 0
+			? {
+					...routeWithoutManualEditing,
+					manualEditing: {
+						lockedSegmentIndexes,
+					},
+				}
+			: routeWithoutManualEditing;
+	});
 }
 
 export function withAvoidancesState(
 	route: PlannedRoute,
 	avoidances: ResolvedRouteAvoidance[],
-): PlannedRoute {
-	const { avoidances: _avoidances, ...routeWithoutAvoidances } = route;
+): Effect.Effect<PlannedRoute> {
+	return Effect.sync(() => {
+		const { avoidances: _avoidances, ...routeWithoutAvoidances } = route;
 
-	return avoidances.length > 0
-		? {
-				...routeWithoutAvoidances,
-				avoidances: cloneAvoidances(avoidances),
-			}
-		: routeWithoutAvoidances;
+		return avoidances.length > 0
+			? {
+					...routeWithoutAvoidances,
+					avoidances: cloneAvoidances(avoidances),
+				}
+			: routeWithoutAvoidances;
+	});
 }
 
-export function withPlannerRouteState(
-	route: PlannedRoute,
-	indexes: number[],
-	avoidances: ResolvedRouteAvoidance[],
-): PlannedRoute {
-	return withAvoidancesState(
-		withManualEditingState(route, indexes),
-		avoidances,
-	);
-}
+export const withPlannerRouteState = Effect.fn("withPlannerRouteState")(
+	function* (
+		route: PlannedRoute,
+		indexes: number[],
+		avoidances: ResolvedRouteAvoidance[],
+	): Effect.fn.Return<PlannedRoute> {
+		return yield* withAvoidancesState(
+			yield* withManualEditingState(route, indexes),
+			avoidances,
+		);
+	},
+);
 
 export function getManualEditingRequest(
 	activeRoute: PlannedRoute | null,
 	lockedSegmentIndexes: number[],
-): ManualRouteEditingState | undefined {
-	if (!activeRoute) {
-		return undefined;
-	}
+): Effect.Effect<ManualRouteEditingState | undefined> {
+	return Effect.sync(() => {
+		if (!activeRoute) {
+			return undefined;
+		}
 
-	const sanitizedLockedSegmentIndexes = sanitizeLockedSegmentIndexes(
-		lockedSegmentIndexes,
-		getRouteSegmentCount(activeRoute),
-	);
+		const sanitizedLockedSegmentIndexes = sanitizeLockedSegmentIndexes(
+			lockedSegmentIndexes,
+			getRouteSegmentCount(activeRoute),
+		);
 
-	return sanitizedLockedSegmentIndexes.length > 0
-		? {
-				lockedSegmentIndexes: sanitizedLockedSegmentIndexes,
-			}
-		: undefined;
+		return sanitizedLockedSegmentIndexes.length > 0
+			? {
+					lockedSegmentIndexes: sanitizedLockedSegmentIndexes,
+				}
+			: undefined;
+	});
 }
 
-export function getAvoidanceRequest(
+export const getAvoidanceRequest = Effect.fn("getAvoidanceRequest")(function* (
 	avoidedRoads: ResolvedRouteAvoidance[],
-): RouteAvoidanceInput[] | undefined {
+): Effect.fn.Return<RouteAvoidanceInput[] | undefined> {
 	return avoidedRoads.length > 0
 		? avoidedRoads.map((avoidance) => ({
 				kind: "road_segment",
@@ -543,51 +564,55 @@ export function getAvoidanceRequest(
 				label: avoidance.label,
 			}))
 		: undefined;
-}
+});
 
-export function buildCurrentRouteRequest(
-	form: PlannerFormState,
-	manualEditing?: ManualRouteEditingState,
-	avoidances?: RouteAvoidanceInput[],
-): RouteRequestPayload & { manualEditing?: ManualRouteEditingState } {
-	const spatialConstraint = buildSpatialConstraintRequest(form);
-	const baseRequest: RouteRequestPayload =
-		form.plannerMode === "round_course"
-			? {
-					mode: "round_course",
-					start: getRouteStopInput(form.startStop),
-					waypoints: form.waypointStops.map((waypoint) =>
-						getRouteStopInput(waypoint),
-					),
-					target: buildRoundCourseTargetRequest(form),
-					...(spatialConstraint ? { spatialConstraint } : {}),
-				}
-			: form.plannerMode === "out_and_back"
+export const buildCurrentRouteRequest = Effect.fn("buildCurrentRouteRequest")(
+	function* (
+		form: PlannerFormState,
+		manualEditing?: ManualRouteEditingState,
+		avoidances?: RouteAvoidanceInput[],
+	): Effect.fn.Return<
+		RouteRequestPayload & { manualEditing?: ManualRouteEditingState }
+	> {
+		const spatialConstraint = buildSpatialConstraintRequest(form);
+		const baseRequest: RouteRequestPayload =
+			form.plannerMode === "round_course"
 				? {
-						mode: "out_and_back",
+						mode: "round_course",
 						start: getRouteStopInput(form.startStop),
 						waypoints: form.waypointStops.map((waypoint) =>
 							getRouteStopInput(waypoint),
 						),
-						turnaround: getRouteStopInput(form.destinationStop),
+						target: buildRoundCourseTargetRequest(form),
 						...(spatialConstraint ? { spatialConstraint } : {}),
 					}
-				: {
-						mode: "point_to_point",
-						start: getRouteStopInput(form.startStop),
-						waypoints: form.waypointStops.map((waypoint) =>
-							getRouteStopInput(waypoint),
-						),
-						destination: getRouteStopInput(form.destinationStop),
-						...(spatialConstraint ? { spatialConstraint } : {}),
-					};
+				: form.plannerMode === "out_and_back"
+					? {
+							mode: "out_and_back",
+							start: getRouteStopInput(form.startStop),
+							waypoints: form.waypointStops.map((waypoint) =>
+								getRouteStopInput(waypoint),
+							),
+							turnaround: getRouteStopInput(form.destinationStop),
+							...(spatialConstraint ? { spatialConstraint } : {}),
+						}
+					: {
+							mode: "point_to_point",
+							start: getRouteStopInput(form.startStop),
+							waypoints: form.waypointStops.map((waypoint) =>
+								getRouteStopInput(waypoint),
+							),
+							destination: getRouteStopInput(form.destinationStop),
+							...(spatialConstraint ? { spatialConstraint } : {}),
+						};
 
-	return {
-		...baseRequest,
-		...(manualEditing ? { manualEditing } : {}),
-		...(avoidances ? { avoidances } : {}),
-	};
-}
+		return {
+			...baseRequest,
+			...(manualEditing ? { manualEditing } : {}),
+			...(avoidances ? { avoidances } : {}),
+		};
+	},
+);
 
 export function validatePlannerForm(
 	form: Pick<
@@ -606,90 +631,94 @@ export function validatePlannerForm(
 		minRoundCourseDurationMs: number;
 		minRoundCourseAscendMeters: number;
 	},
-): PlannerValidationResult {
-	const fieldErrors: NonNullable<RouteFieldErrors> = {};
+): Effect.Effect<PlannerValidationResult> {
+	return Effect.sync(() => {
+		const fieldErrors: NonNullable<RouteFieldErrors> = {};
 
-	if (form.plannerMode === "round_course") {
-		if (form.roundCourseTargetKind === "distance") {
-			if (form.roundCourseDistanceMetersInput === null) {
-				fieldErrors.roundCourseTarget = "Enter a target distance.";
-			} else if (
-				form.roundCourseDistanceMetersInput <
-				options.minRoundCourseDistanceMeters
-			) {
-				fieldErrors.roundCourseTarget = `Enter a target distance of at least ${options.minRoundCourseDistanceMeters} meters.`;
+		if (form.plannerMode === "round_course") {
+			if (form.roundCourseTargetKind === "distance") {
+				if (form.roundCourseDistanceMetersInput === null) {
+					fieldErrors.roundCourseTarget = "Enter a target distance.";
+				} else if (
+					form.roundCourseDistanceMetersInput <
+					options.minRoundCourseDistanceMeters
+				) {
+					fieldErrors.roundCourseTarget = `Enter a target distance of at least ${options.minRoundCourseDistanceMeters} meters.`;
+				}
+			} else if (form.roundCourseTargetKind === "duration") {
+				const durationMs = parseRoundCourseDurationInput(
+					form.roundCourseDurationInput,
+				);
+
+				if (
+					durationMs === null ||
+					Number.isNaN(durationMs) ||
+					!Number.isFinite(durationMs) ||
+					durationMs < options.minRoundCourseDurationMs
+				) {
+					fieldErrors.roundCourseTarget = "Enter a target time.";
+				}
+			} else if (form.roundCourseTargetKind === "ascend") {
+				const ascendMeters = Number(
+					form.roundCourseAscendMeters.replace(",", "."),
+				);
+
+				if (
+					Number.isNaN(ascendMeters) ||
+					!Number.isFinite(ascendMeters) ||
+					ascendMeters < options.minRoundCourseAscendMeters
+				) {
+					fieldErrors.roundCourseTarget = "Enter a target climb.";
+				}
 			}
-		} else if (form.roundCourseTargetKind === "duration") {
-			const durationMs = parseRoundCourseDurationInput(
-				form.roundCourseDurationInput,
-			);
+		}
 
+		if (form.spatialConstraintKind === "area") {
 			if (
-				durationMs === null ||
-				Number.isNaN(durationMs) ||
-				!Number.isFinite(durationMs) ||
-				durationMs < options.minRoundCourseDurationMs
+				form.areaRadiusMetersInput === null ||
+				form.areaRadiusMetersInput < minAreaRadiusMeters ||
+				form.areaRadiusMetersInput > maxAreaRadiusMeters
 			) {
-				fieldErrors.roundCourseTarget = "Enter a target time.";
+				fieldErrors.spatialConstraint = `Enter an area radius from ${formatDistance(minAreaRadiusMeters)} to ${formatDistance(maxAreaRadiusMeters)}.`;
 			}
-		} else if (form.roundCourseTargetKind === "ascend") {
-			const ascendMeters = Number(
-				form.roundCourseAscendMeters.replace(",", "."),
-			);
-
+		} else if (
+			form.spatialConstraintKind === "corridor" &&
+			form.plannerMode !== "round_course"
+		) {
 			if (
-				Number.isNaN(ascendMeters) ||
-				!Number.isFinite(ascendMeters) ||
-				ascendMeters < options.minRoundCourseAscendMeters
+				form.corridorWidthMetersInput === null ||
+				form.corridorWidthMetersInput < minCorridorWidthMeters ||
+				form.corridorWidthMetersInput > maxCorridorWidthMeters
 			) {
-				fieldErrors.roundCourseTarget = "Enter a target climb.";
+				fieldErrors.spatialConstraint = `Enter a corridor width from ${formatDistance(minCorridorWidthMeters)} to ${formatDistance(maxCorridorWidthMeters)}.`;
 			}
 		}
-	}
 
-	if (form.spatialConstraintKind === "area") {
-		if (
-			form.areaRadiusMetersInput === null ||
-			form.areaRadiusMetersInput < minAreaRadiusMeters ||
-			form.areaRadiusMetersInput > maxAreaRadiusMeters
-		) {
-			fieldErrors.spatialConstraint = `Enter an area radius from ${formatDistance(minAreaRadiusMeters)} to ${formatDistance(maxAreaRadiusMeters)}.`;
-		}
-	} else if (
-		form.spatialConstraintKind === "corridor" &&
-		form.plannerMode !== "round_course"
-	) {
-		if (
-			form.corridorWidthMetersInput === null ||
-			form.corridorWidthMetersInput < minCorridorWidthMeters ||
-			form.corridorWidthMetersInput > maxCorridorWidthMeters
-		) {
-			fieldErrors.spatialConstraint = `Enter a corridor width from ${formatDistance(minCorridorWidthMeters)} to ${formatDistance(maxCorridorWidthMeters)}.`;
-		}
-	}
-
-	return {
-		valid: Object.keys(fieldErrors).length === 0,
-		fieldErrors,
-	};
+		return {
+			valid: Object.keys(fieldErrors).length === 0,
+			fieldErrors,
+		};
+	});
 }
 
-export function getActiveRouteForSaving(
-	args: SaveablePlannerRouteArgs,
-): PlannedRoute | null {
-	if (!args.activeRoute) {
-		return null;
-	}
+export const getActiveRouteForSaving = Effect.fn("getActiveRouteForSaving")(
+	function* (
+		args: SaveablePlannerRouteArgs,
+	): Effect.fn.Return<PlannedRoute | null> {
+		if (!args.activeRoute) {
+			return null;
+		}
 
-	const manualEditing = getManualEditingRequest(
-		args.activeRoute,
-		args.lockedSegmentIndexes,
-	);
-	return {
-		...withAvoidancesState(args.activeRoute, args.avoidedRoads),
-		manualEditing,
-	};
-}
+		const manualEditing = yield* getManualEditingRequest(
+			args.activeRoute,
+			args.lockedSegmentIndexes,
+		);
+		return {
+			...(yield* withAvoidancesState(args.activeRoute, args.avoidedRoads)),
+			manualEditing,
+		};
+	},
+);
 
 export function getRouteShareSignature(route: PlannedRoute): string {
 	return [
@@ -706,90 +735,100 @@ export function getRouteShareSignature(route: PlannedRoute): string {
 export function pruneRouteShareState<T>(
 	state: Record<string, T>,
 	keepKeys: Set<string>,
-): Record<string, T> {
-	const entries = Object.entries(state).filter(([key]) => keepKeys.has(key));
+): Effect.Effect<Record<string, T>> {
+	return Effect.sync(() => {
+		const entries = Object.entries(state).filter(([key]) => keepKeys.has(key));
 
-	return entries.length === Object.keys(state).length
-		? state
-		: Object.fromEntries(entries);
+		return entries.length === Object.keys(state).length
+			? state
+			: Object.fromEntries(entries);
+	});
 }
 
-export function captureRouteEditSnapshot(
-	form: PlannerFormState,
-	routeState: PlannerRouteState,
-	options: RouteEditSnapshotOptions = {},
-): RouteEditSnapshot {
-	return {
-		routeAlternatives: options.includeRoutesGeometry
-			? routeState.routeAlternatives.map((route) => cloneRoute(route))
-			: [...routeState.routeAlternatives],
-		selectedRouteIndex: routeState.selectedRouteIndex,
-		routeNeedsRecalculation: routeState.routeNeedsRecalculation,
-		lockedSegmentIndexes: [...routeState.lockedSegmentIndexes],
-		avoidedRoads: cloneAvoidances(routeState.avoidedRoads),
-		plannerMode: form.plannerMode,
-		startStop: clonePlannerStop(form.startStop),
-		waypointStops: form.waypointStops.map((waypoint) =>
-			clonePlannerStop(waypoint),
-		),
-		destinationStop: clonePlannerStop(form.destinationStop),
-		roundCourseTargetKind: form.roundCourseTargetKind,
-		roundCourseDistanceInput: form.roundCourseDistanceInput,
-		roundCourseDistanceMetersInput: form.roundCourseDistanceMetersInput,
-		roundCourseDurationInput: form.roundCourseDurationInput,
-		roundCourseAscendMeters: form.roundCourseAscendMeters,
-		roundCourseWorkoutTarget: form.roundCourseWorkoutTarget,
-		spatialConstraintKind: form.spatialConstraintKind,
-		spatialConstraintEnforcement: form.spatialConstraintEnforcement,
-		constraintCenterStop: clonePlannerStop(form.constraintCenterStop),
-		areaRadiusInput: form.areaRadiusInput,
-		corridorWidthInput: form.corridorWidthInput,
-		areaRadiusMetersInput: form.areaRadiusMetersInput,
-		corridorWidthMetersInput: form.corridorWidthMetersInput,
-		lastGeneratedRouteCount: routeState.lastGeneratedRouteCount,
-		fieldErrors: cloneFieldErrors(form.fieldErrors),
-	};
-}
-
-export function restoreRouteEditSnapshot(snapshot: RouteEditSnapshot): {
-	form: PlannerFormState;
-	routeState: PlannerRouteState;
-} {
-	return {
-		form: {
-			plannerMode: snapshot.plannerMode,
-			startStop: clonePlannerStop(snapshot.startStop),
-			waypointStops: snapshot.waypointStops.map((waypoint) =>
+export const captureRouteEditSnapshot = Effect.fn("captureRouteEditSnapshot")(
+	function* (
+		form: PlannerFormState,
+		routeState: PlannerRouteState,
+		options: RouteEditSnapshotOptions = {},
+	): Effect.fn.Return<RouteEditSnapshot> {
+		return {
+			routeAlternatives: options.includeRoutesGeometry
+				? routeState.routeAlternatives.map((route) => cloneRoute(route))
+				: [...routeState.routeAlternatives],
+			selectedRouteIndex: routeState.selectedRouteIndex,
+			routeNeedsRecalculation: routeState.routeNeedsRecalculation,
+			lockedSegmentIndexes: [...routeState.lockedSegmentIndexes],
+			avoidedRoads: cloneAvoidances(routeState.avoidedRoads),
+			plannerMode: form.plannerMode,
+			startStop: clonePlannerStop(form.startStop),
+			waypointStops: form.waypointStops.map((waypoint) =>
 				clonePlannerStop(waypoint),
 			),
-			destinationStop: clonePlannerStop(snapshot.destinationStop),
-			roundCourseTargetKind: snapshot.roundCourseTargetKind,
-			roundCourseDistanceInput: snapshot.roundCourseDistanceInput,
-			roundCourseDistanceMetersInput: snapshot.roundCourseDistanceMetersInput,
-			roundCourseDurationInput: snapshot.roundCourseDurationInput,
-			roundCourseAscendMeters: snapshot.roundCourseAscendMeters,
-			roundCourseWorkoutTarget: snapshot.roundCourseWorkoutTarget,
-			spatialConstraintKind: snapshot.spatialConstraintKind,
-			spatialConstraintEnforcement: snapshot.spatialConstraintEnforcement,
-			constraintCenterStop: clonePlannerStop(snapshot.constraintCenterStop),
-			areaRadiusInput: snapshot.areaRadiusInput,
-			corridorWidthInput: snapshot.corridorWidthInput,
-			areaRadiusMetersInput: snapshot.areaRadiusMetersInput,
-			corridorWidthMetersInput: snapshot.corridorWidthMetersInput,
-			fieldErrors: cloneFieldErrors(snapshot.fieldErrors),
-		},
-		routeState: {
-			routeAlternatives: snapshot.routeAlternatives.map((route) =>
-				cloneRoute(route),
+			destinationStop: clonePlannerStop(form.destinationStop),
+			roundCourseTargetKind: form.roundCourseTargetKind,
+			roundCourseDistanceInput: form.roundCourseDistanceInput,
+			roundCourseDistanceMetersInput: form.roundCourseDistanceMetersInput,
+			roundCourseDurationInput: form.roundCourseDurationInput,
+			roundCourseAscendMeters: form.roundCourseAscendMeters,
+			roundCourseWorkoutTarget: cloneWorkoutTarget(
+				form.roundCourseWorkoutTarget,
 			),
-			selectedRouteIndex: snapshot.selectedRouteIndex,
-			routeNeedsRecalculation: snapshot.routeNeedsRecalculation,
-			lockedSegmentIndexes: [...snapshot.lockedSegmentIndexes],
-			avoidedRoads: cloneAvoidances(snapshot.avoidedRoads),
-			lastGeneratedRouteCount: snapshot.lastGeneratedRouteCount,
-		},
-	};
-}
+			spatialConstraintKind: form.spatialConstraintKind,
+			spatialConstraintEnforcement: form.spatialConstraintEnforcement,
+			constraintCenterStop: clonePlannerStop(form.constraintCenterStop),
+			areaRadiusInput: form.areaRadiusInput,
+			corridorWidthInput: form.corridorWidthInput,
+			areaRadiusMetersInput: form.areaRadiusMetersInput,
+			corridorWidthMetersInput: form.corridorWidthMetersInput,
+			lastGeneratedRouteCount: routeState.lastGeneratedRouteCount,
+			fieldErrors: cloneFieldErrors(form.fieldErrors),
+		};
+	},
+);
+
+export const restoreRouteEditSnapshot = Effect.fn("restoreRouteEditSnapshot")(
+	function* (snapshot: RouteEditSnapshot): Effect.fn.Return<{
+		form: PlannerFormState;
+		routeState: PlannerRouteState;
+	}> {
+		return {
+			form: {
+				plannerMode: snapshot.plannerMode,
+				startStop: clonePlannerStop(snapshot.startStop),
+				waypointStops: snapshot.waypointStops.map((waypoint) =>
+					clonePlannerStop(waypoint),
+				),
+				destinationStop: clonePlannerStop(snapshot.destinationStop),
+				roundCourseTargetKind: snapshot.roundCourseTargetKind,
+				roundCourseDistanceInput: snapshot.roundCourseDistanceInput,
+				roundCourseDistanceMetersInput: snapshot.roundCourseDistanceMetersInput,
+				roundCourseDurationInput: snapshot.roundCourseDurationInput,
+				roundCourseAscendMeters: snapshot.roundCourseAscendMeters,
+				roundCourseWorkoutTarget: cloneWorkoutTarget(
+					snapshot.roundCourseWorkoutTarget,
+				),
+				spatialConstraintKind: snapshot.spatialConstraintKind,
+				spatialConstraintEnforcement: snapshot.spatialConstraintEnforcement,
+				constraintCenterStop: clonePlannerStop(snapshot.constraintCenterStop),
+				areaRadiusInput: snapshot.areaRadiusInput,
+				corridorWidthInput: snapshot.corridorWidthInput,
+				areaRadiusMetersInput: snapshot.areaRadiusMetersInput,
+				corridorWidthMetersInput: snapshot.corridorWidthMetersInput,
+				fieldErrors: cloneFieldErrors(snapshot.fieldErrors),
+			},
+			routeState: {
+				routeAlternatives: snapshot.routeAlternatives.map((route) =>
+					cloneRoute(route),
+				),
+				selectedRouteIndex: snapshot.selectedRouteIndex,
+				routeNeedsRecalculation: snapshot.routeNeedsRecalculation,
+				lockedSegmentIndexes: [...snapshot.lockedSegmentIndexes],
+				avoidedRoads: cloneAvoidances(snapshot.avoidedRoads),
+				lastGeneratedRouteCount: snapshot.lastGeneratedRouteCount,
+			},
+		};
+	},
+);
 
 function getRouteStopInputs(route: PlannedRoute): RouteStopInput[] {
 	const stops: RouteStopInput[] = [

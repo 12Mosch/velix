@@ -27,6 +27,7 @@
 	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerMapController, PlannerRoutesController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
 	import { getWaypointCompletionTarget } from "$lib/route-planner/page/planner-completion.svelte";
 	import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronUp, LocateFixed, MapPin, Navigation, Plus, X } from "@lucide/svelte";
+	import { Effect } from "effect";
 
 
 	type Props = {
@@ -84,7 +85,8 @@
 				<form
 					class="flex flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-lg"
 					novalidate
-					onsubmit={routes.handleGenerateRoute}
+					onsubmit={(event) =>
+						void Effect.runPromise(routes.handleGenerateRoute(event))}
 				>
 					<div class="flex items-center justify-between gap-3">
 						<h2 class="text-base font-semibold tracking-tight md:text-lg">Route Builder</h2>
@@ -138,7 +140,10 @@
 									class="size-7 text-muted-foreground hover:text-foreground"
 									disabled={builderView.isLocating}
 									aria-label="Use current location as start"
-									onclick={() => form.useCurrentLocationAsStop("startQuery")}
+									onclick={() =>
+										void Effect.runPromise(
+											form.useCurrentLocationAsStop("startQuery"),
+										)}
 								>
 									<LocateFixed class="size-3.5" />
 								</Button>
@@ -381,7 +386,10 @@
 										class="size-7 text-muted-foreground hover:text-foreground"
 										disabled={builderView.isLocating}
 										aria-label={form.getCurrentLocationDestinationLabel()}
-										onclick={() => form.useCurrentLocationAsStop("destinationQuery")}
+										onclick={() =>
+											void Effect.runPromise(
+												form.useCurrentLocationAsStop("destinationQuery"),
+											)}
 									>
 										<LocateFixed class="size-3.5" />
 									</Button>

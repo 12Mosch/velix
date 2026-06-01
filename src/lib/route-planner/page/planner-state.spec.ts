@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Effect } from "effect";
 
 import type { PlannedRoute } from "$lib/route-planning";
 import {
@@ -94,10 +95,8 @@ const baseRoute: PlannedRoute = {
 describe("planner-state", () => {
 	it("builds route requests with manual editing and avoidances", () => {
 		const form = createBaseFormState();
-		const request = buildCurrentRouteRequest(
-			form,
-			{ lockedSegmentIndexes: [1] },
-			[
+		const request = Effect.runSync(
+			buildCurrentRouteRequest(form, { lockedSegmentIndexes: [1] }, [
 				{
 					kind: "road_segment",
 					label: "Avoided road 1",
@@ -107,7 +106,7 @@ describe("planner-state", () => {
 					],
 					bufferMeters: 35,
 				},
-			],
+			]),
 		);
 
 		expect(request).toEqual({
@@ -156,7 +155,7 @@ describe("planner-state", () => {
 			avoidances: createBaseRouteState().avoidedRoads,
 		};
 
-		const hydrated = hydratePlannerStateFromRoute(route);
+		const hydrated = Effect.runSync(hydratePlannerStateFromRoute(route));
 
 		expect(hydrated.form.plannerMode).toBe("round_course");
 		expect(hydrated.form.startStop).toEqual(
@@ -173,22 +172,24 @@ describe("planner-state", () => {
 	});
 
 	it("returns validation errors for invalid round-course and corridor inputs", () => {
-		const validation = validatePlannerForm(
-			{
-				plannerMode: "round_course",
-				roundCourseTargetKind: "duration",
-				roundCourseDistanceMetersInput: null,
-				roundCourseDurationInput: "0:10",
-				roundCourseAscendMeters: "10",
-				spatialConstraintKind: "corridor",
-				areaRadiusMetersInput: null,
-				corridorWidthMetersInput: 1000,
-			},
-			{
-				minRoundCourseDistanceMeters: 10_000,
-				minRoundCourseDurationMs: 15 * 60 * 1000,
-				minRoundCourseAscendMeters: 50,
-			},
+		const validation = Effect.runSync(
+			validatePlannerForm(
+				{
+					plannerMode: "round_course",
+					roundCourseTargetKind: "duration",
+					roundCourseDistanceMetersInput: null,
+					roundCourseDurationInput: "0:10",
+					roundCourseAscendMeters: "10",
+					spatialConstraintKind: "corridor",
+					areaRadiusMetersInput: null,
+					corridorWidthMetersInput: 1000,
+				},
+				{
+					minRoundCourseDistanceMeters: 10_000,
+					minRoundCourseDurationMs: 15 * 60 * 1000,
+					minRoundCourseAscendMeters: 50,
+				},
+			),
 		);
 
 		expect(validation.valid).toBe(false);
@@ -199,18 +200,20 @@ describe("planner-state", () => {
 	});
 
 	it("returns validation errors for below-minimum round-course distance targets", () => {
-		const validation = validatePlannerForm(
-			{
-				...createBaseFormState(),
-				plannerMode: "round_course",
-				roundCourseTargetKind: "distance",
-				roundCourseDistanceMetersInput: 9_999,
-			},
-			{
-				minRoundCourseDistanceMeters: 10_000,
-				minRoundCourseDurationMs: 15 * 60 * 1000,
-				minRoundCourseAscendMeters: 50,
-			},
+		const validation = Effect.runSync(
+			validatePlannerForm(
+				{
+					...createBaseFormState(),
+					plannerMode: "round_course",
+					roundCourseTargetKind: "distance",
+					roundCourseDistanceMetersInput: 9_999,
+				},
+				{
+					minRoundCourseDistanceMeters: 10_000,
+					minRoundCourseDurationMs: 15 * 60 * 1000,
+					minRoundCourseAscendMeters: 50,
+				},
+			),
 		);
 
 		expect(validation.valid).toBe(false);
@@ -220,18 +223,20 @@ describe("planner-state", () => {
 	});
 
 	it("accepts round-course distance targets at the exact minimum", () => {
-		const validation = validatePlannerForm(
-			{
-				...createBaseFormState(),
-				plannerMode: "round_course",
-				roundCourseTargetKind: "distance",
-				roundCourseDistanceMetersInput: 10_000,
-			},
-			{
-				minRoundCourseDistanceMeters: 10_000,
-				minRoundCourseDurationMs: 15 * 60 * 1000,
-				minRoundCourseAscendMeters: 50,
-			},
+		const validation = Effect.runSync(
+			validatePlannerForm(
+				{
+					...createBaseFormState(),
+					plannerMode: "round_course",
+					roundCourseTargetKind: "distance",
+					roundCourseDistanceMetersInput: 10_000,
+				},
+				{
+					minRoundCourseDistanceMeters: 10_000,
+					minRoundCourseDurationMs: 15 * 60 * 1000,
+					minRoundCourseAscendMeters: 50,
+				},
+			),
 		);
 
 		expect(validation.valid).toBe(true);
@@ -253,11 +258,13 @@ describe("planner-state", () => {
 			},
 		};
 
-		const routeForSaving = getActiveRouteForSaving({
-			activeRoute,
-			lockedSegmentIndexes: [],
-			avoidedRoads: [],
-		});
+		const routeForSaving = Effect.runSync(
+			getActiveRouteForSaving({
+				activeRoute,
+				lockedSegmentIndexes: [],
+				avoidedRoads: [],
+			}),
+		);
 
 		expect(routeForSaving?.manualEditing).toBeUndefined();
 	});
@@ -268,10 +275,12 @@ describe("planner-state", () => {
 			waypointQueries: ["Waypoint missing"],
 		};
 		const routeState = createBaseRouteState();
-		const snapshot = captureRouteEditSnapshot(form, routeState, {
-			includeRoutesGeometry: true,
-		});
-		const restored = restoreRouteEditSnapshot(snapshot);
+		const snapshot = Effect.runSync(
+			captureRouteEditSnapshot(form, routeState, {
+				includeRoutesGeometry: true,
+			}),
+		);
+		const restored = Effect.runSync(restoreRouteEditSnapshot(snapshot));
 
 		expect(restored.form).toEqual(form);
 		expect(restored.routeState).toEqual(routeState);

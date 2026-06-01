@@ -17,6 +17,7 @@
 		TrafficCone,
 		Wind,
 	} from "@lucide/svelte";
+	import { Effect } from "effect";
 
 	type Props = {
 		sidebar: ReturnType<typeof import("$lib/components/ui/sidebar/index.js").useSidebar>;
@@ -128,7 +129,7 @@
 				type="button"
 				disabled={isLocating}
 				aria-label="Show current location"
-				onclick={map.showCurrentLocationOnMap}
+				onclick={() => void Effect.runPromise(map.showCurrentLocationOnMap())}
 			>
 				<LocateFixed class="size-4" />
 			</Button>
