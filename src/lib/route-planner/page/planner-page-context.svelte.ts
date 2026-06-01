@@ -1716,6 +1716,7 @@ export function createPlannerPageContext() {
 				return null;
 			}
 			const routeForSaving = cloneRoute(activeRouteForSaving);
+			const savedRevision = routeSaveRevision;
 
 			const savedRoute = yield* upsertSavedRouteEffect(
 				routeForSaving,
@@ -1729,8 +1730,12 @@ export function createPlannerPageContext() {
 			plannerDraftRouteId = savedRoute.id;
 			activeSavedRouteId = savedRoute.id;
 			isActiveRouteSaved = true;
-			lastAutosavedRouteId = savedRoute.id;
-			lastAutosavedRevision = routeSaveRevision;
+			if (savedRevision === routeSaveRevision) {
+				lastAutosavedRouteId = savedRoute.id;
+				lastAutosavedRevision = savedRevision;
+			} else if (options.source === "autosave") {
+				scheduleActiveRouteAutosave();
+			}
 			return savedRoute;
 		},
 	);
