@@ -32,6 +32,7 @@
 	} from "$lib/route-planner/formatters";
 	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerRoutesController, PlannerSaveController, PlannerSharingController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
 	import { AlertTriangle, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronDown, ChevronUp, CircleDot, CornerDownLeft, CornerDownRight, Flag, MountainSnow, Navigation, Redo2, Route, Share2, ShieldCheck, Shuffle, TrendingDown, TrendingUp, Undo2, Wind, X } from "@lucide/svelte";
+	import { Effect } from "effect";
 
 
 	type Props = {
@@ -309,7 +310,8 @@
 										size="sm"
 										class="gap-1 font-semibold"
 										disabled={dockView.routeActionsDisabled}
-										onclick={save.handleSaveDraft}
+										onclick={() =>
+											void Effect.runPromise(save.handleSaveDraft())}
 									>
 										{#if dockView.isActiveRouteSaved}
 											<Check class="size-3.5" />
@@ -346,7 +348,8 @@
 										variant="outline"
 										class="gap-1 font-semibold"
 										disabled={dockView.routeActionsDisabled || dockView.isSharingRoute}
-										onclick={sharing.handleShareActiveRoute}
+										onclick={() =>
+											void Effect.runPromise(sharing.handleShareActiveRoute())}
 									>
 										<Share2 class="size-3.5" />
 										{dockView.isSharingRoute ? "Sharing..." : dockView.isActiveRouteShareCopied ? "Copied" : "Share"}
@@ -468,7 +471,8 @@
 										type="button"
 										disabled={dockView.isRouting}
 										aria-label={`Remove ${avoidance.label}`}
-										onclick={() => routes.removeAvoidedRoad(index)}
+										onclick={() =>
+											void Effect.runPromise(routes.removeAvoidedRoad(index))}
 									>
 										<X class="size-3.5" />
 									</Button>

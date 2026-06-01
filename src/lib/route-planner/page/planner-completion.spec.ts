@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
 import { createPlannerCompletionController } from "./planner-completion.svelte.ts";
 
@@ -72,11 +73,11 @@ describe("planner completion controller", () => {
 		);
 		const { controller } = createController({ fetchImpl });
 
-		controller.scheduleLookup(startTarget, "Mu");
+		Effect.runSync(controller.scheduleLookup(startTarget, "Mu"));
 		await vi.advanceTimersByTimeAsync(300);
 		expect(fetchImpl).not.toHaveBeenCalled();
 
-		controller.scheduleLookup(startTarget, "Mun");
+		Effect.runSync(controller.scheduleLookup(startTarget, "Mun"));
 		await vi.advanceTimersByTimeAsync(249);
 		expect(fetchImpl).not.toHaveBeenCalled();
 
@@ -103,9 +104,9 @@ describe("planner completion controller", () => {
 			);
 		const { controller } = createController({ fetchImpl });
 
-		controller.scheduleLookup(startTarget, "Mun");
+		Effect.runSync(controller.scheduleLookup(startTarget, "Mun"));
 		await vi.advanceTimersByTimeAsync(250);
-		controller.scheduleLookup(startTarget, "Muni");
+		Effect.runSync(controller.scheduleLookup(startTarget, "Muni"));
 		await vi.advanceTimersByTimeAsync(250);
 		await flushAsyncWork();
 		expect(controller.viewState.suggestions[0]?.label).toBe("Munich 2");
@@ -120,8 +121,8 @@ describe("planner completion controller", () => {
 	it("closes after the blur delay", async () => {
 		const { controller } = createController({ getValue: () => "Mun" });
 
-		controller.handleFocus(startTarget);
-		controller.handleBlur(startTarget);
+		Effect.runSync(controller.handleFocus(startTarget));
+		Effect.runSync(controller.handleBlur(startTarget));
 		await vi.advanceTimersByTimeAsync(119);
 		expect(controller.viewState.activeTarget).toEqual(startTarget);
 
@@ -148,19 +149,23 @@ describe("planner completion controller", () => {
 			onSelect: (label) => selectedLabels.push(label),
 		});
 
-		controller.scheduleLookup(startTarget, "Mun");
+		Effect.runSync(controller.scheduleLookup(startTarget, "Mun"));
 		await vi.advanceTimersByTimeAsync(250);
 
 		const preventDefault = vi.fn();
-		controller.handleKeydown(
-			keydownEvent("ArrowDown", preventDefault),
-			startTarget,
+		Effect.runSync(
+			controller.handleKeydown(
+				keydownEvent("ArrowDown", preventDefault),
+				startTarget,
+			),
 		);
 		expect(controller.viewState.highlightedIndex).toBe(1);
 
-		controller.handleKeydown(
-			keydownEvent("Enter", preventDefault),
-			startTarget,
+		Effect.runSync(
+			controller.handleKeydown(
+				keydownEvent("Enter", preventDefault),
+				startTarget,
+			),
 		);
 		expect(selectedLabels).toEqual(["Munster"]);
 		expect(controller.viewState.activeTarget).toBeNull();

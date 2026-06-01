@@ -2,6 +2,7 @@ import type {
 	RouteSuggestion,
 	RouteSuggestionsApiSuccess,
 } from "$lib/route-planning";
+import { Data, Effect } from "effect";
 import type { CompletionTarget } from "../types";
 
 export type CompletionViewState = {
@@ -26,6 +27,39 @@ type PlannerCompletionControllerOptions = {
 	onSelect: (target: CompletionTarget, suggestion: RouteSuggestion) => void;
 	onError?: (error: unknown) => void;
 };
+
+declare const plannerCompletionEmptyErrorPayload: unique symbol;
+type PlannerCompletionEmptyErrorPayload = {
+	readonly [plannerCompletionEmptyErrorPayload]?: never;
+};
+
+class PlannerCompletionFetchUnavailableError extends Data.TaggedError(
+	"PlannerCompletionFetchUnavailableError",
+)<PlannerCompletionEmptyErrorPayload> {}
+
+class PlannerCompletionRequestError extends Data.TaggedError(
+	"PlannerCompletionRequestError",
+)<{
+	readonly cause: unknown;
+}> {}
+
+class PlannerCompletionResponseError extends Data.TaggedError(
+	"PlannerCompletionResponseError",
+)<{
+	readonly status: number;
+}> {}
+
+class PlannerCompletionDecodeError extends Data.TaggedError(
+	"PlannerCompletionDecodeError",
+)<{
+	readonly cause: unknown;
+}> {}
+
+export type PlannerCompletionLookupError =
+	| PlannerCompletionFetchUnavailableError
+	| PlannerCompletionRequestError
+	| PlannerCompletionResponseError
+	| PlannerCompletionDecodeError;
 
 export function getCompletionTargetKey(target: CompletionTarget): string {
 	return target.kind === "waypoint" ? `waypoint-${target.index}` : target.kind;
@@ -80,6 +114,39 @@ export function createPlannerCompletionController(
 		highlightedIndex: -1,
 	});
 
+	const lookupSuggestions = Effect.fn("lookupSuggestions")(function* (
+		query: string,
+		signal: AbortSignal,
+	): Effect.fn.Return<RouteSuggestion[], PlannerCompletionLookupError> {
+		const fetchFn = getFetch();
+
+		if (!fetchFn) {
+			return yield* new PlannerCompletionFetchUnavailableError({});
+		}
+
+		const response = yield* Effect.tryPromise({
+			try: () =>
+				fetchFn(`/api/route/suggest?q=${encodeURIComponent(query)}`, {
+					signal,
+				}),
+			catch: (cause) => new PlannerCompletionRequestError({ cause }),
+		});
+
+		if (!response.ok) {
+			return yield* new PlannerCompletionResponseError({
+				status: response.status,
+			});
+		}
+
+		const payload = yield* Effect.tryPromise({
+			try: () =>
+				response.json() as Promise<Partial<RouteSuggestionsApiSuccess>>,
+			catch: (cause) => new PlannerCompletionDecodeError({ cause }),
+		});
+
+		return Array.isArray(payload.suggestions) ? payload.suggestions : [];
+	});
+
 	function clearResults() {
 		viewState.suggestions = [];
 		viewState.highlightedIndex = -1;
@@ -111,19 +178,95 @@ export function createPlannerCompletionController(
 	}
 
 	function close() {
-		cancelBlur();
-		cancelDebounce();
-		cancelRequest();
-		clearResults();
-		viewState.activeTarget = null;
+		return Effect.sync(() => {
+			cancelBlur();
+			cancelDebounce();
+			cancelRequest();
+			clearResults();
+			viewState.activeTarget = null;
+		});
 	}
 
-	function select(target: CompletionTarget, suggestion: RouteSuggestion) {
+	const select = Effect.fn("select")(function* (
+		target: CompletionTarget,
+		suggestion: RouteSuggestion,
+	) {
 		options.onSelect(target, suggestion);
-		close();
+		yield* close();
+	});
+
+	function runScheduledLookup(
+		target: CompletionTarget,
+		query: string,
+		nextAbortController: AbortController,
+		nextRequestId: number,
+	) {
+		void Effect.runPromise(
+			Effect.gen(function* () {
+				const suggestions = yield* lookupSuggestions(
+					query,
+					nextAbortController.signal,
+				);
+
+				if (
+					!isSameCompletionTarget(viewState.activeTarget, target) ||
+					nextRequestId !== requestId
+				) {
+					return;
+				}
+
+				viewState.suggestions = suggestions;
+				viewState.highlightedIndex = suggestions.length > 0 ? 0 : -1;
+				viewState.isEmpty = suggestions.length === 0;
+			}).pipe(
+				Effect.catch((error) =>
+					Effect.sync(() => {
+						if (nextAbortController.signal.aborted) {
+							return;
+						}
+
+						options.onError?.(error);
+
+						if (
+							!isSameCompletionTarget(viewState.activeTarget, target) ||
+							nextRequestId !== requestId
+						) {
+							return;
+						}
+
+						viewState.suggestions = [];
+						viewState.highlightedIndex = -1;
+						viewState.isEmpty = false;
+					}),
+				),
+				Effect.ensuring(
+					Effect.sync(() => {
+						if (
+							isSameCompletionTarget(viewState.activeTarget, target) &&
+							nextRequestId === requestId
+						) {
+							viewState.isLoading = false;
+
+							if (abortController === nextAbortController) {
+								abortController = null;
+							}
+						}
+					}),
+				),
+			),
+		);
 	}
 
-	function scheduleLookup(target: CompletionTarget, value: string) {
+	function closeIfTargetActive(target: CompletionTarget) {
+		if (isSameCompletionTarget(viewState.activeTarget, target)) {
+			Effect.runSync(close());
+		}
+	}
+
+	const scheduleLookup = Effect.fn("scheduleLookup")(function* (
+		target: CompletionTarget,
+		value: string,
+	) {
 		viewState.activeTarget = target;
 		cancelDebounce();
 		cancelRequest();
@@ -142,100 +285,51 @@ export function createPlannerCompletionController(
 		viewState.isLoading = true;
 		const nextRequestId = ++requestId;
 
-		debounceTimer = setTimeout(async () => {
+		debounceTimer = setTimeout(() => {
 			debounceTimer = null;
 			const nextAbortController = new AbortController();
 			abortController = nextAbortController;
 
-			try {
-				const response = await fetchFn(
-					`/api/route/suggest?q=${encodeURIComponent(trimmedValue)}`,
-					{
-						signal: nextAbortController.signal,
-					},
-				);
-
-				if (!response.ok) {
-					throw new Error(`Suggestions failed with status ${response.status}`);
-				}
-
-				const payload =
-					(await response.json()) as Partial<RouteSuggestionsApiSuccess>;
-				const suggestions = Array.isArray(payload.suggestions)
-					? payload.suggestions
-					: [];
-
-				if (
-					!isSameCompletionTarget(viewState.activeTarget, target) ||
-					nextRequestId !== requestId
-				) {
-					return;
-				}
-
-				viewState.suggestions = suggestions;
-				viewState.highlightedIndex = suggestions.length > 0 ? 0 : -1;
-				viewState.isEmpty = suggestions.length === 0;
-			} catch (error) {
-				if (nextAbortController.signal.aborted) {
-					return;
-				}
-
-				options.onError?.(error);
-
-				if (
-					!isSameCompletionTarget(viewState.activeTarget, target) ||
-					nextRequestId !== requestId
-				) {
-					return;
-				}
-
-				viewState.suggestions = [];
-				viewState.highlightedIndex = -1;
-				viewState.isEmpty = false;
-			} finally {
-				if (
-					isSameCompletionTarget(viewState.activeTarget, target) &&
-					nextRequestId === requestId
-				) {
-					viewState.isLoading = false;
-
-					if (abortController === nextAbortController) {
-						abortController = null;
-					}
-				}
-			}
+			runScheduledLookup(
+				target,
+				trimmedValue,
+				nextAbortController,
+				nextRequestId,
+			);
 		}, options.debounceMs);
-	}
+	});
 
-	function handleFocus(target: CompletionTarget) {
+	const handleFocus = Effect.fn("handleFocus")(function* (
+		target: CompletionTarget,
+	) {
 		cancelBlur();
 		viewState.activeTarget = target;
 		const value = options.getValue(target);
 
 		if (value.trim().length >= options.minQueryLength) {
-			scheduleLookup(target, value);
+			yield* scheduleLookup(target, value);
 			return;
 		}
 
 		cancelDebounce();
 		cancelRequest();
 		clearResults();
-	}
+	});
 
-	function handleBlur(target: CompletionTarget) {
+	const handleBlur = Effect.fn("handleBlur")(function* (
+		target: CompletionTarget,
+	) {
 		if (!isSameCompletionTarget(viewState.activeTarget, target)) {
 			return;
 		}
 
 		cancelBlur();
 		blurTimer = setTimeout(() => {
-			if (isSameCompletionTarget(viewState.activeTarget, target)) {
-				close();
-			}
+			closeIfTargetActive(target);
 		}, options.blurDelayMs ?? 120);
-	}
+	});
 
-	function handleKeydown(
+	const handleKeydown = Effect.fn("handleKeydown")(function* (
 		event: Pick<KeyboardEvent, "key" | "preventDefault">,
 		target: CompletionTarget,
 	) {
@@ -245,7 +339,7 @@ export function createPlannerCompletionController(
 
 		if (event.key === "Escape" && isMenuVisible(target)) {
 			event.preventDefault();
-			close();
+			yield* close();
 			return;
 		}
 
@@ -273,20 +367,22 @@ export function createPlannerCompletionController(
 			const suggestion = viewState.suggestions[viewState.highlightedIndex];
 
 			if (suggestion) {
-				select(target, suggestion);
+				yield* select(target, suggestion);
 			}
 		}
-	}
+	});
 
-	function handleSelectionPointerDown(
-		event: Pick<PointerEvent, "preventDefault">,
-		target: CompletionTarget,
-		suggestion: RouteSuggestion,
-	) {
-		event.preventDefault();
-		cancelBlur();
-		select(target, suggestion);
-	}
+	const handleSelectionPointerDown = Effect.fn("handleSelectionPointerDown")(
+		function* (
+			event: Pick<PointerEvent, "preventDefault">,
+			target: CompletionTarget,
+			suggestion: RouteSuggestion,
+		) {
+			event.preventDefault();
+			cancelBlur();
+			yield* select(target, suggestion);
+		},
+	);
 
 	function isMenuVisible(target: CompletionTarget): boolean {
 		return (
@@ -310,23 +406,27 @@ export function createPlannerCompletionController(
 	}
 
 	function handleWaypointInserted(index: number) {
-		if (
-			viewState.activeTarget?.kind === "waypoint" &&
-			viewState.activeTarget.index >= index
-		) {
-			viewState.activeTarget = getWaypointCompletionTarget(
-				viewState.activeTarget.index + 1,
-			);
-		}
+		return Effect.sync(() => {
+			if (
+				viewState.activeTarget?.kind === "waypoint" &&
+				viewState.activeTarget.index >= index
+			) {
+				viewState.activeTarget = getWaypointCompletionTarget(
+					viewState.activeTarget.index + 1,
+				);
+			}
+		});
 	}
 
-	function handleWaypointRemoved(index: number) {
+	const handleWaypointRemoved = Effect.fn("handleWaypointRemoved")(function* (
+		index: number,
+	) {
 		if (viewState.activeTarget?.kind !== "waypoint") {
 			return;
 		}
 
 		if (viewState.activeTarget.index === index) {
-			close();
+			yield* close();
 			return;
 		}
 
@@ -335,26 +435,28 @@ export function createPlannerCompletionController(
 				viewState.activeTarget.index - 1,
 			);
 		}
-	}
+	});
 
 	function handleWaypointSwap(left: number, right: number) {
-		if (viewState.activeTarget?.kind !== "waypoint") {
-			return;
-		}
+		return Effect.sync(() => {
+			if (viewState.activeTarget?.kind !== "waypoint") {
+				return;
+			}
 
-		if (viewState.activeTarget.index === left) {
-			viewState.activeTarget = getWaypointCompletionTarget(right);
-			return;
-		}
+			if (viewState.activeTarget.index === left) {
+				viewState.activeTarget = getWaypointCompletionTarget(right);
+				return;
+			}
 
-		if (viewState.activeTarget.index === right) {
-			viewState.activeTarget = getWaypointCompletionTarget(left);
-		}
+			if (viewState.activeTarget.index === right) {
+				viewState.activeTarget = getWaypointCompletionTarget(left);
+			}
+		});
 	}
 
-	function destroy() {
-		close();
-	}
+	const destroy = Effect.fn("destroy")(function* () {
+		yield* close();
+	});
 
 	return {
 		viewState,

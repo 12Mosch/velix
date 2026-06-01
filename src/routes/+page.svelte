@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
+	import { Effect } from "effect";
 
 	import MapView from "$lib/components/map-view.svelte";
 	import MapClickMenu from "$lib/components/route-planner/map-click-menu.svelte";
@@ -66,14 +67,17 @@
 		accept={gpxFileAccept}
 		class="sr-only"
 		aria-label="Import GPX file"
-		onchange={controller.importExport.handleGpxImportSelection}
+		onchange={(event) =>
+			Effect.runFork(controller.importExport.handleGpxImportSelection(event))}
 	/>
 
 	<MapView
 		layoutState={sidebar.state}
 		onMapClick={controller.map.handleMapClick}
-		onRouteStopDragEnd={controller.map.handleRouteStopDragEnd}
-		onRouteSegmentDragEnd={controller.map.handleRouteSegmentDragEnd}
+		onRouteStopDragEnd={(detail) =>
+			Effect.runFork(controller.map.handleRouteStopDragEnd(detail))}
+		onRouteSegmentDragEnd={(detail) =>
+			Effect.runFork(controller.map.handleRouteSegmentDragEnd(detail))}
 		{routeOverlays}
 		plannedRoute={activeRoute}
 		routeMode={activeRoute?.mode ?? plannerMode}
@@ -118,17 +122,23 @@
 				isSegmentLocked={controller.map.isMapSelectionSegmentLocked}
 				isSegmentAvoided={controller.map.isMapSelectionRoadAvoided}
 				onApplyAsStart={() =>
-					controller.map.applyMapPointAsStop({ kind: "startQuery" })}
+					Effect.runFork(
+						controller.map.applyMapPointAsStop({ kind: "startQuery" }),
+					)}
 				onApplyAsWaypoint={() =>
-					controller.map.applyMapPointAsStop({ kind: "waypoint" })}
+					Effect.runFork(controller.map.applyMapPointAsStop({ kind: "waypoint" }))}
 				onApplyAsDestination={() =>
-					controller.map.applyMapPointAsStop({ kind: "destinationQuery" })}
+					Effect.runFork(
+						controller.map.applyMapPointAsStop({ kind: "destinationQuery" }),
+					)}
 				onToggleSegmentLock={() =>
 					mapClickSelection &&
 					controller.map.toggleMapSelectionSegmentLock(mapClickSelection)}
 				onToggleRoadAvoidance={() =>
 					mapClickSelection &&
-					void controller.map.toggleMapSelectionRoadAvoidance(mapClickSelection)}
+					Effect.runFork(
+						controller.map.toggleMapSelectionRoadAvoidance(mapClickSelection),
+					)}
 				onRemoveStop={controller.map.removeSelectedMapStop}
 				onClose={controller.map.closeMapClickMenu}
 			/>

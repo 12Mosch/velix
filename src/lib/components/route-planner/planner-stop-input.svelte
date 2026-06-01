@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Check } from "@lucide/svelte";
+	import { Effect } from "effect";
 	import type { Snippet } from "svelte";
 
 	import { Input } from "$lib/components/ui/input/index.js";
@@ -73,9 +74,10 @@
 			aria-expanded={controller.isMenuVisible(target)}
 			aria-activedescendant={controller.getActiveDescendant(target)}
 			aria-invalid={error ? "true" : undefined}
-			onfocus={() => controller.handleFocus(target)}
-			onblur={() => controller.handleBlur(target)}
-			onkeydown={(event) => controller.handleKeydown(event, target)}
+			onfocus={() => Effect.runSync(controller.handleFocus(target))}
+			onblur={() => Effect.runSync(controller.handleBlur(target))}
+			onkeydown={(event) =>
+				Effect.runSync(controller.handleKeydown(event, target))}
 			oninput={(event) => onInput((event.currentTarget as HTMLInputElement).value)}
 		/>
 		{#if trailing}
@@ -110,7 +112,13 @@
 								]}
 								aria-selected={controller.viewState.highlightedIndex === index}
 								onmousedown={(event) =>
-									controller.handleSelectionPointerDown(event, target, suggestion)}
+									Effect.runSync(
+										controller.handleSelectionPointerDown(
+											event,
+											target,
+											suggestion,
+										),
+									)}
 							>
 								<Check class="size-4 shrink-0 text-primary" />
 								<span class="min-w-0 truncate">{suggestion.label}</span>

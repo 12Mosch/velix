@@ -347,6 +347,11 @@ export function createPlannerPageContext() {
 		isActiveRouteSaved: boolean;
 	};
 
+	type MapPointStopTarget =
+		| { kind: "startQuery" }
+		| { kind: "destinationQuery" }
+		| { kind: "waypoint" };
+
 	const routeOverlayGeoJsonCache = new WeakMap<
 		PlannedRoute,
 		CachedRouteOverlayGeoJson
@@ -1119,11 +1124,14 @@ export function createPlannerPageContext() {
 			keepKeys.add(activeRouteShareKey);
 		}
 
-		routeShareErrors = pruneRouteShareState(routeShareErrors, keepKeys);
-		routeShareUrls = pruneRouteShareState(routeShareUrls, keepKeys);
-		activeRouteShareCopied = pruneRouteShareState(
-			activeRouteShareCopied,
-			keepKeys,
+		routeShareErrors = Effect.runSync(
+			pruneRouteShareState(routeShareErrors, keepKeys),
+		);
+		routeShareUrls = Effect.runSync(
+			pruneRouteShareState(routeShareUrls, keepKeys),
+		);
+		activeRouteShareCopied = Effect.runSync(
+			pruneRouteShareState(activeRouteShareCopied, keepKeys),
 		);
 	});
 
@@ -1187,7 +1195,7 @@ export function createPlannerPageContext() {
 		}
 
 		savedRoutesState.savedRoutes;
-		void restorePendingSavedRoute();
+		void Effect.runPromise(restorePendingSavedRoute());
 	});
 
 	$effect(() => {
@@ -1223,7 +1231,9 @@ export function createPlannerPageContext() {
 		initUnitPreference();
 		resetSpatialConstraintDefaults();
 		void initSavedRoutes()
-			.then(() => restoreSavedRouteFromLocation(nextWindow.location))
+			.then(() =>
+				Effect.runPromise(restoreSavedRouteFromLocation(nextWindow.location)),
+			)
 			.catch((error) => {
 				console.error("Failed to initialize saved routes.", error);
 			});
@@ -1260,7 +1270,7 @@ export function createPlannerPageContext() {
 	}
 
 	function destroy() {
-		completionController.destroy();
+		Effect.runSync(completionController.destroy());
 		cancelAutosaveTimer();
 		detachRouteEditKeyboardListener();
 		browserWindow = null;
@@ -1398,11 +1408,13 @@ export function createPlannerPageContext() {
 		},
 	);
 
-	async function showCurrentLocationOnMap() {
-		closeCompletionMenu();
-		closeMapClickMenu();
-		await Effect.runPromise(locateCurrentPositionEffect());
-	}
+	const showCurrentLocationOnMap = Effect.fn("showCurrentLocationOnMap")(
+		function* () {
+			closeCompletionMenu();
+			closeMapClickMenu();
+			yield* locateCurrentPositionEffect();
+		},
+	);
 
 	function recenterActiveRoute() {
 		if (!activeRoute || routeNeedsRecalculation) {
@@ -1492,7 +1504,7 @@ export function createPlannerPageContext() {
 	}
 
 	function syncStopsFromRoute(route: PlannedRoute) {
-		const hydratedState = hydratePlannerStateFromRoute(route);
+		const hydratedState = Effect.runSync(hydratePlannerStateFromRoute(route));
 		applyPlannerFormState({
 			...hydratedState.form,
 			fieldErrors,
@@ -1511,7 +1523,9 @@ export function createPlannerPageContext() {
 			return;
 		}
 
-		const nextRoute = withManualEditingState(selectedRoute, indexes);
+		const nextRoute = Effect.runSync(
+			withManualEditingState(selectedRoute, indexes),
+		);
 		const currentIndexes =
 			selectedRoute.manualEditing?.lockedSegmentIndexes ?? [];
 		const nextIndexes = nextRoute.manualEditing?.lockedSegmentIndexes ?? [];
@@ -1547,13 +1561,15 @@ export function createPlannerPageContext() {
 			: [];
 		const nextAvoidedRoads = selectedRoute?.avoidances ?? avoidedRoads;
 		routeAlternatives = routes.map((route, index) =>
-			index === nextIndex
-				? withPlannerRouteState(
-						route,
-						nextLockedSegmentIndexes,
-						nextAvoidedRoads,
-					)
-				: withAvoidancesState(route, nextAvoidedRoads),
+			Effect.runSync(
+				index === nextIndex
+					? withPlannerRouteState(
+							route,
+							nextLockedSegmentIndexes,
+							nextAvoidedRoads,
+						)
+					: withAvoidancesState(route, nextAvoidedRoads),
+			),
 		);
 		selectedRouteIndex = nextIndex;
 		lockedSegmentIndexes = nextLockedSegmentIndexes;
@@ -1584,9 +1600,11 @@ export function createPlannerPageContext() {
 		lockedSegmentIndexes = nextLockedSegmentIndexes;
 		avoidedRoads = selectedRoute.avoidances ?? avoidedRoads;
 		routeAlternatives = routeAlternatives.map((route, routeIndex) =>
-			routeIndex === index
-				? withPlannerRouteState(route, nextLockedSegmentIndexes, avoidedRoads)
-				: withAvoidancesState(route, avoidedRoads),
+			Effect.runSync(
+				routeIndex === index
+					? withPlannerRouteState(route, nextLockedSegmentIndexes, avoidedRoads)
+					: withAvoidancesState(route, avoidedRoads),
+			),
 		);
 		activeProfileIndex = null;
 		chartScrubPointerId = null;
@@ -1639,11 +1657,13 @@ export function createPlannerPageContext() {
 	}
 
 	function getActiveRouteForSaving(): PlannedRoute | null {
-		return getSaveableActiveRoute({
-			activeRoute,
-			lockedSegmentIndexes,
-			avoidedRoads,
-		});
+		return Effect.runSync(
+			getSaveableActiveRoute({
+				activeRoute,
+				lockedSegmentIndexes,
+				avoidedRoads,
+			}),
+		);
 	}
 
 	function setRouteShareError(routeKey: string, error: string | null) {
@@ -1715,13 +1735,13 @@ export function createPlannerPageContext() {
 		},
 	);
 
-	async function saveActiveRouteDraft(
+	function saveActiveRouteDraft(
 		options: {
 			force?: boolean;
 			source?: "autosave" | "explicit" | "share";
 		} = {},
 	) {
-		return await Effect.runPromise(saveActiveRouteDraftEffect(options));
+		return saveActiveRouteDraftEffect(options);
 	}
 
 	function scheduleActiveRouteAutosave() {
@@ -1731,17 +1751,19 @@ export function createPlannerPageContext() {
 		}
 
 		autosaveTimer = setTimeout(() => {
-			void saveActiveRouteDraft({ source: "autosave" });
+			void Effect.runPromise(saveActiveRouteDraft({ source: "autosave" }));
 		}, autosaveDebounceMs);
 	}
 
 	function captureRouteEditSnapshot(
 		options: RouteEditSnapshotOptions = {},
 	): RouteEditSnapshot {
-		return capturePlannerRouteEditSnapshot(
-			getPlannerFormState(),
-			getPlannerRouteState(),
-			options,
+		return Effect.runSync(
+			capturePlannerRouteEditSnapshot(
+				getPlannerFormState(),
+				getPlannerRouteState(),
+				options,
+			),
 		);
 	}
 
@@ -1757,7 +1779,7 @@ export function createPlannerPageContext() {
 	function applyRestoredRouteEditSnapshot(snapshot: RouteEditSnapshot) {
 		closeCompletionMenu();
 		closeMapClickMenu();
-		const restoredState = restorePlannerSnapshot(snapshot);
+		const restoredState = Effect.runSync(restorePlannerSnapshot(snapshot));
 		applyPlannerRouteState(restoredState.routeState);
 		applyPlannerFormState(restoredState.form);
 		activeProfileIndex = null;
@@ -1820,18 +1842,17 @@ export function createPlannerPageContext() {
 		redoStack = [];
 	}
 
-	async function performAsyncRouteEdit(
-		editFn: () => Promise<AsyncRouteEditResult>,
+	const performAsyncRouteEdit = Effect.fn("performAsyncRouteEdit")(function* (
+		editFn: () => Effect.Effect<AsyncRouteEditResult>,
 		options: RouteEditSnapshotOptions = {},
 	) {
 		if (!activeRoute) {
-			await editFn();
-			return;
+			return yield* editFn();
 		}
 
 		const previousSnapshot = captureRouteEditSnapshot(options);
 		const savedRouteMetadata = captureSavedRouteEditMetadata();
-		const result = await editFn();
+		const result = yield* editFn();
 
 		if (result === "noop") {
 			return;
@@ -1849,7 +1870,8 @@ export function createPlannerPageContext() {
 
 		pushRouteEditUndoSnapshot(previousSnapshot);
 		redoStack = [];
-	}
+		return result;
+	});
 
 	function undoRouteEdit() {
 		const previousSnapshot = undoStack[undoStack.length - 1];
@@ -1972,8 +1994,8 @@ export function createPlannerPageContext() {
 		restoreSavedRoute(savedRoute);
 	});
 
-	async function restoreSavedRouteFromLocation(location: Location) {
-		await Effect.runPromise(restoreSavedRouteFromLocationEffect(location));
+	function restoreSavedRouteFromLocation(location: Location) {
+		return restoreSavedRouteFromLocationEffect(location);
 	}
 
 	const restorePendingSavedRouteEffect = Effect.fn(
@@ -1997,8 +2019,8 @@ export function createPlannerPageContext() {
 		pendingSavedRouteId = null;
 	});
 
-	async function restorePendingSavedRoute() {
-		await Effect.runPromise(restorePendingSavedRouteEffect());
+	function restorePendingSavedRoute() {
+		return restorePendingSavedRouteEffect();
 	}
 
 	function restoreSavedRoute(savedRoute: SavedRoute) {
@@ -2107,9 +2129,11 @@ export function createPlannerPageContext() {
 
 	function updateConstraintCenterInput(value: string) {
 		setConstraintCenterStop(createPlannerStop(value));
-		completionController.scheduleLookup(
-			constraintCenterCompletionTarget,
-			value,
+		Effect.runSync(
+			completionController.scheduleLookup(
+				constraintCenterCompletionTarget,
+				value,
+			),
 		);
 	}
 
@@ -2238,7 +2262,7 @@ export function createPlannerPageContext() {
 	}
 
 	function closeCompletionMenu() {
-		completionController.close();
+		Effect.runSync(completionController.close());
 	}
 
 	function setFieldStop(
@@ -2274,11 +2298,13 @@ export function createPlannerPageContext() {
 
 	function handleFieldInput(field: RouteField, value: string) {
 		updateField(field, value);
-		completionController.scheduleLookup(
-			field === "startQuery"
-				? startCompletionTarget
-				: destinationCompletionTarget,
-			value,
+		Effect.runSync(
+			completionController.scheduleLookup(
+				field === "startQuery"
+					? startCompletionTarget
+					: destinationCompletionTarget,
+				value,
+			),
 		);
 	}
 
@@ -2311,9 +2337,11 @@ export function createPlannerPageContext() {
 
 	function handleWaypointInput(index: number, value: string) {
 		updateWaypoint(index, value);
-		completionController.scheduleLookup(
-			getWaypointCompletionTarget(index),
-			value,
+		Effect.runSync(
+			completionController.scheduleLookup(
+				getWaypointCompletionTarget(index),
+				value,
+			),
 		);
 	}
 
@@ -2348,7 +2376,7 @@ export function createPlannerPageContext() {
 			waypointQueries: nextWaypointErrors,
 		};
 
-		completionController.handleWaypointInserted(nextIndex);
+		Effect.runSync(completionController.handleWaypointInserted(nextIndex));
 
 		markPlannerEdited();
 		return true;
@@ -2368,7 +2396,7 @@ export function createPlannerPageContext() {
 			return false;
 		}
 
-		completionController.handleWaypointRemoved(index);
+		Effect.runSync(completionController.handleWaypointRemoved(index));
 
 		waypointStops = waypointStops.filter(
 			(_, waypointIndex) => waypointIndex !== index,
@@ -2432,7 +2460,7 @@ export function createPlannerPageContext() {
 			waypointQueries: nextWaypointErrors,
 		};
 
-		completionController.handleWaypointSwap(index, nextIndex);
+		Effect.runSync(completionController.handleWaypointSwap(index, nextIndex));
 
 		markPlannerEdited();
 		return true;
@@ -2640,7 +2668,9 @@ export function createPlannerPageContext() {
 		return centerline.length >= 2 ? centerline : null;
 	}
 
-	async function toggleMapSelectionRoadAvoidance(selection: MapClickSelection) {
+	const toggleMapSelectionRoadAvoidance = Effect.fn(
+		"toggleMapSelectionRoadAvoidance",
+	)(function* (selection: MapClickSelection) {
 		if (
 			!activeRoute ||
 			routeNeedsRecalculation ||
@@ -2652,41 +2682,47 @@ export function createPlannerPageContext() {
 
 		closeCompletionMenu();
 		closeMapClickMenu();
-		await performAsyncRouteEdit(
-			async () => {
-				const targetAvoidance = getAvoidanceForSelection(selection);
+		const outcome = yield* performAsyncRouteEdit(
+			() =>
+				Effect.gen(function* () {
+					const targetAvoidance = getAvoidanceForSelection(selection);
 
-				if (targetAvoidance) {
-					avoidedRoads = avoidedRoads.filter(
-						(avoidance) => avoidance !== targetAvoidance,
-					);
-					return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
-				}
+					if (targetAvoidance) {
+						avoidedRoads = avoidedRoads.filter(
+							(avoidance) => avoidance !== targetAvoidance,
+						);
+						return (yield* rerouteAfterManualEdit()) ? "committed" : "rollback";
+					}
 
-				const centerline = getSelectedAvoidanceCenterline(selection);
-				if (!centerline) {
-					return "noop";
-				}
+					const centerline = getSelectedAvoidanceCenterline(selection);
+					if (!centerline) {
+						return "noop";
+					}
 
-				const bufferMeters = 35;
-				avoidedRoads = [
-					...avoidedRoads,
-					{
-						kind: "road_segment",
-						label: `Avoided road ${avoidedRoads.length + 1}`,
-						centerline,
-						bufferMeters,
-						polygon: buildAvoidancePlaceholderPolygon(centerline, bufferMeters),
-					},
-				];
-				return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
-			},
+					const bufferMeters = 35;
+					avoidedRoads = [
+						...avoidedRoads,
+						{
+							kind: "road_segment",
+							label: `Avoided road ${avoidedRoads.length + 1}`,
+							centerline,
+							bufferMeters,
+							polygon: buildAvoidancePlaceholderPolygon(
+								centerline,
+								bufferMeters,
+							),
+						},
+					];
+					return (yield* rerouteAfterManualEdit()) ? "committed" : "rollback";
+				}),
 			{ includeRoutesGeometry: true },
 		);
-		return true;
-	}
+		return outcome === "committed";
+	});
 
-	function removeAvoidedRoad(index: number) {
+	const removeAvoidedRoad = Effect.fn("removeAvoidedRoad")(function* (
+		index: number,
+	) {
 		if (
 			index < 0 ||
 			index >= avoidedRoads.length ||
@@ -2696,16 +2732,17 @@ export function createPlannerPageContext() {
 			return;
 		}
 
-		void performAsyncRouteEdit(
-			async () => {
-				avoidedRoads = avoidedRoads.filter(
-					(_, itemIndex) => itemIndex !== index,
-				);
-				return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
-			},
+		yield* performAsyncRouteEdit(
+			() =>
+				Effect.gen(function* () {
+					avoidedRoads = avoidedRoads.filter(
+						(_, itemIndex) => itemIndex !== index,
+					);
+					return (yield* rerouteAfterManualEdit()) ? "committed" : "rollback";
+				}),
 			{ includeRoutesGeometry: true },
 		);
-	}
+	});
 
 	function getWaypointInsertionTarget(point: [number, number]) {
 		const hasCompleteOrderedStops =
@@ -2758,23 +2795,18 @@ export function createPlannerPageContext() {
 		);
 	}
 
-	async function resolveMapStopLabel(point: [number, number]) {
-		return await Effect.runPromise(resolveMapStopLabelEffect(point));
-	}
-
-	async function applyMapPointAsStop(
-		target:
-			| { kind: "startQuery" }
-			| { kind: "destinationQuery" }
-			| { kind: "waypoint" },
+	const applyMapPointAsStop = Effect.fn("applyMapPointAsStop")(function* (
+		target: MapPointStopTarget,
 		recordHistory = true,
-	): Promise<boolean> {
+	): Effect.fn.Return<boolean> {
 		if (recordHistory && activeRoute) {
 			let changed = false;
-			await performAsyncRouteEdit(async () => {
-				changed = await applyMapPointAsStop(target, false);
-				return changed ? "committed" : "noop";
-			});
+			yield* performAsyncRouteEdit(() =>
+				Effect.gen(function* (): Effect.fn.Return<AsyncRouteEditResult> {
+					changed = yield* applyMapPointAsStop(target, false);
+					return changed ? "committed" : "noop";
+				}),
+			);
 			return changed;
 		}
 
@@ -2810,7 +2842,7 @@ export function createPlannerPageContext() {
 		}
 
 		closeMapClickMenu();
-		const resolvedLabel = await resolveMapStopLabel(selection.point);
+		const resolvedLabel = yield* resolveMapStopLabelEffect(selection.point);
 
 		if (target.kind === "startQuery") {
 			if (
@@ -2851,14 +2883,16 @@ export function createPlannerPageContext() {
 				: waypoint,
 		);
 		return true;
-	}
+	});
 
 	function validateDistanceInputs(): boolean {
-		const validation = runPlannerValidation(getPlannerFormState(), {
-			minRoundCourseDistanceMeters,
-			minRoundCourseDurationMs,
-			minRoundCourseAscendMeters,
-		});
+		const validation = Effect.runSync(
+			runPlannerValidation(getPlannerFormState(), {
+				minRoundCourseDistanceMeters,
+				minRoundCourseDurationMs,
+				minRoundCourseAscendMeters,
+			}),
+		);
 
 		if (validation.valid) {
 			return true;
@@ -2936,17 +2970,28 @@ export function createPlannerPageContext() {
 		return false;
 	}
 
-	function applyManualEditingToRoutes(routes: PlannedRoute[]) {
-		const manualEditing = getPlannerManualEditingRequest(
-			activeRoute,
-			lockedSegmentIndexes,
-		);
+	const applyManualEditingToRoutes = Effect.fn("applyManualEditingToRoutes")(
+		function* (routes: PlannedRoute[]) {
+			const manualEditing = yield* getPlannerManualEditingRequest(
+				activeRoute,
+				lockedSegmentIndexes,
+			);
 
-		return routes.map((route) => ({
-			...withAvoidancesState(route, route.avoidances ?? avoidedRoads),
-			...(manualEditing ? { manualEditing } : {}),
-		}));
-	}
+			const nextRoutes: PlannedRoute[] = [];
+
+			for (const route of routes) {
+				nextRoutes.push({
+					...(yield* withAvoidancesState(
+						route,
+						route.avoidances ?? avoidedRoads,
+					)),
+					...(manualEditing ? { manualEditing } : {}),
+				});
+			}
+
+			return nextRoutes;
+		},
+	);
 
 	const requestRouteCalculationEffect = Effect.fn(
 		"requestRouteCalculationEffect",
@@ -2992,12 +3037,12 @@ export function createPlannerPageContext() {
 		});
 	});
 
-	async function requestRouteCalculation(
+	function requestRouteCalculation(
 		routeRequest: RouteRequestPayload & {
 			manualEditing?: ManualRouteEditingState;
 		},
 	) {
-		return await Effect.runPromise(requestRouteCalculationEffect(routeRequest));
+		return requestRouteCalculationEffect(routeRequest);
 	}
 
 	function isLockedStopIndex(stopIndex: number) {
@@ -3048,7 +3093,7 @@ export function createPlannerPageContext() {
 	const applyRouteCalculationPayloadEffect = Effect.fn(
 		"applyRouteCalculationPayloadEffect",
 	)(function* (payload: RouteApiSuccess, resetHistory: boolean) {
-		const nextRoutes = applyManualEditingToRoutes(payload.routes ?? []);
+		const nextRoutes = yield* applyManualEditingToRoutes(payload.routes ?? []);
 		const nextSelectedRoute =
 			nextRoutes[payload.selectedRouteIndex] ?? nextRoutes[0] ?? null;
 
@@ -3092,10 +3137,13 @@ export function createPlannerPageContext() {
 
 		return yield* Effect.gen(function* () {
 			const payload = yield* requestRouteCalculationEffect(
-				buildPlannerCurrentRouteRequest(
+				yield* buildPlannerCurrentRouteRequest(
 					getPlannerFormState(),
-					getPlannerManualEditingRequest(activeRoute, lockedSegmentIndexes),
-					getPlannerAvoidanceRequest(avoidedRoads),
+					yield* getPlannerManualEditingRequest(
+						activeRoute,
+						lockedSegmentIndexes,
+					),
+					yield* getPlannerAvoidanceRequest(avoidedRoads),
 				),
 			);
 
@@ -3130,11 +3178,13 @@ export function createPlannerPageContext() {
 		);
 	});
 
-	async function rerouteAfterManualEdit(): Promise<boolean> {
-		return await Effect.runPromise(rerouteAfterManualEditEffect());
+	function rerouteAfterManualEdit() {
+		return rerouteAfterManualEditEffect();
 	}
 
-	async function handleRouteStopDragEnd(detail: RouteStopDragEnd) {
+	const handleRouteStopDragEnd = Effect.fn("handleRouteStopDragEnd")(function* (
+		detail: RouteStopDragEnd,
+	) {
 		if (
 			!activeRoute ||
 			routeNeedsRecalculation ||
@@ -3145,15 +3195,16 @@ export function createPlannerPageContext() {
 
 		closeCompletionMenu();
 		closeMapClickMenu();
-		await performAsyncRouteEdit(
-			async () => {
-				const label = await resolveMapStopLabel(detail.point);
-				updateDraggedStop(detail.selectedStop, detail.point, label);
-				return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
-			},
+		yield* performAsyncRouteEdit(
+			() =>
+				Effect.gen(function* () {
+					const label = yield* resolveMapStopLabelEffect(detail.point);
+					updateDraggedStop(detail.selectedStop, detail.point, label);
+					return (yield* rerouteAfterManualEdit()) ? "committed" : "rollback";
+				}),
 			{ includeRoutesGeometry: true },
 		);
-	}
+	});
 
 	function getManualSegmentWaypointIndex(segmentIndex: number): number | null {
 		if (waypointStops.length === 0) {
@@ -3169,52 +3220,55 @@ export function createPlannerPageContext() {
 		return index >= 0 && index < waypointStops.length ? index : null;
 	}
 
-	async function handleRouteSegmentDragEnd(detail: RouteSegmentDragEnd) {
-		if (!activeRoute || routeNeedsRecalculation) {
-			return;
-		}
+	const handleRouteSegmentDragEnd = Effect.fn("handleRouteSegmentDragEnd")(
+		function* (detail: RouteSegmentDragEnd) {
+			if (!activeRoute || routeNeedsRecalculation) {
+				return;
+			}
 
-		const routeLegIndex = Option.getOrElse(
-			getRouteLegIndexForCoordinateSegment(
-				activeRoute,
-				detail.coordinateSegmentIndex,
-			),
-			() => detail.segmentIndex,
-		);
+			const routeLegIndex = Option.getOrElse(
+				getRouteLegIndexForCoordinateSegment(
+					activeRoute,
+					detail.coordinateSegmentIndex,
+				),
+				() => detail.segmentIndex,
+			);
 
-		if (sanitizedLockedSegmentIndexes.includes(routeLegIndex)) {
-			return;
-		}
+			if (sanitizedLockedSegmentIndexes.includes(routeLegIndex)) {
+				return;
+			}
 
-		closeCompletionMenu();
-		closeMapClickMenu();
-		await performAsyncRouteEdit(
-			async () => {
-				const existingWaypointIndex =
-					getManualSegmentWaypointIndex(routeLegIndex);
-				const label = await resolveMapStopLabel(detail.point);
-				const stop = createPlannerStop(label, detail.point, "map");
+			closeCompletionMenu();
+			closeMapClickMenu();
+			yield* performAsyncRouteEdit(
+				() =>
+					Effect.gen(function* () {
+						const existingWaypointIndex =
+							getManualSegmentWaypointIndex(routeLegIndex);
+						const label = yield* resolveMapStopLabelEffect(detail.point);
+						const stop = createPlannerStop(label, detail.point, "map");
 
-				if (existingWaypointIndex !== null) {
-					setWaypointStop(existingWaypointIndex, stop);
-				} else {
-					if (waypointStops.length >= maxWaypoints) {
-						routeRequestError = `You can add up to ${maxWaypoints} waypoints per route.`;
-						return "noop";
-					}
+						if (existingWaypointIndex !== null) {
+							setWaypointStop(existingWaypointIndex, stop);
+						} else {
+							if (waypointStops.length >= maxWaypoints) {
+								routeRequestError = `You can add up to ${maxWaypoints} waypoints per route.`;
+								return "noop";
+							}
 
-					addWaypoint(
-						stop,
-						Math.max(0, Math.min(routeLegIndex, waypointStops.length)),
-						false,
-					);
-				}
+							addWaypoint(
+								stop,
+								Math.max(0, Math.min(routeLegIndex, waypointStops.length)),
+								false,
+							);
+						}
 
-				return (await rerouteAfterManualEdit()) ? "committed" : "rollback";
-			},
-			{ includeRoutesGeometry: true },
-		);
-	}
+						return (yield* rerouteAfterManualEdit()) ? "committed" : "rollback";
+					}),
+				{ includeRoutesGeometry: true },
+			);
+		},
+	);
 
 	const useCurrentLocationAsStopEffect = Effect.fn(
 		"useCurrentLocationAsStopEffect",
@@ -3231,8 +3285,8 @@ export function createPlannerPageContext() {
 		setFieldStop(field, getCurrentLocationStop(location.point, label));
 	});
 
-	async function useCurrentLocationAsStop(field: RouteField) {
-		await Effect.runPromise(useCurrentLocationAsStopEffect(field));
+	function useCurrentLocationAsStop(field: RouteField) {
+		return useCurrentLocationAsStopEffect(field);
 	}
 
 	const handleGenerateRouteEffect = Effect.fn("handleGenerateRouteEffect")(
@@ -3266,10 +3320,13 @@ export function createPlannerPageContext() {
 
 			return yield* Effect.gen(function* () {
 				const payload = yield* requestRouteCalculationEffect(
-					buildPlannerCurrentRouteRequest(
+					yield* buildPlannerCurrentRouteRequest(
 						getPlannerFormState(),
-						getPlannerManualEditingRequest(activeRoute, lockedSegmentIndexes),
-						getPlannerAvoidanceRequest(avoidedRoads),
+						yield* getPlannerManualEditingRequest(
+							activeRoute,
+							lockedSegmentIndexes,
+						),
+						yield* getPlannerAvoidanceRequest(avoidedRoads),
 					),
 				);
 
@@ -3312,9 +3369,9 @@ export function createPlannerPageContext() {
 		},
 	);
 
-	async function handleGenerateRoute(event: SubmitEvent) {
+	function handleGenerateRoute(event: SubmitEvent) {
 		event.preventDefault();
-		await Effect.runPromise(handleGenerateRouteEffect());
+		return handleGenerateRouteEffect();
 	}
 
 	const handleSaveDraftEffect = Effect.fn("handleSaveDraftEffect")(
@@ -3353,8 +3410,8 @@ export function createPlannerPageContext() {
 		},
 	);
 
-	async function handleSaveDraft() {
-		await Effect.runPromise(handleSaveDraftEffect());
+	function handleSaveDraft() {
+		return handleSaveDraftEffect();
 	}
 
 	const createSharedRouteEffect = Effect.fn("createSharedRouteEffect")(
@@ -3477,8 +3534,8 @@ export function createPlannerPageContext() {
 		);
 	});
 
-	async function handleShareActiveRoute() {
-		await Effect.runPromise(handleShareActiveRouteEffect());
+	function handleShareActiveRoute() {
+		return handleShareActiveRouteEffect();
 	}
 
 	function handleExportGpx() {
@@ -3600,9 +3657,9 @@ export function createPlannerPageContext() {
 		);
 	});
 
-	async function handleGpxImportSelection(event: Event) {
+	function handleGpxImportSelection(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
-		await Effect.runPromise(handleGpxImportSelectionEffect(input));
+		return handleGpxImportSelectionEffect(input);
 	}
 
 	const controller = {
