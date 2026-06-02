@@ -15,7 +15,7 @@ import {
 	resetMapStylePreferenceForTests,
 } from "$lib/map-style-settings.svelte";
 import { MAP_CAMERA_STORAGE_KEY } from "$lib/preferences/map-camera-preferences";
-import { parseRouteGpx } from "$lib/route-gpx-import";
+import { parseRouteGpxEffect } from "$lib/route-gpx-import";
 import {
 	type RouteCoordinate,
 	sampleElevationProfile,
@@ -2997,9 +2997,11 @@ describe("+page.svelte", () => {
 	});
 
 	it("restores a saved imported GPX route with its metadata and stop values", async () => {
-		const importedRoute = parseRouteGpx(importedWaypointGpx, {
-			filename: "saved-import.gpx",
-		});
+		const importedRoute = Effect.runSync(
+			parseRouteGpxEffect(importedWaypointGpx, {
+				filename: "saved-import.gpx",
+			}),
+		);
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,
 			JSON.stringify([

@@ -20,20 +20,12 @@ export type RouteGpxImportErrorCode =
 	| "no_geometry"
 	| "too_many_stops";
 
-export class RouteGpxImportError extends Error {
-	code: RouteGpxImportErrorCode;
-
-	constructor(code: RouteGpxImportErrorCode, message: string) {
-		super(message);
-		this.name = "RouteGpxImportError";
-		this.code = code;
-	}
-}
-
-export class RouteGpxParseEffectError extends Data.TaggedError(
-	"RouteGpxParseEffectError",
+export class RouteGpxImportError extends Data.TaggedError(
+	"RouteGpxImportError",
 )<{
-	readonly cause: unknown;
+	readonly code: RouteGpxImportErrorCode;
+	readonly message: string;
+	readonly cause?: unknown;
 }> {}
 
 const maxRoutePoints = 5;
@@ -307,7 +299,9 @@ function parseRegexPoints(gpx: string, tagName: string): ParsedGpxPoint[] {
 		.filter((point): point is ParsedGpxPoint => point !== null);
 }
 
-function parseGpxPoints(gpx: string) {
+const parseGpxPointsEffect = Effect.fn("parseGpxPointsEffect")(function* (
+	gpx: string,
+) {
 	if (typeof DOMParser !== "undefined") {
 		const parser = new DOMParser();
 		const document = parser.parseFromString(gpx, "application/xml");
@@ -316,10 +310,10 @@ function parseGpxPoints(gpx: string) {
 			document.getElementsByTagNameNS(parserErrorNamespace, "parsererror")[0];
 
 		if (parserError) {
-			throw new RouteGpxImportError(
-				"invalid_xml",
-				"The selected file is not valid GPX XML.",
-			);
+			return yield* new RouteGpxImportError({
+				code: "invalid_xml",
+				message: "The selected file is not valid GPX XML.",
+			});
 		}
 
 		return {
@@ -330,10 +324,10 @@ function parseGpxPoints(gpx: string) {
 	}
 
 	if (isFallbackXmlMalformed(gpx)) {
-		throw new RouteGpxImportError(
-			"invalid_xml",
-			"The selected file is not valid GPX XML.",
-		);
+		return yield* new RouteGpxImportError({
+			code: "invalid_xml",
+			message: "The selected file is not valid GPX XML.",
+		});
 	}
 
 	return {
@@ -341,7 +335,7 @@ function parseGpxPoints(gpx: string) {
 		routePoints: parseRegexPoints(gpx, "rtept"),
 		waypoints: parseRegexPoints(gpx, "wpt"),
 	};
-}
+});
 
 function buildRouteMetrics(coordinates: RouteCoordinate[]) {
 	let distanceMeters = 0;
@@ -406,13 +400,6 @@ function buildEditableStops(
 	stopPoints: ParsedGpxPoint[],
 	stopDerivation: ImportedRouteStopDerivation,
 ) {
-	if (stopPoints.length > maxRoutePoints) {
-		throw new RouteGpxImportError(
-			"too_many_stops",
-			`This GPX contains ${stopPoints.length} editable stops. Velix supports up to ${maxRoutePoints}.`,
-		);
-	}
-
 	return {
 		startLabel: getParsedPointLabel(stopPoints[0] as ParsedGpxPoint),
 		destinationLabel: getParsedPointLabel(
@@ -477,18 +464,19 @@ function getOutAndBackTurnaround(
 	return turnaround;
 }
 
-export function parseRouteGpx(
+export const parseRouteGpxEffect = Effect.fn("parseRouteGpxEffect")(function* (
 	gpx: string,
 	options: ParseRouteGpxOptions = {},
-): PlannedRoute {
-	const { trackPoints, routePoints, waypoints } = parseGpxPoints(gpx);
+): Effect.fn.Return<PlannedRoute, RouteGpxImportError> {
+	const { trackPoints, routePoints, waypoints } =
+		yield* parseGpxPointsEffect(gpx);
 	const geometryPoints = trackPoints.length >= 2 ? trackPoints : routePoints;
 
 	if (geometryPoints.length < 2) {
-		throw new RouteGpxImportError(
-			"no_geometry",
-			"The selected GPX does not contain enough route geometry.",
-		);
+		return yield* new RouteGpxImportError({
+			code: "no_geometry",
+			message: "The selected GPX does not contain enough route geometry.",
+		});
 	}
 
 	const firstTimestamp = getFirstFiniteTimestamp(geometryPoints);
@@ -499,12 +487,27 @@ export function parseRouteGpx(
 		lastTimestamp >= firstTimestamp;
 	const coordinates = geometryPoints.map((point) => point.coordinate);
 	const metrics = buildRouteMetrics(coordinates);
-	const explicitStops =
+	const explicitStopPoints =
 		routePoints.length >= 2
-			? buildEditableStops(routePoints, "rtept")
+			? { points: routePoints, derivation: "rtept" as const }
 			: waypoints.length >= 2
-				? buildEditableStops(waypoints, "wpt")
+				? { points: waypoints, derivation: "wpt" as const }
 				: null;
+
+	if (explicitStopPoints && explicitStopPoints.points.length > maxRoutePoints) {
+		return yield* new RouteGpxImportError({
+			code: "too_many_stops",
+			message: `This GPX contains ${explicitStopPoints.points.length} editable stops. Velix supports up to ${maxRoutePoints}.`,
+		});
+	}
+
+	const explicitStops =
+		explicitStopPoints === null
+			? null
+			: buildEditableStops(
+					explicitStopPoints.points,
+					explicitStopPoints.derivation,
+				);
 	const isClosedLoop =
 		getCoordinateDistanceMeters(
 			getPointCoordinate(coordinates[0] as RouteCoordinate),
@@ -582,14 +585,4 @@ export function parseRouteGpx(
 		roadAccessDetails: [],
 		bikeNetworkDetails: [],
 	};
-}
-
-export const parseRouteGpxEffect = Effect.fn("parseRouteGpxEffect")(function* (
-	gpx: string,
-	options: ParseRouteGpxOptions = {},
-) {
-	return yield* Effect.try({
-		try: () => parseRouteGpx(gpx, options),
-		catch: (cause) => new RouteGpxParseEffectError({ cause }),
-	});
 });

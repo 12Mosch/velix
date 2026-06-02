@@ -12,9 +12,10 @@ import {
 	type RemoteSavedRouteVersionPayload,
 } from "../lib/saved-routes-core";
 import {
-	assertRemoteRouteJsonSize,
+	assertRemoteRouteJsonSizeEffect,
 	getSavedRouteRowConvexDocumentSize,
 	isRouteJsonWithinRemoteSizeLimit,
+	type RemoteRouteJsonSizeError,
 	type SavedRouteStorageRow,
 } from "../lib/saved-route-size";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -99,44 +100,35 @@ function remoteVersionPayloadFromRow(row: {
 	};
 }
 
-async function pruneSavedRouteVersions(
-	ctx: MutationCtx,
-	userId: string,
-	routeId: string,
-) {
-	const versions = await ctx.db
-		.query("savedRouteVersions")
-		.withIndex("by_user_route_capturedAt", (q) =>
-			q.eq("userId", userId).eq("routeId", routeId),
-		)
-		.order("desc")
-		.collect();
+const mapSavedRouteSizeError = (error: RemoteRouteJsonSizeError) =>
+	new SavedRoutesValidationError(error.message);
 
-	await Promise.all(
-		versions
-			.slice(maxSavedRouteVersions)
-			.map((version) => ctx.db.delete(version._id)),
+const pruneSavedRouteVersionsEffect = Effect.fn(
+	"pruneSavedRouteVersionsEffect",
+)(function* (ctx: MutationCtx, userId: string, routeId: string) {
+	const versions = yield* tryConvexPromise(
+		() =>
+			ctx.db
+				.query("savedRouteVersions")
+				.withIndex("by_user_route_capturedAt", (q) =>
+					q.eq("userId", userId).eq("routeId", routeId),
+				)
+				.order("desc")
+				.collect(),
+		"Could not read saved route versions.",
 	);
-}
 
-function hasSavedRoutePayloadChanged(
-	existingRoute: {
-		routeJson?: string;
-		route?: unknown;
-	},
-	nextRoute: RemoteSavedRoutePayload,
-) {
-	const existingPayload = remotePayloadFromRow({
-		routeId: nextRoute.id,
-		createdAtMs: Date.parse(nextRoute.createdAt),
-		routeJson: existingRoute.routeJson,
-		route: existingRoute.route,
-	});
+	for (const version of versions.slice(maxSavedRouteVersions)) {
+		yield* tryConvexPromise(
+			() => ctx.db.delete(version._id),
+			"Could not delete saved route version.",
+		);
+	}
+});
 
-	return existingPayload?.routeJson !== nextRoute.routeJson;
-}
-
-async function capturePreviousSavedRouteVersion(
+const capturePreviousSavedRouteVersionEffect = Effect.fn(
+	"capturePreviousSavedRouteVersionEffect",
+)(function* (
 	ctx: MutationCtx,
 	userId: string,
 	existingRoute: {
@@ -153,16 +145,43 @@ async function capturePreviousSavedRouteVersion(
 	}
 
 	const capturedAtMs = Date.now();
-	assertRemoteRouteJsonSize(existingPayload.routeJson, "saved");
-	await ctx.db.insert("savedRouteVersions", {
-		userId,
-		routeId: existingRoute.routeId,
-		versionId: createSavedRouteVersionId(existingRoute.routeId, capturedAtMs),
-		capturedAtMs,
-		createdAtMs: existingRoute.createdAtMs,
-		routeJson: existingPayload.routeJson,
+	yield* assertRemoteRouteJsonSizeEffect(
+		existingPayload.routeJson,
+		"saved",
+	).pipe(Effect.mapError(mapSavedRouteSizeError));
+	yield* tryConvexPromise(
+		() =>
+			ctx.db.insert("savedRouteVersions", {
+				userId,
+				routeId: existingRoute.routeId,
+				versionId: createSavedRouteVersionId(
+					existingRoute.routeId,
+					capturedAtMs,
+				),
+				capturedAtMs,
+				createdAtMs: existingRoute.createdAtMs,
+				routeJson: existingPayload.routeJson,
+			}),
+		"Could not capture saved route version.",
+	);
+	yield* pruneSavedRouteVersionsEffect(ctx, userId, existingRoute.routeId);
+});
+
+function hasSavedRoutePayloadChanged(
+	existingRoute: {
+		routeJson?: string;
+		route?: unknown;
+	},
+	nextRoute: RemoteSavedRoutePayload,
+) {
+	const existingPayload = remotePayloadFromRow({
+		routeId: nextRoute.id,
+		createdAtMs: Date.parse(nextRoute.createdAt),
+		routeJson: existingRoute.routeJson,
+		route: existingRoute.route,
 	});
-	await pruneSavedRouteVersions(ctx, userId, existingRoute.routeId);
+
+	return existingPayload?.routeJson !== nextRoute.routeJson;
 }
 
 export function listForCurrentUserHandler(
@@ -251,15 +270,10 @@ export function upsertHandler(
 				);
 			}
 
-			yield* Effect.try({
-				try: () => assertRemoteRouteJsonSize(savedRoute.routeJson, "saved"),
-				catch: (error) =>
-					new SavedRoutesValidationError(
-						error instanceof Error
-							? error.message
-							: "Saved route payload is invalid.",
-					),
-			});
+			yield* assertRemoteRouteJsonSizeEffect(
+				savedRoute.routeJson,
+				"saved",
+			).pipe(Effect.mapError(mapSavedRouteSizeError));
 
 			const now = Date.now();
 			const row = {
@@ -289,17 +303,13 @@ export function upsertHandler(
 
 			if (existingRoute) {
 				if (hasSavedRoutePayloadChanged(existingRoute, savedRoute)) {
-					yield* tryConvexPromise(
-						() =>
-							capturePreviousSavedRouteVersion(ctx, userId, {
-								routeId: existingRoute.routeId,
-								createdAtMs: existingRoute.createdAtMs,
-								updatedAtMs: existingRoute.updatedAtMs,
-								routeJson: existingRoute.routeJson,
-								route: existingRoute.route,
-							}),
-						"Could not capture saved route version.",
-					);
+					yield* capturePreviousSavedRouteVersionEffect(ctx, userId, {
+						routeId: existingRoute.routeId,
+						createdAtMs: existingRoute.createdAtMs,
+						updatedAtMs: existingRoute.updatedAtMs,
+						routeJson: existingRoute.routeJson,
+						route: existingRoute.route,
+					});
 				}
 				yield* tryConvexPromise(
 					() => ctx.db.replace(existingRoute._id, row),

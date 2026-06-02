@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { Effect, Result } from "effect";
 
-import { parseRouteGpx, RouteGpxImportError } from "$lib/route-gpx-import";
+import {
+	parseRouteGpxEffect,
+	RouteGpxImportError,
+} from "$lib/route-gpx-import";
 
 const waypointTrackGpx = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Velix tests" xmlns="http://www.topografix.com/GPX/1/1">
@@ -64,21 +68,25 @@ function expectImportError(
 	gpx: string,
 	expectedCode: RouteGpxImportError["code"],
 ): RouteGpxImportError {
-	try {
-		parseRouteGpx(gpx);
+	const result = Effect.runSync(Effect.result(parseRouteGpxEffect(gpx)));
+
+	expect(Result.isFailure(result)).toBe(true);
+	if (Result.isSuccess(result)) {
 		throw new Error("Expected GPX import to fail.");
-	} catch (error) {
-		expect(error).toBeInstanceOf(RouteGpxImportError);
-		expect((error as RouteGpxImportError).code).toBe(expectedCode);
-		return error as RouteGpxImportError;
 	}
+
+	expect(result.failure).toBeInstanceOf(RouteGpxImportError);
+	expect(result.failure.code).toBe(expectedCode);
+	return result.failure;
 }
 
-describe("parseRouteGpx", () => {
+describe("parseRouteGpxEffect", () => {
 	it("imports a track with GPX waypoints into an editable point-to-point route", () => {
-		const route = parseRouteGpx(waypointTrackGpx, {
-			filename: "waypoint-track.gpx",
-		});
+		const route = Effect.runSync(
+			parseRouteGpxEffect(waypointTrackGpx, {
+				filename: "waypoint-track.gpx",
+			}),
+		);
 
 		expect(route.mode).toBe("point_to_point");
 		expect(route.source).toEqual({
@@ -103,9 +111,11 @@ describe("parseRouteGpx", () => {
 	});
 
 	it("accepts track-only GPX files by inferring start and destination", () => {
-		const route = parseRouteGpx(trackOnlyGpx, {
-			filename: "track-only.gpx",
-		});
+		const route = Effect.runSync(
+			parseRouteGpxEffect(trackOnlyGpx, {
+				filename: "track-only.gpx",
+			}),
+		);
 
 		expect(route.mode).toBe("point_to_point");
 		expect(route.source).toEqual({
@@ -121,9 +131,11 @@ describe("parseRouteGpx", () => {
 	});
 
 	it("uses route points when no track geometry exists", () => {
-		const route = parseRouteGpx(routePointGpx, {
-			filename: "route-points.gpx",
-		});
+		const route = Effect.runSync(
+			parseRouteGpxEffect(routePointGpx, {
+				filename: "route-points.gpx",
+			}),
+		);
 
 		expect(route.mode).toBe("point_to_point");
 		expect(route.source).toEqual({
@@ -184,9 +196,11 @@ describe("parseRouteGpx", () => {
 	});
 
 	it("infers closed-loop tracks as round courses when stops are track-derived", () => {
-		const route = parseRouteGpx(closedLoopTrackGpx, {
-			filename: "loop.gpx",
-		});
+		const route = Effect.runSync(
+			parseRouteGpxEffect(closedLoopTrackGpx, {
+				filename: "loop.gpx",
+			}),
+		);
 
 		expect(route.mode).toBe("round_course");
 		expect(route.source).toEqual({
@@ -204,9 +218,11 @@ describe("parseRouteGpx", () => {
 	});
 
 	it("preserves Velix-style exported out-and-back tracks", () => {
-		const route = parseRouteGpx(outAndBackGpx, {
-			filename: "out-and-back.gpx",
-		});
+		const route = Effect.runSync(
+			parseRouteGpxEffect(outAndBackGpx, {
+				filename: "out-and-back.gpx",
+			}),
+		);
 
 		expect(route.mode).toBe("out_and_back");
 		expect(route.source).toEqual({

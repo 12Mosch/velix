@@ -15,7 +15,7 @@
 		X,
 	} from "@lucide/svelte";
 	import { env } from "$env/dynamic/public";
-	import { Effect } from "effect";
+	import { Data, Effect } from "effect";
 	import { onMount } from "svelte";
 	import { api } from "../../convex/_generated/api";
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -47,8 +47,8 @@
 	import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
 	import {
 		buildShareUrl,
-		copyTextToClipboard,
-		generateShareToken,
+		copyTextToClipboardEffect,
+		generateShareTokenEffect,
 	} from "$lib/shared-routes";
 	import {
 		formatDistance,
@@ -58,6 +58,27 @@
 	} from "$lib/unit-settings.svelte";
 
 	const convexClient = Effect.runSync(getOptionalConvexClient());
+
+	class ShareSavedRouteMutationError extends Data.TaggedError(
+		"ShareSavedRouteMutationError",
+	)<{
+		readonly cause: unknown;
+	}> {}
+
+	function formatShareFailure(error: unknown): string {
+		const cause =
+			typeof error === "object" && error !== null && "cause" in error
+				? (error as { cause?: unknown }).cause
+				: error;
+
+		if (cause instanceof Error) {
+			return `Could not share route: ${cause.message}`;
+		}
+
+		return error instanceof Error
+			? `Could not share route: ${error.message}`
+			: "Could not share route.";
+	}
 
 	type SavedRouteSearchTextCacheEntry = {
 		cacheKey: string;
@@ -495,28 +516,36 @@
 		sharingRouteId = savedRoute.id;
 
 		try {
-			const shareToken = generateShareToken();
-			const result = await convexClient.mutation(api.sharedRoutes.create, {
-				shareToken,
-				sourceRouteId: savedRoute.id,
-				savedRoute: serializeSavedRouteForRemote(savedRoute),
-			});
-			const shareUrl = buildShareUrl(window.location.origin, result.shareToken);
-			const copied = await copyTextToClipboard(shareUrl);
+			await Effect.runPromise(
+				Effect.gen(function* () {
+					const shareToken = yield* generateShareTokenEffect();
+					const result = yield* Effect.tryPromise({
+						try: () =>
+							convexClient.mutation(api.sharedRoutes.create, {
+								shareToken,
+								sourceRouteId: savedRoute.id,
+								savedRoute: serializeSavedRouteForRemote(savedRoute),
+							}),
+						catch: (cause) => new ShareSavedRouteMutationError({ cause }),
+					});
+					const shareUrl = buildShareUrl(
+						window.location.origin,
+						result.shareToken,
+					);
+					const copied = yield* copyTextToClipboardEffect(shareUrl);
 
-			if (!copied) {
-				pendingShareUrl = shareUrl;
-				shareError = "Share link created, but copying failed.";
-				return;
-			}
+					if (!copied) {
+						pendingShareUrl = shareUrl;
+						shareError = "Share link created, but copying failed.";
+						return;
+					}
 
-			pendingShareUrl = null;
-			copiedShareRouteId = savedRoute.id;
+					pendingShareUrl = null;
+					copiedShareRouteId = savedRoute.id;
+				}),
+			);
 		} catch (error) {
-			shareError =
-				error instanceof Error
-					? `Could not share route: ${error.message}`
-					: "Could not share route.";
+			shareError = formatShareFailure(error);
 		} finally {
 			sharingRouteId = null;
 		}

@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
 import {
 	buildShareUrl,
-	copyTextToClipboard,
-	generateShareToken,
+	copyTextToClipboardEffect,
+	generateShareTokenEffect,
 } from "./shared-routes";
 
 describe("shared route helpers", () => {
@@ -20,7 +21,7 @@ describe("shared route helpers", () => {
 		});
 
 		try {
-			const token = generateShareToken();
+			const token = Effect.runSync(generateShareTokenEffect());
 
 			expect(token).toMatch(/^[A-Za-z0-9_-]+$/u);
 			expect(token.length).toBeGreaterThan(0);
@@ -51,7 +52,9 @@ describe("shared route helpers", () => {
 
 		try {
 			await expect(
-				copyTextToClipboard("https://velix.example/share/t"),
+				Effect.runPromise(
+					copyTextToClipboardEffect("https://velix.example/share/t"),
+				),
 			).resolves.toBe(false);
 		} finally {
 			Object.defineProperty(navigator, "clipboard", {
