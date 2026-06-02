@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Effect } from "effect";
 	import { onMount } from "svelte";
 	import type { FeatureCollection } from "geojson";
 	import type {
@@ -21,6 +22,7 @@
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
 	import {
+		type MapCameraPreference,
 		readMapCameraPreference,
 		writeMapCameraPreference,
 	} from "$lib/preferences/map-camera-preferences";
@@ -599,12 +601,21 @@
 			return;
 		}
 
-		writeMapCameraPreference(createBrowserStorage(), {
-			center: cameraCenter,
-			zoom,
-			bearing,
-			pitch,
-		});
+		try {
+			Effect.runSync(
+				Effect.gen(function* () {
+					const storage = yield* createBrowserStorage();
+					yield* writeMapCameraPreference(storage, {
+						center: cameraCenter,
+						zoom,
+						bearing,
+						pitch,
+					});
+				}),
+			);
+		} catch (error) {
+			console.error("Failed to persist map camera preference", error);
+		}
 	}
 
 	function attachCameraPreferenceListeners() {
@@ -833,8 +844,17 @@
 		let cancelled = false;
 		let resizeObserver: ResizeObserver | undefined;
 
-		initMapStylePreference();
-		initUnitPreference();
+		try {
+			Effect.runSync(initMapStylePreference());
+		} catch (error) {
+			console.error("Failed to initialize map style preference", error);
+		}
+
+		try {
+			Effect.runSync(initUnitPreference());
+		} catch (error) {
+			console.error("Failed to initialize unit preference", error);
+		}
 
 		async function setupMap() {
 			if (!mapContainer) return;
@@ -863,7 +883,18 @@
 
 				maplibreglModule = maplibregl;
 				currentStyleUrl = initialStyleUrl;
-				const restoredCamera = readMapCameraPreference(createBrowserStorage());
+				let restoredCamera: MapCameraPreference | undefined;
+				try {
+					restoredCamera =
+						Effect.runSync(
+							Effect.gen(function* () {
+								const storage = yield* createBrowserStorage();
+								return yield* readMapCameraPreference(storage);
+							}),
+						) ?? undefined;
+				} catch (error) {
+					console.error("Failed to restore map camera preference", error);
+				}
 
 				if (
 					restoredCamera &&

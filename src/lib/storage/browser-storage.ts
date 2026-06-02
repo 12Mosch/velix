@@ -1,4 +1,5 @@
 import { browser } from "$app/environment";
+import { Effect } from "effect";
 
 export type BrowserStorage = {
 	readonly length?: number;
@@ -8,14 +9,15 @@ export type BrowserStorage = {
 	removeItem: (key: string) => void;
 };
 
-export function createBrowserStorage(): BrowserStorage | null {
-	if (!browser || typeof window === "undefined") {
-		return null;
-	}
+export const createBrowserStorage = Effect.fn("createBrowserStorage")(
+	function* (): Effect.fn.Return<BrowserStorage | null, never> {
+		if (!browser || typeof window === "undefined") {
+			return null;
+		}
 
-	try {
-		return window.localStorage;
-	} catch {
-		return null;
-	}
-}
+		return yield* Effect.try({
+			try: () => window.localStorage,
+			catch: () => null,
+		}).pipe(Effect.catch(() => Effect.succeed(null)));
+	},
+);

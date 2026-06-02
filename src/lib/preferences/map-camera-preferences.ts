@@ -1,4 +1,5 @@
 import type { BrowserStorage } from "$lib/storage/browser-storage";
+import { Data, Effect } from "effect";
 
 export const MAP_CAMERA_STORAGE_KEY = "velix.mapCamera";
 
@@ -8,6 +9,22 @@ export type MapCameraPreference = {
 	bearing: number;
 	pitch: number;
 };
+
+type MapCameraPreferenceOperation = "read" | "write" | "clearInvalid";
+
+export class MapCameraPreferenceError extends Data.TaggedError(
+	"MapCameraPreferenceError",
+)<{
+	readonly operation: MapCameraPreferenceOperation;
+	readonly cause: unknown;
+}> {}
+
+function cameraPreferenceError(
+	operation: MapCameraPreferenceOperation,
+	cause: unknown,
+) {
+	return new MapCameraPreferenceError({ operation, cause });
+}
 
 function isFiniteNumber(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value);
@@ -44,36 +61,55 @@ function isValidCamera(value: unknown): value is MapCameraPreference {
 	);
 }
 
-export function readMapCameraPreference(
-	storage: BrowserStorage | null,
-): MapCameraPreference | null {
-	const storedValue = storage?.getItem(MAP_CAMERA_STORAGE_KEY);
+export const readMapCameraPreference = Effect.fn("readMapCameraPreference")(
+	function* (
+		storage: BrowserStorage | null,
+	): Effect.fn.Return<MapCameraPreference | null, MapCameraPreferenceError> {
+		const storedValue = yield* Effect.try({
+			try: () => storage?.getItem(MAP_CAMERA_STORAGE_KEY),
+			catch: (cause) => cameraPreferenceError("read", cause),
+		});
 
-	if (!storedValue) {
-		return null;
-	}
+		if (!storedValue) {
+			return null;
+		}
 
-	try {
-		const parsed = JSON.parse(storedValue) as unknown;
+		const parsed = yield* Effect.try({
+			try: () => JSON.parse(storedValue) as unknown,
+			catch: () => null,
+		}).pipe(Effect.orElseSucceed(() => null));
 
 		if (isValidCamera(parsed)) {
 			return parsed;
 		}
-	} catch {
-		// Invalid preference payloads are cleared below.
-	}
 
-	storage?.removeItem(MAP_CAMERA_STORAGE_KEY);
-	return null;
-}
+		yield* Effect.try({
+			try: () => storage?.removeItem(MAP_CAMERA_STORAGE_KEY),
+			catch: (cause) => cameraPreferenceError("clearInvalid", cause),
+		}).pipe(
+			Effect.catch((error) =>
+				Effect.sync(() => {
+					console.error("Failed to clear invalid map camera preference", error);
+				}),
+			),
+		);
+		return null;
+	},
+);
 
-export function writeMapCameraPreference(
-	storage: BrowserStorage | null,
-	camera: MapCameraPreference,
-) {
-	if (!isValidCamera(camera)) {
-		return;
-	}
+export const writeMapCameraPreference = Effect.fn("writeMapCameraPreference")(
+	function* (
+		storage: BrowserStorage | null,
+		camera: MapCameraPreference,
+	): Effect.fn.Return<void, MapCameraPreferenceError> {
+		if (!isValidCamera(camera)) {
+			return;
+		}
 
-	storage?.setItem(MAP_CAMERA_STORAGE_KEY, JSON.stringify(camera));
-}
+		yield* Effect.try({
+			try: () =>
+				storage?.setItem(MAP_CAMERA_STORAGE_KEY, JSON.stringify(camera)),
+			catch: (cause) => cameraPreferenceError("write", cause),
+		});
+	},
+);

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
 import {
 	formatDistance,
@@ -16,27 +17,39 @@ function createRepository(
 	let currentValue = value;
 
 	return {
-		read: () => currentValue,
-		write: vi.fn((nextValue: "km" | "mi") => {
-			currentValue = nextValue;
-		}),
-		clear: vi.fn(() => {
-			currentValue = null;
-		}),
+		read: vi.fn(() => Effect.succeed(currentValue)),
+		write: vi.fn((nextValue: "km" | "mi") =>
+			Effect.sync(() => {
+				currentValue = nextValue;
+			}),
+		),
+		clear: vi.fn(() =>
+			Effect.sync(() => {
+				currentValue = null;
+			}),
+		),
 	};
 }
 
 describe("distance unit preferences", () => {
 	it("initializes from stored values and falls back to kilometers", () => {
-		expect(initDistanceUnitPreference(createRepository("mi"))).toBe("mi");
-		expect(initDistanceUnitPreference(createRepository(null))).toBe("km");
+		expect(
+			Effect.runSync(initDistanceUnitPreference(createRepository("mi"))),
+		).toBe("mi");
+		expect(
+			Effect.runSync(initDistanceUnitPreference(createRepository(null))),
+		).toBe("km");
 	});
 
 	it("persists valid units and rejects invalid values", () => {
 		const repository = createRepository("km");
 
-		expect(setDistanceUnitPreference(repository, "mi")).toBe("mi");
-		expect(setDistanceUnitPreference(repository, "bad" as "mi")).toBeNull();
+		expect(Effect.runSync(setDistanceUnitPreference(repository, "mi"))).toBe(
+			"mi",
+		);
+		expect(
+			Effect.runSync(setDistanceUnitPreference(repository, "bad" as "mi")),
+		).toBeNull();
 	});
 
 	it("formats and parses distances using the selected unit", () => {

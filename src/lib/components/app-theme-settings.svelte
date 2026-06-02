@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Laptop, Moon, Sun } from "@lucide/svelte";
+	import { Effect } from "effect";
 	import { userPrefersMode } from "mode-watcher";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -36,7 +37,7 @@
 	];
 
 	function selectThemeMode(mode: ThemeMode) {
-		setThemeModePreference(mode);
+		Effect.runSync(setThemeModePreference(mode));
 	}
 </script>
 

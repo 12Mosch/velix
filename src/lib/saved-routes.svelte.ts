@@ -38,7 +38,7 @@ export {
 export type SavedRoutesRemoteAdapter = SavedRoutesRemoteRepository;
 
 const savedRoutesUseCases = new SavedRoutesUseCases(
-	createSavedRoutesRepository(createBrowserStorage()),
+	createSavedRoutesRepository(Effect.runSync(createBrowserStorage())),
 );
 
 class SavedRoutesState {
@@ -223,7 +223,9 @@ export async function seedSavedRoutesForTests(
 	routes: SavedRoute[],
 	options: { userId?: string } = {},
 ) {
-	const repository = createSavedRoutesRepository(createBrowserStorage());
+	const repository = createSavedRoutesRepository(
+		Effect.runSync(createBrowserStorage()),
+	);
 	await Effect.runPromise(repository.init());
 	await Effect.runPromise(
 		repository.replaceRoutes(getTestSavedRouteScope(options), routes),
@@ -235,7 +237,9 @@ export async function seedSavedRoutesForTests(
 export async function readSavedRoutesForTests(
 	options: { userId?: string } = {},
 ) {
-	const repository = createSavedRoutesRepository(createBrowserStorage());
+	const repository = createSavedRoutesRepository(
+		Effect.runSync(createBrowserStorage()),
+	);
 	await Effect.runPromise(repository.init());
 	return await Effect.runPromise(
 		repository.readRoutes(getTestSavedRouteScope(options)),

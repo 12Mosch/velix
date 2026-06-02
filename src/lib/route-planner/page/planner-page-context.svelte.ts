@@ -228,7 +228,7 @@ export function createPlannerPageContext() {
 	let selectedCueFocusKey = $state(0);
 	let lastCueRouteKey = $state<string | null>(null);
 
-	const convexClient = getOptionalConvexClient();
+	const convexClient = Effect.runSync(getOptionalConvexClient());
 
 	function getWarningContainerClass(warning: RouteWarning): string {
 		if (warning.severity === "info") {
@@ -1228,7 +1228,7 @@ export function createPlannerPageContext() {
 	function mount(nextWindow: Window) {
 		browserWindow = nextWindow;
 		clientFetch = nextWindow.fetch.bind(nextWindow);
-		initUnitPreference();
+		Effect.runSync(initUnitPreference());
 		resetSpatialConstraintDefaults();
 		void initSavedRoutes()
 			.then(() =>
@@ -3586,7 +3586,7 @@ export function createPlannerPageContext() {
 		const basemap = availableBasemapOptions.find((option) => option.id === id);
 
 		if (basemap) {
-			setMapStylePreference(basemap.id);
+			Effect.runSync(setMapStylePreference(basemap.id));
 		}
 	}
 

@@ -1,4 +1,5 @@
 import { page } from "vitest/browser";
+import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 import type { FeatureCollection } from "geojson";
@@ -433,8 +434,8 @@ describe("MapView", () => {
 
 	beforeEach(() => {
 		window.localStorage.clear();
-		resetMapStylePreferenceForTests();
-		resetUnitPreferenceForTests();
+		Effect.runSync(resetMapStylePreferenceForTests());
+		Effect.runSync(resetUnitPreferenceForTests());
 		mockState.sources.clear();
 		mockState.layers.clear();
 		mapMock.mockClear();
@@ -1017,7 +1018,9 @@ describe("MapView", () => {
 		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
 
-		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
+		expect(
+			Effect.runSync(setMapStylePreference("maptiler-satellite-hybrid")),
+		).toBe(true);
 
 		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(4);
@@ -1076,7 +1079,9 @@ describe("MapView", () => {
 
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 
-		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
+		expect(
+			Effect.runSync(setMapStylePreference("maptiler-satellite-hybrid")),
+		).toBe(true);
 
 		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
@@ -1136,7 +1141,9 @@ describe("MapView", () => {
 
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 
-		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
+		expect(
+			Effect.runSync(setMapStylePreference("maptiler-satellite-hybrid")),
+		).toBe(true);
 
 		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);
@@ -1336,7 +1343,9 @@ describe("MapView", () => {
 
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 
-		expect(setMapStylePreference("maptiler-satellite-hybrid")).toBe(true);
+		expect(
+			Effect.runSync(setMapStylePreference("maptiler-satellite-hybrid")),
+		).toBe(true);
 
 		await expect.poll(() => mapInstance.setStyle.mock.calls.length).toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(2);

@@ -7,7 +7,11 @@ import {
 	isBasemapAvailable,
 	isBasemapId,
 } from "$lib/map/basemaps";
-import type { PreferenceRepository } from "$lib/preferences/preference-repository";
+import type {
+	PreferenceRepository,
+	PreferenceRepositoryError,
+} from "$lib/preferences/preference-repository";
+import { Effect } from "effect";
 
 export const MAP_STYLE_STORAGE_KEY = "velix.mapStyle";
 
@@ -29,31 +33,35 @@ export function resolvePreferredBasemapId(
 	return getFallbackBasemapId();
 }
 
-export function initMapStylePreference(
-	repository: PreferenceRepository<BasemapId>,
-): BasemapId | null {
-	const nextBasemapId = resolvePreferredBasemapId(repository.read());
+export const initMapStylePreference = Effect.fn("initMapStylePreference")(
+	function* (
+		repository: PreferenceRepository<BasemapId>,
+	): Effect.fn.Return<BasemapId | null, PreferenceRepositoryError> {
+		const nextBasemapId = resolvePreferredBasemapId(yield* repository.read());
 
-	if (nextBasemapId) {
-		repository.write(nextBasemapId);
-	} else {
-		repository.clear();
-	}
+		if (nextBasemapId) {
+			yield* repository.write(nextBasemapId);
+		} else {
+			yield* repository.clear();
+		}
 
-	return nextBasemapId;
-}
+		return nextBasemapId;
+	},
+);
 
-export function setMapStylePreference(
-	repository: PreferenceRepository<BasemapId>,
-	id: BasemapId,
-): BasemapId | null {
-	if (!isBasemapAvailable(id)) {
-		return null;
-	}
+export const setMapStylePreference = Effect.fn("setMapStylePreference")(
+	function* (
+		repository: PreferenceRepository<BasemapId>,
+		id: BasemapId,
+	): Effect.fn.Return<BasemapId | null, PreferenceRepositoryError> {
+		if (!isBasemapAvailable(id)) {
+			return null;
+		}
 
-	repository.write(id);
-	return id;
-}
+		yield* repository.write(id);
+		return id;
+	},
+);
 
 export function getSelectedBasemap(
 	selectedBasemapId: BasemapId | null,

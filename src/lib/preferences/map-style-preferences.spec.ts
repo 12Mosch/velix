@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
 vi.mock("$env/dynamic/public", () => ({
 	env: {
@@ -22,13 +23,17 @@ function createRepository(
 	let currentValue = value;
 
 	return {
-		read: () => currentValue as BasemapId | null,
-		write: vi.fn((nextValue: BasemapId) => {
-			currentValue = nextValue;
-		}),
-		clear: vi.fn(() => {
-			currentValue = null;
-		}),
+		read: vi.fn(() => Effect.succeed(currentValue as BasemapId | null)),
+		write: vi.fn((nextValue: BasemapId) =>
+			Effect.sync(() => {
+				currentValue = nextValue;
+			}),
+		),
+		clear: vi.fn(() =>
+			Effect.sync(() => {
+				currentValue = null;
+			}),
+		),
 	};
 }
 
@@ -43,16 +48,18 @@ describe("map style preferences", () => {
 	it("initializes and persists the resolved basemap", () => {
 		const repository = createRepository("maptiler-outdoor");
 
-		expect(initMapStylePreference(repository)).toBe("maptiler-outdoor");
+		expect(Effect.runSync(initMapStylePreference(repository))).toBe(
+			"maptiler-outdoor",
+		);
 		expect(repository.write).toHaveBeenCalledWith("maptiler-outdoor");
 	});
 
 	it("persists available basemaps and exposes selected basemap metadata", () => {
 		const repository = createRepository(null);
 
-		expect(setMapStylePreference(repository, "maptiler-outdoor")).toBe(
-			"maptiler-outdoor",
-		);
+		expect(
+			Effect.runSync(setMapStylePreference(repository, "maptiler-outdoor")),
+		).toBe("maptiler-outdoor");
 		expect(getSelectedBasemap("maptiler-outdoor")?.label).toBe(
 			"MapTiler Outdoor",
 		);

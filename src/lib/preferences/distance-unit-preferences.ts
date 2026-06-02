@@ -1,8 +1,12 @@
-import type { PreferenceRepository } from "$lib/preferences/preference-repository";
+import type {
+	PreferenceRepository,
+	PreferenceRepositoryError,
+} from "$lib/preferences/preference-repository";
 import {
 	isDistanceUnit,
 	type DistanceUnit,
 } from "$lib/preferences/user-preference-values";
+import { Effect } from "effect";
 
 export const DISTANCE_UNIT_STORAGE_KEY = "velix.distanceUnit";
 export { isDistanceUnit };
@@ -11,29 +15,33 @@ export type { DistanceUnit };
 const metersPerMile = 1609.344;
 export const fallbackDistanceUnit: DistanceUnit = "km";
 
-export function initDistanceUnitPreference(
+export const initDistanceUnitPreference = Effect.fn(
+	"initDistanceUnitPreference",
+)(function* (
 	repository: PreferenceRepository<DistanceUnit>,
-): DistanceUnit {
-	const storedDistanceUnit = repository.read();
+): Effect.fn.Return<DistanceUnit, PreferenceRepositoryError> {
+	const storedDistanceUnit = yield* repository.read();
 	const nextDistanceUnit = isDistanceUnit(storedDistanceUnit)
 		? storedDistanceUnit
 		: fallbackDistanceUnit;
 
-	repository.write(nextDistanceUnit);
+	yield* repository.write(nextDistanceUnit);
 	return nextDistanceUnit;
-}
+});
 
-export function setDistanceUnitPreference(
-	repository: PreferenceRepository<DistanceUnit>,
-	unit: DistanceUnit,
-): DistanceUnit | null {
-	if (!isDistanceUnit(unit)) {
-		return null;
-	}
+export const setDistanceUnitPreference = Effect.fn("setDistanceUnitPreference")(
+	function* (
+		repository: PreferenceRepository<DistanceUnit>,
+		unit: DistanceUnit,
+	): Effect.fn.Return<DistanceUnit | null, PreferenceRepositoryError> {
+		if (!isDistanceUnit(unit)) {
+			return null;
+		}
 
-	repository.write(unit);
-	return unit;
-}
+		yield* repository.write(unit);
+		return unit;
+	},
+);
 
 export function metersToDistanceUnit(
 	meters: number,

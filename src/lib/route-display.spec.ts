@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { Effect } from "effect";
 import type { PlannedRoute } from "$lib/route-planning";
 import {
 	formatDuration,
@@ -40,7 +41,7 @@ function createRoute(overrides: Partial<PlannedRoute> = {}): PlannedRoute {
 
 describe("route display helpers", () => {
 	beforeEach(() => {
-		resetUnitPreferenceForTests();
+		Effect.runSync(resetUnitPreferenceForTests());
 	});
 
 	it("formats durations under one hour in minutes", () => {
@@ -96,7 +97,7 @@ describe("route display helpers", () => {
 	});
 
 	it("formats distance targets with the selected unit preference", () => {
-		setDistanceUnitPreference("mi");
+		Effect.runSync(setDistanceUnitPreference("mi"));
 
 		expect(
 			formatRoundCourseTarget({

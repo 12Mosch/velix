@@ -15,6 +15,7 @@
 		X,
 	} from "@lucide/svelte";
 	import { env } from "$env/dynamic/public";
+	import { Effect } from "effect";
 	import { onMount } from "svelte";
 	import { api } from "../../convex/_generated/api";
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -56,7 +57,7 @@
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
 
-	const convexClient = getOptionalConvexClient();
+	const convexClient = Effect.runSync(getOptionalConvexClient());
 
 	type SavedRouteSearchTextCacheEntry = {
 		cacheKey: string;
@@ -64,7 +65,16 @@
 	};
 
 	onMount(() => {
-		initUnitPreference();
+		Effect.runSync(
+			initUnitPreference().pipe(
+				Effect.catch((error) =>
+					Effect.sync(() => {
+						console.error("Failed to initialize unit preference", error);
+						return unitPreference.selectedDistanceUnit;
+					}),
+				),
+			),
+		);
 		void initSavedRoutes();
 	});
 

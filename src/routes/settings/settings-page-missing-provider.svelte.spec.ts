@@ -1,4 +1,5 @@
 import { page } from "vitest/browser";
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 
@@ -18,7 +19,7 @@ import {
 describe("settings page with missing provider keys", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
-		resetMapStylePreferenceForTests();
+		Effect.runSync(resetMapStylePreferenceForTests());
 		window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, "maptiler-outdoor");
 	});
 

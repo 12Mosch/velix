@@ -1,4 +1,5 @@
 import { page } from "vitest/browser";
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 
@@ -42,7 +43,7 @@ vi.mock("maplibre-gl", () => {
 describe("MapView without configured providers", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
-		resetMapStylePreferenceForTests();
+		Effect.runSync(resetMapStylePreferenceForTests());
 		mapMock.mockClear();
 	});
 
