@@ -1,4 +1,5 @@
 import { page } from "vitest/browser";
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 
@@ -41,8 +42,8 @@ describe("settings page", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
 		resetMode();
-		resetMapStylePreferenceForTests();
-		resetUnitPreferenceForTests();
+		Effect.runSync(resetMapStylePreferenceForTests());
+		Effect.runSync(resetUnitPreferenceForTests());
 		mapMock.mockClear();
 		mapRemoveMock.mockClear();
 	});
@@ -94,21 +95,21 @@ describe("settings page", () => {
 			.element(getRadio("Dark"))
 			.toHaveAttribute("aria-checked", "true");
 		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("dark");
-		expect(getThemeModePreference()).toBe("dark");
+		expect(Effect.runSync(getThemeModePreference())).toBe("dark");
 
 		await getRadio("Light").click();
 		await expect
 			.element(getRadio("Light"))
 			.toHaveAttribute("aria-checked", "true");
 		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("light");
-		expect(getThemeModePreference()).toBe("light");
+		expect(Effect.runSync(getThemeModePreference())).toBe("light");
 
 		await getRadio("System").click();
 		await expect
 			.element(getRadio("System"))
 			.toHaveAttribute("aria-checked", "true");
 		expect(window.localStorage.getItem(modeStorageKey.current)).toBe("system");
-		expect(getThemeModePreference()).toBe("system");
+		expect(Effect.runSync(getThemeModePreference())).toBe("system");
 	});
 
 	it("persists the chosen basemap in localStorage and restores it after remount", async () => {
@@ -130,7 +131,7 @@ describe("settings page", () => {
 		const persistedBasemapId = window.localStorage.getItem(
 			MAP_STYLE_STORAGE_KEY,
 		);
-		resetMapStylePreferenceForTests();
+		Effect.runSync(resetMapStylePreferenceForTests());
 		if (persistedBasemapId) {
 			window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, persistedBasemapId);
 		}
@@ -162,7 +163,7 @@ describe("settings page", () => {
 		const persistedDistanceUnit = window.localStorage.getItem(
 			DISTANCE_UNIT_STORAGE_KEY,
 		);
-		resetUnitPreferenceForTests();
+		Effect.runSync(resetUnitPreferenceForTests());
 		if (persistedDistanceUnit) {
 			window.localStorage.setItem(
 				DISTANCE_UNIT_STORAGE_KEY,

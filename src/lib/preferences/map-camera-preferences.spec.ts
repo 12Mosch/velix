@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 
 import {
 	MAP_CAMERA_STORAGE_KEY,
@@ -32,7 +33,7 @@ describe("map camera preferences", () => {
 			}),
 		);
 
-		expect(readMapCameraPreference(storage)).toEqual({
+		expect(Effect.runSync(readMapCameraPreference(storage))).toEqual({
 			center: [11.57, 48.13],
 			zoom: 12.5,
 			bearing: 15,
@@ -43,7 +44,9 @@ describe("map camera preferences", () => {
 
 	it("ignores and clears invalid stored camera values", () => {
 		const invalidJsonStorage = createStorage("{bad json");
-		expect(readMapCameraPreference(invalidJsonStorage)).toBeNull();
+		expect(
+			Effect.runSync(readMapCameraPreference(invalidJsonStorage)),
+		).toBeNull();
 		expect(invalidJsonStorage.removeItem).toHaveBeenCalledWith(
 			MAP_CAMERA_STORAGE_KEY,
 		);
@@ -56,7 +59,9 @@ describe("map camera preferences", () => {
 				pitch: 0,
 			}),
 		);
-		expect(readMapCameraPreference(outOfRangeStorage)).toBeNull();
+		expect(
+			Effect.runSync(readMapCameraPreference(outOfRangeStorage)),
+		).toBeNull();
 		expect(outOfRangeStorage.removeItem).toHaveBeenCalledWith(
 			MAP_CAMERA_STORAGE_KEY,
 		);
@@ -69,7 +74,9 @@ describe("map camera preferences", () => {
 				pitch: 0,
 			}),
 		);
-		expect(readMapCameraPreference(extraCenterValueStorage)).toBeNull();
+		expect(
+			Effect.runSync(readMapCameraPreference(extraCenterValueStorage)),
+		).toBeNull();
 		expect(extraCenterValueStorage.removeItem).toHaveBeenCalledWith(
 			MAP_CAMERA_STORAGE_KEY,
 		);
@@ -78,12 +85,14 @@ describe("map camera preferences", () => {
 	it("writes the expected JSON shape", () => {
 		const storage = createStorage(null);
 
-		writeMapCameraPreference(storage, {
-			center: [11.57, 48.13],
-			zoom: 12.5,
-			bearing: 15,
-			pitch: 35,
-		});
+		Effect.runSync(
+			writeMapCameraPreference(storage, {
+				center: [11.57, 48.13],
+				zoom: 12.5,
+				bearing: 15,
+				pitch: 35,
+			}),
+		);
 
 		expect(storage.setItem).toHaveBeenCalledWith(
 			MAP_CAMERA_STORAGE_KEY,

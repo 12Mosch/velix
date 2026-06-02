@@ -34,11 +34,13 @@ function createClient(overrides: Partial<TestClient> = {}): TestClient {
 function createState(overrides: Partial<TestState> = {}): TestState {
 	return {
 		applyRemotePreferences: vi.fn(),
-		readLocalPreferences: vi.fn(() => ({
-			themeMode: "system",
-			mapStyle: "stadia-alidade-smooth",
-			distanceUnit: "km",
-		})),
+		readLocalPreferences: vi.fn(() =>
+			Effect.succeed({
+				themeMode: "system",
+				mapStyle: "stadia-alidade-smooth",
+				distanceUnit: "km",
+			}),
+		),
 		syncError: null,
 		...overrides,
 	} as TestState;
@@ -59,7 +61,7 @@ describe("user preference account sync", () => {
 			distanceUnit: "mi",
 		};
 		const state = createState({
-			applyRemotePreferences: vi.fn(() => appliedPreferences),
+			applyRemotePreferences: vi.fn(() => Effect.succeed(appliedPreferences)),
 		});
 		const adapter = { save: vi.fn(() => Effect.void) };
 
@@ -90,7 +92,7 @@ describe("user preference account sync", () => {
 			distanceUnit: "km",
 		};
 		const state = createState({
-			readLocalPreferences: vi.fn(() => localPreferences),
+			readLocalPreferences: vi.fn(() => Effect.succeed(localPreferences)),
 		});
 		const adapter = { save: vi.fn(() => Effect.void) };
 
@@ -147,10 +149,12 @@ describe("user preference account sync", () => {
 			distanceUnit: "mi",
 		};
 		const state = createState({
-			applyRemotePreferences: vi.fn(() => {
-				currentRequestId = 2;
-				return appliedPreferences;
-			}),
+			applyRemotePreferences: vi.fn(() =>
+				Effect.sync(() => {
+					currentRequestId = 2;
+					return appliedPreferences;
+				}),
+			),
 		});
 		const adapter = { save: vi.fn(() => Effect.void) };
 

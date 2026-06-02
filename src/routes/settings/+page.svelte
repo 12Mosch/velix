@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Effect } from "effect";
 	import { onMount } from "svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -20,9 +21,31 @@
 	import AppThemeSettings from "$lib/components/app-theme-settings.svelte";
 	import BasemapPreview from "$lib/components/basemap-preview.svelte";
 
+	function runPreferenceEffect<T, E>(
+		effect: Effect.Effect<T, E>,
+		message: string,
+	) {
+		return Effect.runSync(
+			effect.pipe(
+				Effect.catch((error) =>
+					Effect.sync(() => {
+						console.error(message, error);
+						return null;
+					}),
+				),
+			),
+		);
+	}
+
 	onMount(() => {
-		initMapStylePreference();
-		initUnitPreference();
+		runPreferenceEffect(
+			initMapStylePreference(),
+			"Failed to initialize map style preference",
+		);
+		runPreferenceEffect(
+			initUnitPreference(),
+			"Failed to initialize unit preference",
+		);
 	});
 
 	function isSelected(basemapId: string): boolean {
@@ -106,7 +129,11 @@
 						aria-checked={isSelected(basemap.id)}
 						aria-label={basemap.label}
 						disabled={!basemap.available}
-						onclick={() => setMapStylePreference(basemap.id)}
+						onclick={() =>
+							runPreferenceEffect(
+								setMapStylePreference(basemap.id),
+								"Failed to set map style preference",
+							)}
 					>
 						<div class="flex w-full flex-row">
 							<div class="w-28 shrink-0 self-stretch overflow-hidden rounded-l-lg max-md:hidden">
@@ -190,7 +217,11 @@
 						role="radio"
 						aria-checked={isSelectedDistanceUnit(option.unit)}
 						aria-label={option.label}
-						onclick={() => setDistanceUnitPreference(option.unit)}
+						onclick={() =>
+							runPreferenceEffect(
+								setDistanceUnitPreference(option.unit),
+								"Failed to set distance unit preference",
+							)}
 					>
 						<div class="flex min-w-0 flex-col gap-1.5">
 							<div class="flex flex-wrap items-center gap-2">

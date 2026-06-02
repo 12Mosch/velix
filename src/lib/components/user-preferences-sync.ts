@@ -39,8 +39,8 @@ export type UserPreferencesSyncState = {
 	applyRemotePreferences: (
 		userId: string,
 		preferences: NonNullable<UserPreferencesRemoteSnapshot>,
-	) => UserPreferencesPatch;
-	readLocalPreferences: () => UserPreferencesPatch;
+	) => Effect.Effect<UserPreferencesPatch, Error>;
+	readLocalPreferences: () => Effect.Effect<UserPreferencesPatch, Error>;
 	syncError: string | null;
 };
 
@@ -97,20 +97,15 @@ export const syncUserPreferencesSnapshot = Effect.fn(
 }): Effect.fn.Return<UserPreferencesPatch | null, never> {
 	return yield* Effect.gen(function* () {
 		if (remotePreferences === null) {
-			const localPreferences = yield* Effect.try({
-				try: () => state.readLocalPreferences(),
-				catch: (cause) =>
-					toSyncError(cause, "Could not read local account preferences."),
-			});
+			const localPreferences = yield* state.readLocalPreferences();
 			yield* adapter.save(localPreferences);
 			return localPreferences;
 		}
 
-		const appliedPreferences = yield* Effect.try({
-			try: () => state.applyRemotePreferences(userId, remotePreferences),
-			catch: (cause) =>
-				toSyncError(cause, "Could not apply account preferences."),
-		});
+		const appliedPreferences = yield* state.applyRemotePreferences(
+			userId,
+			remotePreferences,
+		);
 
 		if (getCurrentRequestId() !== requestId) {
 			return null;

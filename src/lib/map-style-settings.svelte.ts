@@ -12,6 +12,7 @@ import {
 } from "$lib/preferences/map-style-preferences";
 import { createPreferenceRepository } from "$lib/preferences/preference-repository";
 import { createBrowserStorage } from "$lib/storage/browser-storage";
+import { Effect } from "effect";
 
 export {
 	type BasemapDefinition,
@@ -23,7 +24,7 @@ export {
 };
 
 const mapStyleRepository = createPreferenceRepository<BasemapId>(
-	createBrowserStorage(),
+	Effect.runSync(createBrowserStorage()),
 	MAP_STYLE_STORAGE_KEY,
 );
 
@@ -37,40 +38,49 @@ class MapStylePreferenceState {
 		return nextBasemapId;
 	}
 
-	initMapStylePreference(): BasemapId | null {
-		if (this.initialized) {
-			return this.selectedBasemapId;
-		}
+	initMapStylePreference() {
+		const state = this;
+		return Effect.gen(function* () {
+			if (state.initialized) {
+				return state.selectedBasemapId;
+			}
 
-		this.initialized = true;
-		this.selectedBasemapId = initMapStylePreferenceValue(mapStyleRepository);
+			state.selectedBasemapId =
+				yield* initMapStylePreferenceValue(mapStyleRepository);
+			state.initialized = true;
 
-		return this.selectedBasemapId;
+			return state.selectedBasemapId;
+		});
 	}
 
-	setMapStylePreference(id: BasemapId): boolean {
-		const nextBasemapId = setMapStylePreferenceValue(mapStyleRepository, id);
+	setMapStylePreference(id: BasemapId) {
+		return setMapStylePreferenceValue(mapStyleRepository, id).pipe(
+			Effect.map((nextBasemapId) => {
+				if (!nextBasemapId) {
+					return false;
+				}
 
-		if (!nextBasemapId) {
-			return false;
-		}
-
-		this.selectedBasemapId = nextBasemapId;
-		return true;
+				this.selectedBasemapId = nextBasemapId;
+				return true;
+			}),
+		);
 	}
 
-	applyRemoteMapStylePreference(id: BasemapId): BasemapId | null {
-		const nextBasemapId = resolvePreferredBasemapId(id);
+	applyRemoteMapStylePreference(id: BasemapId) {
+		const state = this;
+		return Effect.gen(function* () {
+			const nextBasemapId = resolvePreferredBasemapId(id);
 
-		if (nextBasemapId) {
-			mapStyleRepository.write(nextBasemapId);
-		} else {
-			mapStyleRepository.clear();
-		}
+			if (nextBasemapId) {
+				yield* mapStyleRepository.write(nextBasemapId);
+			} else {
+				yield* mapStyleRepository.clear();
+			}
 
-		this.selectedBasemapId = nextBasemapId;
-		this.initialized = true;
-		return nextBasemapId;
+			state.selectedBasemapId = nextBasemapId;
+			state.initialized = true;
+			return nextBasemapId;
+		});
 	}
 
 	getSelectedBasemap(): BasemapDefinition | null {
@@ -78,9 +88,14 @@ class MapStylePreferenceState {
 	}
 
 	resetMapStylePreferenceForTests() {
-		this.initialized = false;
-		this.selectedBasemapId = getFallbackBasemapId();
-		mapStyleRepository.clear();
+		return mapStyleRepository.clear().pipe(
+			Effect.tap(() =>
+				Effect.sync(() => {
+					this.initialized = false;
+					this.selectedBasemapId = getFallbackBasemapId();
+				}),
+			),
+		);
 	}
 }
 
@@ -90,15 +105,15 @@ export function syncSelectedBasemap(): BasemapId | null {
 	return mapStylePreference.syncSelectedBasemap();
 }
 
-export function initMapStylePreference(): BasemapId | null {
+export function initMapStylePreference() {
 	return mapStylePreference.initMapStylePreference();
 }
 
-export function setMapStylePreference(id: BasemapId): boolean {
+export function setMapStylePreference(id: BasemapId) {
 	return mapStylePreference.setMapStylePreference(id);
 }
 
-export function applyRemoteMapStylePreference(id: BasemapId): BasemapId | null {
+export function applyRemoteMapStylePreference(id: BasemapId) {
 	return mapStylePreference.applyRemoteMapStylePreference(id);
 }
 
@@ -107,5 +122,5 @@ export function getSelectedBasemap() {
 }
 
 export function resetMapStylePreferenceForTests() {
-	mapStylePreference.resetMapStylePreferenceForTests();
+	return mapStylePreference.resetMapStylePreferenceForTests();
 }

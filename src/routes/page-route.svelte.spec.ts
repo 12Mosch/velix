@@ -744,8 +744,8 @@ function getRouteSourceFeatureKinds(sourceId: string) {
 describe("+page.svelte", () => {
 	beforeEach(async () => {
 		window.localStorage.clear();
-		resetMapStylePreferenceForTests();
-		resetUnitPreferenceForTests();
+		Effect.runSync(resetMapStylePreferenceForTests());
+		Effect.runSync(resetUnitPreferenceForTests());
 		await resetSavedRoutesForTests();
 		window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, "maptiler-outdoor");
 		window.history.replaceState({}, "", "/");
@@ -3430,7 +3430,7 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("spinbutton", { name: "Radius" }))
 			.toHaveValue(30);
 
-		setDistanceUnitPreference("mi");
+		Effect.runSync(setDistanceUnitPreference("mi"));
 
 		await expect
 			.element(page.getByRole("spinbutton", { name: "Target distance" }))

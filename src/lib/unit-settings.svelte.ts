@@ -12,11 +12,12 @@ import {
 } from "$lib/preferences/distance-unit-preferences";
 import { createPreferenceRepository } from "$lib/preferences/preference-repository";
 import { createBrowserStorage } from "$lib/storage/browser-storage";
+import { Effect } from "effect";
 
 export { DISTANCE_UNIT_STORAGE_KEY, type DistanceUnit };
 
 const distanceUnitRepository = createPreferenceRepository<DistanceUnit>(
-	createBrowserStorage(),
+	Effect.runSync(createBrowserStorage()),
 	DISTANCE_UNIT_STORAGE_KEY,
 );
 
@@ -24,73 +25,77 @@ class UnitPreferenceState {
 	initialized = $state(false);
 	selectedDistanceUnit = $state<DistanceUnit>(fallbackDistanceUnit);
 
-	initUnitPreference(): DistanceUnit {
-		if (this.initialized) {
-			return this.selectedDistanceUnit;
-		}
+	initUnitPreference() {
+		const state = this;
+		return Effect.gen(function* () {
+			if (state.initialized) {
+				return state.selectedDistanceUnit;
+			}
 
-		this.initialized = true;
-		this.selectedDistanceUnit = initDistanceUnitPreference(
-			distanceUnitRepository,
-		);
+			state.selectedDistanceUnit = yield* initDistanceUnitPreference(
+				distanceUnitRepository,
+			);
+			state.initialized = true;
 
-		return this.selectedDistanceUnit;
+			return state.selectedDistanceUnit;
+		});
 	}
 
-	setDistanceUnitPreference(unit: DistanceUnit): boolean {
-		const nextDistanceUnit = setDistanceUnitPreferenceValue(
-			distanceUnitRepository,
-			unit,
+	setDistanceUnitPreference(unit: DistanceUnit) {
+		return setDistanceUnitPreferenceValue(distanceUnitRepository, unit).pipe(
+			Effect.map((nextDistanceUnit) => {
+				if (!nextDistanceUnit) {
+					return false;
+				}
+
+				this.selectedDistanceUnit = nextDistanceUnit;
+				return true;
+			}),
 		);
-
-		if (!nextDistanceUnit) {
-			return false;
-		}
-
-		this.selectedDistanceUnit = nextDistanceUnit;
-		return true;
 	}
 
-	applyRemoteDistanceUnitPreference(unit: DistanceUnit): DistanceUnit | null {
-		const nextDistanceUnit = setDistanceUnitPreferenceValue(
-			distanceUnitRepository,
-			unit,
+	applyRemoteDistanceUnitPreference(unit: DistanceUnit) {
+		return setDistanceUnitPreferenceValue(distanceUnitRepository, unit).pipe(
+			Effect.map((nextDistanceUnit) => {
+				if (!nextDistanceUnit) {
+					return null;
+				}
+
+				this.selectedDistanceUnit = nextDistanceUnit;
+				this.initialized = true;
+				return nextDistanceUnit;
+			}),
 		);
-
-		if (!nextDistanceUnit) {
-			return null;
-		}
-
-		this.selectedDistanceUnit = nextDistanceUnit;
-		this.initialized = true;
-		return nextDistanceUnit;
 	}
 
 	resetUnitPreferenceForTests() {
-		this.initialized = false;
-		this.selectedDistanceUnit = fallbackDistanceUnit;
-		distanceUnitRepository.clear();
+		return distanceUnitRepository.clear().pipe(
+			Effect.tap(() =>
+				Effect.sync(() => {
+					this.initialized = false;
+					this.selectedDistanceUnit = fallbackDistanceUnit;
+				}),
+			),
+		);
 	}
 }
 
 export const unitPreference = new UnitPreferenceState();
 
-export function initUnitPreference(): DistanceUnit {
+export function initUnitPreference() {
 	return unitPreference.initUnitPreference();
 }
 
-export function setDistanceUnitPreference(unit: DistanceUnit): boolean {
+export function setDistanceUnitPreference(unit: DistanceUnit) {
 	return unitPreference.setDistanceUnitPreference(unit);
 }
 
-export function applyRemoteDistanceUnitPreference(
-	unit: DistanceUnit,
-): DistanceUnit | null {
+export function applyRemoteDistanceUnitPreference(unit: DistanceUnit) {
 	return unitPreference.applyRemoteDistanceUnitPreference(unit);
 }
 
 export function resetUnitPreferenceForTests() {
-	unitPreference.resetUnitPreferenceForTests();
+	return unitPreference.resetUnitPreferenceForTests();
 }
 
 export function getDistanceUnitLabel(): DistanceUnit {

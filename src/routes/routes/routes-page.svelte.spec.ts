@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Effect } from "effect";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 
@@ -201,7 +202,7 @@ describe("routes/+page.svelte", () => {
 		});
 		window.localStorage.clear();
 		await resetSavedRoutesForTests();
-		resetUnitPreferenceForTests();
+		Effect.runSync(resetUnitPreferenceForTests());
 		window.history.replaceState({}, "", "/routes");
 		publicEnv.PUBLIC_CONVEX_URL = "";
 		convexClientMock.mutation.mockReset();
@@ -949,7 +950,7 @@ describe("routes/+page.svelte", () => {
 			.element(page.getByText("Garmisch-Partenkirchen, Germany"))
 			.toBeInTheDocument();
 
-		setDistanceUnitPreference("mi");
+		Effect.runSync(setDistanceUnitPreference("mi"));
 
 		await searchInput.fill("31.1 mi");
 		await expect

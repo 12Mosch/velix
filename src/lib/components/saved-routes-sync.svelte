@@ -61,43 +61,51 @@
 	);
 
 	function initLocalPreferences() {
-		if (localPreferencesInitialized) {
-			return;
-		}
+		return Effect.gen(function* () {
+			if (localPreferencesInitialized) {
+				return;
+			}
 
-		localPreferencesInitialized = true;
-		initMapStylePreference();
-		initUnitPreference();
+			yield* initMapStylePreference();
+			yield* initUnitPreference();
+			localPreferencesInitialized = true;
+		});
 	}
 
-	function readLocalPreferences(): UserPreferencesPatch {
-		initLocalPreferences();
-		return {
-			themeMode: getThemeModePreference(),
-			mapStyle: mapStylePreference.selectedBasemapId ?? undefined,
-			distanceUnit: unitPreference.selectedDistanceUnit,
-		};
+	function readLocalPreferences() {
+		return Effect.gen(function* () {
+			yield* initLocalPreferences();
+			return {
+				themeMode: yield* getThemeModePreference(),
+				mapStyle: mapStylePreference.selectedBasemapId ?? undefined,
+				distanceUnit: unitPreference.selectedDistanceUnit,
+			};
+		});
 	}
 
 	function applyRemotePreferences(
 		_userId: string,
 		preferences: NonNullable<UserPreferencesRemoteSnapshot>,
-	): UserPreferencesPatch {
-		initLocalPreferences();
+	) {
+		return Effect.gen(function* () {
+			yield* initLocalPreferences();
 
-		if (preferences.themeMode) {
-			applyRemoteThemeModePreference(preferences.themeMode);
-		}
+			if (preferences.themeMode) {
+				yield* applyRemoteThemeModePreference(preferences.themeMode);
+			}
 
-		if (preferences.mapStyle) {
-			applyRemoteMapStylePreference(preferences.mapStyle as BasemapId);
-		}
+			if (preferences.mapStyle) {
+				yield* applyRemoteMapStylePreference(preferences.mapStyle as BasemapId);
+			}
 
-		if (preferences.distanceUnit) {
-			applyRemoteDistanceUnitPreference(preferences.distanceUnit as DistanceUnit);
-		}
+			if (preferences.distanceUnit) {
+				yield* applyRemoteDistanceUnitPreference(
+					preferences.distanceUnit as DistanceUnit,
+				);
+			}
 
-		return readLocalPreferences();
+			return yield* readLocalPreferences();
+		});
 	}
 
 	const userPreferencesState: UserPreferencesSyncState = {
@@ -120,7 +128,7 @@
 
 	$effect(() => {
 		untrack(() => {
-			initLocalPreferences();
+			Effect.runSync(initLocalPreferences());
 		});
 	});
 

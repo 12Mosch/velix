@@ -42,7 +42,7 @@
 		createdAt: string;
 	};
 
-	const convexClient = getOptionalConvexClient();
+	const convexClient = Effect.runSync(getOptionalConvexClient());
 
 	let sharedRoutePayload = $state<SharedRoutePayload | null>(null);
 	let isLoading = $state(true);
@@ -72,7 +72,15 @@
 	);
 
 	onMount(() => {
-		initUnitPreference();
+		Effect.runSync(
+			initUnitPreference().pipe(
+				Effect.catch((error) =>
+					Effect.sync(() => {
+						console.error("Failed to initialize unit preference", error);
+					}),
+				),
+			),
+		);
 	});
 
 	$effect(() => {
