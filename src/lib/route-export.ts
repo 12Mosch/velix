@@ -6,16 +6,26 @@ import {
 	type RouteInstructionType,
 } from "$lib/route-planning";
 import { Encoder, Profile } from "@garmin/fitsdk";
+import { Data, Effect } from "effect";
 
 type RouteExportOptions = {
 	exportedAt?: Date;
 	creator?: string;
 };
 
+export class RouteExportError extends Data.TaggedError("RouteExportError")<{
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
+
 function normalizeExportOptions(
 	options: RouteExportOptions | null | undefined,
 ): RouteExportOptions {
 	return options ?? {};
+}
+
+function routeExportFailureMessage(cause: unknown, fallback: string): string {
+	return cause instanceof Error ? cause.message : fallback;
 }
 
 type NormalizedCoordinate = {
@@ -58,28 +68,32 @@ function toSlugPart(value: string): string {
 		.replaceAll(/^-+|-+$/g, "");
 }
 
-function normalizeCoordinate(
-	coordinate: [number, number] | RouteCoordinate,
-	context: string,
-): NormalizedCoordinate {
-	if (!Array.isArray(coordinate) || coordinate.length < 2) {
-		throw new Error(`${context} is missing longitude/latitude values.`);
-	}
+const normalizeCoordinateEffect = Effect.fn("normalizeCoordinateEffect")(
+	function* (
+		coordinate: [number, number] | RouteCoordinate,
+		context: string,
+	): Effect.fn.Return<NormalizedCoordinate, RouteExportError> {
+		if (!Array.isArray(coordinate) || coordinate.length < 2) {
+			return yield* new RouteExportError({
+				message: `${context} is missing longitude/latitude values.`,
+			});
+		}
 
-	const [longitude, latitude, elevation] = coordinate;
+		const [longitude, latitude, elevation] = coordinate;
 
-	if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
-		throw new Error(
-			`${context} must include finite longitude and latitude values.`,
-		);
-	}
+		if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+			return yield* new RouteExportError({
+				message: `${context} must include finite longitude and latitude values.`,
+			});
+		}
 
-	return {
-		longitude,
-		latitude,
-		elevation: Number.isFinite(elevation) ? elevation : undefined,
-	};
-}
+		return {
+			longitude,
+			latitude,
+			elevation: Number.isFinite(elevation) ? elevation : undefined,
+		};
+	},
+);
 
 function normalizeBounds(
 	bounds: PlannedRoute["bounds"] | undefined,
@@ -95,9 +109,11 @@ function normalizeBounds(
 	return bounds;
 }
 
-function deriveBoundsFromCoordinates(
+const deriveBoundsFromCoordinatesEffect = Effect.fn(
+	"deriveBoundsFromCoordinatesEffect",
+)(function* (
 	coordinates: RouteCoordinate[],
-): PlannedRoute["bounds"] | null {
+): Effect.fn.Return<PlannedRoute["bounds"] | null, RouteExportError> {
 	if (coordinates.length === 0) {
 		return null;
 	}
@@ -108,7 +124,7 @@ function deriveBoundsFromCoordinates(
 	let maxLat = Number.NEGATIVE_INFINITY;
 
 	for (const [index, coordinate] of coordinates.entries()) {
-		const normalizedCoordinate = normalizeCoordinate(
+		const normalizedCoordinate = yield* normalizeCoordinateEffect(
 			coordinate,
 			`Route track point ${index + 1}`,
 		);
@@ -120,21 +136,27 @@ function deriveBoundsFromCoordinates(
 	}
 
 	return [minLon, minLat, maxLon, maxLat];
-}
+});
 
-function getTrackCoordinates(route: PlannedRoute): RouteCoordinate[] {
-	if (!Array.isArray(route.coordinates)) {
-		throw new Error("Route is missing track coordinates.");
-	}
+const getTrackCoordinatesEffect = Effect.fn("getTrackCoordinatesEffect")(
+	function* (
+		route: PlannedRoute,
+	): Effect.fn.Return<RouteCoordinate[], RouteExportError> {
+		if (!Array.isArray(route.coordinates)) {
+			return yield* new RouteExportError({
+				message: "Route is missing track coordinates.",
+			});
+		}
 
-	return route.coordinates;
-}
+		return route.coordinates;
+	},
+);
 
-function buildWaypointXml(
+const buildWaypointXmlEffect = Effect.fn("buildWaypointXmlEffect")(function* (
 	label: string,
 	coordinate: [number, number] | RouteCoordinate,
-): string {
-	const normalizedCoordinate = normalizeCoordinate(
+): Effect.fn.Return<string, RouteExportError> {
+	const normalizedCoordinate = yield* normalizeCoordinateEffect(
 		coordinate,
 		`Waypoint "${label}"`,
 	);
@@ -150,67 +172,90 @@ function buildWaypointXml(
 	]
 		.filter(Boolean)
 		.join("\n");
-}
+});
 
-function buildCueRoutePointXml(instruction: RouteInstruction): string {
-	const normalizedCoordinate = normalizeCoordinate(
-		instruction.coordinate,
-		`Cue "${instruction.text}"`,
-	);
-	const elevationXml = Number.isFinite(normalizedCoordinate.elevation)
-		? `\n    <ele>${normalizedCoordinate.elevation}</ele>`
-		: "";
+const buildCueRoutePointXmlEffect = Effect.fn("buildCueRoutePointXmlEffect")(
+	function* (
+		instruction: RouteInstruction,
+	): Effect.fn.Return<string, RouteExportError> {
+		const normalizedCoordinate = yield* normalizeCoordinateEffect(
+			instruction.coordinate,
+			`Cue "${instruction.text}"`,
+		);
+		const elevationXml = Number.isFinite(normalizedCoordinate.elevation)
+			? `\n    <ele>${normalizedCoordinate.elevation}</ele>`
+			: "";
 
-	return [
-		`  <rtept lat="${normalizedCoordinate.latitude}" lon="${normalizedCoordinate.longitude}">`,
-		elevationXml,
-		`    <name>${escapeXml(instruction.text)}</name>`,
-		"    <extensions>",
-		`      <velix:cue distanceFromStartMeters="${escapeXml(String(instruction.distanceFromStartMeters))}" segmentDistanceMeters="${escapeXml(String(instruction.segmentDistanceMeters))}" segmentTimeMs="${escapeXml(String(instruction.segmentTimeMs))}" sign="${escapeXml(String(instruction.sign))}" type="${escapeXml(instruction.type)}" coordinateIndex="${escapeXml(String(instruction.coordinateIndex))}" />`,
-		"    </extensions>",
-		"  </rtept>",
-	]
-		.filter(Boolean)
-		.join("\n");
-}
+		return [
+			`  <rtept lat="${normalizedCoordinate.latitude}" lon="${normalizedCoordinate.longitude}">`,
+			elevationXml,
+			`    <name>${escapeXml(instruction.text)}</name>`,
+			"    <extensions>",
+			`      <velix:cue distanceFromStartMeters="${escapeXml(String(instruction.distanceFromStartMeters))}" segmentDistanceMeters="${escapeXml(String(instruction.segmentDistanceMeters))}" segmentTimeMs="${escapeXml(String(instruction.segmentTimeMs))}" sign="${escapeXml(String(instruction.sign))}" type="${escapeXml(instruction.type)}" coordinateIndex="${escapeXml(String(instruction.coordinateIndex))}" />`,
+			"    </extensions>",
+			"  </rtept>",
+		]
+			.filter(Boolean)
+			.join("\n");
+	},
+);
 
-function buildCueRouteXml(route: PlannedRoute, title: string): string {
+const buildCueRouteXmlEffect = Effect.fn("buildCueRouteXmlEffect")(function* (
+	route: PlannedRoute,
+	title: string,
+): Effect.fn.Return<string, RouteExportError> {
 	const instructions = route.instructions ?? [];
 
 	if (instructions.length === 0) {
 		return "";
 	}
 
+	const routePointXml = [];
+
+	for (const instruction of instructions) {
+		routePointXml.push(yield* buildCueRoutePointXmlEffect(instruction));
+	}
+
 	return [
 		"  <rte>",
 		`    <name>${escapeXml(title)}</name>`,
-		instructions.map(buildCueRoutePointXml).join("\n"),
+		routePointXml.join("\n"),
 		"  </rte>",
 	].join("\n");
-}
+});
 
-export function buildRouteGpx(
+export const buildRouteGpxEffect = Effect.fn("buildRouteGpxEffect")(function* (
 	route: PlannedRoute,
 	options: RouteExportOptions | null = {},
-): string {
+): Effect.fn.Return<string, RouteExportError> {
 	const normalizedOptions = normalizeExportOptions(options);
 	const exportedAt = normalizedOptions.exportedAt ?? new Date();
 	const creator = normalizedOptions.creator ?? "Velix";
 	const title = formatRouteTitle(route);
-	const coordinates = getTrackCoordinates(route);
+	const coordinates = yield* getTrackCoordinatesEffect(route);
 	const bounds =
-		normalizeBounds(route.bounds) ?? deriveBoundsFromCoordinates(coordinates);
-	const waypointXml = getRouteStopInputs(route)
-		.map((stop) =>
-			stop.point ? buildWaypointXml(stop.label, stop.point) : null,
-		)
-		.filter((value): value is string => value !== null)
-		.join("\n");
-	const trackPointXml = coordinates
-		.map((coordinate, index) => buildTrackPointXml(coordinate, index))
-		.join("\n");
+		normalizeBounds(route.bounds) ??
+		(yield* deriveBoundsFromCoordinatesEffect(coordinates));
+	const waypointXmlParts = [];
+
+	for (const stop of getRouteStopInputs(route)) {
+		if (stop.point) {
+			waypointXmlParts.push(
+				yield* buildWaypointXmlEffect(stop.label, stop.point),
+			);
+		}
+	}
+
+	const waypointXml = waypointXmlParts.join("\n");
+	const trackPointXmlParts = [];
+
+	for (const [index, coordinate] of coordinates.entries()) {
+		trackPointXmlParts.push(yield* buildTrackPointXmlEffect(coordinate, index));
+	}
+
+	const trackPointXml = trackPointXmlParts.join("\n");
 	const waypointBlock = waypointXml ? `${waypointXml}\n` : "";
-	const cueRouteXml = buildCueRouteXml(route, title);
+	const cueRouteXml = yield* buildCueRouteXmlEffect(route, title);
 	const cueRouteBlock = cueRouteXml ? `${cueRouteXml}\n` : "";
 	const boundsXml = bounds
 		? `    <bounds minlon="${bounds[0]}" minlat="${bounds[1]}" maxlon="${bounds[2]}" maxlat="${bounds[3]}" />`
@@ -240,28 +285,30 @@ export function buildRouteGpx(
 	]
 		.filter(Boolean)
 		.join("\n");
-}
+});
 
-function buildTrackPointXml(
-	coordinate: RouteCoordinate,
-	index: number,
-): string {
-	const normalizedCoordinate = normalizeCoordinate(
-		coordinate,
-		`Route track point ${index + 1}`,
-	);
-	const elevationXml = Number.isFinite(normalizedCoordinate.elevation)
-		? `\n      <ele>${normalizedCoordinate.elevation}</ele>`
-		: "";
+const buildTrackPointXmlEffect = Effect.fn("buildTrackPointXmlEffect")(
+	function* (
+		coordinate: RouteCoordinate,
+		index: number,
+	): Effect.fn.Return<string, RouteExportError> {
+		const normalizedCoordinate = yield* normalizeCoordinateEffect(
+			coordinate,
+			`Route track point ${index + 1}`,
+		);
+		const elevationXml = Number.isFinite(normalizedCoordinate.elevation)
+			? `\n      <ele>${normalizedCoordinate.elevation}</ele>`
+			: "";
 
-	return [
-		`    <trkpt lat="${normalizedCoordinate.latitude}" lon="${normalizedCoordinate.longitude}">`,
-		elevationXml,
-		"    </trkpt>",
-	]
-		.filter(Boolean)
-		.join("\n");
-}
+		return [
+			`    <trkpt lat="${normalizedCoordinate.latitude}" lon="${normalizedCoordinate.longitude}">`,
+			elevationXml,
+			"    </trkpt>",
+		]
+			.filter(Boolean)
+			.join("\n");
+	},
+);
 
 function toSemicircles(degrees: number): number {
 	return Math.round(degrees * SEMICIRCLES_PER_DEGREE);
@@ -292,13 +339,25 @@ function distanceBetweenMeters(
 	);
 }
 
-function normalizeTrackCoordinates(
+const normalizeTrackCoordinatesEffect = Effect.fn(
+	"normalizeTrackCoordinatesEffect",
+)(function* (
 	route: PlannedRoute,
-): NormalizedCoordinate[] {
-	return getTrackCoordinates(route).map((coordinate, index) =>
-		normalizeCoordinate(coordinate, `Route track point ${index + 1}`),
-	);
-}
+): Effect.fn.Return<NormalizedCoordinate[], RouteExportError> {
+	const coordinates = yield* getTrackCoordinatesEffect(route);
+	const normalizedCoordinates = [];
+
+	for (const [index, coordinate] of coordinates.entries()) {
+		normalizedCoordinates.push(
+			yield* normalizeCoordinateEffect(
+				coordinate,
+				`Route track point ${index + 1}`,
+			),
+		);
+	}
+
+	return normalizedCoordinates;
+});
 
 function deriveCumulativeDistances(
 	coordinates: NormalizedCoordinate[],
@@ -373,14 +432,32 @@ function isFiniteNonNegativeInteger(value: number): boolean {
 	return Number.isFinite(value) && value >= 0 && value <= 0xffff;
 }
 
-export function buildRouteFit(
+const closeFitEncoderEffect = Effect.fn("closeFitEncoderEffect")(
+	function* (encoder: {
+		close(): Uint8Array;
+	}): Effect.fn.Return<Uint8Array, RouteExportError> {
+		return yield* Effect.try({
+			try: () => encoder.close(),
+			catch: (cause) =>
+				new RouteExportError({
+					message: routeExportFailureMessage(
+						cause,
+						"Could not encode FIT route.",
+					),
+					cause,
+				}),
+		});
+	},
+);
+
+export const buildRouteFitEffect = Effect.fn("buildRouteFitEffect")(function* (
 	route: PlannedRoute,
 	options: RouteExportOptions | null = {},
-): Uint8Array {
+): Effect.fn.Return<Uint8Array, RouteExportError> {
 	const normalizedOptions = normalizeExportOptions(options);
 	const exportedAt = normalizedOptions.exportedAt ?? new Date();
 	const title = formatRouteTitle(route);
-	const coordinates = normalizeTrackCoordinates(route);
+	const coordinates = yield* normalizeTrackCoordinatesEffect(route);
 	const cumulativeDistances = deriveCumulativeDistances(coordinates);
 	const totalDistance = cumulativeDistances.at(-1) ?? 0;
 	const durationMs =
@@ -402,7 +479,7 @@ export function buildRouteFit(
 	});
 
 	for (const [index, instruction] of (route.instructions ?? []).entries()) {
-		const coordinate = normalizeCoordinate(
+		const coordinate = yield* normalizeCoordinateEffect(
 			instruction.coordinate,
 			`Cue "${instruction.text}"`,
 		);
@@ -504,8 +581,8 @@ export function buildRouteFit(
 		encoder.onMesg(Profile.MesgNum.LAP, lap);
 	}
 
-	return encoder.close();
-}
+	return yield* closeFitEncoderEffect(encoder);
+});
 
 export function buildRouteGpxFilename(route: PlannedRoute): string {
 	const startSlug = toSlugPart(route.startLabel);
@@ -528,51 +605,128 @@ export function buildRouteGpxFilename(route: PlannedRoute): string {
 }
 
 export function buildRouteFitFilename(route: PlannedRoute): string {
-	return buildRouteGpxFilename(route).replace(/\.gpx$/u, ".fit");
+	const gpxFilename = buildRouteGpxFilename(route);
+	return gpxFilename.replace(/\.gpx$/u, ".fit");
 }
 
-export function downloadRouteGpx(
-	route: PlannedRoute,
-	options: RouteExportOptions | null = {},
-): void {
-	const normalizedOptions = normalizeExportOptions(options);
-	const gpx = buildRouteGpx(route, normalizedOptions);
-	const blob = new Blob([gpx], {
-		type: "application/gpx+xml;charset=utf-8",
+const clickDownloadLinkEffect = Effect.fn("clickDownloadLinkEffect")(function* (
+	link: HTMLAnchorElement,
+): Effect.fn.Return<void, RouteExportError> {
+	return yield* Effect.try({
+		try: () => {
+			link.click();
+		},
+		catch: (cause) =>
+			new RouteExportError({
+				message: routeExportFailureMessage(
+					cause,
+					"Could not start route download.",
+				),
+				cause,
+			}),
 	});
-	const objectUrl = URL.createObjectURL(blob);
-	const link = document.createElement("a");
+});
 
-	try {
-		link.href = objectUrl;
-		link.download = buildRouteGpxFilename(route);
-		link.click();
-	} finally {
-		URL.revokeObjectURL(objectUrl);
-	}
-}
+export const downloadRouteGpxEffect = Effect.fn("downloadRouteGpxEffect")(
+	function* (
+		route: PlannedRoute,
+		options: RouteExportOptions | null = {},
+	): Effect.fn.Return<void, RouteExportError> {
+		const normalizedOptions = normalizeExportOptions(options);
+		const gpx = yield* buildRouteGpxEffect(route, normalizedOptions);
+		const objectUrl = yield* Effect.try({
+			try: () => {
+				const blob = new Blob([gpx], {
+					type: "application/gpx+xml;charset=utf-8",
+				});
+				return URL.createObjectURL(blob);
+			},
+			catch: (cause) =>
+				new RouteExportError({
+					message: routeExportFailureMessage(
+						cause,
+						"Could not create GPX download.",
+					),
+					cause,
+				}),
+		});
 
-export function downloadRouteFit(
-	route: PlannedRoute,
-	options: RouteExportOptions | null = {},
-): void {
-	const normalizedOptions = normalizeExportOptions(options);
-	const fit = buildRouteFit(route, normalizedOptions);
-	const fitBlobPart = fit.buffer.slice(
-		fit.byteOffset,
-		fit.byteOffset + fit.byteLength,
-	) as ArrayBuffer;
-	const blob = new Blob([fitBlobPart], {
-		type: FIT_MIME_TYPE,
-	});
-	const objectUrl = URL.createObjectURL(blob);
-	const link = document.createElement("a");
+		return yield* Effect.gen(function* () {
+			const link = yield* Effect.try({
+				try: () => document.createElement("a"),
+				catch: (cause) =>
+					new RouteExportError({
+						message: routeExportFailureMessage(
+							cause,
+							"Could not create GPX download link.",
+						),
+						cause,
+					}),
+			});
 
-	try {
-		link.href = objectUrl;
-		link.download = buildRouteFitFilename(route);
-		link.click();
-	} finally {
-		URL.revokeObjectURL(objectUrl);
-	}
-}
+			link.href = objectUrl;
+			link.download = buildRouteGpxFilename(route);
+			yield* clickDownloadLinkEffect(link);
+		}).pipe(
+			Effect.ensuring(
+				Effect.sync(() => {
+					URL.revokeObjectURL(objectUrl);
+				}),
+			),
+		);
+	},
+);
+
+export const downloadRouteFitEffect = Effect.fn("downloadRouteFitEffect")(
+	function* (
+		route: PlannedRoute,
+		options: RouteExportOptions | null = {},
+	): Effect.fn.Return<void, RouteExportError> {
+		const normalizedOptions = normalizeExportOptions(options);
+		const fit = yield* buildRouteFitEffect(route, normalizedOptions);
+		const objectUrl = yield* Effect.try({
+			try: () => {
+				const fitBlobPart = fit.buffer.slice(
+					fit.byteOffset,
+					fit.byteOffset + fit.byteLength,
+				) as ArrayBuffer;
+				const blob = new Blob([fitBlobPart], {
+					type: FIT_MIME_TYPE,
+				});
+				return URL.createObjectURL(blob);
+			},
+			catch: (cause) =>
+				new RouteExportError({
+					message: routeExportFailureMessage(
+						cause,
+						"Could not create FIT download.",
+					),
+					cause,
+				}),
+		});
+
+		return yield* Effect.gen(function* () {
+			const link = yield* Effect.try({
+				try: () => document.createElement("a"),
+				catch: (cause) =>
+					new RouteExportError({
+						message: routeExportFailureMessage(
+							cause,
+							"Could not create FIT download link.",
+						),
+						cause,
+					}),
+			});
+
+			link.href = objectUrl;
+			link.download = buildRouteFitFilename(route);
+			yield* clickDownloadLinkEffect(link);
+		}).pipe(
+			Effect.ensuring(
+				Effect.sync(() => {
+					URL.revokeObjectURL(objectUrl);
+				}),
+			),
+		);
+	},
+);

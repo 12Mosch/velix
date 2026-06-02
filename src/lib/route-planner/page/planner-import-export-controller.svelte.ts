@@ -1,9 +1,12 @@
-import { Effect } from "effect";
+import { Cause, Effect, Exit } from "effect";
 import {
 	parseRouteGpxEffect,
 	type RouteGpxImportError,
 } from "$lib/route-gpx-import";
-import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
+import {
+	downloadRouteFitEffect,
+	downloadRouteGpxEffect,
+} from "$lib/route-export";
 import type { PlannedRoute } from "$lib/route-planning";
 import { PlannerGpxFileReadError } from "./planner-controller-errors";
 
@@ -41,6 +44,13 @@ export function createPlannerImportExportController(
 		routeExportError = value;
 	}
 
+	function formatRouteExportFailureMessage(
+		cause: Cause.Cause<unknown>,
+	): string {
+		const error = Cause.squash(cause);
+		return error instanceof Error ? error.message : "unexpected error";
+	}
+
 	function handleExportGpx() {
 		const activeRoute = dependencies.getActiveRoute();
 		if (!activeRoute || dependencies.getRouteNeedsRecalculation()) {
@@ -49,13 +59,10 @@ export function createPlannerImportExportController(
 
 		routeExportError = null;
 
-		try {
-			downloadRouteGpx(activeRoute);
-		} catch (error) {
-			routeExportError =
-				error instanceof Error
-					? `Could not export GPX: ${error.message}`
-					: "Could not export GPX.";
+		const exit = Effect.runSyncExit(downloadRouteGpxEffect(activeRoute));
+
+		if (Exit.isFailure(exit)) {
+			routeExportError = `Could not export GPX: ${formatRouteExportFailureMessage(exit.cause)}`;
 		}
 	}
 
@@ -67,13 +74,10 @@ export function createPlannerImportExportController(
 
 		routeExportError = null;
 
-		try {
-			downloadRouteFit(activeRoute);
-		} catch (error) {
-			routeExportError =
-				error instanceof Error
-					? `Could not export FIT: ${error.message}`
-					: "Could not export FIT.";
+		const exit = Effect.runSyncExit(downloadRouteFitEffect(activeRoute));
+
+		if (Exit.isFailure(exit)) {
+			routeExportError = `Could not export FIT: ${formatRouteExportFailureMessage(exit.cause)}`;
 		}
 	}
 
