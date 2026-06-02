@@ -1,5 +1,3 @@
-import { Effect } from "effect";
-
 import type { PlannedRoute, RouteWarning } from "$lib/route-planning";
 import {
 	buildRouteReadinessWarnings,
@@ -9,9 +7,7 @@ import {
 
 import { windUnavailableWarning } from "./constants";
 
-export function withWindWarning(
-	route: PlannedRoute,
-): Effect.Effect<PlannedRoute> {
+export function withWindWarning(route: PlannedRoute): PlannedRoute {
 	return mergeRouteWarnings(route, [
 		{
 			category: "routing_provider",
@@ -27,7 +23,7 @@ export function withProviderWarning(
 	route: PlannedRoute,
 	message: string,
 	title = "Routing fallback",
-): Effect.Effect<PlannedRoute> {
+): PlannedRoute {
 	const warning: RouteWarning = {
 		category: "routing_provider",
 		code: "routing_profile_fallback",
@@ -41,17 +37,14 @@ export function withProviderWarning(
 
 export function finalizeGeneratedRouteWarnings(
 	route: PlannedRoute,
-): Effect.Effect<PlannedRoute> {
-	return Effect.gen(function* () {
-		const routeWithQuality = yield* withRouteQuality(route);
-		const readinessWarnings =
-			yield* buildRouteReadinessWarnings(routeWithQuality);
-		return yield* mergeRouteWarnings(routeWithQuality, readinessWarnings);
-	});
+): PlannedRoute {
+	const routeWithQuality = withRouteQuality(route);
+	const readinessWarnings = buildRouteReadinessWarnings(routeWithQuality);
+	return mergeRouteWarnings(routeWithQuality, readinessWarnings);
 }
 
 export function finalizeGeneratedRoutesWarnings(
 	routes: PlannedRoute[],
-): Effect.Effect<PlannedRoute[]> {
-	return Effect.all(routes.map(finalizeGeneratedRouteWarnings));
+): PlannedRoute[] {
+	return routes.map(finalizeGeneratedRouteWarnings);
 }

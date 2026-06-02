@@ -1,5 +1,3 @@
-import { Effect } from "effect";
-
 import {
 	getRouteElevationAnalysisPoints,
 	routeHasTrafficStressOverlayFeatures as routeHasTrafficStressOverlayFeatureCoverage,
@@ -7,9 +5,7 @@ import {
 } from "$lib/route-planning";
 
 export function routeHasGradientOverlayFeatures(route: PlannedRoute): boolean {
-	const points = Effect.runSync(
-		getRouteElevationAnalysisPoints(route.coordinates),
-	);
+	const points = getRouteElevationAnalysisPoints(route.coordinates);
 
 	for (let index = 1; index < points.length; index += 1) {
 		const previous = points[index - 1];
@@ -57,5 +53,5 @@ export function routeHasWindOverlayFeatures(route: PlannedRoute): boolean {
 export function routeHasTrafficStressOverlayFeatures(
 	route: PlannedRoute,
 ): boolean {
-	return Effect.runSync(routeHasTrafficStressOverlayFeatureCoverage(route));
+	return routeHasTrafficStressOverlayFeatureCoverage(route);
 }

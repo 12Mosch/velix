@@ -228,13 +228,13 @@ function attachWindAnalysisToRouteEffect(
 		);
 
 		if (Result.isFailure(result)) {
-			const routeWithWarning = yield* withWindWarning(route);
-			return yield* finalizeGeneratedRouteWarnings(routeWithWarning);
+			const routeWithWarning = withWindWarning(route);
+			return finalizeGeneratedRouteWarnings(routeWithWarning);
 		}
 
 		const windAnalysis = buildWindAnalysis(route, result.success, fetchedAt);
 
-		return yield* finalizeGeneratedRouteWarnings(
+		return finalizeGeneratedRouteWarnings(
 			windAnalysis ? { ...route, windAnalysis } : route,
 		);
 	});

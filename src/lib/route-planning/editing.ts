@@ -1,4 +1,4 @@
-import { Effect, Option } from "effect";
+import { Option } from "effect";
 
 import type { PlannedRoute, RouteSource, RouteStopInput } from "./types";
 import {
@@ -15,9 +15,7 @@ export function isImportedRoute(
 	return route?.source.kind === "gpx_import";
 }
 
-export function getRouteStopInputs(
-	route: PlannedRoute,
-): Effect.Effect<RouteStopInput[]> {
+export function getRouteStopInputs(route: PlannedRoute): RouteStopInput[] {
 	return getEditableRouteStops(route);
 }
 
@@ -29,7 +27,7 @@ export function getRouteStopInputs(
  * leg returns to the start. Out-and-back routes expose start, optional shaping
  * waypoints, and the turnaround, with mirrored return geometry handled later.
  */
-function getEditableRouteStopsSync(route: PlannedRoute): RouteStopInput[] {
+export function getEditableRouteStops(route: PlannedRoute): RouteStopInput[] {
 	const startCoordinate = route.coordinates[0];
 	const destinationCoordinate = route.coordinates[route.coordinates.length - 1];
 	const startStop = {
@@ -62,12 +60,6 @@ function getEditableRouteStopsSync(route: PlannedRoute): RouteStopInput[] {
 	];
 }
 
-export function getEditableRouteStops(
-	route: PlannedRoute,
-): Effect.Effect<RouteStopInput[]> {
-	return Effect.succeed(getEditableRouteStopsSync(route));
-}
-
 /**
  * Counts editable legs, not raw polyline coordinate segments.
  *
@@ -77,7 +69,7 @@ export function getEditableRouteStops(
  * editable stop count.
  */
 export function getRouteSegmentCount(route: PlannedRoute): number {
-	const editableStops = getEditableRouteStopsSync(route);
+	const editableStops = getEditableRouteStops(route);
 
 	if (route.mode === "round_course") {
 		return Math.max(1, editableStops.length);
@@ -125,7 +117,7 @@ export function isRouteStopLocked(
 }
 
 function getRouteStopPolylineIndices(route: PlannedRoute): number[] {
-	const editableStops = getEditableRouteStopsSync(route);
+	const editableStops = getEditableRouteStops(route);
 	const stopPoints = editableStops
 		.map((stop) => stop.point)
 		.filter((point): point is [number, number] => !!point);
@@ -232,7 +224,7 @@ function getRouteLegInsertionIndex(
 	point: [number, number],
 	route: PlannedRoute,
 ): Option.Option<number> {
-	const routeStops = getEditableRouteStopsSync(route);
+	const routeStops = getEditableRouteStops(route);
 
 	if (routeStops.length !== stops.length || route.coordinates.length === 0) {
 		return Option.none();
@@ -330,13 +322,13 @@ export function getWaypointInsertionIndex(
 	stops: RouteStopInput[],
 	point: [number, number],
 	route: PlannedRoute | null = null,
-): Effect.Effect<number> {
+): number {
 	const routedLegIndex = route
 		? getRouteLegInsertionIndex(stops, point, route)
 		: Option.none<number>();
 
 	if (Option.isSome(routedLegIndex)) {
-		return Effect.succeed(routedLegIndex.value);
+		return routedLegIndex.value;
 	}
 
 	const resolvedStops = stops.filter(
@@ -344,9 +336,7 @@ export function getWaypointInsertionIndex(
 	);
 
 	if (resolvedStops.length < 2) {
-		return Effect.succeed(
-			Math.max(0, Math.min(stops.length - 1, resolvedStops.length - 1)),
-		);
+		return Math.max(0, Math.min(stops.length - 1, resolvedStops.length - 1));
 	}
 
 	let bestLegIndex = 0;
@@ -368,5 +358,5 @@ export function getWaypointInsertionIndex(
 		}
 	}
 
-	return Effect.succeed(bestLegIndex);
+	return bestLegIndex;
 }

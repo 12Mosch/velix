@@ -1,95 +1,43 @@
-import { Effect, Option } from "effect";
+import { Option } from "effect";
 import { describe, expect, it } from "vitest";
 
 import {
-	analyzeRouteClimbs as analyzeRouteClimbsEffect,
-	buildRouteWindGeoJson as buildRouteWindGeoJsonEffect,
-	buildRouteReadinessWarnings as buildRouteReadinessWarningsEffect,
-	buildRouteGeoJson as buildRouteGeoJsonEffect,
-	buildRouteGradientGeoJson as buildRouteGradientGeoJsonEffect,
-	buildRouteSurfaceGeoJson as buildRouteSurfaceGeoJsonEffect,
-	buildRouteTrafficStressGeoJson as buildRouteTrafficStressGeoJsonEffect,
-	buildRouteAvoidanceGeoJson as buildRouteAvoidanceGeoJsonEffect,
-	buildLockedSegmentGeoJson as buildLockedSegmentGeoJsonEffect,
-	buildSpatialConstraintGeoJson as buildSpatialConstraintGeoJsonEffect,
+	analyzeRouteClimbs,
+	buildRouteWindGeoJson,
+	buildRouteReadinessWarnings,
+	buildRouteGeoJson,
+	buildRouteGradientGeoJson,
+	buildRouteSurfaceGeoJson,
+	buildRouteTrafficStressGeoJson,
+	buildRouteAvoidanceGeoJson,
+	buildLockedSegmentGeoJson,
+	buildSpatialConstraintGeoJson,
 	calculateBearingDegrees,
-	calculateRouteQuality as calculateRouteQualityEffect,
-	calculateRouteGradientMetrics as calculateRouteGradientMetricsEffect,
+	calculateRouteQuality,
+	calculateRouteGradientMetrics,
 	calculateWindComponents,
 	classifyClimbCategory,
 	classifyWindBucket,
-	getEditableRouteStops as getEditableRouteStopsEffect,
-	getProviderWarnings as getProviderWarningsEffect,
-	getRouteGradientSections as getRouteGradientSectionsEffect,
-	getRouteQuality as getRouteQualityEffect,
+	getEditableRouteStops,
+	getProviderWarnings,
+	getRouteGradientSections,
+	getRouteQuality,
 	getRouteLegIndexForCoordinateSegment as getRouteLegIndexForCoordinateSegmentOption,
 	getRouteSegmentCount,
-	getRouteStopInputs as getRouteStopInputsEffect,
-	getRouteWarnings as getRouteWarningsEffect,
+	getRouteStopInputs,
+	getRouteWarnings,
 	getRouteTurnCount,
-	getSurfaceMix as getSurfaceMixEffect,
-	mergeRouteWarnings as mergeRouteWarningsEffect,
-	getWaypointInsertionIndex as getWaypointInsertionIndexEffect,
+	getSurfaceMix,
+	mergeRouteWarnings,
+	getWaypointInsertionIndex,
 	isRouteStopLocked,
 	mapGraphHopperSignToInstructionType,
-	sampleElevationProfile as sampleElevationProfileEffect,
+	sampleElevationProfile,
 	sanitizeLockedSegmentIndexes,
 	type PlannedRoute,
 	type RouteCoordinate,
 	type RouteStopInput,
 } from "./route-planning";
-
-function run<A>(effect: Effect.Effect<A>): A {
-	return Effect.runSync(effect);
-}
-
-const analyzeRouteClimbs = (
-	...args: Parameters<typeof analyzeRouteClimbsEffect>
-) => run(analyzeRouteClimbsEffect(...args));
-const buildRouteWindGeoJson = (
-	...args: Parameters<typeof buildRouteWindGeoJsonEffect>
-) => run(buildRouteWindGeoJsonEffect(...args));
-const buildRouteReadinessWarnings = (
-	...args: Parameters<typeof buildRouteReadinessWarningsEffect>
-) => run(buildRouteReadinessWarningsEffect(...args));
-const buildRouteGeoJson = (
-	...args: Parameters<typeof buildRouteGeoJsonEffect>
-) => run(buildRouteGeoJsonEffect(...args));
-const buildRouteGradientGeoJson = (
-	...args: Parameters<typeof buildRouteGradientGeoJsonEffect>
-) => run(buildRouteGradientGeoJsonEffect(...args));
-const buildRouteSurfaceGeoJson = (
-	...args: Parameters<typeof buildRouteSurfaceGeoJsonEffect>
-) => run(buildRouteSurfaceGeoJsonEffect(...args));
-const buildRouteTrafficStressGeoJson = (
-	...args: Parameters<typeof buildRouteTrafficStressGeoJsonEffect>
-) => run(buildRouteTrafficStressGeoJsonEffect(...args));
-const buildRouteAvoidanceGeoJson = (
-	...args: Parameters<typeof buildRouteAvoidanceGeoJsonEffect>
-) => run(buildRouteAvoidanceGeoJsonEffect(...args));
-const buildLockedSegmentGeoJson = (
-	...args: Parameters<typeof buildLockedSegmentGeoJsonEffect>
-) => run(buildLockedSegmentGeoJsonEffect(...args));
-const buildSpatialConstraintGeoJson = (
-	...args: Parameters<typeof buildSpatialConstraintGeoJsonEffect>
-) => run(buildSpatialConstraintGeoJsonEffect(...args));
-const calculateRouteQuality = (
-	...args: Parameters<typeof calculateRouteQualityEffect>
-) => run(calculateRouteQualityEffect(...args));
-const calculateRouteGradientMetrics = (
-	...args: Parameters<typeof calculateRouteGradientMetricsEffect>
-) => run(calculateRouteGradientMetricsEffect(...args));
-const getEditableRouteStops = (
-	...args: Parameters<typeof getEditableRouteStopsEffect>
-) => run(getEditableRouteStopsEffect(...args));
-const getProviderWarnings = (
-	...args: Parameters<typeof getProviderWarningsEffect>
-) => run(getProviderWarningsEffect(...args));
-const getRouteGradientSections = (
-	...args: Parameters<typeof getRouteGradientSectionsEffect>
-) => run(getRouteGradientSectionsEffect(...args));
-const getRouteQuality = (...args: Parameters<typeof getRouteQualityEffect>) =>
-	run(getRouteQualityEffect(...args));
 const getRouteLegIndexForCoordinateSegment = (
 	...args: Parameters<typeof getRouteLegIndexForCoordinateSegmentOption>
 ) =>
@@ -97,22 +45,6 @@ const getRouteLegIndexForCoordinateSegment = (
 		getRouteLegIndexForCoordinateSegmentOption(...args),
 		() => null,
 	);
-const getRouteStopInputs = (
-	...args: Parameters<typeof getRouteStopInputsEffect>
-) => run(getRouteStopInputsEffect(...args));
-const getRouteWarnings = (...args: Parameters<typeof getRouteWarningsEffect>) =>
-	run(getRouteWarningsEffect(...args));
-const getSurfaceMix = (...args: Parameters<typeof getSurfaceMixEffect>) =>
-	run(getSurfaceMixEffect(...args));
-const mergeRouteWarnings = (
-	...args: Parameters<typeof mergeRouteWarningsEffect>
-) => run(mergeRouteWarningsEffect(...args));
-const getWaypointInsertionIndex = (
-	...args: Parameters<typeof getWaypointInsertionIndexEffect>
-) => run(getWaypointInsertionIndexEffect(...args));
-const sampleElevationProfile = (
-	...args: Parameters<typeof sampleElevationProfileEffect>
-) => run(sampleElevationProfileEffect(...args));
 
 function buildRoute(
 	surfaceDetails: PlannedRoute["surfaceDetails"],
