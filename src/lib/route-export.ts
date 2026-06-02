@@ -5,7 +5,6 @@ import {
 	type RouteInstruction,
 	type RouteInstructionType,
 } from "$lib/route-planning";
-import { Effect } from "effect";
 import { Encoder, Profile } from "@garmin/fitsdk";
 
 type RouteExportOptions = {
@@ -201,7 +200,7 @@ export function buildRouteGpx(
 	const coordinates = getTrackCoordinates(route);
 	const bounds =
 		normalizeBounds(route.bounds) ?? deriveBoundsFromCoordinates(coordinates);
-	const waypointXml = Effect.runSync(getRouteStopInputs(route))
+	const waypointXml = getRouteStopInputs(route)
 		.map((stop) =>
 			stop.point ? buildWaypointXml(stop.label, stop.point) : null,
 		)

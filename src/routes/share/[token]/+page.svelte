@@ -57,14 +57,7 @@
 	const route = $derived(savedRoute?.route ?? null);
 	const routeClimbs = $derived(
 		route
-			? Effect.runSync(
-					Effect.gen(function* () {
-						const points = yield* getRouteElevationAnalysisPoints(
-							route.coordinates,
-						);
-						return yield* analyzeRouteClimbs(points);
-					}),
-				)
+			? analyzeRouteClimbs(getRouteElevationAnalysisPoints(route.coordinates))
 			: [],
 	);
 	const routeOverlays = $derived<RouteMapOverlay[]>(
@@ -96,11 +89,9 @@
 			return [];
 		}
 
-		const baseGeoJson = Effect.runSync(buildRouteGeoJson(route));
-		const surfaceGeoJson = Effect.runSync(buildRouteSurfaceGeoJson(route));
-		const climbGeoJson = Effect.runSync(
-			buildRouteClimbGeoJson(route, routeClimbs),
-		);
+		const baseGeoJson = buildRouteGeoJson(route);
+		const surfaceGeoJson = buildRouteSurfaceGeoJson(route);
+		const climbGeoJson = buildRouteClimbGeoJson(route, routeClimbs);
 
 		return [
 			{

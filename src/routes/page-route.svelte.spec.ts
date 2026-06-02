@@ -420,8 +420,8 @@ const successfulOutAndBackPayload = {
 	routes: [successfulOutAndBackRoute],
 	selectedRouteIndex: 0,
 };
-const successfulRouteProfile = Effect.runSync(
-	sampleElevationProfile(successfulRoute.coordinates as RouteCoordinate[]),
+const successfulRouteProfile = sampleElevationProfile(
+	successfulRoute.coordinates as RouteCoordinate[],
 );
 const successfulRouteEndProfilePoint =
 	successfulRouteProfile[successfulRouteProfile.length - 1];

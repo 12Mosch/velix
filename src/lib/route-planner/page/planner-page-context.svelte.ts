@@ -625,7 +625,7 @@ export function createPlannerPageContext() {
 
 		const nextCached: CachedRouteOverlayGeoJson = {
 			signature,
-			baseGeoJson: Effect.runSync(buildRouteGeoJson(route)),
+			baseGeoJson: buildRouteGeoJson(route),
 			climbGeoJsonBySignature: new Map(),
 		};
 		routeOverlayGeoJsonCache.set(route, nextCached);
@@ -642,7 +642,7 @@ export function createPlannerPageContext() {
 	): FeatureCollection {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.surfaceGeoJson ??= Effect.runSync(buildRouteSurfaceGeoJson(route));
+		cached.surfaceGeoJson ??= buildRouteSurfaceGeoJson(route);
 
 		return cached.surfaceGeoJson;
 	}
@@ -660,7 +660,7 @@ export function createPlannerPageContext() {
 			return cachedClimbGeoJson;
 		}
 
-		const climbGeoJson = Effect.runSync(buildRouteClimbGeoJson(route, climbs));
+		const climbGeoJson = buildRouteClimbGeoJson(route, climbs);
 		cached.climbGeoJsonBySignature.set(climbSignature, climbGeoJson);
 
 		return climbGeoJson;
@@ -671,7 +671,7 @@ export function createPlannerPageContext() {
 	): FeatureCollection {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.gradientGeoJson ??= Effect.runSync(buildRouteGradientGeoJson(route));
+		cached.gradientGeoJson ??= buildRouteGradientGeoJson(route);
 
 		return cached.gradientGeoJson;
 	}
@@ -691,9 +691,7 @@ export function createPlannerPageContext() {
 	): RouteGradientMetrics {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.gradientMetrics ??= Effect.runSync(
-			calculateRouteGradientMetrics(route),
-		);
+		cached.gradientMetrics ??= calculateRouteGradientMetrics(route);
 
 		return cached.gradientMetrics;
 	}
@@ -703,7 +701,7 @@ export function createPlannerPageContext() {
 	): RouteGradientSection[] {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.gradientSections ??= Effect.runSync(getRouteGradientSections(route));
+		cached.gradientSections ??= getRouteGradientSections(route);
 
 		return cached.gradientSections;
 	}
@@ -711,7 +709,7 @@ export function createPlannerPageContext() {
 	function getCachedRouteQuality(route: PlannedRoute): RouteQualityAnalysis {
 		const cached = getCachedRouteOverlayGeoJson(route);
 
-		cached.routeQuality ??= Effect.runSync(getRouteQuality(route));
+		cached.routeQuality ??= getRouteQuality(route);
 
 		return cached.routeQuality;
 	}
@@ -724,7 +722,7 @@ export function createPlannerPageContext() {
 			return cached.windGeoJson;
 		}
 
-		cached.windGeoJson = Effect.runSync(buildRouteWindGeoJson(route));
+		cached.windGeoJson = buildRouteWindGeoJson(route);
 		cached.windSignature = windSignature;
 
 		return cached.windGeoJson;
@@ -743,9 +741,7 @@ export function createPlannerPageContext() {
 			return cached.trafficStressGeoJson;
 		}
 
-		cached.trafficStressGeoJson = Effect.runSync(
-			buildRouteTrafficStressGeoJson(route),
-		);
+		cached.trafficStressGeoJson = buildRouteTrafficStressGeoJson(route);
 		cached.trafficStressSignature = trafficStressSignature;
 
 		return cached.trafficStressGeoJson;
@@ -819,13 +815,8 @@ export function createPlannerPageContext() {
 	const activeRoundCourseTarget = $derived(getRoundCourseTarget(activeRoute));
 	const activeRouteClimbs = $derived<RouteClimb[]>(
 		activeRoute
-			? Effect.runSync(
-					Effect.gen(function* () {
-						const points = yield* getRouteElevationAnalysisPoints(
-							activeRoute.coordinates,
-						);
-						return yield* analyzeRouteClimbs(points);
-					}),
+			? analyzeRouteClimbs(
+					getRouteElevationAnalysisPoints(activeRoute.coordinates),
 				)
 			: [],
 	);
@@ -963,15 +954,11 @@ export function createPlannerPageContext() {
 	);
 	const constraintOverlay = $derived(
 		activeRoute?.spatialConstraint
-			? Effect.runSync(
-					buildSpatialConstraintGeoJson(activeRoute.spatialConstraint),
-				)
+			? buildSpatialConstraintGeoJson(activeRoute.spatialConstraint)
 			: null,
 	);
 	const avoidanceOverlay = $derived(
-		avoidedRoads.length > 0
-			? Effect.runSync(buildRouteAvoidanceGeoJson(avoidedRoads))
-			: null,
+		avoidedRoads.length > 0 ? buildRouteAvoidanceGeoJson(avoidedRoads) : null,
 	);
 	const activeRouteSegmentCount = $derived(
 		activeRoute ? getRouteSegmentCount(activeRoute) : 0,
@@ -981,25 +968,21 @@ export function createPlannerPageContext() {
 	);
 	const lockedSegmentOverlay = $derived(
 		activeRoute && sanitizedLockedSegmentIndexes.length > 0
-			? Effect.runSync(
-					buildLockedSegmentGeoJson(activeRoute, sanitizedLockedSegmentIndexes),
-				)
+			? buildLockedSegmentGeoJson(activeRoute, sanitizedLockedSegmentIndexes)
 			: null,
 	);
 	const combinedRouteBounds = $derived(
 		Option.getOrElse(mergeRouteBounds(routeAlternatives), () => null),
 	);
-	const surfaceMix = $derived(
-		activeRoute ? Effect.runSync(getSurfaceMix(activeRoute)) : [],
-	);
+	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
 	const activeWarnings = $derived(
-		activeRoute ? Effect.runSync(getRouteWarnings(activeRoute)) : [],
+		activeRoute ? getRouteWarnings(activeRoute) : [],
 	);
 	const activeReadinessWarnings = $derived(
-		activeRoute ? Effect.runSync(getReadinessWarnings(activeRoute)) : [],
+		activeRoute ? getReadinessWarnings(activeRoute) : [],
 	);
 	const activeProviderWarnings = $derived(
-		activeRoute ? Effect.runSync(getProviderWarnings(activeRoute)) : [],
+		activeRoute ? getProviderWarnings(activeRoute) : [],
 	);
 	const primaryActiveWarning = $derived(
 		activeReadinessWarnings[0] ?? activeProviderWarnings[0] ?? null,
@@ -1014,9 +997,7 @@ export function createPlannerPageContext() {
 			: null,
 	);
 	const elevationSamples = $derived(
-		activeRoute
-			? Effect.runSync(sampleElevationProfile(activeRoute.coordinates))
-			: [],
+		activeRoute ? sampleElevationProfile(activeRoute.coordinates) : [],
 	);
 	const chartH = $derived(routeAnalysisOpen ? 72 : 44);
 	const elevMin = $derived(
@@ -2760,12 +2741,10 @@ export function createPlannerPageContext() {
 			);
 
 		if (hasCompleteOrderedStops) {
-			return Effect.runSync(
-				getWaypointInsertionIndex(
-					[startStop, ...waypointStops, destinationStop],
-					point,
-					activeRoute,
-				),
+			return getWaypointInsertionIndex(
+				[startStop, ...waypointStops, destinationStop],
+				point,
+				activeRoute,
 			);
 		}
 
