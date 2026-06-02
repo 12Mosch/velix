@@ -14,7 +14,10 @@ import {
 	type RemoteSavedRoutePayload,
 } from "../lib/saved-routes-core";
 import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
-import { assertRemoteRouteJsonSize } from "../lib/saved-route-size";
+import {
+	assertRemoteRouteJsonSizeEffect,
+	type RemoteRouteJsonSizeError,
+} from "../lib/saved-route-size";
 
 const shareTokenPattern = /^[A-Za-z0-9_-]{16,128}$/;
 
@@ -29,6 +32,9 @@ class SharedRouteAuthenticationError extends Error {
 class SharedRouteValidationError extends Error {
 	readonly _tag = "SharedRouteValidationError";
 }
+
+const mapSharedRouteSizeError = (error: RemoteRouteJsonSizeError) =>
+	new SharedRouteValidationError(error.message);
 
 function isValidShareToken(shareToken: string): boolean {
 	return shareTokenPattern.test(shareToken);
@@ -77,15 +83,10 @@ export async function createHandler(
 				);
 			}
 
-			yield* Effect.try({
-				try: () => assertRemoteRouteJsonSize(savedRoute.routeJson, "shared"),
-				catch: (error) =>
-					new SharedRouteValidationError(
-						error instanceof Error
-							? error.message
-							: "Shared route payload is invalid.",
-					),
-			});
+			yield* assertRemoteRouteJsonSizeEffect(
+				savedRoute.routeJson,
+				"shared",
+			).pipe(Effect.mapError(mapSharedRouteSizeError));
 
 			let sourceRouteId: string | undefined;
 			if (args.sourceRouteId) {

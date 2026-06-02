@@ -1,4 +1,5 @@
 import { getConvexSize, getDocumentSize } from "convex/values";
+import { Data, Effect } from "effect";
 
 export const MAX_REMOTE_ROUTE_JSON_BYTES = 512 * 1024;
 
@@ -28,10 +29,16 @@ export function getSavedRouteRowConvexDocumentSize(
 	return getDocumentSize(row);
 }
 
-export function assertRemoteRouteJsonSize(
-	routeJson: string,
-	context: "saved" | "shared",
-): void {
+export class RemoteRouteJsonSizeError extends Data.TaggedError(
+	"RemoteRouteJsonSizeError",
+)<{
+	readonly context: "saved" | "shared";
+	readonly message: string;
+}> {}
+
+export const assertRemoteRouteJsonSizeEffect = Effect.fn(
+	"assertRemoteRouteJsonSizeEffect",
+)(function* (routeJson: string, context: "saved" | "shared") {
 	if (isRouteJsonWithinRemoteSizeLimit(routeJson)) {
 		return;
 	}
@@ -39,7 +46,8 @@ export function assertRemoteRouteJsonSize(
 	const routeKind = context === "saved" ? "Saved" : "Shared";
 	const action = context === "saved" ? "sync" : "share";
 
-	throw new Error(
-		`${routeKind} route is too large to ${action}. Maximum route payload size is ${formatRoutePayloadSizeLimit()}.`,
-	);
-}
+	return yield* new RemoteRouteJsonSizeError({
+		context,
+		message: `${routeKind} route is too large to ${action}. Maximum route payload size is ${formatRoutePayloadSizeLimit()}.`,
+	});
+});

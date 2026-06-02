@@ -27,7 +27,7 @@ function bytesToBase64Url(bytes: Uint8Array): string {
 	return base64.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
 }
 
-export function generateShareToken(): string {
+function generateShareToken(): string {
 	const cryptoApi = globalThis.crypto;
 
 	if (cryptoApi?.getRandomValues) {
@@ -55,15 +55,6 @@ export const generateShareTokenEffect = Effect.fn("generateShareTokenEffect")(
 
 export function buildShareUrl(origin: string, shareToken: string): string {
 	return `${origin.replace(/\/+$/u, "")}/share/${shareToken}`;
-}
-
-export async function copyTextToClipboard(text: string): Promise<boolean> {
-	try {
-		await navigator.clipboard.writeText(text);
-		return true;
-	} catch {
-		return false;
-	}
 }
 
 export const copyTextToClipboardEffect = Effect.fn("copyTextToClipboardEffect")(

@@ -6,8 +6,7 @@ import { getOptionalConvexClient } from "$lib/convex-client.svelte";
 import { getBasemapById } from "$lib/map/basemaps";
 import {
 	parseRouteGpxEffect,
-	RouteGpxImportError,
-	type RouteGpxParseEffectError,
+	type RouteGpxImportError,
 } from "$lib/route-gpx-import";
 import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
 import {
@@ -3644,13 +3643,10 @@ export function createPlannerPageContext() {
 						console.error("Failed to read GPX file", error.cause);
 						routeImportError = "Could not import the selected GPX file.";
 					}),
-				RouteGpxParseEffectError: (error: RouteGpxParseEffectError) =>
+				RouteGpxImportError: (error: RouteGpxImportError) =>
 					Effect.sync(() => {
-						console.error("Failed to import GPX", error.cause);
-						routeImportError =
-							error.cause instanceof RouteGpxImportError
-								? error.cause.message
-								: "Could not import the selected GPX file.";
+						console.error("Failed to import GPX", error);
+						routeImportError = error.message;
 					}),
 			}),
 			Effect.ensuring(
