@@ -14,6 +14,7 @@ import {
 	buildSpatialConstraintGeoJson,
 	calculateBearingDegrees,
 	calculateRouteQuality,
+	calculateRouteTrainingSuitability,
 	calculateRouteGradientMetrics,
 	calculateWindComponents,
 	classifyClimbCategory,
@@ -22,6 +23,8 @@ import {
 	getProviderWarnings,
 	getRouteGradientSections,
 	getRouteQuality,
+	getRouteTrainingSuitability,
+	withRouteTrainingSuitability,
 	getRouteLegIndexForCoordinateSegment as getRouteLegIndexForCoordinateSegmentOption,
 	getRouteSegmentCount,
 	getRouteStopInputs,
@@ -38,6 +41,7 @@ import {
 	type RouteCoordinate,
 	type RouteStopInput,
 } from "./route-planning";
+import type { WorkoutTrainingProfile } from "./workout-plan";
 const getRouteLegIndexForCoordinateSegment = (
 	...args: Parameters<typeof getRouteLegIndexForCoordinateSegmentOption>
 ) =>
@@ -347,6 +351,180 @@ describe("route quality scoring", () => {
 		const routeQuality = calculateRouteQuality(route);
 
 		expect(getRouteQuality({ ...route, routeQuality })).toBe(routeQuality);
+	});
+});
+
+function buildWorkoutProfile(
+	overrides: Partial<WorkoutTrainingProfile> = {},
+): WorkoutTrainingProfile {
+	return {
+		version: 1,
+		durationMs: 30 * 60 * 1000,
+		expandedStepCount: 1,
+		weightedIntensity: 0.7,
+		estimatedDistanceMeters: 11119,
+		recoveryShare: 0,
+		enduranceShare: 1,
+		tempoShare: 0,
+		thresholdShare: 0,
+		highIntensityShare: 0,
+		cadenceTargetShare: 0,
+		longestWorkIntervalMs: 0,
+		sessionKind: "endurance",
+		...overrides,
+	};
+}
+
+function buildWorkoutRoute(
+	overrides: Partial<PlannedRoute> = {},
+	profileOverrides: Partial<WorkoutTrainingProfile> = {},
+): PlannedRoute {
+	const overrideTarget =
+		overrides.roundCourseTarget?.kind === "workout"
+			? overrides.roundCourseTarget
+			: undefined;
+	const baseTrainingProfile = buildWorkoutProfile(profileOverrides);
+	const roundCourseTarget = {
+		kind: "workout" as const,
+		durationMs: 30 * 60 * 1000,
+		distanceMeters: 11119,
+		estimatedSpeedMetersPerHour: 22238,
+		weightedIntensity: 0.7,
+		...overrideTarget,
+		trainingProfile: {
+			...baseTrainingProfile,
+			...(overrideTarget?.trainingProfile ?? {}),
+		},
+	};
+	const base = buildQualityRoute({
+		mode: "round_course",
+		startLabel: "Loop start",
+		destinationLabel: "Loop start",
+		waypoints: [],
+		durationMs: 30 * 60 * 1000,
+		...overrides,
+		roundCourseTarget,
+	});
+
+	return base;
+}
+
+describe("route training suitability", () => {
+	it("scores smooth low-turn workout routes highly", () => {
+		const suitability = calculateRouteTrainingSuitability(buildWorkoutRoute());
+
+		expect(suitability?.overallScore).toBeGreaterThan(85);
+		expect(suitability?.subscores.surfaceFit.score).toBeGreaterThan(95);
+		expect(suitability?.flags).toEqual([]);
+	});
+
+	it("penalizes interval workout routes for high turn density", () => {
+		const route = buildWorkoutRoute(
+			{
+				distanceMeters: 5000,
+				roundCourseTarget: {
+					kind: "workout",
+					durationMs: 30 * 60 * 1000,
+					distanceMeters: 5000,
+					estimatedSpeedMetersPerHour: 10000,
+					weightedIntensity: 1.05,
+					trainingProfile: buildWorkoutProfile({
+						sessionKind: "intervals",
+						weightedIntensity: 1.05,
+						enduranceShare: 0.55,
+						highIntensityShare: 0.2,
+						longestWorkIntervalMs: 3 * 60 * 1000,
+					}),
+				},
+			},
+			{ sessionKind: "intervals" },
+		);
+		route.instructions = [
+			...buildTurnInstructions(route, 35),
+			...buildTurnInstructions(route, 5, "u_turn"),
+		];
+		const suitability = calculateRouteTrainingSuitability(route);
+
+		expect(suitability?.subscores.flowFit.score).toBeLessThan(60);
+		expect(suitability?.flags.map((flag) => flag.code)).toContain(
+			"poor_interval_flow",
+		);
+	});
+
+	it("penalizes threshold and interval routes for steep terrain", () => {
+		const route = buildWorkoutRoute(
+			{
+				ascendMeters: 620,
+				distanceMeters: 11119,
+				coordinates: [
+					[0, 0, 100],
+					[0.01, 0, 180],
+					[0.03, 0, 360],
+					[0.06, 0, 520],
+					[0.1, 0, 720],
+				],
+			},
+			{
+				sessionKind: "threshold",
+				weightedIntensity: 0.95,
+				enduranceShare: 0.35,
+				thresholdShare: 0.45,
+				longestWorkIntervalMs: 20 * 60 * 1000,
+			},
+		);
+		const suitability = calculateRouteTrainingSuitability(route);
+
+		expect(suitability?.subscores.terrainFit.score).toBeLessThan(55);
+		expect(suitability?.flags.map((flag) => flag.code)).toContain(
+			"demanding_training_gradient",
+		);
+	});
+
+	it("lets endurance routes tolerate moderate climbing better than interval routes", () => {
+		const moderateClimbing = {
+			ascendMeters: 145,
+			distanceMeters: 11119,
+		};
+		const endurance = calculateRouteTrainingSuitability(
+			buildWorkoutRoute(moderateClimbing, {
+				sessionKind: "endurance",
+				enduranceShare: 0.8,
+			}),
+		);
+		const intervals = calculateRouteTrainingSuitability(
+			buildWorkoutRoute(moderateClimbing, {
+				sessionKind: "intervals",
+				enduranceShare: 0.55,
+				highIntensityShare: 0.2,
+				longestWorkIntervalMs: 3 * 60 * 1000,
+			}),
+		);
+
+		expect(endurance?.subscores.terrainFit.score).toBeGreaterThan(
+			intervals?.subscores.terrainFit.score ?? 100,
+		);
+	});
+
+	it("returns null for non-workout routes", () => {
+		expect(calculateRouteTrainingSuitability(buildQualityRoute())).toBeNull();
+		expect(getRouteTrainingSuitability(buildQualityRoute())).toBeNull();
+	});
+
+	it("clears stale training suitability from non-workout routes", () => {
+		const workoutRoute = buildWorkoutRoute();
+		const trainingSuitability = calculateRouteTrainingSuitability(workoutRoute);
+		expect(trainingSuitability).not.toBeNull();
+		if (!trainingSuitability) {
+			throw new Error("Expected workout route to have training suitability.");
+		}
+		const staleRoute = {
+			...buildQualityRoute(),
+			trainingSuitability,
+		};
+		const cleanedRoute = withRouteTrainingSuitability(staleRoute);
+
+		expect(getRouteTrainingSuitability(staleRoute)).toBeNull();
+		expect(cleanedRoute.trainingSuitability).toBeUndefined();
 	});
 });
 

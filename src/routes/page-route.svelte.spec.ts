@@ -3808,7 +3808,14 @@ describe("+page.svelte", () => {
 		).target;
 		expect(workoutTarget.distanceMeters).toBeGreaterThan(7000);
 		expect(workoutTarget.estimatedSpeedMetersPerHour).toBeGreaterThan(22000);
-		await expect.element(page.getByText("3 intervals")).toBeInTheDocument();
+		await expect.element(page.getByText("3 steps")).toBeInTheDocument();
+		await expect.element(page.getByText(/Training \d+/)).toBeInTheDocument();
+		await page.getByRole("button", { name: "Analysis" }).click();
+		await expect
+			.element(page.getByText("Training suitability"))
+			.toBeInTheDocument();
+		await expect.element(page.getByText("Duration match")).toBeInTheDocument();
+		await expect.element(page.getByText("Flow fit")).toBeInTheDocument();
 	});
 
 	it("blocks round-course generation when workout text is invalid", async () => {

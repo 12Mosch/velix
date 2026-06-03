@@ -56,6 +56,11 @@ export {
 	withRouteQuality,
 } from "./route-planning/quality";
 export {
+	calculateRouteTrainingSuitability,
+	getRouteTrainingSuitability,
+	withRouteTrainingSuitability,
+} from "./route-planning/training-suitability";
+export {
 	routeHasTrafficStressOverlayFeatures,
 	TrafficStressBucketSchema,
 	type RouteTrafficStressBucket,

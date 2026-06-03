@@ -13,7 +13,11 @@ import {
 	RouteStopInputSchema,
 } from "$lib/route-api-schema";
 import { normalizePlannedRoute } from "$lib/saved-routes-core";
-import { calculateRouteQuality, type PlannedRoute } from "$lib/route-planning";
+import {
+	calculateRouteQuality,
+	calculateRouteTrainingSuitability,
+	type PlannedRoute,
+} from "$lib/route-planning";
 
 function expectDecodedPayload(value: unknown) {
 	const result = decodeRouteRequestPayload(value);
@@ -323,6 +327,80 @@ describe("route API schema helpers", () => {
 
 		expect(decoded.routeQuality?.version).toBe(1);
 		expect(decoded.routeQuality?.overallScore).not.toBeNull();
+	});
+
+	it("decodes workout round-course target training profiles", () => {
+		const decoded = Schema.decodeUnknownSync(PlannedRouteSchema)({
+			...buildValidRoute(),
+			mode: "round_course",
+			destinationLabel: "Munich",
+			waypoints: [],
+			roundCourseTarget: {
+				kind: "workout",
+				durationMs: 3600000,
+				distanceMeters: 23000,
+				estimatedSpeedMetersPerHour: 23000,
+				weightedIntensity: 0.75,
+				trainingProfile: {
+					version: 1,
+					durationMs: 3600000,
+					expandedStepCount: 4,
+					weightedIntensity: 0.75,
+					estimatedDistanceMeters: 23000,
+					recoveryShare: 0.1,
+					enduranceShare: 0.7,
+					tempoShare: 0.2,
+					thresholdShare: 0,
+					highIntensityShare: 0,
+					cadenceTargetShare: 0.25,
+					longestWorkIntervalMs: 0,
+					sessionKind: "endurance",
+				},
+			},
+		});
+
+		expect(decoded.roundCourseTarget).toMatchObject({
+			kind: "workout",
+			trainingProfile: {
+				sessionKind: "endurance",
+				cadenceTargetShare: 0.25,
+			},
+		});
+	});
+
+	it("decodes optional route training suitability", () => {
+		const route: PlannedRoute = {
+			...buildValidRoute(),
+			mode: "round_course",
+			destinationLabel: "Munich",
+			waypoints: [],
+			roundCourseTarget: {
+				kind: "workout",
+				durationMs: 9876000,
+				distanceMeters: 61234,
+				estimatedSpeedMetersPerHour: 22314,
+				weightedIntensity: 0.7,
+			},
+		};
+		const trainingSuitability = calculateRouteTrainingSuitability(route);
+		const decoded = Schema.decodeUnknownSync(PlannedRouteSchema)({
+			...route,
+			trainingSuitability,
+		});
+
+		expect(decoded.trainingSuitability?.version).toBe(1);
+		expect(decoded.trainingSuitability?.subscores.durationMatch.label).toBe(
+			"Duration match",
+		);
+	});
+
+	it("still decodes legacy planned routes without training fields", () => {
+		const route = Schema.decodeUnknownSync(PlannedRouteSchema)(
+			buildValidRoute(),
+		);
+
+		expect(route.roundCourseTarget).toBeUndefined();
+		expect(route.trainingSuitability).toBeUndefined();
 	});
 
 	it("normalizes legacy planned routes without new detail arrays", () => {

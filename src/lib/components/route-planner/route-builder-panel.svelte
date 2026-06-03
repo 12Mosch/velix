@@ -19,9 +19,13 @@
 		plannerModeOptions,
 		startCompletionTarget,
 	} from "$lib/route-planner/constants";
-	import { formatDistanceInputAttribute, formatDuration } from "$lib/route-planner/formatters";
-	import { getDistanceUnitLabel } from "$lib/unit-settings.svelte";
-	import { parseWorkoutPlan } from "$lib/workout-plan";
+	import {
+		formatDistanceInputAttribute,
+		formatDuration,
+		formatTrainingSessionKind,
+	} from "$lib/route-planner/formatters";
+	import { formatDistance, getDistanceUnitLabel } from "$lib/unit-settings.svelte";
+	import { estimateWorkoutTarget, parseWorkoutPlan } from "$lib/workout-plan";
 	import type { SpatialConstraintEnforcement } from "$lib/route-planning";
 	import type { RoundCourseTargetKind, SpatialConstraintKind } from "$lib/route-planner/types";
 	import type { PlannerAnalysisController, PlannerFormController, PlannerImportExportController, PlannerMapController, PlannerRoutesController } from "$lib/route-planner/page/route-planner-page-controller.svelte";
@@ -74,7 +78,10 @@
 
 		const parsed = parseWorkoutPlan(input);
 		return parsed.errors.length === 0 && parsed.totalDurationMs > 0
-			? parsed
+			? {
+					parsed,
+					estimate: estimateWorkoutTarget(parsed.expandedSteps),
+				}
 			: null;
 	});
 </script>
@@ -175,13 +182,25 @@
 											variant="secondary"
 											class="h-5 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold text-primary"
 										>
-											{formatDuration(workoutPlanPreview.totalDurationMs)}
+											{formatDuration(workoutPlanPreview.parsed.totalDurationMs)}
 										</Badge>
 										<Badge
 											variant="outline"
 											class="h-5 border-border/50 bg-background px-2 text-[10px] font-medium"
 										>
-											{workoutPlanPreview.expandedStepCount} intervals
+											{workoutPlanPreview.parsed.expandedStepCount} steps
+										</Badge>
+										<Badge
+											variant="outline"
+											class="h-5 border-border/50 bg-background px-2 text-[10px] font-medium"
+										>
+											{formatTrainingSessionKind(workoutPlanPreview.estimate.trainingProfile.sessionKind)}
+										</Badge>
+										<Badge
+											variant="outline"
+											class="h-5 border-border/50 bg-background px-2 text-[10px] font-medium"
+										>
+											{formatDistance(workoutPlanPreview.estimate.distanceMeters)}
 										</Badge>
 									</div>
 								{/if}

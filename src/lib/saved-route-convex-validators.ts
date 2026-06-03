@@ -32,6 +32,31 @@ const routeSourceValidator = v.union(
 	}),
 );
 
+const workoutTrainingSessionKindValidator = v.union(
+	v.literal("recovery"),
+	v.literal("endurance"),
+	v.literal("tempo"),
+	v.literal("threshold"),
+	v.literal("intervals"),
+	v.literal("mixed"),
+);
+
+const workoutTrainingProfileValidator = v.object({
+	version: v.literal(1),
+	durationMs: v.number(),
+	expandedStepCount: v.number(),
+	weightedIntensity: v.number(),
+	estimatedDistanceMeters: v.number(),
+	recoveryShare: v.number(),
+	enduranceShare: v.number(),
+	tempoShare: v.number(),
+	thresholdShare: v.number(),
+	highIntensityShare: v.number(),
+	cadenceTargetShare: v.number(),
+	longestWorkIntervalMs: v.number(),
+	sessionKind: workoutTrainingSessionKindValidator,
+});
+
 const roundCourseTargetValidator = v.union(
 	v.object({
 		kind: v.literal("distance"),
@@ -51,6 +76,7 @@ const roundCourseTargetValidator = v.union(
 		distanceMeters: v.number(),
 		estimatedSpeedMetersPerHour: v.number(),
 		weightedIntensity: v.number(),
+		trainingProfile: v.optional(workoutTrainingProfileValidator),
 	}),
 );
 
@@ -264,6 +290,49 @@ const routeQualityAnalysisValidator = v.object({
 	flags: v.array(routeQualityFlagValidator),
 });
 
+const routeTrainingSuitabilitySubscoreValidator = v.object({
+	score: v.union(v.number(), v.null()),
+	label: v.string(),
+	summary: v.string(),
+	available: v.boolean(),
+	weight: v.number(),
+});
+
+const routeTrainingSuitabilityFlagValidator = v.object({
+	code: v.union(
+		v.literal("duration_mismatch"),
+		v.literal("distance_mismatch"),
+		v.literal("poor_interval_flow"),
+		v.literal("unsafe_training_context"),
+		v.literal("rough_training_surface"),
+		v.literal("demanding_training_gradient"),
+	),
+	severity: routeWarningSeverityValidator,
+	label: v.string(),
+	summary: v.string(),
+});
+
+const routeTrainingSuitabilityAnalysisValidator = v.object({
+	version: v.literal(1),
+	overallScore: v.union(v.number(), v.null()),
+	band: routeQualityBandValidator,
+	confidence: routeQualityConfidenceValidator,
+	sessionKind: v.union(
+		workoutTrainingSessionKindValidator,
+		v.literal("unknown"),
+	),
+	summary: v.string(),
+	subscores: v.object({
+		durationMatch: routeTrainingSuitabilitySubscoreValidator,
+		distanceMatch: routeTrainingSuitabilitySubscoreValidator,
+		surfaceFit: routeTrainingSuitabilitySubscoreValidator,
+		flowFit: routeTrainingSuitabilitySubscoreValidator,
+		safetyFit: routeTrainingSuitabilitySubscoreValidator,
+		terrainFit: routeTrainingSuitabilitySubscoreValidator,
+	}),
+	flags: v.array(routeTrainingSuitabilityFlagValidator),
+});
+
 export const plannedRouteValidator = v.object({
 	mode: v.optional(routeModeValidator),
 	source: v.optional(routeSourceValidator),
@@ -296,6 +365,7 @@ export const plannedRouteValidator = v.object({
 	bikeNetworkDetails: v.optional(v.array(routeDetailIntervalValidator)),
 	windAnalysis: v.optional(routeWindAnalysisValidator),
 	routeQuality: v.optional(routeQualityAnalysisValidator),
+	trainingSuitability: v.optional(routeTrainingSuitabilityAnalysisValidator),
 });
 
 export const remoteSavedRoutePayloadValidator = v.object({
