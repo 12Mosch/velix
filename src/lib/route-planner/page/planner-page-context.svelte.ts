@@ -58,6 +58,7 @@ import {
 	getRouteSegmentCount,
 	getRouteTurnCount,
 	getRouteQuality,
+	getRouteTrainingSuitability,
 	getProviderWarnings,
 	getReadinessWarnings,
 	getRouteWarnings,
@@ -80,6 +81,7 @@ import {
 	type RouteGradientSection,
 	type RouteQualityAnalysis,
 	type RouteRequestPayload,
+	type RouteTrainingSuitabilityAnalysis,
 	type RouteWarning,
 	type RouteWindSegment,
 	type RoundCourseTarget,
@@ -329,6 +331,7 @@ export function createPlannerPageContext() {
 		gradientMetrics?: RouteGradientMetrics;
 		gradientSections?: RouteGradientSection[];
 		routeQuality?: RouteQualityAnalysis;
+		trainingSuitability?: RouteTrainingSuitabilityAnalysis | null;
 		gradientOverlayAvailable?: boolean;
 		gradientGeoJson?: FeatureCollection;
 		windSignature?: string;
@@ -714,6 +717,18 @@ export function createPlannerPageContext() {
 		return cached.routeQuality;
 	}
 
+	function getCachedRouteTrainingSuitability(
+		route: PlannedRoute,
+	): RouteTrainingSuitabilityAnalysis | null {
+		const cached = getCachedRouteOverlayGeoJson(route);
+
+		if (cached.trainingSuitability === undefined) {
+			cached.trainingSuitability = getRouteTrainingSuitability(route);
+		}
+
+		return cached.trainingSuitability;
+	}
+
 	function getCachedWindRouteGeoJson(route: PlannedRoute): FeatureCollection {
 		const cached = getCachedRouteOverlayGeoJson(route);
 		const windSignature = getRouteWindOverlaySignature(route);
@@ -837,6 +852,9 @@ export function createPlannerPageContext() {
 	);
 	const activeRouteQuality = $derived(
 		activeRoute ? getCachedRouteQuality(activeRoute) : null,
+	);
+	const activeTrainingSuitability = $derived(
+		activeRoute ? getCachedRouteTrainingSuitability(activeRoute) : null,
 	);
 	const routeAlternativeQualities = $derived(
 		routeAlternatives.map((route) => getCachedRouteQuality(route)),
@@ -2926,6 +2944,7 @@ export function createPlannerPageContext() {
 					estimatedSpeedMetersPerHour:
 						workoutEstimate.estimatedSpeedMetersPerHour,
 					weightedIntensity: workoutEstimate.weightedIntensity,
+					trainingProfile: workoutEstimate.trainingProfile,
 				};
 				fieldErrors = {
 					...fieldErrors,
@@ -3914,6 +3933,9 @@ export function createPlannerPageContext() {
 		get activeRouteQuality() {
 			return activeRouteQuality;
 		},
+		get activeTrainingSuitability() {
+			return activeTrainingSuitability;
+		},
 		get routeAlternativeQualities() {
 			return routeAlternativeQualities;
 		},
@@ -4336,6 +4358,7 @@ export function createPlannerPageContext() {
 		"activeRouteGradientSections",
 		"notableGradientSections",
 		"activeRouteQuality",
+		"activeTrainingSuitability",
 		"routeAlternativeQualities",
 		"activeWindSummary",
 		"strongestWindSegments",

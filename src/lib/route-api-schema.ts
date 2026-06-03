@@ -13,6 +13,10 @@ import type {
 	RouteSpatialConstraintInput,
 	RouteStopInput,
 } from "./route-planning";
+import {
+	WorkoutTrainingProfileSchema,
+	WorkoutTrainingSessionKindSchema,
+} from "./workout-plan";
 
 const finiteCoordinateInput = Schema.TupleWithRest(
 	Schema.Tuple([Schema.Finite, Schema.Finite]),
@@ -74,6 +78,9 @@ export const RoundCourseTargetSchema = Schema.Union([
 		distanceMeters: Schema.Finite,
 		estimatedSpeedMetersPerHour: Schema.Finite,
 		weightedIntensity: Schema.Finite,
+		trainingProfile: Schema.optionalKey(
+			Schema.UndefinedOr(WorkoutTrainingProfileSchema),
+		),
 	}),
 ]);
 
@@ -282,6 +289,46 @@ export const RouteQualityAnalysisSchema = Schema.Struct({
 	}),
 	flags: Schema.mutable(Schema.Array(RouteQualityFlagSchema)),
 });
+export const RouteTrainingSuitabilitySubscoreSchema = Schema.Struct({
+	score: Schema.NullOr(Schema.Finite),
+	label: Schema.String,
+	summary: Schema.String,
+	available: Schema.Boolean,
+	weight: Schema.Finite,
+});
+export const RouteTrainingSuitabilityFlagSchema = Schema.Struct({
+	code: Schema.Literals([
+		"duration_mismatch",
+		"distance_mismatch",
+		"poor_interval_flow",
+		"unsafe_training_context",
+		"rough_training_surface",
+		"demanding_training_gradient",
+	]),
+	severity: RouteWarningSeveritySchema,
+	label: Schema.String,
+	summary: Schema.String,
+});
+export const RouteTrainingSuitabilityAnalysisSchema = Schema.Struct({
+	version: Schema.Literal(1),
+	overallScore: Schema.NullOr(Schema.Finite),
+	band: Schema.Union([RouteQualityBandSchema, Schema.Literal("unknown")]),
+	confidence: RouteQualityConfidenceSchema,
+	sessionKind: Schema.Union([
+		WorkoutTrainingSessionKindSchema,
+		Schema.Literal("unknown"),
+	]),
+	summary: Schema.String,
+	subscores: Schema.Struct({
+		durationMatch: RouteTrainingSuitabilitySubscoreSchema,
+		distanceMatch: RouteTrainingSuitabilitySubscoreSchema,
+		surfaceFit: RouteTrainingSuitabilitySubscoreSchema,
+		flowFit: RouteTrainingSuitabilitySubscoreSchema,
+		safetyFit: RouteTrainingSuitabilitySubscoreSchema,
+		terrainFit: RouteTrainingSuitabilitySubscoreSchema,
+	}),
+	flags: Schema.mutable(Schema.Array(RouteTrainingSuitabilityFlagSchema)),
+});
 export const RouteInstructionTypeSchema = Schema.Literals([
 	"continue",
 	"slight_left",
@@ -413,6 +460,9 @@ export const PlannedRouteSchema = Schema.Struct({
 	windAnalysis: Schema.optionalKey(Schema.UndefinedOr(RouteWindAnalysisSchema)),
 	routeQuality: Schema.optionalKey(
 		Schema.UndefinedOr(RouteQualityAnalysisSchema),
+	),
+	trainingSuitability: Schema.optionalKey(
+		Schema.UndefinedOr(RouteTrainingSuitabilityAnalysisSchema),
 	),
 });
 export const SavedRouteSchema = Schema.Struct({

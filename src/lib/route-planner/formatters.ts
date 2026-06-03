@@ -12,6 +12,7 @@ import {
 	type SpatialConstraintEnforcement,
 	type WindDirectionBucket,
 } from "$lib/route-planning";
+import type { WorkoutTrainingSessionKind } from "$lib/workout-plan";
 
 export function formatCoordinateLabel(point: [number, number]) {
 	return `${point[1].toFixed(5)}, ${point[0].toFixed(5)}`;
@@ -99,6 +100,18 @@ export function formatQualityBand(band: RouteQualityBand | "unknown"): string {
 	if (band === "good") return "Good";
 	if (band === "mixed") return "Mixed";
 	if (band === "poor") return "Poor";
+	return "Unknown";
+}
+
+export function formatTrainingSessionKind(
+	kind: WorkoutTrainingSessionKind | "unknown",
+): string {
+	if (kind === "recovery") return "Recovery";
+	if (kind === "endurance") return "Endurance";
+	if (kind === "tempo") return "Tempo";
+	if (kind === "threshold") return "Threshold";
+	if (kind === "intervals") return "Intervals";
+	if (kind === "mixed") return "Mixed";
 	return "Unknown";
 }
 

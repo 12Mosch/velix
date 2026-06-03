@@ -1,4 +1,8 @@
 import type { FeatureCollection } from "geojson";
+import type {
+	WorkoutTrainingProfile,
+	WorkoutTrainingSessionKind,
+} from "../workout-plan";
 
 export type RouteBounds = [number, number, number, number];
 
@@ -132,6 +136,7 @@ export type RoundCourseTarget =
 			distanceMeters: number;
 			estimatedSpeedMetersPerHour: number;
 			weightedIntensity: number;
+			trainingProfile?: WorkoutTrainingProfile;
 	  };
 
 export type RoundCourseRouteRequestPayload = {
@@ -355,6 +360,45 @@ export type RouteQualityAnalysis = {
 	flags: RouteQualityFlag[];
 };
 
+export type RouteTrainingSuitabilitySubscore = {
+	score: number | null;
+	label: string;
+	summary: string;
+	available: boolean;
+	weight: number;
+};
+
+export type RouteTrainingSuitabilityFlag = {
+	code:
+		| "duration_mismatch"
+		| "distance_mismatch"
+		| "poor_interval_flow"
+		| "unsafe_training_context"
+		| "rough_training_surface"
+		| "demanding_training_gradient";
+	severity: RouteWarningSeverity;
+	label: string;
+	summary: string;
+};
+
+export type RouteTrainingSuitabilityAnalysis = {
+	version: 1;
+	overallScore: number | null;
+	band: RouteQualityBand | "unknown";
+	confidence: RouteQualityConfidence;
+	sessionKind: WorkoutTrainingSessionKind | "unknown";
+	summary: string;
+	subscores: {
+		durationMatch: RouteTrainingSuitabilitySubscore;
+		distanceMatch: RouteTrainingSuitabilitySubscore;
+		surfaceFit: RouteTrainingSuitabilitySubscore;
+		flowFit: RouteTrainingSuitabilitySubscore;
+		safetyFit: RouteTrainingSuitabilitySubscore;
+		terrainFit: RouteTrainingSuitabilitySubscore;
+	};
+	flags: RouteTrainingSuitabilityFlag[];
+};
+
 export type PlannedRoute = {
 	mode: RouteMode;
 	source: RouteSource;
@@ -385,6 +429,7 @@ export type PlannedRoute = {
 	bikeNetworkDetails?: RouteDetailInterval[];
 	windAnalysis?: RouteWindAnalysis;
 	routeQuality?: RouteQualityAnalysis;
+	trainingSuitability?: RouteTrainingSuitabilityAnalysis;
 };
 
 export type RouteApiSuccess = {

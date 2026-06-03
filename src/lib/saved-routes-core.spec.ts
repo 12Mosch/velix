@@ -11,7 +11,10 @@ import {
 	type SavedRoute,
 	type SavedRouteVersion,
 } from "$lib/saved-routes-core";
-import { calculateRouteQuality } from "$lib/route-planning";
+import {
+	calculateRouteQuality,
+	calculateRouteTrainingSuitability,
+} from "$lib/route-planning";
 
 const baseRoute: SavedRoute["route"] = {
 	mode: "point_to_point",
@@ -175,6 +178,40 @@ describe("saved-routes-core", () => {
 
 		expect(parseSavedRoutes(JSON.stringify([savedRoute]))[0]?.route).toEqual(
 			route,
+		);
+	});
+
+	it("normalizes a saved route with training suitability", () => {
+		const route = {
+			...baseRoute,
+			mode: "round_course" as const,
+			destinationLabel: baseRoute.startLabel,
+			waypoints: [],
+			roundCourseTarget: {
+				kind: "workout" as const,
+				durationMs: baseRoute.durationMs,
+				distanceMeters: baseRoute.distanceMeters,
+				estimatedSpeedMetersPerHour: 22314,
+				weightedIntensity: 0.7,
+			},
+		};
+		const suitability = calculateRouteTrainingSuitability(route);
+		expect(suitability).not.toBeNull();
+		if (!suitability) {
+			throw new Error("Expected workout route to have training suitability.");
+		}
+		const routeWithTraining = {
+			...route,
+			trainingSuitability: suitability,
+		};
+		const savedRoute: SavedRoute = {
+			id: "training-route",
+			createdAt: "2026-04-19T09:30:00.000Z",
+			route: routeWithTraining,
+		};
+
+		expect(parseSavedRoutes(JSON.stringify([savedRoute]))[0]?.route).toEqual(
+			routeWithTraining,
 		);
 	});
 

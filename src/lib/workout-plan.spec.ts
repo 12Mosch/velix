@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
+	analyzeWorkoutTrainingProfile,
 	estimateWorkoutTarget,
 	parseWorkoutPlan,
 	parseWorkoutPlanEffect,
@@ -124,6 +125,59 @@ describe("parseWorkoutPlan", () => {
 
 		expect(cadenceOnly.weightedIntensity).toBe(0.7);
 		expect(cadenceOnly.distanceMeters).toBeCloseTo(neutral.distanceMeters, 6);
+	});
+
+	it("classifies endurance workouts", () => {
+		const parsed = parseWorkoutPlan("75m Z2 HR\n10m Z1 HR");
+		const profile = analyzeWorkoutTrainingProfile(parsed.expandedSteps);
+
+		expect(profile.sessionKind).toBe("endurance");
+		expect(profile.enduranceShare).toBeGreaterThan(0.75);
+		expect(profile.highIntensityShare).toBe(0);
+	});
+
+	it("classifies interval workouts with high intensity repeats", () => {
+		const parsed = parseWorkoutPlan(`
+10m Z2 HR
+6x
+  1m 120% FTP
+  2m Z2 HR
+10m Z2 HR
+`);
+		const profile = analyzeWorkoutTrainingProfile(parsed.expandedSteps);
+
+		expect(profile.sessionKind).toBe("intervals");
+		expect(profile.highIntensityShare).toBeGreaterThan(0.12);
+		expect(profile.longestWorkIntervalMs).toBe(60 * 1000);
+	});
+
+	it("classifies sustained threshold workouts before interval heuristics", () => {
+		const parsed = parseWorkoutPlan("10m Z2 HR\n30m Z4 HR\n10m Z2 HR");
+		const profile = analyzeWorkoutTrainingProfile(parsed.expandedSteps);
+
+		expect(profile.sessionKind).toBe("threshold");
+		expect(profile.thresholdShare).toBeGreaterThan(0.25);
+	});
+
+	it("duration-weights cadence target share", () => {
+		const parsed = parseWorkoutPlan("10m Z2 HR 90rpm\n30m Z2 HR");
+		const profile = analyzeWorkoutTrainingProfile(parsed.expandedSteps);
+
+		expect(profile.cadenceTargetShare).toBeCloseTo(0.25, 6);
+	});
+
+	it("includes the training profile in workout estimates", () => {
+		const parsed = parseWorkoutPlan("30m Z2 HR");
+		const estimate = estimateWorkoutTarget(parsed.expandedSteps);
+
+		expect(estimate.trainingProfile).toMatchObject({
+			version: 1,
+			durationMs: 30 * 60 * 1000,
+			sessionKind: "endurance",
+		});
+		expect(estimate.trainingProfile.estimatedDistanceMeters).toBe(
+			estimate.distanceMeters,
+		);
 	});
 
 	it("expands named and unnamed repeat blocks", () => {

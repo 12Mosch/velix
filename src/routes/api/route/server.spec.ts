@@ -2185,6 +2185,7 @@ describe("POST /api/route", () => {
 			kind: "duration",
 			durationMs: 12600000,
 		});
+		expect(payload.routes[0]?.trainingSuitability).toBeUndefined();
 		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
 		expectWarnings(payload.routes[0]?.warnings, [
 			{
@@ -2257,6 +2258,10 @@ describe("POST /api/route", () => {
 			estimatedSpeedMetersPerHour: 30000,
 			weightedIntensity: 0.9,
 		});
+		expect(payload.routes[0]?.trainingSuitability?.overallScore).not.toBeNull();
+		expect(
+			payload.routes[0]?.trainingSuitability?.subscores.durationMatch.label,
+		).toBe("Duration match");
 	});
 
 	it("runs a third adaptive duration search round only when the first two rounds miss badly", async () => {

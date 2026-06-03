@@ -46,11 +46,37 @@ export const WorkoutPlanStepSchema = Schema.Struct({
 	target: Schema.NullOr(WorkoutStepTargetSchema),
 });
 
+export const WorkoutTrainingSessionKindSchema = Schema.Literals([
+	"recovery",
+	"endurance",
+	"tempo",
+	"threshold",
+	"intervals",
+	"mixed",
+]);
+
+export const WorkoutTrainingProfileSchema = Schema.Struct({
+	version: Schema.Literal(1),
+	durationMs: Schema.Finite,
+	expandedStepCount: Schema.Finite,
+	weightedIntensity: Schema.Finite,
+	estimatedDistanceMeters: Schema.Finite,
+	recoveryShare: Schema.Finite,
+	enduranceShare: Schema.Finite,
+	tempoShare: Schema.Finite,
+	thresholdShare: Schema.Finite,
+	highIntensityShare: Schema.Finite,
+	cadenceTargetShare: Schema.Finite,
+	longestWorkIntervalMs: Schema.Finite,
+	sessionKind: WorkoutTrainingSessionKindSchema,
+});
+
 export const WorkoutEstimateSchema = Schema.Struct({
 	durationMs: Schema.Finite,
 	distanceMeters: Schema.Finite,
 	estimatedSpeedMetersPerHour: Schema.Finite,
 	weightedIntensity: Schema.Finite,
+	trainingProfile: WorkoutTrainingProfileSchema,
 });
 
 export const WorkoutPlanParseResultSchema = Schema.Struct({
@@ -70,11 +96,17 @@ export type WorkoutCadenceTarget = typeof WorkoutCadenceTargetSchema.Type;
 export type WorkoutIntensityTarget = typeof WorkoutIntensityTargetSchema.Type;
 export type WorkoutStepTarget = typeof WorkoutStepTargetSchema.Type;
 export type WorkoutPlanStep = typeof WorkoutPlanStepSchema.Type;
+export type WorkoutTrainingSessionKind =
+	typeof WorkoutTrainingSessionKindSchema.Type;
+export type WorkoutTrainingProfile = typeof WorkoutTrainingProfileSchema.Type;
 export type WorkoutEstimate = typeof WorkoutEstimateSchema.Type;
 export type WorkoutPlanParseResult = typeof WorkoutPlanParseResultSchema.Type;
 
 const decodeWorkoutPlanParseResult = Schema.decodeUnknownSync(
 	WorkoutPlanParseResultSchema,
+);
+const decodeWorkoutTrainingProfile = Schema.decodeUnknownSync(
+	WorkoutTrainingProfileSchema,
 );
 const decodeWorkoutEstimate = Schema.decodeUnknownSync(WorkoutEstimateSchema);
 
@@ -686,42 +718,150 @@ export function estimateWorkoutSpeedMetersPerHour(intensity: number): number {
 	);
 }
 
-function estimateWorkoutTargetSync(
+function getWorkoutSessionKind({
+	recoveryShare,
+	enduranceShare,
+	tempoShare,
+	thresholdShare,
+	highIntensityShare,
+	longestWorkIntervalMs,
+	workIntervalCount,
+}: {
+	recoveryShare: number;
+	enduranceShare: number;
+	tempoShare: number;
+	thresholdShare: number;
+	highIntensityShare: number;
+	longestWorkIntervalMs: number;
+	workIntervalCount: number;
+}): WorkoutTrainingSessionKind {
+	if (recoveryShare >= 0.65) return "recovery";
+	if (enduranceShare >= 0.55 && highIntensityShare < 0.1) return "endurance";
+	if (thresholdShare >= 0.25) return "threshold";
+	if (
+		highIntensityShare >= 0.12 ||
+		(workIntervalCount > 1 &&
+			longestWorkIntervalMs > 0 &&
+			longestWorkIntervalMs <= 8 * 60 * 1000)
+	) {
+		return "intervals";
+	}
+	if (tempoShare >= 0.3) return "tempo";
+	return "mixed";
+}
+
+export function analyzeWorkoutTrainingProfile(
 	steps: readonly WorkoutPlanStep[],
-): WorkoutEstimate {
+): WorkoutTrainingProfile {
 	const totals = steps.reduce(
 		(accumulator, step) => {
 			const intensity = getStepIntensity(step);
 			const speedMetersPerHour = estimateWorkoutSpeedMetersPerHour(intensity);
 			const hours = step.durationMs / (60 * 60 * 1000);
 
-			return {
-				durationMs: accumulator.durationMs + step.durationMs,
-				distanceMeters: accumulator.distanceMeters + speedMetersPerHour * hours,
-				intensityDurationMs:
-					accumulator.intensityDurationMs + intensity * step.durationMs,
-			};
+			accumulator.durationMs += step.durationMs;
+			accumulator.estimatedDistanceMeters += speedMetersPerHour * hours;
+			accumulator.intensityDurationMs += intensity * step.durationMs;
+			accumulator.cadenceDurationMs += step.target?.cadence
+				? step.durationMs
+				: 0;
+
+			if (intensity < 0.6) {
+				accumulator.recoveryMs += step.durationMs;
+			} else if (intensity < 0.78) {
+				accumulator.enduranceMs += step.durationMs;
+			} else if (intensity < 0.9) {
+				accumulator.tempoMs += step.durationMs;
+			} else if (intensity < 1.05) {
+				accumulator.thresholdMs += step.durationMs;
+				accumulator.workIntervalCount += 1;
+				accumulator.longestWorkIntervalMs = Math.max(
+					accumulator.longestWorkIntervalMs,
+					step.durationMs,
+				);
+			} else {
+				accumulator.highIntensityMs += step.durationMs;
+				accumulator.workIntervalCount += 1;
+				accumulator.longestWorkIntervalMs = Math.max(
+					accumulator.longestWorkIntervalMs,
+					step.durationMs,
+				);
+			}
+
+			return accumulator;
 		},
 		{
 			durationMs: 0,
-			distanceMeters: 0,
+			estimatedDistanceMeters: 0,
 			intensityDurationMs: 0,
+			recoveryMs: 0,
+			enduranceMs: 0,
+			tempoMs: 0,
+			thresholdMs: 0,
+			highIntensityMs: 0,
+			cadenceDurationMs: 0,
+			longestWorkIntervalMs: 0,
+			workIntervalCount: 0,
 		},
 	);
-
+	const share = (durationMs: number) =>
+		totals.durationMs > 0 ? durationMs / totals.durationMs : 0;
 	const weightedIntensity =
 		totals.durationMs > 0
 			? totals.intensityDurationMs / totals.durationMs
 			: neutralWorkoutIntensity;
+	const recoveryShare = share(totals.recoveryMs);
+	const enduranceShare = share(totals.enduranceMs);
+	const tempoShare = share(totals.tempoMs);
+	const thresholdShare = share(totals.thresholdMs);
+	const highIntensityShare = share(totals.highIntensityMs);
+
+	return decodeWorkoutTrainingProfile({
+		version: 1,
+		durationMs: totals.durationMs,
+		expandedStepCount: steps.length,
+		weightedIntensity,
+		estimatedDistanceMeters: totals.estimatedDistanceMeters,
+		recoveryShare,
+		enduranceShare,
+		tempoShare,
+		thresholdShare,
+		highIntensityShare,
+		cadenceTargetShare: share(totals.cadenceDurationMs),
+		longestWorkIntervalMs: totals.longestWorkIntervalMs,
+		sessionKind: getWorkoutSessionKind({
+			recoveryShare,
+			enduranceShare,
+			tempoShare,
+			thresholdShare,
+			highIntensityShare,
+			longestWorkIntervalMs: totals.longestWorkIntervalMs,
+			workIntervalCount: totals.workIntervalCount,
+		}),
+	});
+}
+
+export function analyzeWorkoutTrainingProfileEffect(
+	steps: readonly WorkoutPlanStep[],
+): Effect.Effect<WorkoutTrainingProfile> {
+	return Effect.sync(() => analyzeWorkoutTrainingProfile(steps));
+}
+
+function estimateWorkoutTargetSync(
+	steps: readonly WorkoutPlanStep[],
+): WorkoutEstimate {
+	const trainingProfile = analyzeWorkoutTrainingProfile(steps);
 
 	return {
-		durationMs: totals.durationMs,
-		distanceMeters: totals.distanceMeters,
+		durationMs: trainingProfile.durationMs,
+		distanceMeters: trainingProfile.estimatedDistanceMeters,
 		estimatedSpeedMetersPerHour:
-			totals.durationMs > 0
-				? totals.distanceMeters / (totals.durationMs / (60 * 60 * 1000))
+			trainingProfile.durationMs > 0
+				? trainingProfile.estimatedDistanceMeters /
+					(trainingProfile.durationMs / (60 * 60 * 1000))
 				: estimateWorkoutSpeedMetersPerHour(neutralWorkoutIntensity),
-		weightedIntensity,
+		weightedIntensity: trainingProfile.weightedIntensity,
+		trainingProfile,
 	};
 }
 

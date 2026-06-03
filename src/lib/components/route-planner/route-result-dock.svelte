@@ -19,6 +19,7 @@
 		formatRoundCourseTarget,
 		formatSpatialConstraintEnforcement,
 		formatSpatialConstraintSummary,
+		formatTrainingSessionKind,
 		formatWindBucket,
 		formatWindComponent,
 		formatWindSpeed,
@@ -73,6 +74,7 @@
 		activeRouteGradientSections: analysis.activeRouteGradientSections,
 		notableGradientSections: analysis.notableGradientSections,
 		activeRouteQuality: analysis.activeRouteQuality,
+		activeTrainingSuitability: analysis.activeTrainingSuitability,
 		routeAlternativeQualities: analysis.routeAlternativeQualities,
 		activeWindSummary: analysis.activeWindSummary,
 		strongestWindSegments: analysis.strongestWindSegments,
@@ -224,6 +226,15 @@
 									class={`h-6 px-2 text-[10px] font-semibold uppercase tracking-wide ${getQualityToneClass(dockView.activeRouteQuality.band)}`}
 								>
 									Quality {formatQualityScore(dockView.activeRouteQuality.overallScore)}
+								</Badge>
+							{/if}
+							{#if dockView.activeTrainingSuitability}
+								<span class="hidden text-border md:inline" aria-hidden="true">·</span>
+								<Badge
+									variant="outline"
+									class={`h-6 px-2 text-[10px] font-semibold uppercase tracking-wide ${getQualityToneClass(dockView.activeTrainingSuitability.band)}`}
+								>
+									Training {formatQualityScore(dockView.activeTrainingSuitability.overallScore)}
 								</Badge>
 							{/if}
 							{#if dockView.activeWindSummary}
@@ -898,6 +909,75 @@
 					>
 						<div class="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
 							<div class="flex flex-col gap-3">
+								{#if dockView.activeTrainingSuitability}
+									<div class="space-y-2">
+										<div class="flex items-start justify-between gap-2">
+											<div class="flex min-w-0 items-center gap-2">
+												<ShieldCheck
+													class="size-3.5 shrink-0 text-primary"
+												/>
+												<span
+													class="text-xs font-semibold uppercase tracking-wide text-foreground/75"
+												>
+													Training suitability
+												</span>
+											</div>
+											<Badge
+												variant="outline"
+												class={`h-5 shrink-0 px-2 text-[10px] font-semibold uppercase tracking-wide ${getQualityToneClass(dockView.activeTrainingSuitability.band)}`}
+											>
+												{formatQualityBand(dockView.activeTrainingSuitability.band)}
+											</Badge>
+										</div>
+										<div class="rounded-md border border-border/30 bg-background/60 px-2.5 py-2 text-xs">
+											<div class="mb-2 flex items-center justify-between gap-2">
+												<div>
+													<div class="font-semibold text-foreground">
+														Training {formatQualityScore(dockView.activeTrainingSuitability.overallScore)}
+													</div>
+													<div class="text-muted-foreground">
+														{formatTrainingSessionKind(dockView.activeTrainingSuitability.sessionKind)} · {dockView.activeTrainingSuitability.summary}
+													</div>
+												</div>
+												<div class="shrink-0 text-right text-muted-foreground">
+													{dockView.activeTrainingSuitability.confidence} confidence
+												</div>
+											</div>
+											<div class="grid gap-1.5">
+												{#each Object.values(dockView.activeTrainingSuitability.subscores) as item}
+													<div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
+														<div class="w-8 text-right font-semibold tabular-nums text-foreground">
+															{item.available ? formatQualityScore(item.score) : "--"}
+														</div>
+														<div class="min-w-0">
+															<div class="font-semibold text-foreground">{item.label}</div>
+															<div class={item.available ? "text-muted-foreground" : "text-muted-foreground/70"}>
+																{item.available ? item.summary : "Unavailable"}
+															</div>
+														</div>
+													</div>
+												{/each}
+											</div>
+											{#if dockView.activeTrainingSuitability.flags.length > 0}
+												<div class="mt-2 grid gap-1.5 border-t border-border/30 pt-2">
+													{#each dockView.activeTrainingSuitability.flags as flag}
+														<div
+															class={`rounded-md border px-2 py-1.5 ${
+																flag.severity === "warning"
+																	? "border-destructive/25 bg-destructive/10 text-destructive"
+																	: "border-amber-500/25 bg-amber-500/10 text-amber-950 dark:text-amber-100"
+															}`}
+														>
+															<div class="font-semibold">{flag.label}</div>
+															<div class="opacity-85">{flag.summary}</div>
+														</div>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/if}
+
 								<div class="flex items-start justify-between gap-2">
 									<div class="flex min-w-0 items-center gap-2">
 										<ShieldCheck
