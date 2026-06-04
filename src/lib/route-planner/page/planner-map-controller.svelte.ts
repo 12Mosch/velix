@@ -100,25 +100,27 @@ export function createPlannerMapController(
 	let isLocating = $state(false);
 	let currentLocationError = $state<string | null>(null);
 
-	const selectedBasemap = $derived(
-		mapStylePreference.selectedBasemapId
+	function getSelectedBasemap() {
+		return mapStylePreference.selectedBasemapId
 			? getBasemapById(mapStylePreference.selectedBasemapId)
-			: null,
-	);
-	const availableBasemapOptions = $derived(
-		basemapOptions.filter((basemap) => basemap.available),
-	);
+			: null;
+	}
 
-	const activeRouteSegmentCount = $derived.by(() => {
+	function getAvailableBasemapOptions() {
+		return basemapOptions.filter((basemap) => basemap.available);
+	}
+
+	function getActiveRouteSegmentCount() {
 		const activeRoute = dependencies.getActiveRoute();
 		return activeRoute ? getRouteSegmentCount(activeRoute) : 0;
-	});
-	const sanitizedLockedSegmentIndexes = $derived(
-		sanitizeLockedSegmentIndexes(
+	}
+
+	function getSanitizedLockedSegmentIndexes() {
+		return sanitizeLockedSegmentIndexes(
 			dependencies.getLockedSegmentIndexes(),
-			activeRouteSegmentCount,
-		),
-	);
+			getActiveRouteSegmentCount(),
+		);
+	}
 
 	const getCurrentPositionEffect = Effect.fn("getCurrentPositionEffect")(
 		function* () {
@@ -409,7 +411,7 @@ export function createPlannerMapController(
 		const segmentIndex = getSelectedSegmentIndex(selection);
 		return segmentIndex === null
 			? false
-			: sanitizedLockedSegmentIndexes.includes(segmentIndex);
+			: getSanitizedLockedSegmentIndexes().includes(segmentIndex);
 	}
 
 	function toggleMapSelectionSegmentLock(
@@ -436,6 +438,7 @@ export function createPlannerMapController(
 			return false;
 		}
 
+		const sanitizedLockedSegmentIndexes = getSanitizedLockedSegmentIndexes();
 		const nextLockedSegmentIndexes = sanitizedLockedSegmentIndexes.includes(
 			segmentIndex,
 		)
@@ -580,7 +583,7 @@ export function createPlannerMapController(
 
 	function isMapWaypointInsertionLocked(selection: MapClickSelection) {
 		const segmentIndex = getMapWaypointInsertionSegmentIndex(selection);
-		return sanitizedLockedSegmentIndexes.includes(segmentIndex);
+		return getSanitizedLockedSegmentIndexes().includes(segmentIndex);
 	}
 
 	const applyMapPointAsStop = Effect.fn("applyMapPointAsStop")(function* (
@@ -772,7 +775,7 @@ export function createPlannerMapController(
 				() => detail.segmentIndex,
 			);
 
-			if (sanitizedLockedSegmentIndexes.includes(routeLegIndex)) {
+			if (getSanitizedLockedSegmentIndexes().includes(routeLegIndex)) {
 				return;
 			}
 
@@ -836,7 +839,9 @@ export function createPlannerMapController(
 	}
 
 	function chooseBasemap(id: BasemapId) {
-		const basemap = availableBasemapOptions.find((option) => option.id === id);
+		const basemap = getAvailableBasemapOptions().find(
+			(option) => option.id === id,
+		);
 
 		if (basemap) {
 			Effect.runSync(setMapStylePreference(basemap.id));
@@ -866,10 +871,10 @@ export function createPlannerMapController(
 			return currentLocationError;
 		},
 		get selectedBasemap() {
-			return selectedBasemap;
+			return getSelectedBasemap();
 		},
 		get availableBasemapOptions() {
-			return availableBasemapOptions;
+			return getAvailableBasemapOptions();
 		},
 		showCurrentLocationOnMap,
 		recenterActiveRoute,

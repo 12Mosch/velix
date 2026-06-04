@@ -5,7 +5,7 @@ import {
 	getReadinessWarnings,
 	getRouteElevationAnalysisPoints,
 	getRouteWarnings,
-	getSurfaceMix,
+	getSurfaceMix as getRouteSurfaceMix,
 	getWindSummary,
 	sampleElevationProfile,
 	type PlannedRoute,
@@ -25,6 +25,7 @@ import {
 	type PlannerOverlayCache,
 } from "./planner-overlay-cache";
 import { getRouteShareSignature } from "$lib/route-planner/page/planner-state";
+import { createMemoizedSelector } from "$lib/route-planner/page/planner-selector-memo";
 
 type PlannerAnalysisControllerDependencies = {
 	getActiveRoute: () => PlannedRoute | null;
@@ -45,162 +46,353 @@ export function createPlannerAnalysisController(
 	let activeProfileIndex = $state<number | null>(null);
 	let chartScrubPointerId = $state<number | null>(null);
 
-	const activeRoute = $derived(dependencies.getActiveRoute());
-	const routeAlternatives = $derived(dependencies.getRouteAlternatives());
-	const activeDirections = $derived(activeRoute?.instructions ?? []);
-	const selectedCue = $derived(
-		selectedCueIndex === null
-			? null
-			: (activeDirections[selectedCueIndex] ?? null),
-	);
-	const activeRouteClimbs = $derived<RouteClimb[]>(
-		activeRoute
-			? analyzeRouteClimbs(
-					getRouteElevationAnalysisPoints(activeRoute.coordinates),
-				)
-			: [],
-	);
-	const activeRouteGradientMetrics = $derived(
-		activeRoute ? cache.getCachedRouteGradientMetrics(activeRoute) : null,
-	);
-	const activeRouteGradientSections = $derived<RouteGradientSection[]>(
-		activeRoute ? cache.getCachedRouteGradientSections(activeRoute) : [],
-	);
-	const notableGradientSections = $derived<RouteGradientSection[]>(
-		[...activeRouteGradientSections]
-			.filter((section) => section.bucket !== "flat")
-			.sort(
-				(a, b) =>
-					Math.abs(b.averageGradePercent) - Math.abs(a.averageGradePercent),
-			)
-			.slice(0, 5),
-	);
-	const activeRouteQuality = $derived(
-		activeRoute ? cache.getCachedRouteQuality(activeRoute) : null,
-	);
-	const activeTrainingSuitability = $derived(
-		activeRoute ? cache.getCachedRouteTrainingSuitability(activeRoute) : null,
-	);
-	const routeAlternativeQualities = $derived(
-		routeAlternatives.map((route) => cache.getCachedRouteQuality(route)),
-	);
-	const activeWindSummary = $derived(
-		activeRoute
-			? Option.getOrElse(getWindSummary(activeRoute), () => null)
-			: null,
-	);
-	const strongestWindSegments = $derived<RouteWindSegment[]>(
-		activeRoute?.windAnalysis
-			? [...activeRoute.windAnalysis.segments]
-					.sort(
-						(left, right) =>
-							Math.max(
-								Math.abs(right.headwindComponentKmh),
-								Math.abs(right.crosswindComponentKmh),
-							) -
-							Math.max(
-								Math.abs(left.headwindComponentKmh),
-								Math.abs(left.crosswindComponentKmh),
-							),
-					)
-					.slice(0, 5)
-			: [],
-	);
-	const activeCategorizedClimbs = $derived(
-		activeRouteClimbs.filter((climb) => climb.category !== "Uncategorized"),
-	);
-	const activeKeyClimbs = $derived(
-		activeRouteClimbs.filter((climb) => climb.isKeyClimb),
-	);
-	const hardestClimb = $derived(
-		activeRouteClimbs.reduce<RouteClimb | null>(
-			(hardest, climb) =>
-				!hardest || climb.score > hardest.score ? climb : hardest,
-			null,
-		),
-	);
-	const surfaceMix = $derived(activeRoute ? getSurfaceMix(activeRoute) : []);
-	const activeWarnings = $derived(
-		activeRoute ? getRouteWarnings(activeRoute) : [],
-	);
-	const activeReadinessWarnings = $derived(
-		activeRoute ? getReadinessWarnings(activeRoute) : [],
-	);
-	const activeProviderWarnings = $derived(
-		activeRoute ? getProviderWarnings(activeRoute) : [],
-	);
-	const primaryActiveWarning = $derived(
-		activeReadinessWarnings[0] ?? activeProviderWarnings[0] ?? null,
-	);
-	const elevationSamples = $derived(
-		activeRoute ? sampleElevationProfile(activeRoute.coordinates) : [],
-	);
-	const chartH = $derived(routeAnalysisOpen ? 72 : 44);
-	const elevMin = $derived(
-		elevationSamples.length > 0
-			? Math.min(...elevationSamples.map((point) => point.elevationMeters))
-			: 0,
-	);
-	const elevMax = $derived(
-		elevationSamples.length > 0
-			? Math.max(...elevationSamples.map((point) => point.elevationMeters))
-			: 0,
-	);
-	const elevRange = $derived(Math.max(elevMax - elevMin, 1));
-	const sampledProfileDistanceTotal = $derived(
-		elevationSamples[elevationSamples.length - 1]?.distanceMeters ?? null,
-	);
-	const chartProfilePoints = $derived(
-		elevationSamples.map((point) => {
-			const x =
-				elevationSamples.length > 1
-					? (point.distanceMeters /
-							Math.max(sampledProfileDistanceTotal ?? 1, 1)) *
-						chartW
-					: chartW / 2;
-			const y = elevY(point.elevationMeters, chartH, padY);
+	function getActiveRoute() {
+		return dependencies.getActiveRoute();
+	}
 
-			return {
-				...point,
-				x,
-				y,
-			};
-		}),
-	);
-	const activeProfilePoint = $derived(
-		activeProfileIndex === null
+	function getRouteAlternatives() {
+		return dependencies.getRouteAlternatives();
+	}
+
+	function getActiveDirections() {
+		return getActiveRoute()?.instructions ?? [];
+	}
+
+	function getSelectedCue() {
+		return selectedCueIndex === null
 			? null
-			: (chartProfilePoints[activeProfileIndex] ?? null),
+			: (getActiveDirections()[selectedCueIndex] ?? null);
+	}
+
+	const selectActiveRouteClimbs = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null): RouteClimb[] =>
+			activeRoute
+				? analyzeRouteClimbs(
+						getRouteElevationAnalysisPoints(activeRoute.coordinates),
+					)
+				: [],
 	);
-	const linePoints = $derived(
-		chartProfilePoints.map((point) => `${point.x},${point.y}`).join(" "),
+
+	function getActiveRouteClimbs() {
+		return selectActiveRouteClimbs(getActiveRoute());
+	}
+
+	const selectActiveRouteGradientMetrics = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute ? cache.getCachedRouteGradientMetrics(activeRoute) : null,
 	);
-	const areaD = $derived(
-		linePoints
-			? `M ${chartProfilePoints[0]?.x ?? 0},${chartH} L ${linePoints.replaceAll(" ", " L ")} L ${chartProfilePoints[chartProfilePoints.length - 1]?.x ?? chartW},${chartH} Z`
-			: "",
+
+	function getActiveRouteGradientMetrics() {
+		return selectActiveRouteGradientMetrics(getActiveRoute());
+	}
+
+	const selectActiveRouteGradientSections = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null): RouteGradientSection[] =>
+			activeRoute ? cache.getCachedRouteGradientSections(activeRoute) : [],
 	);
-	const distanceTickLabels = $derived(
-		activeRoute
-			? [
-					formatDistance(activeRoute.distanceMeters * 0.25),
-					formatDistance(activeRoute.distanceMeters * 0.5),
-					formatDistance(activeRoute.distanceMeters * 0.75),
-					formatDistance(activeRoute.distanceMeters),
-				]
-			: [],
+
+	function getActiveRouteGradientSections() {
+		return selectActiveRouteGradientSections(getActiveRoute());
+	}
+
+	const selectNotableGradientSections = createMemoizedSelector(
+		(
+			activeRouteGradientSections: RouteGradientSection[],
+		): RouteGradientSection[] =>
+			[...activeRouteGradientSections]
+				.filter((section) => section.bucket !== "flat")
+				.sort(
+					(a, b) =>
+						Math.abs(b.averageGradePercent) - Math.abs(a.averageGradePercent),
+				)
+				.slice(0, 5),
 	);
-	const highlightedRouteCoordinate = $derived(
-		selectedCue?.coordinate ?? activeProfilePoint?.coordinate ?? null,
+
+	function getNotableGradientSections() {
+		return selectNotableGradientSections(getActiveRouteGradientSections());
+	}
+
+	const selectActiveRouteQuality = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute ? cache.getCachedRouteQuality(activeRoute) : null,
 	);
+
+	function getActiveRouteQuality() {
+		return selectActiveRouteQuality(getActiveRoute());
+	}
+
+	const selectActiveTrainingSuitability = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute ? cache.getCachedRouteTrainingSuitability(activeRoute) : null,
+	);
+
+	function getActiveTrainingSuitability() {
+		return selectActiveTrainingSuitability(getActiveRoute());
+	}
+
+	const selectRouteAlternativeQualities = createMemoizedSelector(
+		(routeAlternatives: PlannedRoute[]) =>
+			routeAlternatives.map((route) => cache.getCachedRouteQuality(route)),
+	);
+
+	function getRouteAlternativeQualities() {
+		return selectRouteAlternativeQualities(getRouteAlternatives());
+	}
+
+	const selectActiveWindSummary = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute
+				? Option.getOrElse(getWindSummary(activeRoute), () => null)
+				: null,
+	);
+
+	function getActiveWindSummary() {
+		return selectActiveWindSummary(getActiveRoute());
+	}
+
+	const selectStrongestWindSegments = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null): RouteWindSegment[] =>
+			activeRoute?.windAnalysis
+				? [...activeRoute.windAnalysis.segments]
+						.sort(
+							(left, right) =>
+								Math.max(
+									Math.abs(right.headwindComponentKmh),
+									Math.abs(right.crosswindComponentKmh),
+								) -
+								Math.max(
+									Math.abs(left.headwindComponentKmh),
+									Math.abs(left.crosswindComponentKmh),
+								),
+						)
+						.slice(0, 5)
+				: [],
+	);
+
+	function getStrongestWindSegments() {
+		return selectStrongestWindSegments(getActiveRoute());
+	}
+
+	const selectActiveCategorizedClimbs = createMemoizedSelector(
+		(activeRouteClimbs: RouteClimb[]) =>
+			activeRouteClimbs.filter((climb) => climb.category !== "Uncategorized"),
+	);
+
+	function getActiveCategorizedClimbs() {
+		return selectActiveCategorizedClimbs(getActiveRouteClimbs());
+	}
+
+	const selectActiveKeyClimbs = createMemoizedSelector(
+		(activeRouteClimbs: RouteClimb[]) =>
+			activeRouteClimbs.filter((climb) => climb.isKeyClimb),
+	);
+
+	function getActiveKeyClimbs() {
+		return selectActiveKeyClimbs(getActiveRouteClimbs());
+	}
+
+	const selectHardestClimb = createMemoizedSelector(
+		(activeRouteClimbs: RouteClimb[]) =>
+			activeRouteClimbs.reduce<RouteClimb | null>(
+				(hardest, climb) =>
+					!hardest || climb.score > hardest.score ? climb : hardest,
+				null,
+			),
+	);
+
+	function getHardestClimb() {
+		return selectHardestClimb(getActiveRouteClimbs());
+	}
+
+	const selectSurfaceMix = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute ? getRouteSurfaceMix(activeRoute) : [],
+	);
+
+	function getSurfaceMix() {
+		return selectSurfaceMix(getActiveRoute());
+	}
+
+	const selectActiveWarnings = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute ? getRouteWarnings(activeRoute) : [],
+	);
+
+	function getActiveWarnings() {
+		return selectActiveWarnings(getActiveRoute());
+	}
+
+	const selectActiveReadinessWarnings = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute ? getReadinessWarnings(activeRoute) : [],
+	);
+
+	function getActiveReadinessWarnings() {
+		return selectActiveReadinessWarnings(getActiveRoute());
+	}
+
+	const selectActiveProviderWarnings = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute ? getProviderWarnings(activeRoute) : [],
+	);
+
+	function getActiveProviderWarnings() {
+		return selectActiveProviderWarnings(getActiveRoute());
+	}
+
+	function getPrimaryActiveWarning() {
+		return (
+			getActiveReadinessWarnings()[0] ?? getActiveProviderWarnings()[0] ?? null
+		);
+	}
+
+	const selectElevationSamples = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute ? sampleElevationProfile(activeRoute.coordinates) : [],
+	);
+
+	function getElevationSamples() {
+		return selectElevationSamples(getActiveRoute());
+	}
+
+	function getChartH() {
+		return routeAnalysisOpen ? 72 : 44;
+	}
+
+	function getElevMin() {
+		const elevationSamples = getElevationSamples();
+		return elevationSamples.length > 0
+			? Math.min(...elevationSamples.map((point) => point.elevationMeters))
+			: 0;
+	}
+
+	function getElevMax() {
+		const elevationSamples = getElevationSamples();
+		return elevationSamples.length > 0
+			? Math.max(...elevationSamples.map((point) => point.elevationMeters))
+			: 0;
+	}
+
+	function getElevRange() {
+		return Math.max(getElevMax() - getElevMin(), 1);
+	}
+
+	function getSampledProfileDistanceTotal() {
+		const elevationSamples = getElevationSamples();
+		return (
+			elevationSamples[elevationSamples.length - 1]?.distanceMeters ?? null
+		);
+	}
+
+	const selectChartProfilePoints = createMemoizedSelector(
+		(
+			elevationSamples: ReturnType<typeof sampleElevationProfile>,
+			sampledProfileDistanceTotal: number | null,
+			elevMin: number,
+			elevRange: number,
+			chartH: number,
+		) =>
+			elevationSamples.map((point) => {
+				const x =
+					elevationSamples.length > 1
+						? (point.distanceMeters /
+								Math.max(sampledProfileDistanceTotal ?? 1, 1)) *
+							chartW
+						: chartW / 2;
+				const y = elevY(
+					point.elevationMeters,
+					chartH,
+					padY,
+					elevMin,
+					elevRange,
+				);
+
+				return {
+					...point,
+					x,
+					y,
+				};
+			}),
+	);
+
+	function getChartProfilePoints() {
+		return selectChartProfilePoints(
+			getElevationSamples(),
+			getSampledProfileDistanceTotal(),
+			getElevMin(),
+			getElevRange(),
+			getChartH(),
+		);
+	}
+
+	function getActiveProfilePoint() {
+		return activeProfileIndex === null
+			? null
+			: (getChartProfilePoints()[activeProfileIndex] ?? null);
+	}
+
+	const selectLinePoints = createMemoizedSelector(
+		(chartProfilePoints: ReturnType<typeof getChartProfilePoints>) =>
+			chartProfilePoints.map((point) => `${point.x},${point.y}`).join(" "),
+	);
+
+	function getLinePoints() {
+		return selectLinePoints(getChartProfilePoints());
+	}
+
+	const selectAreaD = createMemoizedSelector(
+		(
+			linePoints: string,
+			chartProfilePoints: ReturnType<typeof getChartProfilePoints>,
+			chartH: number,
+		) =>
+			linePoints
+				? `M ${chartProfilePoints[0]?.x ?? 0},${chartH} L ${linePoints.replaceAll(" ", " L ")} L ${chartProfilePoints[chartProfilePoints.length - 1]?.x ?? chartW},${chartH} Z`
+				: "",
+	);
+
+	function getAreaD() {
+		return selectAreaD(getLinePoints(), getChartProfilePoints(), getChartH());
+	}
+
+	const selectDistanceTickLabels = createMemoizedSelector(
+		(activeRoute: PlannedRoute | null) =>
+			activeRoute
+				? [
+						formatDistance(activeRoute.distanceMeters * 0.25),
+						formatDistance(activeRoute.distanceMeters * 0.5),
+						formatDistance(activeRoute.distanceMeters * 0.75),
+						formatDistance(activeRoute.distanceMeters),
+					]
+				: [],
+	);
+
+	function getDistanceTickLabels() {
+		return selectDistanceTickLabels(getActiveRoute());
+	}
+
+	const selectHighlightedRouteCoordinate = createMemoizedSelector(
+		(
+			selectedCue: ReturnType<typeof getSelectedCue>,
+			activeProfilePoint: ReturnType<typeof getActiveProfilePoint>,
+		) => selectedCue?.coordinate ?? activeProfilePoint?.coordinate ?? null,
+	);
+
+	function getHighlightedRouteCoordinate() {
+		return selectHighlightedRouteCoordinate(
+			getSelectedCue(),
+			getActiveProfilePoint(),
+		);
+	}
 
 	$effect(() => {
-		if (!activeRoute && routeAnalysisOpen) {
+		if (!getActiveRoute() && routeAnalysisOpen) {
 			routeAnalysisOpen = false;
 		}
 	});
 
 	$effect(() => {
+		const activeRoute = getActiveRoute();
 		const nextRouteKey = activeRoute
 			? getRouteShareSignature(activeRoute)
 			: null;
@@ -218,7 +410,8 @@ export function createPlannerAnalysisController(
 	});
 
 	$effect(() => {
-		if (!activeRoute || chartProfilePoints.length === 0) {
+		const chartProfilePoints = getChartProfilePoints();
+		if (!getActiveRoute() || chartProfilePoints.length === 0) {
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
 			return;
@@ -233,7 +426,13 @@ export function createPlannerAnalysisController(
 		}
 	});
 
-	function elevY(meters: number, height: number, pad: number): number {
+	function elevY(
+		meters: number,
+		height: number,
+		pad: number,
+		elevMin: number,
+		elevRange: number,
+	): number {
 		const normalized = (meters - elevMin) / elevRange;
 		return pad + (1 - normalized) * (height - pad * 2);
 	}
@@ -277,6 +476,7 @@ export function createPlannerAnalysisController(
 	}
 
 	function getNearestProfileIndex(chartX: number): number | null {
+		const chartProfilePoints = getChartProfilePoints();
 		if (chartProfilePoints.length === 0) {
 			return null;
 		}
@@ -414,7 +614,7 @@ export function createPlannerAnalysisController(
 			return lastCueRouteKey;
 		},
 		get selectedCue() {
-			return selectedCue;
+			return getSelectedCue();
 		},
 		get activeProfileIndex() {
 			return activeProfileIndex;
@@ -423,91 +623,91 @@ export function createPlannerAnalysisController(
 			return chartScrubPointerId;
 		},
 		get activeRouteClimbs() {
-			return activeRouteClimbs;
+			return getActiveRouteClimbs();
 		},
 		get activeRouteGradientMetrics() {
-			return activeRouteGradientMetrics;
+			return getActiveRouteGradientMetrics();
 		},
 		get activeRouteGradientSections() {
-			return activeRouteGradientSections;
+			return getActiveRouteGradientSections();
 		},
 		get notableGradientSections() {
-			return notableGradientSections;
+			return getNotableGradientSections();
 		},
 		get activeRouteQuality() {
-			return activeRouteQuality;
+			return getActiveRouteQuality();
 		},
 		get activeTrainingSuitability() {
-			return activeTrainingSuitability;
+			return getActiveTrainingSuitability();
 		},
 		get routeAlternativeQualities() {
-			return routeAlternativeQualities;
+			return getRouteAlternativeQualities();
 		},
 		get activeWindSummary() {
-			return activeWindSummary;
+			return getActiveWindSummary();
 		},
 		get strongestWindSegments() {
-			return strongestWindSegments;
+			return getStrongestWindSegments();
 		},
 		get activeCategorizedClimbs() {
-			return activeCategorizedClimbs;
+			return getActiveCategorizedClimbs();
 		},
 		get activeKeyClimbs() {
-			return activeKeyClimbs;
+			return getActiveKeyClimbs();
 		},
 		get hardestClimb() {
-			return hardestClimb;
+			return getHardestClimb();
 		},
 		get surfaceMix() {
-			return surfaceMix;
+			return getSurfaceMix();
 		},
 		get activeWarnings() {
-			return activeWarnings;
+			return getActiveWarnings();
 		},
 		get activeReadinessWarnings() {
-			return activeReadinessWarnings;
+			return getActiveReadinessWarnings();
 		},
 		get activeProviderWarnings() {
-			return activeProviderWarnings;
+			return getActiveProviderWarnings();
 		},
 		get primaryActiveWarning() {
-			return primaryActiveWarning;
+			return getPrimaryActiveWarning();
 		},
 		get elevationSamples() {
-			return elevationSamples;
+			return getElevationSamples();
 		},
 		get chartH() {
-			return chartH;
+			return getChartH();
 		},
 		get elevMin() {
-			return elevMin;
+			return getElevMin();
 		},
 		get elevMax() {
-			return elevMax;
+			return getElevMax();
 		},
 		get elevRange() {
-			return elevRange;
+			return getElevRange();
 		},
 		get sampledProfileDistanceTotal() {
-			return sampledProfileDistanceTotal;
+			return getSampledProfileDistanceTotal();
 		},
 		get chartProfilePoints() {
-			return chartProfilePoints;
+			return getChartProfilePoints();
 		},
 		get activeProfilePoint() {
-			return activeProfilePoint;
+			return getActiveProfilePoint();
 		},
 		get highlightedRouteCoordinate() {
-			return highlightedRouteCoordinate;
+			return getHighlightedRouteCoordinate();
 		},
 		get linePoints() {
-			return linePoints;
+			return getLinePoints();
 		},
 		get areaD() {
-			return areaD;
+			return getAreaD();
 		},
 		get distanceTickLabels() {
-			return distanceTickLabels;
+			return getDistanceTickLabels();
 		},
 		getWarningContainerClass,
 		getWarningBadgeClass,

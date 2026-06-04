@@ -41,32 +41,45 @@ export function createPlannerSharingController(
 	let isSharingRoute = $state(false);
 	let activeRouteShareCopied = $state<Record<string, boolean>>({});
 
-	const activeRoute = $derived(dependencies.getActiveRoute());
-	const activeRouteShareKey = $derived(
-		activeRoute
+	function getActiveRoute() {
+		return dependencies.getActiveRoute();
+	}
+
+	function getActiveRouteShareKey() {
+		const activeRoute = getActiveRoute();
+		return activeRoute
 			? (dependencies.getPlannerDraftRouteId() ??
 					dependencies.getActiveSavedRouteId() ??
 					getRouteShareSignature(activeRoute))
-			: null,
-	);
-	const activeRouteShareError = $derived(
-		activeRouteShareKey
+			: null;
+	}
+
+	function getActiveRouteShareError() {
+		const activeRouteShareKey = getActiveRouteShareKey();
+		return activeRouteShareKey
 			? (routeShareErrors[activeRouteShareKey] ?? null)
-			: null,
-	);
-	const activeRouteShareUrl = $derived(
-		activeRouteShareKey ? (routeShareUrls[activeRouteShareKey] ?? null) : null,
-	);
-	const isActiveRouteShareCopied = $derived(
-		activeRouteShareKey
+			: null;
+	}
+
+	function getActiveRouteShareUrl() {
+		const activeRouteShareKey = getActiveRouteShareKey();
+		return activeRouteShareKey
+			? (routeShareUrls[activeRouteShareKey] ?? null)
+			: null;
+	}
+
+	function getIsActiveRouteShareCopied() {
+		const activeRouteShareKey = getActiveRouteShareKey();
+		return activeRouteShareKey
 			? Boolean(activeRouteShareCopied[activeRouteShareKey])
-			: false,
-	);
+			: false;
+	}
 
 	$effect(() => {
 		const keepKeys = new Set(
 			savedRoutesState.savedRoutes.map((savedRoute) => savedRoute.id),
 		);
+		const activeRouteShareKey = getActiveRouteShareKey();
 		if (activeRouteShareKey) {
 			keepKeys.add(activeRouteShareKey);
 		}
@@ -135,11 +148,12 @@ export function createPlannerSharingController(
 	const handleShareActiveRouteEffect = Effect.fn(
 		"handleShareActiveRouteEffect",
 	)(function* () {
+		const activeRoute = getActiveRoute();
 		if (!activeRoute || dependencies.getRouteNeedsRecalculation()) {
 			return;
 		}
 
-		const routeKey = activeRouteShareKey;
+		const routeKey = getActiveRouteShareKey();
 		if (!routeKey) {
 			return;
 		}
@@ -244,16 +258,16 @@ export function createPlannerSharingController(
 			return activeRouteShareCopied;
 		},
 		get activeRouteShareKey() {
-			return activeRouteShareKey;
+			return getActiveRouteShareKey();
 		},
 		get activeRouteShareError() {
-			return activeRouteShareError;
+			return getActiveRouteShareError();
 		},
 		get activeRouteShareUrl() {
-			return activeRouteShareUrl;
+			return getActiveRouteShareUrl();
 		},
 		get isActiveRouteShareCopied() {
-			return isActiveRouteShareCopied;
+			return getIsActiveRouteShareCopied();
 		},
 		handleShareActiveRoute,
 		setRouteShareError,

@@ -89,27 +89,44 @@ export function createPlannerRoutesController(
 	let undoStack = $state<RouteEditSnapshot[]>([]);
 	let redoStack = $state<RouteEditSnapshot[]>([]);
 
-	const activeRoute = $derived(
-		selectedRouteIndex === null
+	function getActiveRoute() {
+		return selectedRouteIndex === null
 			? null
-			: (routeAlternatives[selectedRouteIndex] ?? null),
-	);
-	const activeDirections = $derived(activeRoute?.instructions ?? []);
-	const activeTurnCount = $derived(
-		activeRoute ? getRouteTurnCount(activeRoute) : 0,
-	);
-	const activeRoundCourseTarget = $derived(getRoundCourseTarget(activeRoute));
-	const activeImportedRouteSource = $derived(
-		isImportedRoute(activeRoute) ? activeRoute.source : null,
-	);
-	const alternativeInfoMessage = $derived(
-		lastGeneratedRouteCount !== null &&
+			: (routeAlternatives[selectedRouteIndex] ?? null);
+	}
+
+	function getActiveDirections() {
+		return getActiveRoute()?.instructions ?? [];
+	}
+
+	function getActiveTurnCount() {
+		const activeRoute = getActiveRoute();
+		return activeRoute ? getRouteTurnCount(activeRoute) : 0;
+	}
+
+	function getActiveRoundCourseTarget() {
+		return getRoundCourseTarget(getActiveRoute());
+	}
+
+	function getActiveImportedRouteSource() {
+		const activeRoute = getActiveRoute();
+		return isImportedRoute(activeRoute) ? activeRoute.source : null;
+	}
+
+	function getAlternativeInfoMessage() {
+		return lastGeneratedRouteCount !== null &&
 			lastGeneratedRouteCount < desiredAlternativeRoutes
 			? `Found ${lastGeneratedRouteCount} distinct route${lastGeneratedRouteCount === 1 ? "" : "s"} for this request.`
-			: null,
-	);
-	const canUndoRouteEdit = $derived(undoStack.length > 0 && !isRouting);
-	const canRedoRouteEdit = $derived(redoStack.length > 0 && !isRouting);
+			: null;
+	}
+
+	function getCanUndoRouteEdit() {
+		return undoStack.length > 0 && !isRouting;
+	}
+
+	function getCanRedoRouteEdit() {
+		return redoStack.length > 0 && !isRouting;
+	}
 
 	function getPlannerRouteState(): PlannerRouteState {
 		return {
@@ -277,7 +294,7 @@ export function createPlannerRoutesController(
 
 		dependencies.setRouteImportError(null);
 		dependencies.markUnsaved();
-		if (requiresRecalculation && activeRoute) {
+		if (requiresRecalculation && getActiveRoute()) {
 			routeNeedsRecalculation = true;
 			dependencies.cancelAutosaveTimer();
 			dependencies.setRouteExportError(null);
@@ -290,7 +307,7 @@ export function createPlannerRoutesController(
 	function getActiveRouteForSaving(): PlannedRoute | null {
 		return Effect.runSync(
 			getSaveableActiveRoute({
-				activeRoute,
+				activeRoute: getActiveRoute(),
 				lockedSegmentIndexes,
 				avoidedRoads,
 			}),
@@ -359,7 +376,7 @@ export function createPlannerRoutesController(
 			return;
 		}
 
-		if (!activeRoute) {
+		if (!getActiveRoute()) {
 			editFn();
 			return;
 		}
@@ -379,7 +396,7 @@ export function createPlannerRoutesController(
 		editFn: () => Effect.Effect<AsyncRouteEditResult>,
 		options: RouteEditSnapshotOptions = {},
 	) {
-		if (!activeRoute) {
+		if (!getActiveRoute()) {
 			return yield* editFn();
 		}
 
@@ -487,7 +504,7 @@ export function createPlannerRoutesController(
 	const applyManualEditingToRoutes = Effect.fn("applyManualEditingToRoutes")(
 		function* (routes: PlannedRoute[]) {
 			const manualEditing = yield* getPlannerManualEditingRequest(
-				activeRoute,
+				getActiveRoute(),
 				lockedSegmentIndexes,
 			);
 
@@ -560,6 +577,7 @@ export function createPlannerRoutesController(
 	}
 
 	function isLockedStopIndex(stopIndex: number) {
+		const activeRoute = getActiveRoute();
 		return activeRoute
 			? isRouteStopLocked(
 					stopIndex,
@@ -621,7 +639,7 @@ export function createPlannerRoutesController(
 				yield* buildPlannerCurrentRouteRequest(
 					dependencies.getPlannerFormState(),
 					yield* getPlannerManualEditingRequest(
-						activeRoute,
+						getActiveRoute(),
 						lockedSegmentIndexes,
 					),
 					yield* getPlannerAvoidanceRequest(avoidedRoads),
@@ -720,7 +738,7 @@ export function createPlannerRoutesController(
 					yield* buildPlannerCurrentRouteRequest(
 						dependencies.getPlannerFormState(),
 						yield* getPlannerManualEditingRequest(
-							activeRoute,
+							getActiveRoute(),
 							lockedSegmentIndexes,
 						),
 						yield* getPlannerAvoidanceRequest(avoidedRoads),
@@ -812,28 +830,28 @@ export function createPlannerRoutesController(
 			return redoStack;
 		},
 		get activeRoute() {
-			return activeRoute;
+			return getActiveRoute();
 		},
 		get activeDirections() {
-			return activeDirections;
+			return getActiveDirections();
 		},
 		get activeTurnCount() {
-			return activeTurnCount;
+			return getActiveTurnCount();
 		},
 		get activeRoundCourseTarget() {
-			return activeRoundCourseTarget;
+			return getActiveRoundCourseTarget();
 		},
 		get activeImportedRouteSource() {
-			return activeImportedRouteSource;
+			return getActiveImportedRouteSource();
 		},
 		get alternativeInfoMessage() {
-			return alternativeInfoMessage;
+			return getAlternativeInfoMessage();
 		},
 		get canUndoRouteEdit() {
-			return canUndoRouteEdit;
+			return getCanUndoRouteEdit();
 		},
 		get canRedoRouteEdit() {
-			return canRedoRouteEdit;
+			return getCanRedoRouteEdit();
 		},
 		getPlannerRouteState,
 		applyPlannerRouteState,
