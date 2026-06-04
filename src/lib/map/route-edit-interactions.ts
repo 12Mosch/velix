@@ -7,7 +7,10 @@ import type {
 	RouteMapOverlay,
 	RouteMode,
 } from "$lib/route-planning";
-import { getRouteLegIndexForCoordinateSegment } from "$lib/route-planning";
+import {
+	getCoordinateSegmentForRouteLeg,
+	getRouteSegmentCount,
+} from "$lib/route-planning/editing";
 import {
 	getRouteDestinationLayerId,
 	getRouteStartLayerId,
@@ -16,7 +19,15 @@ import {
 
 const routeSegmentSelectionThresholdPx = 18;
 const routeSegmentNearHitThresholdPx = 1;
+const routeSegmentHitTestGridCellSizePx = 64;
+const routeHitTestIndexBuildBudgetMs = 6;
 const cameraEvents = ["move", "zoom", "rotate", "pitch", "resize"] as const;
+const cameraSettledEvents = [
+	"moveend",
+	"zoomend",
+	"rotateend",
+	"pitchend",
+] as const;
 
 export type SelectedRouteStop =
 	| {
@@ -53,12 +64,34 @@ type MapEvent = {
 	preventDefault?: () => void;
 };
 
-type RouteProjectionCache = {
-	coordinates: RouteCoordinate[];
-	points: Array<{ x: number; y: number } | null>;
+type ScreenPoint = { x: number; y: number };
+
+type IndexedRouteSegment = {
+	coordinateSegmentIndex: number;
+	segmentIndex: number;
+	fromPoint: ScreenPoint;
+	toPoint: ScreenPoint;
 };
 
-type ScreenPoint = { x: number; y: number };
+type RouteHitTestIndex = {
+	overlayId: string;
+	coordinates: RouteCoordinate[];
+	plannedRoute: PlannedRoute | null;
+	routeMode: RouteMode | null;
+	segmentCount: number;
+	segments: IndexedRouteSegment[];
+	cells: Map<string, number[]>;
+};
+
+type RouteLegCoordinateRange = {
+	legIndex: number;
+	fromIndex: number;
+	toIndex: number;
+};
+
+type FrameOrIdleHandle =
+	| { kind: "frame"; id: number }
+	| { kind: "idle"; id: number };
 
 type DragPanControl = {
 	isEnabled?: () => boolean;
@@ -165,7 +198,8 @@ export function createRouteEditInteractions(
 		| null = null;
 	let dragPanWasEnabled = false;
 	let suppressNextMapClick = false;
-	let routeProjectionCache: RouteProjectionCache | null = null;
+	let routeHitTestIndex: RouteHitTestIndex | null = null;
+	let pendingHitTestIndexWarmup: FrameOrIdleHandle | null = null;
 	let latestHoverScreenPoint: ScreenPoint | null = null;
 	let pendingHoverFrameId: number | null = null;
 
@@ -233,14 +267,20 @@ export function createRouteEditInteractions(
 		return undefined;
 	}
 
-	function getSelectedRouteCoordinates(): RouteCoordinate[] {
+	function getSelectedRouteFeature() {
 		const selectedOverlay = getSelectedOverlay();
 		const routeFeature = selectedOverlay?.geoJson.features.find(
 			(feature) => feature.properties?.kind === "route",
 		);
-		return routeFeature?.geometry.type === "LineString"
-			? (routeFeature.geometry.coordinates as RouteCoordinate[])
-			: [];
+
+		if (!selectedOverlay || routeFeature?.geometry.type !== "LineString") {
+			return null;
+		}
+
+		return {
+			overlay: selectedOverlay,
+			coordinates: routeFeature.geometry.coordinates as RouteCoordinate[],
+		};
 	}
 
 	function getSelectedRouteWaypointCount() {
@@ -308,94 +348,287 @@ export function createRouteEditInteractions(
 		return projected ? { x: projected.x, y: projected.y } : null;
 	}
 
-	function getSelectedRouteProjectionCache() {
-		const coordinates = getSelectedRouteCoordinates();
-		if (routeProjectionCache?.coordinates === coordinates) {
-			return routeProjectionCache;
+	function getRouteLegCoordinateRanges(
+		plannedRoute: PlannedRoute | null,
+	): RouteLegCoordinateRange[] {
+		if (!plannedRoute) return [];
+
+		const ranges: RouteLegCoordinateRange[] = [];
+		const plannedRouteSegmentCount = getRouteSegmentCount(plannedRoute);
+		for (let legIndex = 0; legIndex < plannedRouteSegmentCount; legIndex += 1) {
+			const segment = getCoordinateSegmentForRouteLeg(plannedRoute, legIndex);
+			if (Option.isSome(segment)) {
+				ranges.push({
+					legIndex,
+					fromIndex: segment.value.fromIndex,
+					toIndex: segment.value.toIndex,
+				});
+			}
 		}
 
-		routeProjectionCache = {
-			coordinates,
-			points: coordinates.map((coordinate) => getProjectedPoint(coordinate)),
-		};
-		return routeProjectionCache;
+		return ranges;
 	}
 
-	function clearProjectionCache() {
-		routeProjectionCache = null;
-	}
-
-	function getEditableSegmentIndexForCoordinateSegment(
+	function getEditableSegmentIndexForCoordinateSegmentFromRanges(
 		coordinateSegmentIndex: number,
+		coordinatesLength: number,
+		segmentCount: number,
+		ranges: RouteLegCoordinateRange[],
 	) {
-		const coordinates = getSelectedRouteCoordinates();
-		const segmentCount = getSelectedRouteSegmentCount();
-		const plannedRoute = options.getPlannedRoute();
-		const plannedRouteLegIndex = plannedRoute
-			? getRouteLegIndexForCoordinateSegment(
-					plannedRoute,
-					coordinateSegmentIndex,
-				)
-			: Option.none<number>();
-
-		if (Option.isSome(plannedRouteLegIndex)) return plannedRouteLegIndex.value;
-		if (segmentCount <= 1 || coordinates.length < 2) return 0;
+		const matchingRange = ranges.find(
+			(range) =>
+				coordinateSegmentIndex >= range.fromIndex &&
+				coordinateSegmentIndex < range.toIndex,
+		);
+		if (matchingRange) return matchingRange.legIndex;
+		if (segmentCount <= 1 || coordinatesLength < 2) return 0;
 
 		return Math.min(
 			segmentCount - 1,
 			Math.max(
 				0,
 				Math.floor(
-					(coordinateSegmentIndex / Math.max(coordinates.length - 1, 1)) *
+					(coordinateSegmentIndex / Math.max(coordinatesLength - 1, 1)) *
 						segmentCount,
 				),
 			),
 		);
 	}
 
-	function getSelectedSegmentAtPoint(screenPoint: { x: number; y: number }) {
-		const coordinates = getSelectedRouteCoordinates();
-		if (coordinates.length < 2) return undefined;
+	function getRouteHitTestGridCellCoordinate(value: number) {
+		return Math.floor(value / routeSegmentHitTestGridCellSizePx);
+	}
 
-		const projectionCache = getSelectedRouteProjectionCache();
-		let bestCoordinateSegmentIndex = -1;
-		let bestDistance = Number.POSITIVE_INFINITY;
+	function getRouteHitTestGridCellKey(cellX: number, cellY: number) {
+		return `${cellX}:${cellY}`;
+	}
+
+	function addRouteSegmentToGridCells(
+		cells: Map<string, number[]>,
+		segmentIndex: number,
+		fromPoint: ScreenPoint,
+		toPoint: ScreenPoint,
+	) {
+		const minCellX = getRouteHitTestGridCellCoordinate(
+			Math.min(fromPoint.x, toPoint.x) - routeSegmentSelectionThresholdPx,
+		);
+		const maxCellX = getRouteHitTestGridCellCoordinate(
+			Math.max(fromPoint.x, toPoint.x) + routeSegmentSelectionThresholdPx,
+		);
+		const minCellY = getRouteHitTestGridCellCoordinate(
+			Math.min(fromPoint.y, toPoint.y) - routeSegmentSelectionThresholdPx,
+		);
+		const maxCellY = getRouteHitTestGridCellCoordinate(
+			Math.max(fromPoint.y, toPoint.y) + routeSegmentSelectionThresholdPx,
+		);
+
+		for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+			for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+				const cellKey = getRouteHitTestGridCellKey(cellX, cellY);
+				const segmentIndexes = cells.get(cellKey);
+				if (segmentIndexes) {
+					segmentIndexes.push(segmentIndex);
+				} else {
+					cells.set(cellKey, [segmentIndex]);
+				}
+			}
+		}
+	}
+
+	function buildSelectedRouteHitTestIndex(): RouteHitTestIndex | null {
+		const selectedRouteFeature = getSelectedRouteFeature();
+		if (!selectedRouteFeature || selectedRouteFeature.coordinates.length < 2) {
+			clearHitTestIndex();
+			return null;
+		}
+
+		const coordinates = selectedRouteFeature.coordinates;
+		const plannedRoute = options.getPlannedRoute();
+		const routeMode = options.getRouteMode();
+		const segmentCount = getSelectedRouteSegmentCount();
+		const routeLegRanges = getRouteLegCoordinateRanges(plannedRoute);
+		const segments: IndexedRouteSegment[] = [];
+		const cells = new Map<string, number[]>();
+		let fromPoint = getProjectedPoint(coordinates[0]);
 
 		for (let index = 0; index < coordinates.length - 1; index += 1) {
-			const from = coordinates[index];
-			const to = coordinates[index + 1];
-			if (!from || !to) continue;
+			const toPoint = getProjectedPoint(coordinates[index + 1]);
+			if (!fromPoint || !toPoint) {
+				fromPoint = toPoint;
+				continue;
+			}
 
-			const fromPoint =
-				projectionCache?.points[index] ?? getProjectedPoint(from);
-			const toPoint =
-				projectionCache?.points[index + 1] ?? getProjectedPoint(to);
-			if (!fromPoint || !toPoint) continue;
-
-			const distance = getPointToScreenSegmentDistance(
-				screenPoint,
+			const indexedSegment: IndexedRouteSegment = {
+				coordinateSegmentIndex: index,
+				segmentIndex: getEditableSegmentIndexForCoordinateSegmentFromRanges(
+					index,
+					coordinates.length,
+					segmentCount,
+					routeLegRanges,
+				),
+				fromPoint,
+				toPoint,
+			};
+			segments.push(indexedSegment);
+			addRouteSegmentToGridCells(
+				cells,
+				segments.length - 1,
 				fromPoint,
 				toPoint,
 			);
+			fromPoint = toPoint;
+		}
+
+		routeHitTestIndex = {
+			overlayId: selectedRouteFeature.overlay.id,
+			coordinates,
+			plannedRoute,
+			routeMode,
+			segmentCount,
+			segments,
+			cells,
+		};
+
+		return routeHitTestIndex;
+	}
+
+	function getSelectedRouteHitTestIndex() {
+		const selectedRouteFeature = getSelectedRouteFeature();
+		if (!selectedRouteFeature || selectedRouteFeature.coordinates.length < 2) {
+			clearHitTestIndex();
+			return null;
+		}
+
+		const plannedRoute = options.getPlannedRoute();
+		const routeMode = options.getRouteMode();
+		const segmentCount = getSelectedRouteSegmentCount();
+
+		if (
+			routeHitTestIndex &&
+			routeHitTestIndex.overlayId === selectedRouteFeature.overlay.id &&
+			routeHitTestIndex.coordinates === selectedRouteFeature.coordinates &&
+			routeHitTestIndex.plannedRoute === plannedRoute &&
+			routeHitTestIndex.routeMode === routeMode &&
+			routeHitTestIndex.segmentCount === segmentCount
+		) {
+			return routeHitTestIndex;
+		}
+
+		return buildSelectedRouteHitTestIndex();
+	}
+
+	function cancelPendingHitTestIndexWarmup() {
+		if (!pendingHitTestIndexWarmup) return;
+
+		if (pendingHitTestIndexWarmup.kind === "idle") {
+			const cancelIdle =
+				globalThis.cancelIdleCallback ??
+				(typeof window !== "undefined" ? window.cancelIdleCallback : undefined);
+			cancelIdle?.(pendingHitTestIndexWarmup.id);
+		} else {
+			const { cancelFrame } = getAnimationFrameApi();
+			cancelFrame?.(pendingHitTestIndexWarmup.id);
+		}
+
+		pendingHitTestIndexWarmup = null;
+	}
+
+	function clearHitTestIndex() {
+		cancelPendingHitTestIndexWarmup();
+		routeHitTestIndex = null;
+	}
+
+	function scheduleHitTestIndexWarmup() {
+		if (!options.getManualEditingEnabled()) return;
+		if (pendingHitTestIndexWarmup) return;
+
+		const runWarmup = () => {
+			pendingHitTestIndexWarmup = null;
+			if (options.getManualEditingEnabled()) {
+				getSelectedRouteHitTestIndex();
+			}
+		};
+
+		const requestIdle =
+			globalThis.requestIdleCallback ??
+			(typeof window !== "undefined" ? window.requestIdleCallback : undefined);
+		if (typeof requestIdle === "function") {
+			pendingHitTestIndexWarmup = {
+				kind: "idle",
+				id: requestIdle(runWarmup, {
+					timeout: routeHitTestIndexBuildBudgetMs,
+				}),
+			};
+			return;
+		}
+
+		const { requestFrame } = getAnimationFrameApi();
+		if (typeof requestFrame === "function") {
+			pendingHitTestIndexWarmup = {
+				kind: "frame",
+				id: requestFrame(runWarmup),
+			};
+			return;
+		}
+
+		runWarmup();
+	}
+
+	function getSelectedSegmentAtPoint(screenPoint: { x: number; y: number }) {
+		const hitTestIndex = getSelectedRouteHitTestIndex();
+		if (!hitTestIndex) return undefined;
+
+		let bestSegment: IndexedRouteSegment | null = null;
+		let bestDistance = Number.POSITIVE_INFINITY;
+		const minCellX = getRouteHitTestGridCellCoordinate(
+			screenPoint.x - routeSegmentSelectionThresholdPx,
+		);
+		const maxCellX = getRouteHitTestGridCellCoordinate(
+			screenPoint.x + routeSegmentSelectionThresholdPx,
+		);
+		const minCellY = getRouteHitTestGridCellCoordinate(
+			screenPoint.y - routeSegmentSelectionThresholdPx,
+		);
+		const maxCellY = getRouteHitTestGridCellCoordinate(
+			screenPoint.y + routeSegmentSelectionThresholdPx,
+		);
+		const candidateSegmentIndexes = new Set<number>();
+
+		for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+			for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+				const cellSegments = hitTestIndex.cells.get(
+					getRouteHitTestGridCellKey(cellX, cellY),
+				);
+				if (!cellSegments) continue;
+
+				for (const segmentIndex of cellSegments) {
+					candidateSegmentIndexes.add(segmentIndex);
+				}
+			}
+		}
+
+		for (const segmentIndex of candidateSegmentIndexes) {
+			const segment = hitTestIndex.segments[segmentIndex];
+			if (!segment) continue;
+			const distance = getPointToScreenSegmentDistance(
+				screenPoint,
+				segment.fromPoint,
+				segment.toPoint,
+			);
 			if (distance < bestDistance) {
 				bestDistance = distance;
-				bestCoordinateSegmentIndex = index;
+				bestSegment = segment;
 			}
 			if (distance < routeSegmentNearHitThresholdPx) break;
 		}
 
-		if (
-			bestCoordinateSegmentIndex < 0 ||
-			bestDistance > routeSegmentSelectionThresholdPx
-		) {
+		if (!bestSegment || bestDistance > routeSegmentSelectionThresholdPx) {
 			return undefined;
 		}
 
 		return {
-			coordinateSegmentIndex: bestCoordinateSegmentIndex,
-			segmentIndex: getEditableSegmentIndexForCoordinateSegment(
-				bestCoordinateSegmentIndex,
-			),
+			coordinateSegmentIndex: bestSegment.coordinateSegmentIndex,
+			segmentIndex: bestSegment.segmentIndex,
 		};
 	}
 
@@ -419,7 +652,7 @@ export function createRouteEditInteractions(
 		const drag = activeRouteDrag;
 		const detail = getMapEventDetail(event);
 		activeRouteDrag = null;
-		routeProjectionCache = null;
+		clearHitTestIndex();
 		restoreMapDragPan();
 		options.setCursor("");
 
@@ -519,7 +752,16 @@ export function createRouteEditInteractions(
 
 	function handleCameraChange() {
 		cancelPendingHoverHitTest();
-		clearProjectionCache();
+		clearHitTestIndex();
+	}
+
+	function handleCameraSettled() {
+		scheduleHitTestIndexWarmup();
+	}
+
+	function handleMouseEnter() {
+		clearStaleClickSuppression();
+		scheduleHitTestIndexWarmup();
 	}
 
 	function handleMapClick(event: MapEvent) {
@@ -617,27 +859,36 @@ export function createRouteEditInteractions(
 			options.map.on("click", handleMapClick);
 			options.map.on("mousedown", handleRouteDragStart);
 			options.map.on("pointerdown", clearStaleClickSuppression);
-			options.map.on("mouseenter", clearStaleClickSuppression);
+			options.map.on("mouseenter", handleMouseEnter);
 			options.map.on("mousemove", handleRouteDragMove);
 			options.map.on("mouseup", handleRouteDragEnd);
 			options.map.on("mouseleave", handleRouteDragEnd);
 			for (const event of cameraEvents) {
 				options.map.on(event, handleCameraChange);
 			}
+			for (const event of cameraSettledEvents) {
+				options.map.on(event, handleCameraSettled);
+			}
+			scheduleHitTestIndexWarmup();
 		},
 		detach() {
 			cancelPendingHoverHitTest();
+			cancelPendingHitTestIndexWarmup();
 			options.map.off("click", handleMapClick);
 			options.map.off("mousedown", handleRouteDragStart);
 			options.map.off("pointerdown", clearStaleClickSuppression);
-			options.map.off("mouseenter", clearStaleClickSuppression);
+			options.map.off("mouseenter", handleMouseEnter);
 			options.map.off("mousemove", handleRouteDragMove);
 			options.map.off("mouseup", handleRouteDragEnd);
 			options.map.off("mouseleave", handleRouteDragEnd);
 			for (const event of cameraEvents) {
 				options.map.off(event, handleCameraChange);
 			}
+			for (const event of cameraSettledEvents) {
+				options.map.off(event, handleCameraSettled);
+			}
 		},
-		clearProjectionCache,
+		clearProjectionCache: clearHitTestIndex,
+		clearHitTestIndex,
 	};
 }
