@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
-import { render } from "vitest-browser-svelte";
+import { cleanup, render } from "vitest-browser-svelte";
 
 vi.mock("$env/dynamic/public", () => ({
 	env: {
@@ -743,6 +743,7 @@ function getRouteSourceFeatureKinds(sourceId: string) {
 
 describe("+page.svelte", () => {
 	beforeEach(async () => {
+		cleanup();
 		window.localStorage.clear();
 		Effect.runSync(resetMapStylePreferenceForTests());
 		Effect.runSync(resetUnitPreferenceForTests());

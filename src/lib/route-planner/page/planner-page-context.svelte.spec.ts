@@ -93,7 +93,7 @@ function createWindSegment(
 	};
 }
 
-describe("planner-page-context route overlay capabilities", () => {
+describe("route overlay capabilities", () => {
 	beforeEach(() => {
 		routePlanningMocks.buildRouteGradientGeoJson.mockClear();
 		routePlanningMocks.buildRouteTrafficStressGeoJson.mockClear();
