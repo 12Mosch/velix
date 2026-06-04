@@ -86,17 +86,23 @@ export function createPlannerFormController(
 	let fieldErrors = $state<NonNullable<RouteApiError["fieldErrors"]>>({});
 	let advancedOpen = $state(false);
 
-	const isRoundCourseMode = $derived(plannerMode === "round_course");
-	const isOutAndBackMode = $derived(plannerMode === "out_and_back");
-	const hasAdvancedErrors = $derived(
-		Boolean(
+	function getIsRoundCourseMode() {
+		return plannerMode === "round_course";
+	}
+
+	function getIsOutAndBackMode() {
+		return plannerMode === "out_and_back";
+	}
+
+	function getHasAdvancedErrors() {
+		return Boolean(
 			fieldErrors.spatialConstraint ||
 				fieldErrors.waypointQueries?.some(Boolean) ||
-				(isRoundCourseMode &&
+				(getIsRoundCourseMode() &&
 					roundCourseTargetKind !== "distance" &&
 					fieldErrors.roundCourseTarget),
-		),
-	);
+		);
+	}
 
 	const completionController = createPlannerCompletionController(
 		dependencies.getFetch,
@@ -140,7 +146,7 @@ export function createPlannerFormController(
 	);
 
 	$effect(() => {
-		if (hasAdvancedErrors) {
+		if (getHasAdvancedErrors()) {
 			advancedOpen = true;
 		}
 	});
@@ -234,7 +240,7 @@ export function createPlannerFormController(
 	}
 
 	function getDestinationFieldLabel() {
-		return isOutAndBackMode ? "Turnaround" : "Destination";
+		return getIsOutAndBackMode() ? "Turnaround" : "Destination";
 	}
 
 	function getDestinationSuggestionsLabel() {
@@ -242,33 +248,33 @@ export function createPlannerFormController(
 	}
 
 	function getDestinationPlaceholder() {
-		return isOutAndBackMode ? "Turnaround point..." : "Destination...";
+		return getIsOutAndBackMode() ? "Turnaround point..." : "Destination...";
 	}
 
 	function getCurrentLocationDestinationLabel() {
-		return isOutAndBackMode
+		return getIsOutAndBackMode()
 			? "Use current location as turnaround"
 			: "Use current location as destination";
 	}
 
 	function getSubmitButtonText() {
 		if (dependencies.isRouting()) {
-			if (isRoundCourseMode) {
+			if (getIsRoundCourseMode()) {
 				return "Calculating round course...";
 			}
 
-			if (isOutAndBackMode) {
+			if (getIsOutAndBackMode()) {
 				return "Calculating out and back...";
 			}
 
 			return "Calculating route...";
 		}
 
-		if (isRoundCourseMode) {
+		if (getIsRoundCourseMode()) {
 			return "Generate Round Course";
 		}
 
-		if (isOutAndBackMode) {
+		if (getIsOutAndBackMode()) {
 			return "Generate Out and Back";
 		}
 
@@ -804,13 +810,13 @@ export function createPlannerFormController(
 			return completionController;
 		},
 		get isRoundCourseMode() {
-			return isRoundCourseMode;
+			return getIsRoundCourseMode();
 		},
 		get isOutAndBackMode() {
-			return isOutAndBackMode;
+			return getIsOutAndBackMode();
 		},
 		get hasAdvancedErrors() {
-			return hasAdvancedErrors;
+			return getHasAdvancedErrors();
 		},
 		getPlannerFormState,
 		applyPlannerFormState,

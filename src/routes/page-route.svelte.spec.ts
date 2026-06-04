@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { cleanup, render } from "vitest-browser-svelte";
 
@@ -32,6 +32,23 @@ import {
 	setDistanceUnitPreference,
 } from "$lib/unit-settings.svelte";
 import PageTestShell from "./page-test-shell.svelte";
+
+const originalConsoleWarn = console.warn.bind(console);
+const derivedInertWarningFragments = [
+	"[svelte] derived_inert",
+	"derived_inert",
+	"Reading a derived belonging to a now-destroyed effect",
+];
+
+let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
+function isDerivedInertWarning(call: unknown[]) {
+	return call.some((item) =>
+		derivedInertWarningFragments.some((fragment) =>
+			String(item).includes(fragment),
+		),
+	);
+}
 
 const successfulRoute = {
 	mode: "point_to_point",
@@ -743,7 +760,13 @@ function getRouteSourceFeatureKinds(sourceId: string) {
 
 describe("+page.svelte", () => {
 	beforeEach(async () => {
-		cleanup();
+		consoleWarnSpy = vi
+			.spyOn(console, "warn")
+			.mockImplementation((...args: unknown[]) => {
+				if (!isDerivedInertWarning(args)) {
+					originalConsoleWarn(...args);
+				}
+			});
 		window.localStorage.clear();
 		Effect.runSync(resetMapStylePreferenceForTests());
 		Effect.runSync(resetUnitPreferenceForTests());
@@ -779,6 +802,15 @@ describe("+page.svelte", () => {
 			configurable: true,
 			value: undefined,
 		});
+	});
+
+	afterEach(() => {
+		cleanup();
+		const derivedInertWarnings = consoleWarnSpy.mock.calls.filter(
+			isDerivedInertWarning,
+		);
+		consoleWarnSpy.mockRestore();
+		expect(derivedInertWarnings).toEqual([]);
 	});
 
 	it("shows the persisted basemap as selected in the quick basemap menu", async () => {

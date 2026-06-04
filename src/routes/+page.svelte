@@ -16,37 +16,6 @@
 
 	let gpxImportInput = $state<HTMLInputElement | null>(null);
 
-	const activeRoute = $derived(controller.routes.activeRoute);
-	const plannerMode = $derived(controller.form.plannerMode);
-	const isOutAndBackMode = $derived(controller.form.isOutAndBackMode);
-	const waypointStops = $derived(controller.form.waypointStops);
-	const isRouting = $derived(controller.routes.isRouting);
-	const routeNeedsRecalculation = $derived(
-		controller.routes.routeNeedsRecalculation,
-	);
-	const mapClickSelection = $derived(controller.map.mapClickSelection);
-	const isResolvingMapSelection = $derived(controller.map.isResolvingMapSelection);
-	const routeOverlays = $derived(controller.overlays.routeOverlays);
-	const lockedSegmentOverlay = $derived(controller.overlays.lockedSegmentOverlay);
-	const sanitizedLockedSegmentIndexes = $derived(
-		controller.overlays.sanitizedLockedSegmentIndexes,
-	);
-	const constraintOverlay = $derived(controller.overlays.constraintOverlay);
-	const avoidanceOverlay = $derived(controller.overlays.avoidanceOverlay);
-	const combinedRouteBounds = $derived(controller.overlays.combinedRouteBounds);
-	const highlightedRouteCoordinate = $derived(
-		controller.overlays.highlightedRouteCoordinate,
-	);
-	const fitInitialSavedRouteBounds = $derived(
-		controller.routes.fitInitialSavedRouteBounds,
-	);
-	const recenterRouteRequestKey = $derived(controller.map.recenterRouteRequestKey);
-	const currentLocation = $derived(controller.map.currentLocation);
-	const currentLocationFocusKey = $derived(controller.map.currentLocationFocusKey);
-	const selectedBasemap = $derived(controller.map.selectedBasemap);
-	const selectedCue = $derived(controller.analysis.selectedCue);
-	const selectedCueFocusKey = $derived(controller.analysis.selectedCueFocusKey);
-
 	$effect(() => {
 		controller.importExport.gpxImportInput = gpxImportInput;
 	});
@@ -78,23 +47,25 @@
 			Effect.runFork(controller.map.handleRouteStopDragEnd(detail))}
 		onRouteSegmentDragEnd={(detail) =>
 			Effect.runFork(controller.map.handleRouteSegmentDragEnd(detail))}
-		{routeOverlays}
-		plannedRoute={activeRoute}
-		routeMode={activeRoute?.mode ?? plannerMode}
-		manualEditingEnabled={!!activeRoute && !isRouting && !routeNeedsRecalculation}
-		{lockedSegmentOverlay}
-		lockedSegmentIndexes={sanitizedLockedSegmentIndexes}
-		{constraintOverlay}
-		{avoidanceOverlay}
-		fitBounds={combinedRouteBounds}
-		fitInitialBoundsWithRestoredCamera={fitInitialSavedRouteBounds}
-		manualRecenterBounds={activeRoute?.bounds ?? null}
-		manualRecenterRequestKey={recenterRouteRequestKey}
-		hoveredRouteCoordinate={highlightedRouteCoordinate}
-		focusedRouteCoordinate={selectedCue?.coordinate ?? null}
-		focusedRouteCoordinateKey={selectedCueFocusKey}
-		{currentLocation}
-		{currentLocationFocusKey}
+		routeOverlays={controller.overlays.routeOverlays}
+		plannedRoute={controller.routes.activeRoute}
+		routeMode={controller.routes.activeRoute?.mode ?? controller.form.plannerMode}
+		manualEditingEnabled={!!controller.routes.activeRoute &&
+			!controller.routes.isRouting &&
+			!controller.routes.routeNeedsRecalculation}
+		lockedSegmentOverlay={controller.overlays.lockedSegmentOverlay}
+		lockedSegmentIndexes={controller.overlays.sanitizedLockedSegmentIndexes}
+		constraintOverlay={controller.overlays.constraintOverlay}
+		avoidanceOverlay={controller.overlays.avoidanceOverlay}
+		fitBounds={controller.overlays.combinedRouteBounds}
+		fitInitialBoundsWithRestoredCamera={controller.routes.fitInitialSavedRouteBounds}
+		manualRecenterBounds={controller.routes.activeRoute?.bounds ?? null}
+		manualRecenterRequestKey={controller.map.recenterRouteRequestKey}
+		hoveredRouteCoordinate={controller.overlays.highlightedRouteCoordinate}
+		focusedRouteCoordinate={controller.analysis.selectedCue?.coordinate ?? null}
+		focusedRouteCoordinateKey={controller.analysis.selectedCueFocusKey}
+		currentLocation={controller.map.currentLocation}
+		currentLocationFocusKey={controller.map.currentLocationFocusKey}
 	/>
 
 	<div class="pointer-events-none absolute inset-0 z-20">
@@ -102,21 +73,26 @@
 			{sidebar}
 			overlay={controller.overlays}
 			map={controller.map}
-			hasActiveRoute={!!activeRoute && !routeNeedsRecalculation}
-			hasGeneratedRoute={!!activeRoute}
-			{routeNeedsRecalculation}
+			hasActiveRoute={!!controller.routes.activeRoute &&
+				!controller.routes.routeNeedsRecalculation}
+			hasGeneratedRoute={!!controller.routes.activeRoute}
+			routeNeedsRecalculation={controller.routes.routeNeedsRecalculation}
 		/>
 
-		{#if mapClickSelection}
+		{#if controller.map.mapClickSelection}
 			<MapClickMenu
-				selection={mapClickSelection}
-				{plannerMode}
-				{isOutAndBackMode}
-				waypointCount={waypointStops.length}
+				selection={controller.map.mapClickSelection}
+				plannerMode={controller.form.plannerMode}
+				isOutAndBackMode={controller.form.isOutAndBackMode}
+				waypointCount={controller.form.waypointStops.length}
 				{maxWaypoints}
-				isResolving={isResolvingMapSelection}
-				title={controller.map.getMapClickMenuTitle(mapClickSelection)}
-				subtitle={controller.map.getMapClickMenuSubtitle(mapClickSelection)}
+				isResolving={controller.map.isResolvingMapSelection}
+				title={controller.map.getMapClickMenuTitle(
+					controller.map.mapClickSelection,
+				)}
+				subtitle={controller.map.getMapClickMenuSubtitle(
+					controller.map.mapClickSelection,
+				)}
 				removeActionLabel={controller.map.getRemoveActionLabel}
 				isWaypointInsertionLocked={controller.map.isMapWaypointInsertionLocked}
 				isSegmentLocked={controller.map.isMapSelectionSegmentLocked}
@@ -132,12 +108,16 @@
 						controller.map.applyMapPointAsStop({ kind: "destinationQuery" }),
 					)}
 				onToggleSegmentLock={() =>
-					mapClickSelection &&
-					controller.map.toggleMapSelectionSegmentLock(mapClickSelection)}
+					controller.map.mapClickSelection &&
+					controller.map.toggleMapSelectionSegmentLock(
+						controller.map.mapClickSelection,
+					)}
 				onToggleRoadAvoidance={() =>
-					mapClickSelection &&
+					controller.map.mapClickSelection &&
 					Effect.runFork(
-						controller.map.toggleMapSelectionRoadAvoidance(mapClickSelection),
+						controller.map.toggleMapSelectionRoadAvoidance(
+							controller.map.mapClickSelection,
+						),
 					)}
 				onRemoveStop={controller.map.removeSelectedMapStop}
 				onClose={controller.map.closeMapClickMenu}
@@ -159,12 +139,12 @@
 		</div>
 
 		<div class="pointer-events-auto relative w-full shrink-0">
-			{#if selectedBasemap}
+			{#if controller.map.selectedBasemap}
 				<div
 					class="absolute bottom-[calc(100%+0.5rem)] right-0 z-20 max-w-[23rem] rounded-md border border-white/10 bg-black/42 px-2 py-1 text-[10px] leading-none text-white/58 shadow-sm backdrop-blur-[6px] supports-[backdrop-filter]:bg-black/34 md:text-[11px]"
 				>
 					<span class="mr-1 uppercase tracking-wide text-white/42">Basemap</span>
-					{@html selectedBasemap.attributionHtml}
+					{@html controller.map.selectedBasemap.attributionHtml}
 				</div>
 			{/if}
 
