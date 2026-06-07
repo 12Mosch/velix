@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	fetchOpenMeteoBatchWindEffect,
 	fetchOpenMeteoWindEffect,
 	openMeteoTestExports,
 	OpenMeteoWindError,
@@ -17,6 +18,19 @@ type TimeoutFetchFn = (
 function runWithFetch(fetchMock: TimeoutFetchFn) {
 	return Effect.runPromise(
 		fetchOpenMeteoWindEffect([11.5755, 48.1374]).pipe(
+			Effect.provideService(TimeoutFetch, {
+				fetch: fetchMock,
+			}),
+		),
+	);
+}
+
+function runBatchWithFetch(
+	coordinates: [number, number][],
+	fetchMock: TimeoutFetchFn,
+) {
+	return Effect.runPromise(
+		fetchOpenMeteoBatchWindEffect(coordinates).pipe(
 			Effect.provideService(TimeoutFetch, {
 				fetch: fetchMock,
 			}),
@@ -68,6 +82,62 @@ describe("fetchOpenMeteoWindEffect", () => {
 		expect(fetchMock.mock.calls[0]?.[2]).toBe(
 			openMeteoTestExports.openMeteoTimeoutMs,
 		);
+	});
+
+	it("builds comma-separated coordinates and returns one forecast per coordinate", async () => {
+		const fetchMock = vi.fn(
+			(
+				_input: RequestInfo | URL,
+				_init: RequestInit | undefined,
+				_timeoutMs: number,
+			) =>
+				Effect.succeed(
+					new Response(
+						JSON.stringify([
+							{
+								current: {
+									time: "2026-05-10T10:00",
+									wind_speed_10m: 17.5,
+									wind_direction_10m: 270,
+								},
+							},
+							{
+								current: {
+									time: "2026-05-10T11:00",
+									wind_speed_10m: 12,
+									wind_direction_10m: 180,
+								},
+							},
+						]),
+					),
+				),
+		);
+
+		await expect(
+			runBatchWithFetch(
+				[
+					[11.5755, 48.1374],
+					[11.6, 48.15],
+				],
+				fetchMock,
+			),
+		).resolves.toEqual([
+			{
+				speedKmh: 17.5,
+				directionDegrees: 270,
+				forecastTime: "2026-05-10T10:00",
+			},
+			{
+				speedKmh: 12,
+				directionDegrees: 180,
+				forecastTime: "2026-05-10T11:00",
+			},
+		]);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+		expect(url.searchParams.get("latitude")).toBe("48.1374,48.15");
+		expect(url.searchParams.get("longitude")).toBe("11.5755,11.6");
 	});
 
 	it("fails cleanly on non-OK responses", async () => {

@@ -21,6 +21,13 @@ import {
 	toCoordinatePair,
 } from "./geometry";
 
+type RouteWindSamplePlan = {
+	route: PlannedRoute;
+	sampleCoordinates: [number, number][];
+	startIndex: number;
+	count: number;
+};
+
 function getRouteDistanceSamples(route: PlannedRoute): [number, number][] {
 	const coordinates = route.coordinates;
 
@@ -205,45 +212,67 @@ function buildWindAnalysis(
 	};
 }
 
-function attachWindAnalysisToRouteEffect(
-	route: PlannedRoute,
-): Effect.Effect<PlannedRoute, never, TimeoutFetch> {
-	return Effect.gen(function* () {
-		const sampleCoordinates = getRouteDistanceSamples(route);
-		const fetchedAt = new Date().toISOString();
-		const result = yield* Effect.result(
-			fetchOpenMeteoBatchWindEffect(sampleCoordinates).pipe(
-				Effect.map((forecasts) =>
-					forecasts.map(
-						(forecast, index): RouteWindSample => ({
-							coordinate: sampleCoordinates[index] as [number, number],
-							speedKmh: forecast.speedKmh,
-							directionDegrees: forecast.directionDegrees,
-							time: forecast.forecastTime,
-							source: "open_meteo",
-						}),
-					),
-				),
-			),
-		);
-
-		if (Result.isFailure(result)) {
-			const routeWithWarning = withWindWarning(route);
-			return finalizeGeneratedRouteWarnings(routeWithWarning);
-		}
-
-		const windAnalysis = buildWindAnalysis(route, result.success, fetchedAt);
-
-		return finalizeGeneratedRouteWarnings(
-			windAnalysis ? { ...route, windAnalysis } : route,
-		);
-	});
-}
-
 export function attachWindAnalysisEffect(
 	routes: PlannedRoute[],
 ): Effect.Effect<PlannedRoute[], never, TimeoutFetch> {
-	return Effect.all(routes.map(attachWindAnalysisToRouteEffect), {
-		concurrency: 3,
+	return Effect.gen(function* () {
+		const fetchedAt = new Date().toISOString();
+		let nextStartIndex = 0;
+
+		const samplePlans = routes.map((route): RouteWindSamplePlan => {
+			const sampleCoordinates = getRouteDistanceSamples(route);
+			const plan = {
+				route,
+				sampleCoordinates,
+				startIndex: nextStartIndex,
+				count: sampleCoordinates.length,
+			};
+
+			nextStartIndex += sampleCoordinates.length;
+			return plan;
+		});
+
+		const allSampleCoordinates = samplePlans.flatMap(
+			(plan) => plan.sampleCoordinates,
+		);
+
+		if (allSampleCoordinates.length === 0) {
+			return samplePlans.map(({ route }) =>
+				finalizeGeneratedRouteWarnings(route),
+			);
+		}
+
+		const result = yield* Effect.result(
+			fetchOpenMeteoBatchWindEffect(allSampleCoordinates),
+		);
+
+		if (Result.isFailure(result)) {
+			return samplePlans.map(({ route, count }) =>
+				finalizeGeneratedRouteWarnings(
+					count > 0 ? withWindWarning(route) : route,
+				),
+			);
+		}
+
+		return samplePlans.map((plan) => {
+			const forecasts = result.success.slice(
+				plan.startIndex,
+				plan.startIndex + plan.count,
+			);
+			const samples = forecasts.map(
+				(forecast, index): RouteWindSample => ({
+					coordinate: plan.sampleCoordinates[index] as [number, number],
+					speedKmh: forecast.speedKmh,
+					directionDegrees: forecast.directionDegrees,
+					time: forecast.forecastTime,
+					source: "open_meteo",
+				}),
+			);
+			const windAnalysis = buildWindAnalysis(plan.route, samples, fetchedAt);
+
+			return finalizeGeneratedRouteWarnings(
+				windAnalysis ? { ...plan.route, windAnalysis } : plan.route,
+			);
+		});
 	});
 }
