@@ -9,6 +9,7 @@ export const minCompletionQueryLength = 3;
 export const completionDebounceMs = 250;
 export const desiredAlternativeRoutes = 3;
 export const maxRouteEditHistoryEntries = 50;
+export const maxRouteEditGeometryHistoryEntries = 5;
 export const gpxFileAccept =
 	".gpx,application/gpx+xml,application/xml,text/xml";
 export const defaultAreaRadiusMeters = 30_000;

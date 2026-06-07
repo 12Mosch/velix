@@ -1,5 +1,3 @@
-import { cloneRoute } from "$lib/saved-routes-core";
-import { formatDistance, formatDistanceInput } from "$lib/unit-settings.svelte";
 import { Effect } from "effect";
 import {
 	getRouteSegmentCount,
@@ -15,12 +13,16 @@ import {
 	type RouteStopInput,
 	type SpatialConstraintEnforcement,
 } from "$lib/route-planning";
+import { cloneRoute } from "$lib/saved-routes-core";
+import { formatDistance, formatDistanceInput } from "$lib/unit-settings.svelte";
 import {
 	defaultAreaRadiusMeters,
 	defaultCorridorWidthMeters,
 	defaultSpatialConstraintEnforcement,
 	maxAreaRadiusMeters,
 	maxCorridorWidthMeters,
+	maxRouteEditGeometryHistoryEntries,
+	maxRouteEditHistoryEntries,
 	minAreaRadiusMeters,
 	minCorridorWidthMeters,
 } from "../constants";
@@ -755,6 +757,7 @@ export const captureRouteEditSnapshot = Effect.fn("captureRouteEditSnapshot")(
 			routeAlternatives: options.includeRoutesGeometry
 				? routeState.routeAlternatives.map((route) => cloneRoute(route))
 				: [...routeState.routeAlternatives],
+			routeAlternativesCloned: options.includeRoutesGeometry === true,
 			selectedRouteIndex: routeState.selectedRouteIndex,
 			routeNeedsRecalculation: routeState.routeNeedsRecalculation,
 			lockedSegmentIndexes: [...routeState.lockedSegmentIndexes],
@@ -785,6 +788,44 @@ export const captureRouteEditSnapshot = Effect.fn("captureRouteEditSnapshot")(
 		};
 	},
 );
+
+export function capRouteEditSnapshotStack(
+	snapshots: RouteEditSnapshot[],
+	options: {
+		maxEntries?: number;
+		maxGeometryEntries?: number;
+	} = {},
+): RouteEditSnapshot[] {
+	const maxEntries = Math.max(
+		0,
+		Math.trunc(options.maxEntries ?? maxRouteEditHistoryEntries),
+	);
+	const maxGeometryEntries = Math.max(
+		0,
+		Math.trunc(
+			options.maxGeometryEntries ?? maxRouteEditGeometryHistoryEntries,
+		),
+	);
+	const cappedByTotal = maxEntries === 0 ? [] : snapshots.slice(-maxEntries);
+	const retainedReversed: RouteEditSnapshot[] = [];
+	let retainedGeometrySnapshots = 0;
+
+	for (let index = cappedByTotal.length - 1; index >= 0; index -= 1) {
+		const snapshot = cappedByTotal[index];
+
+		if (snapshot.routeAlternativesCloned !== true) {
+			retainedReversed.push(snapshot);
+			continue;
+		}
+
+		if (retainedGeometrySnapshots < maxGeometryEntries) {
+			retainedGeometrySnapshots += 1;
+			retainedReversed.push(snapshot);
+		}
+	}
+
+	return retainedReversed.reverse();
+}
 
 export const restoreRouteEditSnapshot = Effect.fn("restoreRouteEditSnapshot")(
 	function* (snapshot: RouteEditSnapshot): Effect.fn.Return<{

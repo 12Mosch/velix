@@ -1,40 +1,42 @@
 import { Effect } from "effect";
 import {
+	desiredAlternativeRoutes,
+	maxRouteEditGeometryHistoryEntries,
+	maxRouteEditHistoryEntries,
+} from "$lib/route-planner/constants";
+import {
+	buildCurrentRouteRequest as buildPlannerCurrentRouteRequest,
+	capRouteEditSnapshotStack,
+	captureRouteEditSnapshot as capturePlannerRouteEditSnapshot,
+	getAvoidanceRequest as getPlannerAvoidanceRequest,
+	getManualEditingRequest as getPlannerManualEditingRequest,
+	getRoundCourseTarget,
+	getActiveRouteForSaving as getSaveableActiveRoute,
+	hydratePlannerStateFromRoute,
+	type PlannerFormState,
+	type PlannerRouteState,
+	restoreRouteEditSnapshot as restorePlannerSnapshot,
+	withAvoidancesState,
+	withManualEditingState,
+	withPlannerRouteState,
+} from "$lib/route-planner/page/planner-state";
+import type {
+	RouteEditSnapshot,
+	RouteEditSnapshotOptions,
+} from "$lib/route-planner/types";
+import {
 	getRouteSegmentCount,
 	getRouteTurnCount,
 	isImportedRoute,
 	isRouteStopLocked,
-	sanitizeLockedSegmentIndexes,
 	type ManualRouteEditingState,
 	type PlannedRoute,
 	type ResolvedRouteAvoidance,
 	type RouteApiError,
 	type RouteApiSuccess,
 	type RouteRequestPayload,
+	sanitizeLockedSegmentIndexes,
 } from "$lib/route-planning";
-import {
-	desiredAlternativeRoutes,
-	maxRouteEditHistoryEntries,
-} from "$lib/route-planner/constants";
-import type {
-	RouteEditSnapshot,
-	RouteEditSnapshotOptions,
-} from "$lib/route-planner/types";
-import {
-	buildCurrentRouteRequest as buildPlannerCurrentRouteRequest,
-	captureRouteEditSnapshot as capturePlannerRouteEditSnapshot,
-	getActiveRouteForSaving as getSaveableActiveRoute,
-	getAvoidanceRequest as getPlannerAvoidanceRequest,
-	getManualEditingRequest as getPlannerManualEditingRequest,
-	getRoundCourseTarget,
-	hydratePlannerStateFromRoute,
-	restoreRouteEditSnapshot as restorePlannerSnapshot,
-	withAvoidancesState,
-	withManualEditingState,
-	withPlannerRouteState,
-	type PlannerFormState,
-	type PlannerRouteState,
-} from "$lib/route-planner/page/planner-state";
 import {
 	PlannerRouteRequestError,
 	PlannerRouteResponseError,
@@ -363,7 +365,17 @@ export function createPlannerRoutesController(
 	}
 
 	function pushRouteEditUndoSnapshot(snapshot: RouteEditSnapshot) {
-		undoStack = [...undoStack, snapshot].slice(-maxRouteEditHistoryEntries);
+		undoStack = capRouteEditSnapshotStack([...undoStack, snapshot], {
+			maxEntries: maxRouteEditHistoryEntries,
+			maxGeometryEntries: maxRouteEditGeometryHistoryEntries,
+		});
+	}
+
+	function pushRouteEditRedoSnapshot(snapshot: RouteEditSnapshot) {
+		redoStack = capRouteEditSnapshotStack([...redoStack, snapshot], {
+			maxEntries: maxRouteEditHistoryEntries,
+			maxGeometryEntries: maxRouteEditGeometryHistoryEntries,
+		});
 	}
 
 	function clearRouteEditHistory() {
@@ -431,10 +443,9 @@ export function createPlannerRoutesController(
 		}
 
 		undoStack = undoStack.slice(0, -1);
-		redoStack = [
-			...redoStack,
+		pushRouteEditRedoSnapshot(
 			captureRouteEditSnapshot({ includeRoutesGeometry: true }),
-		].slice(-maxRouteEditHistoryEntries);
+		);
 		restoreRouteEditSnapshot(previousSnapshot);
 	}
 
