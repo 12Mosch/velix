@@ -61,6 +61,23 @@ function isValidCamera(value: unknown): value is MapCameraPreference {
 	);
 }
 
+export function areMapCameraPreferencesEqual(
+	left: MapCameraPreference | null | undefined,
+	right: MapCameraPreference | null | undefined,
+): boolean {
+	if (!left || !right) {
+		return false;
+	}
+
+	return (
+		left.center[0] === right.center[0] &&
+		left.center[1] === right.center[1] &&
+		left.zoom === right.zoom &&
+		left.bearing === right.bearing &&
+		left.pitch === right.pitch
+	);
+}
+
 export const readMapCameraPreference = Effect.fn("readMapCameraPreference")(
 	function* (
 		storage: BrowserStorage | null,

@@ -488,6 +488,7 @@ describe("MapView", () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
@@ -804,7 +805,9 @@ describe("MapView", () => {
 		render(MapView);
 
 		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		vi.useFakeTimers();
 		mockState.eventHandlers.get("moveend")?.[0]?.({});
+		await vi.advanceTimersByTimeAsync(100);
 
 		expect(window.localStorage.getItem(MAP_CAMERA_STORAGE_KEY)).toBe(
 			JSON.stringify({
@@ -816,6 +819,107 @@ describe("MapView", () => {
 		);
 	});
 
+	it("coalesces overlapping camera settled events", async () => {
+		render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		vi.useFakeTimers();
+		const setItem = vi.spyOn(Storage.prototype, "setItem");
+
+		mockState.eventHandlers.get("moveend")?.[0]?.({});
+		mockState.eventHandlers.get("zoomend")?.[0]?.({});
+		mockState.eventHandlers.get("rotateend")?.[0]?.({});
+		mockState.eventHandlers.get("pitchend")?.[0]?.({});
+
+		await vi.advanceTimersByTimeAsync(99);
+		expect(
+			setItem.mock.calls.filter((call) => call[0] === MAP_CAMERA_STORAGE_KEY),
+		).toHaveLength(0);
+
+		await vi.advanceTimersByTimeAsync(1);
+		expect(
+			setItem.mock.calls.filter((call) => call[0] === MAP_CAMERA_STORAGE_KEY),
+		).toHaveLength(1);
+	});
+
+	it("skips unchanged camera persistence", async () => {
+		window.localStorage.setItem(
+			MAP_CAMERA_STORAGE_KEY,
+			JSON.stringify({
+				center: [11.57, 48.13],
+				zoom: 12.5,
+				bearing: 15,
+				pitch: 35,
+			}),
+		);
+
+		render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		vi.useFakeTimers();
+		const setItem = vi.spyOn(Storage.prototype, "setItem");
+
+		mockState.eventHandlers.get("moveend")?.[0]?.({});
+		await vi.advanceTimersByTimeAsync(100);
+
+		expect(
+			setItem.mock.calls.filter((call) => call[0] === MAP_CAMERA_STORAGE_KEY),
+		).toHaveLength(0);
+	});
+
+	it("writes again after camera changes", async () => {
+		render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		vi.useFakeTimers();
+		const setItem = vi.spyOn(Storage.prototype, "setItem");
+
+		mockState.eventHandlers.get("moveend")?.[0]?.({});
+		await vi.advanceTimersByTimeAsync(100);
+		expect(
+			setItem.mock.calls.filter((call) => call[0] === MAP_CAMERA_STORAGE_KEY),
+		).toHaveLength(1);
+
+		mockState.eventHandlers.get("moveend")?.[0]?.({});
+		await vi.advanceTimersByTimeAsync(100);
+		expect(
+			setItem.mock.calls.filter((call) => call[0] === MAP_CAMERA_STORAGE_KEY),
+		).toHaveLength(1);
+
+		mapInstance.getZoom.mockReturnValueOnce(13);
+		mockState.eventHandlers.get("moveend")?.[0]?.({});
+		await vi.advanceTimersByTimeAsync(100);
+
+		const cameraSetItemCalls = setItem.mock.calls.filter(
+			(call) => call[0] === MAP_CAMERA_STORAGE_KEY,
+		);
+		expect(cameraSetItemCalls).toHaveLength(2);
+		expect(cameraSetItemCalls[1]?.[1]).toBe(
+			JSON.stringify({
+				center: [11.57, 48.13],
+				zoom: 13,
+				bearing: 15,
+				pitch: 35,
+			}),
+		);
+	});
+
+	it("cancels pending camera persistence on unmount", async () => {
+		const view = render(MapView);
+
+		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		vi.useFakeTimers();
+		const setItem = vi.spyOn(Storage.prototype, "setItem");
+
+		mockState.eventHandlers.get("moveend")?.[0]?.({});
+		await view.unmount();
+		await vi.advanceTimersByTimeAsync(100);
+
+		expect(
+			setItem.mock.calls.filter((call) => call[0] === MAP_CAMERA_STORAGE_KEY),
+		).toHaveLength(0);
+	});
+
 	it("does not persist invalid map camera values", async () => {
 		mapInstance.getCenter.mockReturnValueOnce({
 			lng: Number.NaN,
@@ -825,7 +929,9 @@ describe("MapView", () => {
 		render(MapView);
 
 		await expect.poll(() => mapMock.mock.calls.length).toBe(1);
+		vi.useFakeTimers();
 		mockState.eventHandlers.get("moveend")?.[0]?.({});
+		await vi.advanceTimersByTimeAsync(100);
 
 		expect(window.localStorage.getItem(MAP_CAMERA_STORAGE_KEY)).toBeNull();
 	});
