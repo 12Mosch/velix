@@ -20,7 +20,10 @@
 	}
 </script>
 
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
+<svelte:head>
+	<title>Velix</title>
+	<link rel="icon" href={favicon} />
+</svelte:head>
 
 <ModeWatcher />
 
