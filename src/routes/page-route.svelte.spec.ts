@@ -1000,9 +1000,21 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("button", { name: "Analysis" }))
 			.toBeInTheDocument();
 		await expect
+			.element(page.getByRole("button", { name: "Profile" }))
+			.toBeInTheDocument();
+		await expect
 			.element(page.getByRole("button", { name: /Directions/ }))
 			.toBeInTheDocument();
 		await expect.element(page.getByText("1 turn")).toBeInTheDocument();
+		await expect.element(page.getByText(/^avg \d/)).not.toBeInTheDocument();
+		await expect.element(page.getByText(/^max \d/)).not.toBeInTheDocument();
+		await expect.element(page.getByText(/Quality \d+/)).not.toBeInTheDocument();
+		await expect
+			.element(page.getByText(/Training \d+/))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText(/Avg headwind|Tailwind/))
+			.not.toBeInTheDocument();
 	});
 
 	it("marks generated route stale after builder input edits", async () => {
@@ -1683,9 +1695,17 @@ describe("+page.svelte", () => {
 					"No climb data available because this route has no elevation samples.",
 				),
 			)
+			.not.toBeInTheDocument();
+		await page.getByRole("button", { name: "Profile" }).click();
+		await expect
+			.element(
+				page.getByText(
+					"No climb data available because this route has no elevation samples.",
+				),
+			)
 			.toBeInTheDocument();
 		await expect
-			.element(page.getByText(/^Max \d+\.\d%$/))
+			.element(page.getByText(/^max \d+\.\d+%$/))
 			.not.toBeInTheDocument();
 	});
 
@@ -1717,12 +1737,16 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
-		// page.getByText(/^Avg 1\.3%$/) covers the route-summary header, while
-		// page.getByText(/^avg 1\.3%$/) covers the elevation-analysis panel.
-		await expect.element(page.getByText(/^Avg 1\.3%$/)).toBeInTheDocument();
-		await expect.element(page.getByText(/^Max \d+\.\d%$/)).toBeInTheDocument();
+		await expect.element(page.getByText(/^avg 1\.3%$/)).not.toBeInTheDocument();
+		await expect
+			.element(page.getByText(/^max \d+\.\d+%$/))
+			.not.toBeInTheDocument();
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect.element(page.getByText(/^avg 1\.3%$/)).toBeInTheDocument();
-		await expect.element(page.getByText(/^max \d+\.\d%$/)).toBeInTheDocument();
+		await expect.element(page.getByText(/^max \d+\.\d+%$/)).toBeInTheDocument();
+		await expect
+			.element(page.getByRole("img", { name: "Elevation along route" }))
+			.toBeInTheDocument();
 	});
 
 	it("renders notable gradient sections in the route analysis panel", async () => {
@@ -1763,7 +1787,7 @@ describe("+page.svelte", () => {
 		await expect.element(page.getByText(/^4\.\d%$/)).toBeInTheDocument();
 	});
 
-	it("renders uncategorized detected climbs in the route summary", async () => {
+	it("renders uncategorized detected climbs in the route profile", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn<typeof fetch>().mockImplementation((input) => {
@@ -1791,6 +1815,10 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
+		await expect
+			.element(page.getByText("1 detected climb"))
+			.not.toBeInTheDocument();
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("1 detected climb"))
 			.toBeInTheDocument();
@@ -1827,6 +1855,10 @@ describe("+page.svelte", () => {
 		await page.getByRole("textbox", { name: "Destination" }).fill("Finish");
 		await page.getByRole("button", { name: "Generate Route" }).click();
 
+		await expect
+			.element(page.getByText("4 detected climbs"))
+			.not.toBeInTheDocument();
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("4 detected climbs"))
 			.toBeInTheDocument();
@@ -1899,6 +1931,7 @@ describe("+page.svelte", () => {
 				enforcement: "strict",
 			},
 		});
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("Area: Munich, Germany, 30.0 km"))
 			.toBeInTheDocument();
@@ -1957,6 +1990,7 @@ describe("+page.svelte", () => {
 				enforcement: "preferred",
 			},
 		});
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("Corridor: 12.0 km"))
 			.toBeInTheDocument();
@@ -3390,6 +3424,7 @@ describe("+page.svelte", () => {
 			},
 		});
 
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("Returns to start"))
 			.toBeInTheDocument();
@@ -3447,6 +3482,7 @@ describe("+page.svelte", () => {
 			},
 		});
 		expect(routeRequestBody.target.distanceMeters).toBeCloseTo(80467.2);
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect.element(page.getByText("Target 31.1 mi")).toBeInTheDocument();
 	});
 
@@ -3696,6 +3732,7 @@ describe("+page.svelte", () => {
 			},
 		});
 
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("Out and back").nth(2))
 			.toBeInTheDocument();
@@ -3842,8 +3879,11 @@ describe("+page.svelte", () => {
 		expect(workoutTarget.distanceMeters).toBeGreaterThan(7000);
 		expect(workoutTarget.estimatedSpeedMetersPerHour).toBeGreaterThan(22000);
 		await expect.element(page.getByText("3 steps")).toBeInTheDocument();
-		await expect.element(page.getByText(/Training \d+/)).toBeInTheDocument();
+		await expect
+			.element(page.getByText(/Training \d+/))
+			.not.toBeInTheDocument();
 		await page.getByRole("button", { name: "Analysis" }).click();
+		await expect.element(page.getByText(/Training \d+/)).toBeInTheDocument();
 		await expect
 			.element(page.getByText("Training suitability"))
 			.toBeInTheDocument();
@@ -3964,6 +4004,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("spinbutton", { name: "Target distance" }))
 			.toHaveValue(50);
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("Returns to start"))
 			.toBeInTheDocument();
@@ -3998,6 +4039,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("spinbutton", { name: "Radius" }))
 			.toHaveValue(30);
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("Area: Munich, Germany, 30.0 km"))
 			.toBeInTheDocument();
@@ -4035,6 +4077,7 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("textbox", { name: "Turnaround" }))
 			.toHaveValue("Schliersee, Germany");
+		await page.getByRole("button", { name: "Profile" }).click();
 		await expect
 			.element(page.getByText("to Schliersee, Germany and back"))
 			.toBeInTheDocument();
@@ -4946,6 +4989,7 @@ describe("+page.svelte", () => {
 			.toBe(1);
 		await expect.poll(() => mapInstance.addSource.mock.calls.length).toBe(1);
 
+		await page.getByRole("button", { name: "Profile" }).click();
 		const chart = page.getByRole("img", { name: "Elevation along route" });
 		const chartElement = chart.element();
 		const chartBounds = chartElement.getBoundingClientRect();
@@ -5016,6 +5060,7 @@ describe("+page.svelte", () => {
 			)
 			.toBe(1);
 
+		await page.getByRole("button", { name: "Profile" }).click();
 		const chart = page.getByRole("img", { name: "Elevation along route" });
 		const chartElement = chart.element();
 		const chartBounds = chartElement.getBoundingClientRect();

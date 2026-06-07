@@ -326,10 +326,23 @@ export function createPlannerAnalysisController(
 	}
 
 	function getActiveProfilePoint() {
-		return activeProfileIndex === null
-			? null
-			: (getChartProfilePoints()[activeProfileIndex] ?? null);
+		if (activeProfileIndex === null) {
+			return null;
+		}
+
+		const points = getChartProfilePoints();
+		return points[activeProfileIndex] ?? null;
 	}
+
+	$effect(() => {
+		if (activeProfileIndex === null) {
+			return;
+		}
+
+		if (!getChartProfilePoints()[activeProfileIndex]) {
+			activeProfileIndex = null;
+		}
+	});
 
 	const selectLinePoints = createMemoizedSelector(
 		(chartProfilePoints: ReturnType<typeof getChartProfilePoints>) =>
@@ -406,23 +419,6 @@ export function createPlannerAnalysisController(
 			activeProfileIndex = null;
 			chartScrubPointerId = null;
 			lastCueRouteKey = nextRouteKey;
-		}
-	});
-
-	$effect(() => {
-		const chartProfilePoints = getChartProfilePoints();
-		if (!getActiveRoute() || chartProfilePoints.length === 0) {
-			activeProfileIndex = null;
-			chartScrubPointerId = null;
-			return;
-		}
-
-		if (
-			activeProfileIndex !== null &&
-			(activeProfileIndex < 0 ||
-				activeProfileIndex >= chartProfilePoints.length)
-		) {
-			activeProfileIndex = null;
 		}
 	});
 
