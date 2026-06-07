@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Decoder, Stream } from "@garmin/fitsdk";
+import { Effect, Result } from "effect";
 
 import {
-	buildRouteFit,
+	buildRouteFitEffect,
 	buildRouteFitFilename,
-	buildRouteGpx,
+	buildRouteGpxEffect,
 	buildRouteGpxFilename,
+	RouteExportError,
 } from "$lib/route-export";
 import type { PlannedRoute } from "$lib/route-planning";
 
@@ -92,11 +94,27 @@ function decodeFit(bytes: Uint8Array) {
 	};
 }
 
+function expectExportError(
+	effect: Effect.Effect<unknown, RouteExportError>,
+): RouteExportError {
+	const result = Effect.runSync(Effect.result(effect));
+
+	expect(Result.isFailure(result)).toBe(true);
+	if (Result.isSuccess(result)) {
+		throw new Error("Expected route export to fail.");
+	}
+
+	expect(result.failure).toBeInstanceOf(RouteExportError);
+	return result.failure;
+}
+
 describe("buildRouteGpx", () => {
 	it("serializes a point-to-point route as a GPX track with named waypoints", () => {
-		const gpx = buildRouteGpx(pointToPointRoute, {
-			exportedAt: new Date("2026-04-22T18:30:00.000Z"),
-		});
+		const gpx = Effect.runSync(
+			buildRouteGpxEffect(pointToPointRoute, {
+				exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+			}),
+		);
 
 		expect(gpx).toContain('<?xml version="1.0" encoding="UTF-8"?>');
 		expect(gpx).toContain('<gpx version="1.1" creator="Velix"');
@@ -138,9 +156,11 @@ describe("buildRouteGpx", () => {
 			],
 		};
 
-		const gpx = buildRouteGpx(roundCourseRoute, {
-			exportedAt: new Date("2026-04-22T18:30:00.000Z"),
-		});
+		const gpx = Effect.runSync(
+			buildRouteGpxEffect(roundCourseRoute, {
+				exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+			}),
+		);
 
 		expect(gpx).toContain(
 			"<name>Marienplatz, Munich, Germany round course</name>",
@@ -171,9 +191,11 @@ describe("buildRouteGpx", () => {
 			],
 		};
 
-		const gpx = buildRouteGpx(outAndBackRoute, {
-			exportedAt: new Date("2026-04-22T18:30:00.000Z"),
-		});
+		const gpx = Effect.runSync(
+			buildRouteGpxEffect(outAndBackRoute, {
+				exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+			}),
+		);
 
 		expect(gpx).toContain(
 			"<name>Marienplatz, Munich, Germany to Schliersee, Germany out and back</name>",
@@ -187,22 +209,24 @@ describe("buildRouteGpx", () => {
 	});
 
 	it("escapes XML-sensitive characters in names and titles", () => {
-		const gpx = buildRouteGpx(
-			{
-				...pointToPointRoute,
-				startLabel: `A&B's <Start>`,
-				destinationLabel: 'Finish "Line"',
-				waypoints: [
-					{
-						label: "Via & climb",
-						coordinate: [11.7581, 47.7123, 734],
-					},
-				],
-			},
-			{
-				exportedAt: new Date("2026-04-22T18:30:00.000Z"),
-				creator: `Velix & "Tests"`,
-			},
+		const gpx = Effect.runSync(
+			buildRouteGpxEffect(
+				{
+					...pointToPointRoute,
+					startLabel: `A&B's <Start>`,
+					destinationLabel: 'Finish "Line"',
+					waypoints: [
+						{
+							label: "Via & climb",
+							coordinate: [11.7581, 47.7123, 734],
+						},
+					],
+				},
+				{
+					exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+					creator: `Velix & "Tests"`,
+				},
+			),
 		);
 
 		expect(gpx).toContain('creator="Velix &amp; &quot;Tests&quot;"');
@@ -213,10 +237,12 @@ describe("buildRouteGpx", () => {
 	});
 
 	it("derives metadata bounds when the route bounds are missing at runtime", () => {
-		const gpx = buildRouteGpx({
-			...pointToPointRoute,
-			bounds: undefined as unknown as PlannedRoute["bounds"],
-		});
+		const gpx = Effect.runSync(
+			buildRouteGpxEffect({
+				...pointToPointRoute,
+				bounds: undefined as unknown as PlannedRoute["bounds"],
+			}),
+		);
 
 		expect(gpx).toContain(
 			'<bounds minlon="11.5755" minlat="47.7362" maxlon="11.8598" maxlat="48.1374" />',
@@ -224,8 +250,8 @@ describe("buildRouteGpx", () => {
 	});
 
 	it("throws when a waypoint coordinate includes a non-finite latitude", () => {
-		expect(() =>
-			buildRouteGpx({
+		const error = expectExportError(
+			buildRouteGpxEffect({
 				...pointToPointRoute,
 				waypoints: [
 					{
@@ -234,14 +260,16 @@ describe("buildRouteGpx", () => {
 					},
 				],
 			}),
-		).toThrow(
+		);
+
+		expect(error.message).toBe(
 			'Waypoint "Broken waypoint" must include finite longitude and latitude values.',
 		);
 	});
 
 	it("throws when a track coordinate is missing latitude data", () => {
-		expect(() =>
-			buildRouteGpx({
+		const error = expectExportError(
+			buildRouteGpxEffect({
 				...pointToPointRoute,
 				coordinates: [
 					pointToPointRoute.coordinates[0],
@@ -251,18 +279,22 @@ describe("buildRouteGpx", () => {
 					],
 				],
 			}),
-		).toThrow("Route track point 2 is missing longitude/latitude values.");
+		);
+
+		expect(error.message).toBe(
+			"Route track point 2 is missing longitude/latitude values.",
+		);
 	});
 
 	it("treats null export options like omitted options", () => {
-		const gpx = buildRouteGpx(pointToPointRoute, null);
+		const gpx = Effect.runSync(buildRouteGpxEffect(pointToPointRoute, null));
 
 		expect(gpx).toContain('<gpx version="1.1" creator="Velix"');
 		expect(gpx).toContain("<metadata>");
 	});
 
 	it("includes route point cue entries and Velix extensions when instructions exist", () => {
-		const gpx = buildRouteGpx(routeWithInstructions);
+		const gpx = Effect.runSync(buildRouteGpxEffect(routeWithInstructions));
 
 		expect(gpx).toContain('xmlns:velix="https://velix.app/gpx/1"');
 		expect(gpx).toContain("<rte>");
@@ -280,7 +312,7 @@ describe("buildRouteGpx", () => {
 	});
 
 	it("omits the cue route block when no instructions exist", () => {
-		const gpx = buildRouteGpx(pointToPointRoute);
+		const gpx = Effect.runSync(buildRouteGpxEffect(pointToPointRoute));
 
 		expect(gpx).not.toContain("<rte>");
 		expect(gpx).not.toContain("xmlns:velix");
@@ -325,9 +357,11 @@ describe("buildRouteGpxFilename", () => {
 
 describe("buildRouteFit", () => {
 	it("serializes a point-to-point route as a FIT course with records and lap summary", () => {
-		const fit = buildRouteFit(pointToPointRoute, {
-			exportedAt: new Date("2026-04-22T18:30:00.000Z"),
-		});
+		const fit = Effect.runSync(
+			buildRouteFitEffect(pointToPointRoute, {
+				exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+			}),
+		);
 		const messages = decodeFit(fit);
 		const fileId = messages.fileIdMesgs?.[0];
 		const course = messages.courseMesgs?.[0];
@@ -380,14 +414,16 @@ describe("buildRouteFit", () => {
 
 	it("uses monotonic point-order timestamps when route duration is missing", () => {
 		const messages = decodeFit(
-			buildRouteFit(
-				{
-					...pointToPointRoute,
-					durationMs: Number.NaN,
-				},
-				{
-					exportedAt: new Date("2026-04-22T18:30:00.000Z"),
-				},
+			Effect.runSync(
+				buildRouteFitEffect(
+					{
+						...pointToPointRoute,
+						durationMs: Number.NaN,
+					},
+					{
+						exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+					},
+				),
 			),
 		);
 		const records = messages.recordMesgs ?? [];
@@ -400,8 +436,8 @@ describe("buildRouteFit", () => {
 	});
 
 	it("throws when a track coordinate is missing latitude data", () => {
-		expect(() =>
-			buildRouteFit({
+		const error = expectExportError(
+			buildRouteFitEffect({
 				...pointToPointRoute,
 				coordinates: [
 					pointToPointRoute.coordinates[0],
@@ -411,14 +447,20 @@ describe("buildRouteFit", () => {
 					],
 				],
 			}),
-		).toThrow("Route track point 2 is missing longitude/latitude values.");
+		);
+
+		expect(error.message).toBe(
+			"Route track point 2 is missing longitude/latitude values.",
+		);
 	});
 
 	it("includes FIT course points for route instructions", () => {
 		const messages = decodeFit(
-			buildRouteFit(routeWithInstructions, {
-				exportedAt: new Date("2026-04-22T18:30:00.000Z"),
-			}),
+			Effect.runSync(
+				buildRouteFitEffect(routeWithInstructions, {
+					exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+				}),
+			),
 		);
 		const coursePoints = messages.coursePointMesgs ?? [];
 
@@ -443,14 +485,16 @@ describe("buildRouteFit", () => {
 
 	it("keeps FIT course point timestamps valid when route distance is non-finite", () => {
 		const messages = decodeFit(
-			buildRouteFit(
-				{
-					...routeWithInstructions,
-					distanceMeters: Number.NaN,
-				},
-				{
-					exportedAt: new Date("2026-04-22T18:30:00.000Z"),
-				},
+			Effect.runSync(
+				buildRouteFitEffect(
+					{
+						...routeWithInstructions,
+						distanceMeters: Number.NaN,
+					},
+					{
+						exportedAt: new Date("2026-04-22T18:30:00.000Z"),
+					},
+				),
 			),
 		);
 		const coursePoints = messages.coursePointMesgs ?? [];

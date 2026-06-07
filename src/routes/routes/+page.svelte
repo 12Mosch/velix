@@ -15,7 +15,7 @@
 		X,
 	} from "@lucide/svelte";
 	import { env } from "$env/dynamic/public";
-	import { Data, Effect } from "effect";
+	import { Cause, Data, Effect } from "effect";
 	import { onMount } from "svelte";
 	import { api } from "../../convex/_generated/api";
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -23,7 +23,10 @@
 	import { getOptionalConvexClient } from "$lib/convex-client.svelte";
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-	import { downloadRouteFit, downloadRouteGpx } from "$lib/route-export";
+	import {
+		downloadRouteFitEffect,
+		downloadRouteGpxEffect,
+	} from "$lib/route-export";
 	import { isImportedRoute, type PlannedRoute } from "$lib/route-planning";
 	import {
 		formatRoundCourseTarget,
@@ -78,6 +81,11 @@
 		return error instanceof Error
 			? `Could not share route: ${error.message}`
 			: "Could not share route.";
+	}
+
+	function formatUnexpectedExportError(cause: Cause.Cause<unknown>): string {
+		const error = Cause.squash(cause);
+		return error instanceof Error ? error.message : "unexpected error";
 	}
 
 	type SavedRouteSearchTextCacheEntry = {
@@ -475,27 +483,41 @@
 	function handleExportSavedRoute(route: PlannedRoute) {
 		exportError = null;
 
-		try {
-			downloadRouteGpx(route);
-		} catch (error) {
-			exportError =
-				error instanceof Error
-					? `Could not export GPX: ${error.message}`
-					: "Could not export GPX.";
-		}
+		Effect.runSync(
+			downloadRouteGpxEffect(route).pipe(
+				Effect.catchTag("RouteExportError", (error) =>
+					Effect.sync(() => {
+						exportError = `Could not export GPX: ${error.message}`;
+					}),
+				),
+				Effect.catchCause((cause) =>
+					Effect.sync(() => {
+						console.error("Unexpected GPX export failure", cause);
+						exportError = `Could not export GPX: ${formatUnexpectedExportError(cause)}`;
+					}),
+				),
+			),
+		);
 	}
 
 	function handleExportSavedRouteFit(route: PlannedRoute) {
 		exportError = null;
 
-		try {
-			downloadRouteFit(route);
-		} catch (error) {
-			exportError =
-				error instanceof Error
-					? `Could not export FIT: ${error.message}`
-					: "Could not export FIT.";
-		}
+		Effect.runSync(
+			downloadRouteFitEffect(route).pipe(
+				Effect.catchTag("RouteExportError", (error) =>
+					Effect.sync(() => {
+						exportError = `Could not export FIT: ${error.message}`;
+					}),
+				),
+				Effect.catchCause((cause) =>
+					Effect.sync(() => {
+						console.error("Unexpected FIT export failure", cause);
+						exportError = `Could not export FIT: ${formatUnexpectedExportError(cause)}`;
+					}),
+				),
+			),
+		);
 	}
 
 	async function handleShareSavedRoute(savedRoute: SavedRoute) {
