@@ -23,6 +23,7 @@
 	} from "$lib/unit-settings.svelte";
 	import {
 		type MapCameraPreference,
+		areMapCameraPreferencesEqual,
 		readMapCameraPreference,
 		writeMapCameraPreference,
 	} from "$lib/preferences/map-camera-preferences";
@@ -109,6 +110,7 @@
 	const defaultZoom = 10;
 	const defaultBearing = 0;
 	const defaultPitch = 0;
+	const mapCameraPreferenceDebounceMs = 100;
 	const mapCanvasContextAttributes: WebGLContextAttributes = {
 		antialias: false,
 		depth: true,
@@ -168,6 +170,8 @@
 	let renderedRouteOverlayGeoJsonRefs = new Map<string, FeatureCollection>();
 	let lastFocusedCurrentLocationKey: number | null = null;
 	let lastFocusedRouteCoordinateKey: number | null = null;
+	let pendingCameraPreferenceTimer: ReturnType<typeof setTimeout> | null = null;
+	let lastPersistedCameraPreference: MapCameraPreference | null = null;
 
 	function canCreateMapWebGLContext() {
 		if (typeof document === "undefined") {
@@ -577,7 +581,9 @@
 		return isValidMapPitch(cameraPitch) ? cameraPitch : defaultPitch;
 	}
 
-	function persistCurrentMapCamera() {
+	function flushCurrentMapCameraPersistence() {
+		pendingCameraPreferenceTimer = null;
+
 		if (!map) {
 			return;
 		}
@@ -601,21 +607,50 @@
 			return;
 		}
 
+		const currentCamera = {
+			center: cameraCenter,
+			zoom,
+			bearing,
+			pitch,
+		};
+
+		if (
+			areMapCameraPreferencesEqual(
+				lastPersistedCameraPreference,
+				currentCamera,
+			)
+		) {
+			return;
+		}
+
 		try {
 			Effect.runSync(
 				Effect.gen(function* () {
 					const storage = yield* createBrowserStorage();
-					yield* writeMapCameraPreference(storage, {
-						center: cameraCenter,
-						zoom,
-						bearing,
-						pitch,
-					});
+					yield* writeMapCameraPreference(storage, currentCamera);
 				}),
 			);
+			lastPersistedCameraPreference = currentCamera;
 		} catch (error) {
 			console.error("Failed to persist map camera preference", error);
 		}
+	}
+
+	function scheduleCurrentMapCameraPersistence() {
+		cancelPendingMapCameraPersistence();
+		pendingCameraPreferenceTimer = setTimeout(
+			flushCurrentMapCameraPersistence,
+			mapCameraPreferenceDebounceMs,
+		);
+	}
+
+	function cancelPendingMapCameraPersistence() {
+		if (pendingCameraPreferenceTimer === null) {
+			return;
+		}
+
+		clearTimeout(pendingCameraPreferenceTimer);
+		pendingCameraPreferenceTimer = null;
 	}
 
 	function attachCameraPreferenceListeners() {
@@ -626,7 +661,7 @@
 		const events = ["moveend", "zoomend", "rotateend", "pitchend"] as const;
 
 		for (const event of events) {
-			map.on(event, persistCurrentMapCamera);
+			map.on(event, scheduleCurrentMapCameraPersistence);
 		}
 
 		detachCameraPreferenceListeners = () => {
@@ -635,7 +670,7 @@
 			}
 
 			for (const event of events) {
-				map.off(event, persistCurrentMapCamera);
+				map.off(event, scheduleCurrentMapCameraPersistence);
 			}
 
 			detachCameraPreferenceListeners = () => {};
@@ -895,6 +930,7 @@
 				} catch (error) {
 					console.error("Failed to restore map camera preference", error);
 				}
+				lastPersistedCameraPreference = restoredCamera ?? null;
 
 				if (
 					restoredCamera &&
@@ -972,6 +1008,7 @@
 			cancelled = true;
 			detachStyleLoadListener();
 			detachCameraPreferenceListeners();
+			cancelPendingMapCameraPersistence();
 			detachRouteEditingListeners();
 			cancelSmoothResize();
 			resizeObserver?.disconnect();
