@@ -87,10 +87,10 @@
 </script>
 
 			<div
-				class="pointer-events-auto absolute inset-x-3 bottom-3 flex max-h-[min(52dvh,28rem)] max-w-none flex-col gap-3 overflow-y-auto md:static md:ml-0 md:mt-4 md:w-full md:max-w-[340px] md:overflow-visible"
+				class="pointer-events-auto absolute inset-x-3 top-3 flex max-h-[min(42dvh,24rem)] max-w-none flex-col gap-3 md:static md:ml-0 md:mt-4 md:w-full md:max-h-none md:max-w-[340px]"
 			>
 				<form
-					class="flex flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-lg"
+					class="flex max-h-full min-h-0 flex-col gap-2.5 overflow-hidden rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-md md:gap-3 md:overflow-visible md:bg-background md:p-4"
 					novalidate
 					onsubmit={(event) =>
 						void Effect.runPromise(routes.handleGenerateRoute(event))}
@@ -99,13 +99,14 @@
 						<h2 class="text-base font-semibold tracking-tight md:text-lg">Route Builder</h2>
 					</div>
 
+					<div class="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-1 md:gap-3 md:overflow-visible md:pr-0">
 					<div class="grid grid-cols-3 gap-1 rounded-lg border border-border/60 bg-secondary/15 p-1">
 						{#each plannerModeOptions as option}
 							<Button
 								type="button"
 								variant={builderView.plannerMode === option.mode ? "secondary" : "ghost"}
 								size="sm"
-								class={`h-auto min-w-0 whitespace-normal flex-col items-start justify-start gap-0.5 rounded-md px-3 py-2 text-left ${
+								class={`h-9 min-w-0 whitespace-normal flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 text-center md:h-auto md:items-start md:px-3 md:py-2 md:text-left ${
 									builderView.plannerMode === option.mode
 										? "border-primary/20 bg-background shadow-sm"
 										: "text-muted-foreground"
@@ -116,7 +117,7 @@
 								<span class="text-xs font-semibold uppercase tracking-wide">
 									{option.label}
 								</span>
-								<span class="text-[11px] leading-relaxed opacity-80">
+								<span class="hidden text-[11px] leading-relaxed opacity-80 md:block">
 									{option.description}
 								</span>
 							</Button>
@@ -158,7 +159,7 @@
 						</PlannerStopInput>
 
 						{#if builderView.isRoundCourseMode}
-							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+							<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-2.5 md:p-3">
 								<label
 									for="workout-plan"
 									class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
@@ -169,7 +170,7 @@
 									id="workout-plan"
 									value={builderView.workoutPlanInput}
 									placeholder={`10m Z2 HR\n4x\n  5m 90% FTP 90rpm\n  2m Z2\n10m Z2 HR`}
-									class="min-h-24 w-full resize-y rounded-md border-none bg-background px-3 py-2 text-sm leading-5 shadow-sm outline-none placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-primary/50"
+									class="min-h-16 w-full resize-y rounded-md border-none bg-background px-3 py-2 text-sm leading-5 shadow-sm outline-none placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-primary/50 md:min-h-24"
 									aria-invalid={builderView.workoutPlanError ? "true" : undefined}
 									oninput={(event) =>
 										form.updateWorkoutPlanInput(
@@ -211,7 +212,7 @@
 								{/if}
 							</div>
 							{#if builderView.roundCourseTargetKind === "distance"}
-								<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-3">
+								<div class="space-y-2 rounded-lg border border-dashed border-border/70 bg-secondary/10 p-2.5 md:p-3">
 									<div class="space-y-2">
 										<label
 											for="round-course-distance"
@@ -768,8 +769,13 @@
 							<p class="mt-0.5 text-xs opacity-85">{builderView.primaryActiveWarning.message}</p>
 						</div>
 					{/if}
+					</div>
 
-					<Button size="lg" type="submit" class="mt-1 w-full font-semibold shadow-sm">
+					<Button
+						size="lg"
+						type="submit"
+						class="mt-0.5 h-11 w-full shrink-0 font-semibold shadow-sm md:mt-1 md:h-12"
+					>
 						{form.getSubmitButtonText()}
 					</Button>
 				</form>

@@ -142,16 +142,19 @@
 	</div>
 {/snippet}
 
-		<div class="pointer-events-auto relative w-full shrink-0">
+		<div
+			class="pointer-events-auto relative w-full shrink-0 max-h-[min(34dvh,22rem)] overflow-y-auto overscroll-contain md:max-h-none md:overflow-visible"
+			data-slot="route-result-dock"
+		>
 			<div
-				class="rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur-sm md:p-3.5"
+				class="rounded-xl border border-border bg-background/95 p-2.5 shadow-lg backdrop-blur-sm md:p-3.5"
 			>
-				<div class="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+				<div class="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between md:gap-4">
 					{#if dockChromeView.isRouting}
 						{@render routeSummarySkeleton()}
 					{:else if dockChromeView.activeRoute}
 						<div
-							class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground tabular-nums sm:text-sm"
+							class="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground tabular-nums sm:text-sm"
 						>
 							<span class="font-semibold text-foreground">
 								<span class="font-heading text-base sm:text-lg">
@@ -207,12 +210,12 @@
 						</div>
 					{/if}
 
-					<div class="flex shrink-0 flex-col items-end gap-1.5">
-						<div class="flex flex-wrap items-center justify-end gap-2">
+					<div class="flex w-full shrink-0 flex-col items-stretch gap-1.5 md:w-auto md:items-end">
+						<div class="flex flex-wrap items-center justify-start gap-1.5 md:justify-end md:gap-2">
 							<Button
 								variant="outline"
 								size="sm"
-								class="gap-1.5 font-semibold"
+								class="h-8 gap-1.5 px-2.5 font-semibold"
 								disabled={dockChromeView.isImportingGpx}
 								onclick={importExport.openGpxImportPicker}
 							>
@@ -250,7 +253,7 @@
 									<Button
 										variant={dockChromeView.isActiveRouteSaved ? "secondary" : "outline"}
 										size="sm"
-										class="gap-1 font-semibold"
+										class="h-8 gap-1 px-2.5 font-semibold"
 										disabled={dockChromeView.routeActionsDisabled}
 										onclick={() =>
 											void Effect.runPromise(save.handleSaveDraft())}
@@ -266,7 +269,7 @@
 								<ActionTooltip content={exportDisabledReason}>
 									<Button
 										size="sm"
-										class="font-semibold"
+										class="h-8 px-2.5 font-semibold"
 										disabled={dockChromeView.routeActionsDisabled}
 										onclick={importExport.handleExportGpx}
 									>
@@ -277,7 +280,7 @@
 									<Button
 										size="sm"
 										variant="outline"
-										class="font-semibold"
+										class="h-8 px-2.5 font-semibold"
 										disabled={dockChromeView.routeActionsDisabled}
 										onclick={importExport.handleExportFit}
 									>
@@ -288,7 +291,7 @@
 									<Button
 										size="sm"
 										variant="outline"
-										class="gap-1 font-semibold"
+										class="h-8 gap-1 px-2.5 font-semibold"
 										disabled={dockChromeView.routeActionsDisabled || dockChromeView.isSharingRoute}
 										onclick={() =>
 											void Effect.runPromise(sharing.handleShareActiveRoute())}
@@ -300,7 +303,7 @@
 								<Button
 									variant="outline"
 									size="sm"
-									class="gap-1 font-semibold"
+									class="h-8 gap-1 px-2.5 font-semibold"
 									onclick={() => (analysis.directionsOpen = !dockChromeView.directionsOpen)}
 									aria-expanded={dockChromeView.directionsOpen}
 									aria-controls="route-directions-panel"
@@ -321,7 +324,7 @@
 								<Button
 									variant="outline"
 									size="sm"
-									class="gap-1 font-semibold"
+									class="h-8 gap-1 px-2.5 font-semibold"
 									onclick={() => (profileOpen = !profileOpen)}
 									aria-expanded={isProfileOpen()}
 									aria-controls="route-profile-panel"
@@ -336,7 +339,7 @@
 								<Button
 									variant="outline"
 									size="sm"
-									class="gap-1 font-semibold"
+									class="h-8 gap-1 px-2.5 font-semibold"
 									onclick={() => (analysis.routeAnalysisOpen = !dockChromeView.routeAnalysisOpen)}
 									aria-expanded={dockChromeView.routeAnalysisOpen}
 									aria-controls="route-analysis-panel"

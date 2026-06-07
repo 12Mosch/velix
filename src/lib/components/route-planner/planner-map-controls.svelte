@@ -79,7 +79,9 @@
 	);
 </script>
 
-<div class="pointer-events-auto absolute right-4 top-4 flex flex-col gap-2 md:right-5 md:top-5">
+<div
+	class="pointer-events-auto absolute right-3 top-[calc(min(42dvh,24rem)+1rem)] flex flex-col gap-1.5 md:right-5 md:top-5 md:gap-2"
+>
 	<Tooltip.Provider delayDuration={150}>
 		<ActionTooltip content="Choose basemap" side="left">
 			<DropdownMenu.DropdownMenu>
@@ -89,7 +91,7 @@
 							{..._dropdownProps}
 							variant="ghost"
 							size="icon"
-							class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground"
+							class="size-8 rounded-lg border border-border/60 bg-background/90 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/78 hover:bg-secondary/90 hover:text-foreground md:size-9"
 							type="button"
 							aria-label="Choose basemap"
 						>
@@ -125,7 +127,7 @@
 			<Button
 				variant="ghost"
 				size="icon"
-				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground"
+				class="size-8 rounded-lg border border-border/60 bg-background/90 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/78 hover:bg-secondary/90 hover:text-foreground md:size-9"
 				type="button"
 				disabled={isLocating}
 				aria-label="Show current location"
@@ -138,7 +140,7 @@
 			<Button
 				variant="ghost"
 				size="icon"
-				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50"
+				class="size-8 rounded-lg border border-border/60 bg-background/90 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/78 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 md:size-9"
 				type="button"
 				disabled={!hasActiveRoute}
 				aria-label="Recenter route"
@@ -151,7 +153,7 @@
 			<Button
 				variant="ghost"
 				size="icon"
-				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-orange-300/70 data-[active=true]:bg-orange-50/90 data-[active=true]:text-orange-700"
+				class="size-8 rounded-lg border border-border/60 bg-background/90 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/78 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-orange-300/70 data-[active=true]:bg-orange-50/90 data-[active=true]:text-orange-700 md:size-9"
 				type="button"
 				disabled={!canShowGradientOverlay}
 				aria-label="Gradient overlay"
@@ -166,7 +168,7 @@
 			<Button
 				variant="ghost"
 				size="icon"
-				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-teal-300/70 data-[active=true]:bg-teal-50/90 data-[active=true]:text-teal-700"
+				class="size-8 rounded-lg border border-border/60 bg-background/90 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/78 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-teal-300/70 data-[active=true]:bg-teal-50/90 data-[active=true]:text-teal-700 md:size-9"
 				type="button"
 				disabled={!canShowWindOverlay}
 				aria-label="Wind and conditions"
@@ -181,7 +183,7 @@
 			<Button
 				variant="ghost"
 				size="icon"
-				class="size-9 rounded-lg border border-border/60 bg-background/85 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-red-300/70 data-[active=true]:bg-red-50/90 data-[active=true]:text-red-700"
+				class="size-8 rounded-lg border border-border/60 bg-background/90 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/78 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-red-300/70 data-[active=true]:bg-red-50/90 data-[active=true]:text-red-700 md:size-9"
 				type="button"
 				disabled={!canShowTrafficStressOverlay}
 				aria-label="Traffic stress overlay"
@@ -198,9 +200,9 @@
 </div>
 
 {#if sidebar.isMobile}
-	<div class="pointer-events-auto absolute left-4 top-4">
+	<div class="pointer-events-auto absolute left-3 top-[calc(min(42dvh,24rem)+1rem)]">
 		<Sidebar.Trigger
-			class="size-9 rounded-lg border border-border/60 bg-background/85 shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/72 hover:bg-secondary/90 focus-visible:ring-offset-0"
+			class="size-8 rounded-lg border border-border/60 bg-background/90 shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/78 hover:bg-secondary/90 focus-visible:ring-offset-0"
 		/>
 	</div>
 {/if}
