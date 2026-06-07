@@ -127,9 +127,9 @@
 	</div>
 
 	<div
-		class="pointer-events-none relative z-10 flex h-full min-h-0 w-full flex-col gap-3 p-4 md:p-5"
+		class="pointer-events-none relative z-30 flex h-full min-h-0 w-full flex-col gap-3 p-4 md:p-5"
 	>
-		<div class="flex min-h-0 min-w-0 flex-1 gap-5 md:gap-6">
+		<div class="relative flex min-h-0 min-w-0 flex-1 gap-5 md:gap-6">
 			<RouteBuilderPanel
 				form={controller.form}
 				routes={controller.routes}
@@ -140,15 +140,6 @@
 		</div>
 
 		<div class="pointer-events-auto relative w-full shrink-0">
-			{#if controller.map.selectedBasemap}
-				<div
-					class="absolute bottom-[calc(100%+0.5rem)] right-0 z-20 max-w-[23rem] rounded-md border border-white/10 bg-black/42 px-2 py-1 text-[10px] leading-none text-white/58 shadow-sm backdrop-blur-[6px] supports-[backdrop-filter]:bg-black/34 md:text-[11px]"
-				>
-					<span class="mr-1 uppercase tracking-wide text-white/42">Basemap</span>
-					{@html controller.map.selectedBasemap.attributionHtml}
-				</div>
-			{/if}
-
 			<RouteResultDock
 				form={controller.form}
 				routes={controller.routes}
@@ -157,6 +148,15 @@
 				sharing={controller.sharing}
 				importExport={controller.importExport}
 			/>
+
+			{#if controller.map.selectedBasemap}
+				<div
+					class="ml-auto mt-1.5 max-w-[min(100%,23rem)] rounded-md border border-white/10 bg-black/42 px-2 py-1 text-[10px] leading-none text-white/58 shadow-sm backdrop-blur-[6px] supports-[backdrop-filter]:bg-black/34 md:absolute md:bottom-[calc(100%+0.5rem)] md:right-0 md:mt-0 md:text-[11px]"
+				>
+					<span class="mr-1 uppercase tracking-wide text-white/42">Basemap</span>
+					{@html controller.map.selectedBasemap.attributionHtml}
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>
