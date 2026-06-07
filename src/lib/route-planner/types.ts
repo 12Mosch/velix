@@ -1,10 +1,10 @@
 import type {
 	PlannedRoute,
 	ResolvedRouteAvoidance,
+	RoundCourseTarget,
 	RouteApiError,
 	RouteMode,
 	RouteStopInput,
-	RoundCourseTarget,
 	SpatialConstraintEnforcement,
 } from "$lib/route-planning";
 
@@ -80,6 +80,7 @@ export type RouteSegmentDragEnd = {
 
 export type RouteEditSnapshot = {
 	routeAlternatives: PlannedRoute[];
+	routeAlternativesCloned: boolean;
 	selectedRouteIndex: number | null;
 	routeNeedsRecalculation: boolean;
 	lockedSegmentIndexes: number[];

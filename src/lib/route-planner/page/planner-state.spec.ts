@@ -1,19 +1,24 @@
-import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
-
+import { describe, expect, it } from "vitest";
+import {
+	maxRouteEditGeometryHistoryEntries,
+	maxRouteEditHistoryEntries,
+} from "$lib/route-planner/constants";
 import type { PlannedRoute } from "$lib/route-planning";
+import type { RouteEditSnapshot } from "../types";
 import {
 	buildCurrentRouteRequest,
+	capRouteEditSnapshotStack,
 	captureRouteEditSnapshot,
 	createPlannerStop,
-	getDefaultSpatialConstraintState,
 	getActiveRouteForSaving,
+	getDefaultSpatialConstraintState,
 	hydratePlannerStateFromRoute,
+	type PlannerFormState,
+	type PlannerRouteState,
 	parseRoundCourseDurationInput,
 	restoreRouteEditSnapshot,
 	validatePlannerForm,
-	type PlannerFormState,
-	type PlannerRouteState,
 } from "./planner-state";
 
 function createBaseFormState(): PlannerFormState {
@@ -65,6 +70,32 @@ function createBaseRouteState(): PlannerRouteState {
 		],
 		lastGeneratedRouteCount: 2,
 	};
+}
+
+function createRouteEditSnapshot(
+	id: number,
+	routeAlternativesCloned = false,
+): RouteEditSnapshot {
+	return Effect.runSync(
+		captureRouteEditSnapshot(
+			createBaseFormState(),
+			{
+				...createBaseRouteState(),
+				routeAlternatives: [
+					{
+						...baseRoute,
+						startLabel: `Route ${id}`,
+					},
+				],
+				lastGeneratedRouteCount: id,
+			},
+			routeAlternativesCloned ? { includeRoutesGeometry: true } : {},
+		),
+	);
+}
+
+function getSnapshotIds(snapshots: RouteEditSnapshot[]): number[] {
+	return snapshots.map((snapshot) => snapshot.lastGeneratedRouteCount ?? -1);
 }
 
 const baseRoute: PlannedRoute = {
@@ -290,5 +321,91 @@ describe("planner-state", () => {
 		expect(restored.routeState.routeAlternatives[0]).not.toBe(
 			routeState.routeAlternatives[0],
 		);
+	});
+
+	it("marks normal route edit snapshots as not geometry-cloned", () => {
+		const form = createBaseFormState();
+		const routeState = createBaseRouteState();
+		const snapshot = Effect.runSync(captureRouteEditSnapshot(form, routeState));
+
+		expect(snapshot.routeAlternativesCloned).toBe(false);
+	});
+
+	it("marks full-geometry route edit snapshots and clones route objects", () => {
+		const form = createBaseFormState();
+		const routeState = createBaseRouteState();
+		const snapshot = Effect.runSync(
+			captureRouteEditSnapshot(form, routeState, {
+				includeRoutesGeometry: true,
+			}),
+		);
+
+		expect(snapshot.routeAlternativesCloned).toBe(true);
+		expect(snapshot.routeAlternatives).toEqual(routeState.routeAlternatives);
+		expect(snapshot.routeAlternatives[0]).not.toBe(
+			routeState.routeAlternatives[0],
+		);
+	});
+
+	it("caps lightweight route edit snapshots at the normal history limit", () => {
+		const snapshots = Array.from(
+			{ length: maxRouteEditHistoryEntries + 5 },
+			(_, index) => createRouteEditSnapshot(index),
+		);
+		const cappedSnapshots = capRouteEditSnapshotStack(snapshots);
+
+		expect(cappedSnapshots).toHaveLength(maxRouteEditHistoryEntries);
+		expect(getSnapshotIds(cappedSnapshots)).toEqual(
+			Array.from(
+				{ length: maxRouteEditHistoryEntries },
+				(_, index) => index + 5,
+			),
+		);
+		expect(
+			cappedSnapshots.every((snapshot) => !snapshot.routeAlternativesCloned),
+		).toBe(true);
+	});
+
+	it("drops oldest geometry-cloned snapshots past the geometry history limit", () => {
+		const snapshots = Array.from(
+			{ length: maxRouteEditGeometryHistoryEntries + 3 },
+			(_, index) => createRouteEditSnapshot(index, true),
+		);
+		const cappedSnapshots = capRouteEditSnapshotStack(snapshots);
+
+		expect(cappedSnapshots).toHaveLength(maxRouteEditGeometryHistoryEntries);
+		expect(getSnapshotIds(cappedSnapshots)).toEqual(
+			Array.from(
+				{ length: maxRouteEditGeometryHistoryEntries },
+				(_, index) => index + 3,
+			),
+		);
+		expect(
+			cappedSnapshots.every((snapshot) => snapshot.routeAlternativesCloned),
+		).toBe(true);
+	});
+
+	it("retains lightweight snapshots while dropping only oldest geometry snapshots", () => {
+		const snapshots = [
+			createRouteEditSnapshot(1),
+			createRouteEditSnapshot(2, true),
+			createRouteEditSnapshot(3),
+			createRouteEditSnapshot(4, true),
+			createRouteEditSnapshot(5, true),
+			createRouteEditSnapshot(6),
+			createRouteEditSnapshot(7, true),
+			createRouteEditSnapshot(8, true),
+		];
+		const cappedSnapshots = capRouteEditSnapshotStack(snapshots, {
+			maxEntries: 20,
+			maxGeometryEntries: 2,
+		});
+
+		expect(getSnapshotIds(cappedSnapshots)).toEqual([1, 3, 6, 7, 8]);
+		expect(
+			cappedSnapshots
+				.filter((snapshot) => snapshot.routeAlternativesCloned)
+				.map((snapshot) => snapshot.lastGeneratedRouteCount),
+		).toEqual([7, 8]);
 	});
 });
