@@ -13,6 +13,7 @@
 
 	const sidebar = useSidebar();
 	const controller = createRoutePlannerPageController();
+	const routeOverlays = $derived(controller.overlays.routeOverlays);
 
 	let gpxImportInput = $state<HTMLInputElement | null>(null);
 
@@ -47,7 +48,7 @@
 			Effect.runFork(controller.map.handleRouteStopDragEnd(detail))}
 		onRouteSegmentDragEnd={(detail) =>
 			Effect.runFork(controller.map.handleRouteSegmentDragEnd(detail))}
-		routeOverlays={controller.overlays.routeOverlays}
+		routeOverlays={routeOverlays}
 		plannedRoute={controller.routes.activeRoute}
 		routeMode={controller.routes.activeRoute?.mode ?? controller.form.plannerMode}
 		manualEditingEnabled={!!controller.routes.activeRoute &&
