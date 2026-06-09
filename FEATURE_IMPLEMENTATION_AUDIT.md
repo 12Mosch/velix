@@ -6,16 +6,6 @@ Status legend:
 - **Half**: there is visible or code-level support, but the implementation is incomplete, limited, or missing important expected behavior.
 - **Missing**: no meaningful implementation was found.
 
-Evidence reviewed: `src/routes/+page.svelte`, `src/routes/page-route.svelte.spec.ts`, `src/routes/api/route/+server.ts`, `src/routes/api/route/server.spec.ts`, `src/routes/api/route/suggest/+server.ts`, `src/routes/api/route/suggest/server.spec.ts`, `src/routes/api/route/reverse/+server.ts`, `src/lib/coordinate-search.ts`, `src/lib/coordinate-search.spec.ts`, `src/lib/server/graphhopper.ts`, `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-export.ts`, `src/lib/saved-routes.svelte.ts`, `src/routes/routes/+page.svelte`, `src/routes/routes/routes-page.svelte.spec.ts`, `src/routes/settings/+page.svelte`, `src/routes/settings/settings-page.svelte.spec.ts`, `src/lib/theme-settings.svelte.ts`, `src/lib/components/app-theme-settings.svelte`, `src/lib/components/saved-routes-sync.svelte`, `src/lib/components/user-preferences-sync.ts`, `src/lib/components/user-preferences-sync.spec.ts`, `src/convex/userPreferences.ts`, `src/convex/userPreferences.spec.ts`, `src/convex/sharedRoutes.ts`, `src/convex/sharedRoutes.spec.ts`, `src/convex/schema.ts`, `src/lib/shared-routes.ts`, `src/lib/shared-routes.spec.ts`, `src/lib/map/basemaps.ts`, `src/lib/map-style-settings.svelte.ts`, `src/lib/components/map-view.svelte`, `src/lib/components/map-view.svelte.spec.ts`, and `src/routes/share/[token]/+page.svelte`.
-
-Wind implementation evidence reviewed on 2026-05-10: `src/lib/server/open-meteo.ts`, `src/lib/server/open-meteo.spec.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/server/route-orchestration.spec.ts`, `src/lib/route-api-schema.ts`, `src/lib/saved-route-convex-validators.ts`, `src/lib/map/map-view-renderer.ts`, `src/lib/route-planner/formatters.ts`, `scripts/run-vitest.mjs`, and `package.json`. Verification: `npm run check` passed, and `npm run test -- --run` passed with 33 test files and 414 tests.
-
-Avoid-road implementation evidence reviewed on 2026-05-10: `src/lib/route-api-schema.ts`, `src/lib/server/graphhopper-routing.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/map/map-view-renderer.ts`, `src/lib/components/route-planner/map-click-menu.svelte`, `src/routes/+page.svelte`, `src/lib/route-planning.spec.ts`, `src/lib/route-api-schema.spec.ts`, `src/routes/api/route/server.spec.ts`, `src/lib/components/map-view.svelte.spec.ts`, `src/routes/page-route.svelte.spec.ts`, and `src/lib/saved-routes-core.spec.ts`.
-
-Route readiness warning evidence reviewed on 2026-05-18: `src/lib/route-planning.ts`, `src/lib/route-planning.spec.ts`, `src/lib/route-api-schema.ts`, `src/lib/route-api-schema.spec.ts`, `src/lib/server/graphhopper-routing.ts`, `src/lib/server/route-orchestration.ts`, `src/lib/server/route-orchestration.spec.ts`, `src/routes/+page.svelte`, and `src/routes/page-route.svelte.spec.ts`.
-
-Route quality scoring evidence reviewed on 2026-05-26: `src/lib/route-planning/quality.ts`, `src/lib/route-planning/types.ts`, `src/lib/route-planning/warnings.ts`, `src/lib/route-api-schema.ts`, `src/lib/saved-route-convex-validators.ts`, `src/lib/server/graphhopper-routing.ts`, `src/lib/server/route-orchestration/route-normalization.ts`, `src/lib/server/route-orchestration/warnings.ts`, `src/lib/route-gpx-import.ts`, `src/lib/route-planner/page/planner-page-context.svelte.ts`, `src/lib/route-planner/formatters.ts`, `src/lib/components/route-planner/route-result-dock.svelte`, `src/lib/route-planning.spec.ts`, `src/lib/route-api-schema.spec.ts`, `src/lib/saved-routes-core.spec.ts`, `src/convex/savedRoutes.spec.ts`, and `src/routes/api/route/server.spec.ts`. Verification: `bun run test` passed with 42 test files and 575 tests, `bun run check` passed with 0 errors and 0 warnings, and `bun run lint` passed.
-
 ## 1. Routing & Route Builder
 
 ### 1.1 Route planning entry
@@ -40,7 +30,7 @@ Route quality scoring evidence reviewed on 2026-05-26: `src/lib/route-planning/q
 | Loop by time | Half | UI accepts target time and runs a bounded adaptive search over distance-based GraphHopper round trips; GraphHopper still receives `round_trip.distance`, not a native time constraint. |
 | Loop by elevation gain | Half | UI accepts climb target and runs a bounded adaptive search over distance candidates; GraphHopper still receives `round_trip.distance`, not a native elevation constraint. |
 | Fully manual planning | Half | Stops and route segments can be dragged on the map and rerouted on drop; there is still no freehand/manual geometry drawing or per-section manual/automatic mode. |
-| Training route based on a workout goal | Missing | No workout-goal route generator. |
+| Training route based on a workout goal | Half | Round-course mode accepts a structured workout-plan text input, parses duration/repeats/intensity/cadence targets, estimates a workout distance, sends a `kind: "workout"` target, ranks candidates against the workout duration, and shows route training suitability. This is not available for point-to-point/out-and-back modes and is not a full session-block route generator. |
 | Route based on existing heatmap/popularity data | Missing | No heatmap/popularity data source. |
 | "Best roads near me" quick generator | Missing | Current-location support exists for route endpoints, but there is no quick generator/discovery workflow. |
 
@@ -67,18 +57,18 @@ Route quality scoring evidence reviewed on 2026-05-26: `src/lib/route-planning/q
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Recovery Ride | Missing | No training profiles. |
-| Endurance / Zone 2 | Missing | No training profiles. |
-| Tempo | Missing | No training profiles. |
-| Threshold | Missing | No training profiles. |
-| Sweet Spot | Missing | No training profiles. |
-| VO2max-oriented route | Missing | No training profiles. |
-| Sprint-oriented route | Missing | No training profiles. |
-| Climbing Session | Missing | No training profiles. |
-| Long Ride | Missing | No training profiles. |
-| Race Simulation | Missing | No training profiles. |
-| Group Ride / fast ride | Missing | No training profiles. |
-| Commute / practical route | Missing | No training profiles. |
+| Recovery Ride | Half | Parsed workout plans can be classified as `recovery` and training-suitability terrain/flow/safety scoring adapts to the session kind; there is no preset or dedicated route-generation strategy. |
+| Endurance / Zone 2 | Half | Parsed workout plans can be classified as `endurance`; the route builder previews duration, step count, session kind, and estimated distance, then evaluates route fit after generation. No preset or dedicated endurance route strategy exists. |
+| Tempo | Half | Parsed workout plans can be classified as `tempo` from target intensity shares; suitability scoring can label and evaluate the resulting workout route, but no preset or dedicated route strategy exists. |
+| Threshold | Half | Parsed workout plans can be classified as `threshold`; high-focus suitability weighting favors route flow and interruption risk. No preset or dedicated threshold route strategy exists. |
+| Sweet Spot | Missing | No distinct sweet-spot session kind or preset; sweet-spot-like percent targets are parsed only as generic intensity. |
+| VO2max-oriented route | Half | High-intensity repeats can classify as `intervals` and increase flow/interruption weighting, but there is no distinct VO2max profile, preset, or interval-section placement model. |
+| Sprint-oriented route | Half | Short high-intensity repeats can classify as `intervals`; there is no sprint-specific profile, preset, or route logic for sprintable sections. |
+| Climbing Session | Missing | No dedicated climbing-session kind, preset, or climb-target workout strategy. |
+| Long Ride | Half | Long workout duration can drive a round-course workout target and distance estimate, but there is no long-ride session kind, preset, fueling/stop logic, or dedicated route strategy. |
+| Race Simulation | Missing | No race-simulation session kind, preset, or route strategy. |
+| Group Ride / fast ride | Missing | No group/fast-ride session kind, preset, or route strategy. |
+| Commute / practical route | Missing | No commute/practical session kind, preset, or route strategy. |
 
 ### 1.5 Advanced routing parameters
 
@@ -220,7 +210,7 @@ Route quality scoring evidence reviewed on 2026-05-26: `src/lib/route-planning/q
 | Safety score | Full | Route quality combines traffic stress, road-environment safety, wind safety, access, and steep descent exposure into a safety subscore. |
 | Road quality score | Full | Route quality calculates aggregate road quality from surface/smoothness, road-class suitability, and access suitability. |
 | Scenic score optional | Missing | No scenic model. |
-| Training suitability score | Half | The overall persisted route-quality score is biased toward road-training suitability, but there are no workout/session-specific training profiles. |
+| Training suitability score | Half | Workout round-course routes calculate a dedicated training-suitability analysis with duration, distance, surface, flow, safety, and terrain subscores plus flags. It is limited to generated round-course workout targets and does not yet cover arbitrary routes or user profile preferences. |
 | Interruption risk | Full | Route quality calculates interruption risk from turn density, roundabouts/U-turns, ferry/tunnel exposure, access restrictions, and unsuitable path classes. |
 | Urban exposure | Full | Route quality calculates urban exposure from road environment, residential/service road classes, and turn-density fallback. |
 | Climb density | Half | Climb density influences gradient suitability, but it is not exposed as a standalone metric. |
@@ -394,7 +384,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | --- | --- | --- |
 | Intervals.icu export/import | Missing | No Intervals.icu integration. |
 | Strava export | Missing | No Strava integration. |
-| Link a planned session to a route | Missing | No session model. |
+| Link a planned session to a route | Half | Round-course workout-plan input is converted into a workout target and stored on the generated route with its training profile; there is no reusable planned-session entity, calendar/platform link, or session attachment flow for existing routes. |
 | Training calendar integration | Missing | No calendar integration. |
 | Match completed rides against planned routes | Missing | No activity ingestion/matching. |
 
@@ -439,7 +429,7 @@ Implemented climb UI surfaces: the main route summary now shows total and catego
 | Are there implausible segments? | Half | Point-to-point routes now warn when route distance is implausibly inefficient versus straight-line distance; no per-segment geometry anomaly detector. |
 | Does the route contain closed or unsuitable paths? | Half | Route readiness warns on poor surfaces, steep gradients, inefficient routing, wind exposure, access restrictions, high traffic stress, interruption risk, and urban exposure; true closure detection is not implemented. |
 | Are there poor OSM data areas? | Missing | No OSM data-quality check. |
-| Is the route appropriate for the planned session? | Half | The persisted route-quality score is biased toward road-training suitability, but no user-selected workout/session suitability model exists. |
+| Is the route appropriate for the planned session? | Half | Workout round-course routes include a dedicated training-suitability model and visible analysis/flags for the parsed session kind. This remains limited to round-course workout targets and does not evaluate non-workout routes or saved/imported plans against an independently selected session. |
 
 ## 8. Explore & Discovery
 
