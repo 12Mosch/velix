@@ -51,6 +51,32 @@ function buildEvent(
 	} as Parameters<typeof POST>[0];
 }
 
+function buildRawEvent(
+	body: BodyInit,
+	fetchMock: typeof fetch,
+	clientAddress = `route-test-${eventId++}`,
+	headers: Record<string, string> = {},
+) {
+	const requestInit: RequestInit & { duplex?: "half" } = {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+			...headers,
+		},
+		body,
+	};
+
+	if (body instanceof ReadableStream) {
+		requestInit.duplex = "half";
+	}
+
+	return {
+		request: new Request("http://localhost/api/route", requestInit),
+		fetch: fetchMock,
+		getClientAddress: () => clientAddress,
+	} as Parameters<typeof POST>[0];
+}
+
 function buildRouteResponse(points: number[][]) {
 	return new Response(
 		JSON.stringify({
@@ -1872,6 +1898,24 @@ describe("POST /api/route", () => {
 				"content-length": String(128 * 1024 + 1),
 			}),
 		);
+
+		expect(response.status).toBe(413);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Route request payload is too large.",
+		});
+	});
+
+	it("rejects oversized streamed route request bodies without content-length", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		const chunk = new TextEncoder().encode(" ".repeat(64 * 1024));
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.enqueue(chunk);
+			},
+		});
+
+		const response = await POST(buildRawEvent(body, fetchMock));
 
 		expect(response.status).toBe(413);
 		expect(fetchMock).not.toHaveBeenCalled();
