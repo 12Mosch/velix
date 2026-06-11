@@ -1,72 +1,27 @@
 /**
- * Utilities for defining equivalence relations - binary relations that determine when two values
- * should be considered equivalent. Equivalence relations are used for comparing, deduplicating,
- * and organizing data in collections and data structures.
+ * Defines reusable equality functions for values of the same type.
  *
- * ## Mental model
- *
- * - **Equivalence relation**: A function `(a: A, b: A) => boolean` that returns `true` when values are equivalent
- * - **Reflexive property**: Every value is equivalent to itself (`eq(a, a) === true`)
- * - **Symmetric property**: If `a` is equivalent to `b`, then `b` is equivalent to `a` (`eq(a, b) === eq(b, a)`)
- * - **Transitive property**: If `a` is equivalent to `b` and `b` is equivalent to `c`, then `a` is equivalent to `c`
- * - **Reference equality optimization**: {@link make} checks `===` first for performance before calling the custom function
- * - **Composition**: Equivalences can be combined using {@link combine} and {@link combineAll} to create more complex relations
- *
- * ## Common tasks
- *
- * - Creating custom equivalences → {@link make}
- * - Using strict equality (`===`) → {@link strictEqual}
- * - Combining multiple equivalences (AND logic) → {@link combine}, {@link combineAll}
- * - Transforming input before comparison → {@link mapInput}
- * - Creating equivalences for structured types → {@link Struct}, {@link Tuple}, {@link Array_}, {@link Record}
- *
- * ## Gotchas
- *
- * - `strictEqual` uses `===`, so `NaN !== NaN` and objects are compared by reference, not structure
- * - `make` optimizes with a reference equality check, so identical references return `true` without calling the function
- * - `combineAll` with an empty collection returns an equivalence that always returns `true`
- * - `Tuple` and `Array` require matching lengths; different lengths are never equivalent
- *
- * ## Quickstart
- *
- * **Example** (Case-insensitive string equivalence)
- *
- * ```ts
- * import { Array, Equivalence } from "effect"
- *
- * const caseInsensitive = Equivalence.make<string>((a, b) =>
- *   a.toLowerCase() === b.toLowerCase()
- * )
- *
- * const strings = ["Hello", "world", "HELLO", "World"]
- * const deduplicated = Array.dedupeWith(strings, caseInsensitive)
- * console.log(deduplicated) // ["Hello", "world"]
- * ```
- *
- * ## See also
- *
- * - {@link Equal} - For structural equality (can convert to Equivalence)
- * - {@link Array_.dedupeWith} - Remove duplicates using an equivalence
- * - {@link Chunk} - Collections that use equivalences for operations
+ * An `Equivalence<A>` returns `true` when two `A` values should be treated as
+ * the same for a particular purpose. This module includes strict equality
+ * instances for primitive types, constructors for custom comparisons, and
+ * helpers for tuples, arrays, structs, records, dates, and values compared
+ * through a derived field.
  *
  * @since 2.0.0
  */
-import { dual } from "./Function.ts";
-import type { TypeLambda } from "./HKT.ts";
-import * as Reducer from "./Reducer.ts";
+import { dual } from "./Function.ts"
+import type { TypeLambda } from "./HKT.ts"
+import * as Reducer from "./Reducer.ts"
 
 /**
  * Represents an equivalence relation over type `A`.
  *
  * **When to use**
  *
- * - Use as a type annotation for equivalence functions
- * - Use when implementing custom equivalence logic
- * - Use when working with collection operations that require equivalence relations
+ * Use as a type annotation when you accept or return an equivalence function.
  *
  * **Details**
  *
- * - Pure function: does not mutate inputs or have side effects
  * - Returns `boolean`: `true` if values are equivalent, `false` otherwise
  * - Must satisfy reflexive, symmetric, and transitive properties
  *
@@ -102,16 +57,14 @@ import * as Reducer from "./Reducer.ts";
  * @category type class
  * @since 2.0.0
  */
-export type Equivalence<in A> = (self: A, that: A) => boolean;
+export type Equivalence<in A> = (self: A, that: A) => boolean
 
 /**
  * Type lambda for `Equivalence`, used for higher-kinded type operations.
  *
  * **When to use**
  *
- * - Rarely needed in application code
- * - Use primarily for internal type system operations and HKT (Higher-Kinded Types) abstractions
- * - Use when working with generic type constructors that require type lambdas
+ * Use when you need to abstract over `Equivalence` in higher-kinded type code.
  *
  * **Details**
  *
@@ -140,7 +93,7 @@ export type Equivalence<in A> = (self: A, that: A) => boolean;
  * @since 2.0.0
  */
 export interface EquivalenceTypeLambda extends TypeLambda {
-	readonly type: Equivalence<this["Target"]>;
+  readonly type: Equivalence<this["Target"]>
 }
 
 /**
@@ -148,16 +101,15 @@ export interface EquivalenceTypeLambda extends TypeLambda {
  *
  * **When to use**
  *
- * - Use when you need a custom equivalence that is not just strict equality
- * - Use when creating equivalences for complex types with custom comparison logic
- * - Use when you want the performance benefit of reference equality optimization
+ * Use when you need an equality rule that the built-in instances and input
+ * mapping helpers cannot express, and you can provide a law-abiding comparison.
  *
  * **Details**
  *
- * - Does not mutate inputs
- * - First checks reference equality (`===`) for performance; if values are identical, returns `true` without calling the function
- * - Falls back to the provided equivalence function if values are not the same reference
- * - The provided function must satisfy reflexive, symmetric, and transitive properties
+ * The returned equivalence first checks reference equality (`===`) for
+ * performance. If the values are not the same reference, it falls back to the
+ * provided equivalence function, which must satisfy reflexive, symmetric, and
+ * transitive properties.
  *
  * **Example** (Case-insensitive string equivalence)
  *
@@ -192,29 +144,24 @@ export interface EquivalenceTypeLambda extends TypeLambda {
  * @category constructors
  * @since 2.0.0
  */
-export const make =
-	<A>(isEquivalent: (self: A, that: A) => boolean): Equivalence<A> =>
-	(self: A, that: A): boolean =>
-		self === that || isEquivalent(self, that);
+export const make = <A>(isEquivalent: (self: A, that: A) => boolean): Equivalence<A> => (self: A, that: A): boolean =>
+  self === that || isEquivalent(self, that)
 
-const isStrictEquivalent = (x: unknown, y: unknown) => x === y;
+const isStrictEquivalent = (x: unknown, y: unknown) => x === y
 
 /**
  * Creates an equivalence relation that uses strict equality (`===`) to compare values.
  *
  * **When to use**
  *
- * - Use for primitive types where `===` is appropriate
- * - Use when you need reference equality for objects
- * - Use as a building block for more complex equivalences via {@link mapInput} or {@link combine}
- * - Use when performance is critical and you do not need structural equality
+ * Use when you need strict equality (`===`) as the comparison.
  *
  * **Details**
  *
- * - Does not mutate inputs
- * - Uses JavaScript's strict equality operator (`===`)
- * - For primitives: compares values directly
- * - For objects: compares by reference, so only the same object instance is equivalent
+ * Uses JavaScript's strict equality operator (`===`). Primitives compare by
+ * value. Objects compare by reference, so only the same object instance is
+ * equivalent. Use this as a building block for more complex equivalences via
+ * `mapInput` or `combine`.
  *
  * **Gotchas**
  *
@@ -245,14 +192,18 @@ const isStrictEquivalent = (x: unknown, y: unknown) => x === y;
  * ```
  *
  * @see {@link make}
- * @see {@link Equal} for structural equality
+ * @see `Equal` for structural equality
  * @category constructors
  * @since 4.0.0
  */
-export const strictEqual: <A>() => Equivalence<A> = () => isStrictEquivalent;
+export const strictEqual: <A>() => Equivalence<A> = () => isStrictEquivalent
 
 /**
- * An `Equivalence` instance for strings using strict equality (`===`).
+ * Equivalence instance for strings using strict equality (`===`).
+ *
+ * **When to use**
+ *
+ * Use when you need to supply case-sensitive string equality.
  *
  * **Example** (Comparing strings)
  *
@@ -266,14 +217,14 @@ export const strictEqual: <A>() => Equivalence<A> = () => isStrictEquivalent;
  * @category instances
  * @since 4.0.0
  */
-export const String: Equivalence<string> = isStrictEquivalent;
+export const String: Equivalence<string> = isStrictEquivalent
 
 /**
- * An `Equivalence` instance for numbers.
+ * Equivalence instance for numbers.
  *
- * **Details**
+ * **When to use**
  *
- * `NaN` is considered equal to `NaN`.
+ * Use when you need numeric equality that treats NaN as equal to itself.
  *
  * **Example** (Comparing numbers)
  *
@@ -288,13 +239,16 @@ export const String: Equivalence<string> = isStrictEquivalent;
  * @category instances
  * @since 4.0.0
  */
-export const Number: Equivalence<number> = make(
-	(self, that) =>
-		globalThis.Number.isNaN(self) && globalThis.Number.isNaN(that),
-);
+export const Number: Equivalence<number> = make((self, that) =>
+  globalThis.Number.isNaN(self) && globalThis.Number.isNaN(that)
+)
 
 /**
- * An `Equivalence` instance for booleans using strict equality (`===`).
+ * Equivalence instance for booleans using strict equality (`===`).
+ *
+ * **When to use**
+ *
+ * Use when you need to supply boolean equality.
  *
  * **Example** (Comparing booleans)
  *
@@ -308,10 +262,14 @@ export const Number: Equivalence<number> = make(
  * @category instances
  * @since 4.0.0
  */
-export const Boolean: Equivalence<boolean> = isStrictEquivalent;
+export const Boolean: Equivalence<boolean> = isStrictEquivalent
 
 /**
- * An `Equivalence` instance for bigints using strict equality (`===`).
+ * Equivalence instance for bigints using strict equality (`===`).
+ *
+ * **When to use**
+ *
+ * Use when you need to supply bigint equality.
  *
  * **Example** (Comparing bigints)
  *
@@ -325,23 +283,21 @@ export const Boolean: Equivalence<boolean> = isStrictEquivalent;
  * @category instances
  * @since 4.0.0
  */
-export const BigInt: Equivalence<bigint> = isStrictEquivalent;
+export const BigInt: Equivalence<bigint> = isStrictEquivalent
 
 /**
  * Combines two equivalence relations using logical AND.
  *
  * **When to use**
  *
- * - Use when you need to combine exactly two equivalences
- * - Use when building complex equivalences from simpler ones
- * - Use when you want both conditions to be satisfied
+ * Use when you need to combine exactly two equivalences with AND semantics.
  *
  * **Details**
  *
- * - Does not mutate inputs
- * - Returns `true` only if both equivalences return `true`
- * - Short-circuits: if the first equivalence returns `false`, the second is not called
- * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
+ * Returns `true` only if both equivalences return `true`. The comparison
+ * short-circuits when the first equivalence returns `false`. The result is also
+ * an equivalence that satisfies reflexive, symmetric, and transitive
+ * properties.
  *
  * **Example** (Combining name and age equivalences)
  *
@@ -379,31 +335,122 @@ export const BigInt: Equivalence<bigint> = isStrictEquivalent;
  * @since 2.0.0
  */
 export const combine: {
-	<A>(that: Equivalence<A>): (self: Equivalence<A>) => Equivalence<A>;
-	<A>(self: Equivalence<A>, that: Equivalence<A>): Equivalence<A>;
-} = dual(
-	2,
-	<A>(self: Equivalence<A>, that: Equivalence<A>): Equivalence<A> =>
-		make((x, y) => self(x, y) && that(x, y)),
-);
+  /**
+   * Combines two equivalence relations using logical AND.
+   *
+   * **When to use**
+   *
+   * Use when you need to combine exactly two equivalences with AND semantics.
+   *
+   * **Details**
+   *
+   * Returns `true` only if both equivalences return `true`. The comparison
+   * short-circuits when the first equivalence returns `false`. The result is also
+   * an equivalence that satisfies reflexive, symmetric, and transitive
+   * properties.
+   *
+   * **Example** (Combining name and age equivalences)
+   *
+   * ```ts
+   * import { Equivalence } from "effect"
+   *
+   * interface Person {
+   *   name: string
+   *   age: number
+   * }
+   *
+   * const nameEquivalence = Equivalence.mapInput(
+   *   Equivalence.strictEqual<string>(),
+   *   (p: Person) => p.name
+   * )
+   *
+   * const ageEquivalence = Equivalence.mapInput(
+   *   Equivalence.strictEqual<number>(),
+   *   (p: Person) => p.age
+   * )
+   *
+   * const personEquivalence = Equivalence.combine(nameEquivalence, ageEquivalence)
+   *
+   * const person1 = { name: "Alice", age: 30 }
+   * const person2 = { name: "Alice", age: 30 }
+   * const person3 = { name: "Alice", age: 31 }
+   *
+   * console.log(personEquivalence(person1, person2)) // true
+   * console.log(personEquivalence(person1, person3)) // false (different age)
+   * ```
+   *
+   * @see {@link combineAll}
+   * @see {@link mapInput}
+   * @category combining
+   * @since 2.0.0
+   */
+  <A>(that: Equivalence<A>): (self: Equivalence<A>) => Equivalence<A>
+  /**
+   * Combines two equivalence relations using logical AND.
+   *
+   * **When to use**
+   *
+   * Use when you need to combine exactly two equivalences with AND semantics.
+   *
+   * **Details**
+   *
+   * Returns `true` only if both equivalences return `true`. The comparison
+   * short-circuits when the first equivalence returns `false`. The result is also
+   * an equivalence that satisfies reflexive, symmetric, and transitive
+   * properties.
+   *
+   * **Example** (Combining name and age equivalences)
+   *
+   * ```ts
+   * import { Equivalence } from "effect"
+   *
+   * interface Person {
+   *   name: string
+   *   age: number
+   * }
+   *
+   * const nameEquivalence = Equivalence.mapInput(
+   *   Equivalence.strictEqual<string>(),
+   *   (p: Person) => p.name
+   * )
+   *
+   * const ageEquivalence = Equivalence.mapInput(
+   *   Equivalence.strictEqual<number>(),
+   *   (p: Person) => p.age
+   * )
+   *
+   * const personEquivalence = Equivalence.combine(nameEquivalence, ageEquivalence)
+   *
+   * const person1 = { name: "Alice", age: 30 }
+   * const person2 = { name: "Alice", age: 30 }
+   * const person3 = { name: "Alice", age: 31 }
+   *
+   * console.log(personEquivalence(person1, person2)) // true
+   * console.log(personEquivalence(person1, person3)) // false (different age)
+   * ```
+   *
+   * @see {@link combineAll}
+   * @see {@link mapInput}
+   * @category combining
+   * @since 2.0.0
+   */
+  <A>(self: Equivalence<A>, that: Equivalence<A>): Equivalence<A>
+} = dual(2, <A>(self: Equivalence<A>, that: Equivalence<A>): Equivalence<A> => make((x, y) => self(x, y) && that(x, y)))
 
 /**
  * Combines multiple equivalence relations into a single equivalence using logical AND.
  *
  * **When to use**
  *
- * - Use when you need to combine three or more equivalences
- * - Use when you have a dynamic collection of equivalences to combine
- * - Use when building equivalences from arrays or iterables
- * - Prefer this over multiple `combine` calls when you have many equivalences
+ * Use when you need to combine many `Equivalence` instances from an iterable.
  *
  * **Details**
  *
- * - Does not mutate inputs
- * - Returns `true` only if all equivalences in the collection return `true`
- * - Short-circuits: stops at the first equivalence that returns `false`
- * - Empty collections return an equivalence that always returns `true`
- * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
+ * Returns `true` only if all equivalences in the collection return `true`. The
+ * comparison stops at the first equivalence that returns `false`. Empty
+ * collections return an equivalence that always returns `true`. The result is
+ * also an equivalence that satisfies reflexive, symmetric, and transitive
+ * properties.
  *
  * **Example** (Combining multiple field equivalences)
  *
@@ -454,35 +501,31 @@ export const combine: {
  * @category combining
  * @since 2.0.0
  */
-export const combineAll = <A>(
-	collection: Iterable<Equivalence<A>>,
-): Equivalence<A> =>
-	make((x, y) => {
-		for (const equivalence of collection) {
-			if (!equivalence(x, y)) {
-				return false;
-			}
-		}
-		return true;
-	});
+export const combineAll = <A>(collection: Iterable<Equivalence<A>>): Equivalence<A> =>
+  make((x, y) => {
+    for (const equivalence of collection) {
+      if (!equivalence(x, y)) {
+        return false
+      }
+    }
+    return true
+  })
 
 /**
  * Transforms an equivalence relation by mapping the input values before comparison.
  *
  * **When to use**
  *
- * - Use when you need an equivalence for a complex type based on a single property
- * - Use when you want to normalize values before comparison, such as case-insensitive strings
- * - Use when creating equivalences that focus on specific fields of objects
- * - Use as a building block for creating equivalences via {@link combine} or {@link combineAll}
+ * Use when you need an equivalence for one type by comparing a derived value.
  *
  * **Details**
  *
- * - Does not mutate inputs
  * - Applies the transformation function to both values before comparing
  * - The transformation function should be pure and have no side effects
  * - The resulting equivalence compares the transformed values using the provided equivalence
  * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
+ * - Useful for comparing by one property or normalizing values before
+ *   comparison, such as case-insensitive strings
  *
  * **Example** (Equivalence based on object property)
  *
@@ -529,31 +572,148 @@ export const combineAll = <A>(
  * @since 2.0.0
  */
 export const mapInput: {
-	<B, A>(f: (b: B) => A): (self: Equivalence<A>) => Equivalence<B>;
-	<A, B>(self: Equivalence<A>, f: (b: B) => A): Equivalence<B>;
+  /**
+   * Transforms an equivalence relation by mapping the input values before comparison.
+   *
+   * **When to use**
+   *
+   * Use when you need an equivalence for one type by comparing a derived value.
+   *
+   * **Details**
+   *
+   * - Applies the transformation function to both values before comparing
+   * - The transformation function should be pure and have no side effects
+   * - The resulting equivalence compares the transformed values using the provided equivalence
+   * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
+   * - Useful for comparing by one property or normalizing values before
+   *   comparison, such as case-insensitive strings
+   *
+   * **Example** (Equivalence based on object property)
+   *
+   * ```ts
+   * import { Equivalence } from "effect"
+   *
+   * interface User {
+   *   id: number
+   *   name: string
+   *   email: string
+   * }
+   *
+   * // Create equivalence based on user ID only
+   * const userByIdEq = Equivalence.mapInput(
+   *   Equivalence.strictEqual<number>(),
+   *   (user: User) => user.id
+   * )
+   *
+   * const user1 = { id: 1, name: "Alice", email: "alice@example.com" }
+   * const user2 = { id: 1, name: "Alice Smith", email: "alice.smith@example.com" }
+   * const user3 = { id: 2, name: "Bob", email: "bob@example.com" }
+   *
+   * console.log(userByIdEq(user1, user2)) // true (same ID)
+   * console.log(userByIdEq(user1, user3)) // false (different ID)
+   * ```
+   *
+   * **Example** (Case-insensitive string equivalence)
+   *
+   * ```ts
+   * import { Equivalence } from "effect"
+   *
+   * const caseInsensitiveEq = Equivalence.mapInput(
+   *   Equivalence.strictEqual<string>(),
+   *   (s: string) => s.toLowerCase()
+   * )
+   *
+   * console.log(caseInsensitiveEq("Hello", "HELLO")) // true
+   * console.log(caseInsensitiveEq("Hello", "World")) // false
+   * ```
+   *
+   * @see {@link combine}
+   * @see {@link Struct}
+   * @category mapping
+   * @since 2.0.0
+   */
+  <B, A>(f: (b: B) => A): (self: Equivalence<A>) => Equivalence<B>
+  /**
+   * Transforms an equivalence relation by mapping the input values before comparison.
+   *
+   * **When to use**
+   *
+   * Use when you need an equivalence for one type by comparing a derived value.
+   *
+   * **Details**
+   *
+   * - Applies the transformation function to both values before comparing
+   * - The transformation function should be pure and have no side effects
+   * - The resulting equivalence compares the transformed values using the provided equivalence
+   * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
+   * - Useful for comparing by one property or normalizing values before
+   *   comparison, such as case-insensitive strings
+   *
+   * **Example** (Equivalence based on object property)
+   *
+   * ```ts
+   * import { Equivalence } from "effect"
+   *
+   * interface User {
+   *   id: number
+   *   name: string
+   *   email: string
+   * }
+   *
+   * // Create equivalence based on user ID only
+   * const userByIdEq = Equivalence.mapInput(
+   *   Equivalence.strictEqual<number>(),
+   *   (user: User) => user.id
+   * )
+   *
+   * const user1 = { id: 1, name: "Alice", email: "alice@example.com" }
+   * const user2 = { id: 1, name: "Alice Smith", email: "alice.smith@example.com" }
+   * const user3 = { id: 2, name: "Bob", email: "bob@example.com" }
+   *
+   * console.log(userByIdEq(user1, user2)) // true (same ID)
+   * console.log(userByIdEq(user1, user3)) // false (different ID)
+   * ```
+   *
+   * **Example** (Case-insensitive string equivalence)
+   *
+   * ```ts
+   * import { Equivalence } from "effect"
+   *
+   * const caseInsensitiveEq = Equivalence.mapInput(
+   *   Equivalence.strictEqual<string>(),
+   *   (s: string) => s.toLowerCase()
+   * )
+   *
+   * console.log(caseInsensitiveEq("Hello", "HELLO")) // true
+   * console.log(caseInsensitiveEq("Hello", "World")) // false
+   * ```
+   *
+   * @see {@link combine}
+   * @see {@link Struct}
+   * @category mapping
+   * @since 2.0.0
+   */
+  <A, B>(self: Equivalence<A>, f: (b: B) => A): Equivalence<B>
 } = dual(
-	2,
-	<A, B>(self: Equivalence<A>, f: (b: B) => A): Equivalence<B> =>
-		make((x, y) => self(f(x), f(y))),
-);
+  2,
+  <A, B>(self: Equivalence<A>, f: (b: B) => A): Equivalence<B> => make((x, y) => self(f(x), f(y)))
+)
 
 /**
  * Creates an equivalence for tuples with heterogeneous element types.
  *
  * **When to use**
  *
- * - Use when comparing tuples with different types at each position
- * - Use when you need different equivalence logic for each tuple element
- * - Use when working with fixed-length tuples instead of arrays
- * - Prefer this over `Array` when you have a known tuple structure with different types
+ * Use when you need an `Equivalence` for fixed-length tuples with per-position
+ * equivalences.
  *
  * **Details**
  *
- * - Does not mutate inputs
- * - Requires tuples to have the same length; different lengths are never equivalent
- * - Applies each equivalence to the corresponding element position
- * - Returns `true` only if all elements are equivalent according to their respective equivalences
- * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
+ * Tuples must have the same length; different lengths are never equivalent.
+ * Each equivalence is applied to the corresponding element position. The result
+ * returns `true` only if all elements are equivalent according to their
+ * respective equivalences, and it also satisfies reflexive, symmetric, and
+ * transitive properties.
  *
  * **Example** (Homogeneous tuple equivalence)
  *
@@ -595,119 +755,106 @@ export const mapInput: {
  * ) // true
  * ```
  *
- * @see {@link Array_}
- * @see {@link Struct}
  * @category combinators
  * @since 4.0.0
  */
 export function Tuple<const Elements extends ReadonlyArray<Equivalence<any>>>(
-	elements: Elements,
-): Equivalence<{
-	readonly [I in keyof Elements]: [Elements[I]] extends [Equivalence<infer A>]
-		? A
-		: never;
-}> {
-	return make((self, that) => {
-		if (self.length !== that.length) {
-			return false;
-		}
-		for (let i = 0; i < self.length; i++) {
-			if (!elements[i](self[i], that[i])) {
-				return false;
-			}
-		}
-		return true;
-	});
+  elements: Elements
+): Equivalence<{ readonly [I in keyof Elements]: [Elements[I]] extends [Equivalence<infer A>] ? A : never }> {
+  return make((self, that) => {
+    if (self.length !== that.length) {
+      return false
+    }
+    for (let i = 0; i < self.length; i++) {
+      if (!elements[i](self[i], that[i])) {
+        return false
+      }
+    }
+    return true
+  })
 }
 
 /**
  * @since 4.0.0
  */
 function Array_<A>(item: Equivalence<A>): Equivalence<ReadonlyArray<A>> {
-	return make((self, that) => {
-		if (self.length !== that.length) return false;
+  return make((self, that) => {
+    if (self.length !== that.length) return false
 
-		for (let i = 0; i < self.length; i++) {
-			if (!item(self[i], that[i])) return false;
-		}
+    for (let i = 0; i < self.length; i++) {
+      if (!item(self[i], that[i])) return false
+    }
 
-		return true;
-	});
+    return true
+  })
 }
 export {
-	/**
-	 * Creates an equivalence for arrays where all elements are compared using the same equivalence.
-	 *
-	 * **When to use**
-	 *
-	 * - Use when comparing arrays with homogeneous element types
-	 * - Use when all elements should use the same equivalence logic
-	 * - Use when working with variable-length arrays instead of fixed tuples
-	 * - Prefer this over `Tuple` when you have arrays of the same type
-	 *
-	 * **Details**
-	 *
-	 * - Does not mutate inputs
-	 * - Requires arrays to have the same length; different lengths are never equivalent
-	 * - Compares elements positionally, such as index `0` with index `0`
-	 * - Returns `true` only if all corresponding elements are equivalent
-	 * - Empty arrays are considered equivalent
-	 * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
-	 *
-	 * **Example** (Number array equivalence)
-	 *
-	 * ```ts
-	 * import { Equivalence } from "effect"
-	 *
-	 * const numberArrayEq = Equivalence.Array(Equivalence.strictEqual<number>())
-	 *
-	 * console.log(numberArrayEq([1, 2, 3], [1, 2, 3])) // true
-	 * console.log(numberArrayEq([1, 2, 3], [1, 2, 4])) // false
-	 * console.log(numberArrayEq([1, 2], [1, 2, 3])) // false (different length)
-	 * ```
-	 *
-	 * **Example** (Case-insensitive string array)
-	 *
-	 * ```ts
-	 * import { Equivalence } from "effect"
-	 *
-	 * const caseInsensitive = Equivalence.mapInput(
-	 *   Equivalence.strictEqual<string>(),
-	 *   (s: string) => s.toLowerCase()
-	 * )
-	 * const stringArrayEq = Equivalence.Array(caseInsensitive)
-	 *
-	 * console.log(stringArrayEq(["Hello", "World"], ["HELLO", "WORLD"])) // true
-	 * console.log(stringArrayEq(["Hello"], ["Hi"])) // false
-	 * console.log(stringArrayEq([], [])) // true (empty arrays)
-	 * ```
-	 *
-	 * @see {@link Tuple}
-	 * @see {@link Record}
-	 * @category combinators
-	 * @since 4.0.0
-	 */
-	Array_ as Array,
-};
+  /**
+   * Creates an equivalence for arrays where all elements are compared using the same equivalence.
+   *
+   * **When to use**
+   *
+   * Use when you need to compare arrays with one equivalence for every element.
+   *
+   * **Details**
+   *
+   * - Requires arrays to have the same length; different lengths are never equivalent
+   * - Compares elements positionally, such as index `0` with index `0`
+   * - Returns `true` only if all corresponding elements are equivalent
+   * - Empty arrays are considered equivalent
+   * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
+   *
+   * **Example** (Number array equivalence)
+   *
+   * ```ts
+   * import { Equivalence } from "effect"
+   *
+   * const numberArrayEq = Equivalence.Array(Equivalence.strictEqual<number>())
+   *
+   * console.log(numberArrayEq([1, 2, 3], [1, 2, 3])) // true
+   * console.log(numberArrayEq([1, 2, 3], [1, 2, 4])) // false
+   * console.log(numberArrayEq([1, 2], [1, 2, 3])) // false (different length)
+   * ```
+   *
+   * **Example** (Case-insensitive string array)
+   *
+   * ```ts
+   * import { Equivalence } from "effect"
+   *
+   * const caseInsensitive = Equivalence.mapInput(
+   *   Equivalence.strictEqual<string>(),
+   *   (s: string) => s.toLowerCase()
+   * )
+   * const stringArrayEq = Equivalence.Array(caseInsensitive)
+   *
+   * console.log(stringArrayEq(["Hello", "World"], ["HELLO", "WORLD"])) // true
+   * console.log(stringArrayEq(["Hello"], ["Hi"])) // false
+   * console.log(stringArrayEq([], [])) // true (empty arrays)
+   * ```
+   *
+   * @see {@link Tuple}
+   * @see {@link Record}
+   * @category combinators
+   * @since 4.0.0
+   */
+  Array_ as Array
+}
 
 /**
  * Creates an equivalence for objects by comparing their properties using provided equivalences.
  *
  * **When to use**
  *
- * - Use when comparing objects with known, fixed property names
- * - Use when you need different equivalence logic for different properties
- * - Use when working with struct or interface types with specific fields
- * - Prefer this over `Record` when you have a fixed set of known properties
+ * Use when you need an `Equivalence` for objects with known, fixed property
+ * names.
  *
  * **Details**
  *
- * - Does not mutate inputs
- * - Compares only the properties specified in the struct definition
- * - Properties not in the struct are ignored
- * - Returns `true` only if all specified properties are equivalent according to their equivalences
- * - Supports both string and symbol keys via `Reflect.ownKeys`
- * - The result is also an equivalence that satisfies reflexive, symmetric, and transitive properties
+ * Compares only the properties specified in the struct definition; other
+ * properties are ignored. String and symbol keys are supported via
+ * `Reflect.ownKeys`. The result returns `true` only if all specified properties
+ * are equivalent according to their equivalences, and it also satisfies
+ * reflexive, symmetric, and transitive properties.
  *
  * **Example** (Struct with different equivalences per field)
  *
@@ -762,17 +909,15 @@ export {
  * @since 4.0.0
  */
 export function Struct<R extends Record<string, Equivalence<any>>>(
-	fields: R,
-): Equivalence<{
-	readonly [K in keyof R]: [R[K]] extends [Equivalence<infer A>] ? A : never;
-}> {
-	const keys: Array<any> = Reflect.ownKeys(fields);
-	return make((self, that) => {
-		for (const key of keys) {
-			if (!fields[key](self[key], that[key])) return false;
-		}
-		return true;
-	});
+  fields: R
+): Equivalence<{ readonly [K in keyof R]: [R[K]] extends [Equivalence<infer A>] ? A : never }> {
+  const keys: Array<any> = Reflect.ownKeys(fields)
+  return make((self, that) => {
+    for (const key of keys) {
+      if (!fields[key](self[key], that[key])) return false
+    }
+    return true
+  })
 }
 
 /**
@@ -780,14 +925,11 @@ export function Struct<R extends Record<string, Equivalence<any>>>(
  *
  * **When to use**
  *
- * - Use when comparing objects with dynamic or unknown property names
- * - Use when all property values should use the same equivalence logic
- * - Use when working with record or dictionary types
- * - Prefer this over `Struct` when you have variable properties or need to compare all properties uniformly
+ * Use when you need to compare records with the same equivalence for every
+ * property value.
  *
  * **Details**
  *
- * - Does not mutate inputs
  * - Compares all properties present in both objects
  * - Requires both objects to have the same set of keys; different keys result in `false`
  * - All property values must be equivalent according to the provided equivalence
@@ -827,28 +969,24 @@ export function Struct<R extends Record<string, Equivalence<any>>>(
  * console.log(numberRecordEq(scores1, scores3)) // false
  * ```
  *
- * @see {@link Struct}
- * @see {@link Array_}
  * @category combinators
  * @since 4.0.0
  */
-export function Record<A>(
-	value: Equivalence<A>,
-): Equivalence<Record<PropertyKey, A>> {
-	return make((self, that) => {
-		const selfKeys = Reflect.ownKeys(self);
-		const thatKeys = Reflect.ownKeys(that);
+export function Record<A>(value: Equivalence<A>): Equivalence<Record<PropertyKey, A>> {
+  return make((self, that) => {
+    const selfKeys = Reflect.ownKeys(self)
+    const thatKeys = Reflect.ownKeys(that)
 
-		if (selfKeys.length !== thatKeys.length) return false;
+    if (selfKeys.length !== thatKeys.length) return false
 
-		for (const key of selfKeys) {
-			if (!Object.hasOwn(that, key) || !value(self[key], that[key])) {
-				return false;
-			}
-		}
+    for (const key of selfKeys) {
+      if (!Object.hasOwn(that, key) || !value(self[key], that[key])) {
+        return false
+      }
+    }
 
-		return true;
-	});
+    return true
+  })
 }
 
 /**
@@ -856,16 +994,14 @@ export function Record<A>(
  *
  * **When to use**
  *
- * - Use when you need to combine multiple equivalences from a collection using reducer patterns
- * - Use when implementing fold operations over collections of equivalences
- * - Use when working with reducers that operate on equivalences
+ * Use when you need a reducer that combines equivalences.
  *
  * **Details**
  *
- * - Returns a reducer that combines equivalences using {@link combine}
- * - Uses an equivalence that always returns `true` as the identity element for empty collections
- * - Uses {@link combineAll} for combining collections of equivalences
- * - The reducer can be used with fold operations on collections
+ * Returns a reducer that combines equivalences using `combine`. The identity
+ * element for empty collections is an equivalence that always returns `true`.
+ * The reducer uses `combineAll` for collections of equivalences and can be used
+ * with fold operations.
  *
  * **Example** (Creating a Reducer)
  *
@@ -887,15 +1023,24 @@ export function Record<A>(
  * @see {@link combine} Combine two equivalences
  * @see {@link combineAll} Combine multiple equivalences
  * @see {@link Reducer} Reducer type for collection operations
- * @category utils
+ * @category constructors
  * @since 4.0.0
  */
 export function makeReducer<A>() {
-	return Reducer.make<Equivalence<A>>(combine, () => true, combineAll);
+  return Reducer.make<Equivalence<A>>(
+    combine,
+    () => true,
+    combineAll
+  )
 }
 
 /**
- * An `Equivalence` instance for `Date` objects that compares their `getTime()` values using `Equivalence.Number`.
+ * Equivalence instance for `Date` objects that compares their `getTime()` values using `Equivalence.Number`.
+ *
+ * **When to use**
+ *
+ * Use when you need an `Equivalence` for JavaScript date objects by their
+ * millisecond timestamp.
  *
  * **Details**
  *
@@ -931,12 +1076,13 @@ export function makeReducer<A>() {
  * console.log(Equivalence.Date(d1, d2)) // true (same time value)
  * ```
  *
- * @see {@link Number}
- * @see {@link mapInput}
- * @see {@link strictEqual}
+ * @see {@link Number} for the numeric equivalence applied to each `Date#getTime()` result
+ * @see {@link mapInput} for deriving an equivalence by mapping inputs before comparison
+ * @see {@link strictEqual} for reference equality when two values must be the same object
  * @category instances
  * @since 2.0.0
  */
-export const Date: Equivalence<Date> = mapInput(Number, (d: Date) =>
-	d.getTime(),
-);
+export const Date: Equivalence<Date> = mapInput(
+  Number,
+  (d: Date) => d.getTime()
+)

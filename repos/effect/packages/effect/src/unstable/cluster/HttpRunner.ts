@@ -1,50 +1,35 @@
 /**
- * The `HttpRunner` module wires cluster runner RPCs to HTTP transports. It
- * provides client protocol layers for contacting runners over HTTP or
- * WebSocket, server-side HTTP effects for exposing runner RPC handlers, and
- * complete layers that install those routes into an `HttpRouter`.
+ * Connects cluster runner RPCs to HTTP and WebSocket transports.
  *
- * **Common tasks**
- *
- * - Serve runner RPC routes with {@link layerHttp} or {@link layerWebsocket}
- * - Configure client-only runner communication with {@link layerHttpClientOnly}
- *   or {@link layerWebsocketClientOnly}
- * - Use custom route paths with {@link layerHttpOptions},
- *   {@link layerWebsocketOptions}, {@link layerClientProtocolHttp}, or
- *   {@link layerClientProtocolWebsocket}
- *
- * **Transport gotchas**
- *
- * - Client protocol paths are appended to each runner address when building the
- *   target URL
- * - `https: true` switches HTTP clients from `http` to `https`, and WebSocket
- *   clients from `ws` to `wss`
- * - The default complete layers serve and connect at `/`; use the `Options`
- *   variants when your runner routes live under a different path
+ * Runner nodes communicate through the `Runners.Rpcs` protocol. This module
+ * provides client protocol layers for dialing runner addresses over HTTP or
+ * WebSocket, HTTP effects that serve runner RPC handlers, route layers for
+ * installing runner endpoints into an `HttpRouter`, and ready-made layers for
+ * HTTP or WebSocket runner communication.
  *
  * @since 4.0.0
  */
-import * as Effect from "../../Effect.ts";
-import * as Layer from "../../Layer.ts";
-import type { Scope } from "../../Scope.ts";
-import * as HttpClient from "../http/HttpClient.ts";
-import * as HttpClientRequest from "../http/HttpClientRequest.ts";
-import * as HttpRouter from "../http/HttpRouter.ts";
-import type * as HttpServer from "../http/HttpServer.ts";
-import type { HttpServerRequest } from "../http/HttpServerRequest.ts";
-import type { HttpServerResponse } from "../http/HttpServerResponse.ts";
-import * as RpcClient from "../rpc/RpcClient.ts";
-import * as RpcSerialization from "../rpc/RpcSerialization.ts";
-import * as RpcServer from "../rpc/RpcServer.ts";
-import * as Socket from "../socket/Socket.ts";
-import type { MessageStorage } from "./MessageStorage.ts";
-import type { RunnerHealth } from "./RunnerHealth.ts";
-import * as Runners from "./Runners.ts";
-import { RpcClientProtocol } from "./Runners.ts";
-import * as RunnerServer from "./RunnerServer.ts";
-import type { RunnerStorage } from "./RunnerStorage.ts";
-import * as Sharding from "./Sharding.ts";
-import type * as ShardingConfig from "./ShardingConfig.ts";
+import * as Effect from "../../Effect.ts"
+import * as Layer from "../../Layer.ts"
+import type { Scope } from "../../Scope.ts"
+import * as HttpClient from "../http/HttpClient.ts"
+import * as HttpClientRequest from "../http/HttpClientRequest.ts"
+import * as HttpRouter from "../http/HttpRouter.ts"
+import type * as HttpServer from "../http/HttpServer.ts"
+import type { HttpServerRequest } from "../http/HttpServerRequest.ts"
+import type { HttpServerResponse } from "../http/HttpServerResponse.ts"
+import * as RpcClient from "../rpc/RpcClient.ts"
+import * as RpcSerialization from "../rpc/RpcSerialization.ts"
+import * as RpcServer from "../rpc/RpcServer.ts"
+import * as Socket from "../socket/Socket.ts"
+import type { MessageStorage } from "./MessageStorage.ts"
+import type { RunnerHealth } from "./RunnerHealth.ts"
+import * as Runners from "./Runners.ts"
+import { RpcClientProtocol } from "./Runners.ts"
+import * as RunnerServer from "./RunnerServer.ts"
+import type { RunnerStorage } from "./RunnerStorage.ts"
+import * as Sharding from "./Sharding.ts"
+import type * as ShardingConfig from "./ShardingConfig.ts"
 
 /**
  * Provides a runner RPC client protocol that connects to runner addresses over
@@ -59,34 +44,29 @@ import type * as ShardingConfig from "./ShardingConfig.ts";
  * @since 4.0.0
  */
 export const layerClientProtocolHttp = (options: {
-	readonly path: string;
-	readonly https?: boolean | undefined;
+  readonly path: string
+  readonly https?: boolean | undefined
 }): Layer.Layer<
-	RpcClientProtocol,
-	never,
-	RpcSerialization.RpcSerialization | HttpClient.HttpClient
+  RpcClientProtocol,
+  never,
+  RpcSerialization.RpcSerialization | HttpClient.HttpClient
 > =>
-	Layer.effect(RpcClientProtocol)(
-		Effect.gen(function* () {
-			const serialization = yield* RpcSerialization.RpcSerialization;
-			const client = yield* HttpClient.HttpClient;
-			const https = options.https ?? false;
-			return (address) => {
-				const clientWithUrl = HttpClient.mapRequest(
-					client,
-					HttpClientRequest.prependUrl(
-						`http${https ? "s" : ""}://${address.host}:${address.port}/${options.path}`,
-					),
-				);
-				return RpcClient.makeProtocolHttp(clientWithUrl).pipe(
-					Effect.provideService(
-						RpcSerialization.RpcSerialization,
-						serialization,
-					),
-				);
-			};
-		}),
-	);
+  Layer.effect(RpcClientProtocol)(
+    Effect.gen(function*() {
+      const serialization = yield* RpcSerialization.RpcSerialization
+      const client = yield* HttpClient.HttpClient
+      const https = options.https ?? false
+      return (address) => {
+        const clientWithUrl = HttpClient.mapRequest(
+          client,
+          HttpClientRequest.prependUrl(`http${https ? "s" : ""}://${address.host}:${address.port}/${options.path}`)
+        )
+        return RpcClient.makeProtocolHttp(clientWithUrl).pipe(
+          Effect.provideService(RpcSerialization.RpcSerialization, serialization)
+        )
+      }
+    })
+  )
 
 /**
  * Default HTTP runner client protocol layer using path `/`.
@@ -95,10 +75,10 @@ export const layerClientProtocolHttp = (options: {
  * @since 4.0.0
  */
 export const layerClientProtocolHttpDefault: Layer.Layer<
-	Runners.RpcClientProtocol,
-	never,
-	RpcSerialization.RpcSerialization | HttpClient.HttpClient
-> = layerClientProtocolHttp({ path: "/" });
+  Runners.RpcClientProtocol,
+  never,
+  RpcSerialization.RpcSerialization | HttpClient.HttpClient
+> = layerClientProtocolHttp({ path: "/" })
 
 /**
  * Provides a runner RPC client protocol that connects to runner addresses over
@@ -113,32 +93,31 @@ export const layerClientProtocolHttpDefault: Layer.Layer<
  * @since 4.0.0
  */
 export const layerClientProtocolWebsocket = (options: {
-	readonly path: string;
-	readonly https?: boolean | undefined;
+  readonly path: string
+  readonly https?: boolean | undefined
 }): Layer.Layer<
-	RpcClientProtocol,
-	never,
-	RpcSerialization.RpcSerialization | Socket.WebSocketConstructor
+  RpcClientProtocol,
+  never,
+  RpcSerialization.RpcSerialization | Socket.WebSocketConstructor
 > =>
-	Layer.effect(RpcClientProtocol)(
-		Effect.gen(function* () {
-			const serialization = yield* RpcSerialization.RpcSerialization;
-			const https = options.https ?? false;
-			const constructor = yield* Socket.WebSocketConstructor;
-			return Effect.fnUntraced(function* (address) {
-				const socket = yield* Socket.makeWebSocket(
-					`ws${https ? "s" : ""}://${address.host}:${address.port}/${options.path}`,
-				).pipe(Effect.provideService(Socket.WebSocketConstructor, constructor));
-				return yield* RpcClient.makeProtocolSocket().pipe(
-					Effect.provideService(Socket.Socket, socket),
-					Effect.provideService(
-						RpcSerialization.RpcSerialization,
-						serialization,
-					),
-				);
-			});
-		}),
-	);
+  Layer.effect(RpcClientProtocol)(
+    Effect.gen(function*() {
+      const serialization = yield* RpcSerialization.RpcSerialization
+      const https = options.https ?? false
+      const constructor = yield* Socket.WebSocketConstructor
+      return Effect.fnUntraced(function*(address) {
+        const socket = yield* Socket.makeWebSocket(
+          `ws${https ? "s" : ""}://${address.host}:${address.port}/${options.path}`
+        ).pipe(
+          Effect.provideService(Socket.WebSocketConstructor, constructor)
+        )
+        return yield* RpcClient.makeProtocolSocket().pipe(
+          Effect.provideService(Socket.Socket, socket),
+          Effect.provideService(RpcSerialization.RpcSerialization, serialization)
+        )
+      })
+    })
+  )
 
 /**
  * Default WebSocket runner client protocol layer using path `/`.
@@ -147,10 +126,10 @@ export const layerClientProtocolWebsocket = (options: {
  * @since 4.0.0
  */
 export const layerClientProtocolWebsocketDefault: Layer.Layer<
-	Runners.RpcClientProtocol,
-	never,
-	RpcSerialization.RpcSerialization | Socket.WebSocketConstructor
-> = layerClientProtocolWebsocket({ path: "/" });
+  Runners.RpcClientProtocol,
+  never,
+  RpcSerialization.RpcSerialization | Socket.WebSocketConstructor
+> = layerClientProtocolWebsocket({ path: "/" })
 
 /**
  * Builds an HTTP effect that serves runner RPCs over the HTTP protocol.
@@ -160,20 +139,20 @@ export const layerClientProtocolWebsocketDefault: Layer.Layer<
  * The returned effect is produced from `RunnerServer.layerHandlers` and the
  * cluster runner RPC group.
  *
- * @category Http App
+ * @category http app
  * @since 4.0.0
  */
 export const toHttpEffect: Effect.Effect<
-	Effect.Effect<HttpServerResponse, never, Scope | HttpServerRequest>,
-	never,
-	Scope | RpcSerialization.RpcSerialization | Sharding.Sharding | MessageStorage
-> = Effect.gen(function* () {
-	const handlers = yield* Layer.build(RunnerServer.layerHandlers);
-	return yield* RpcServer.toHttpEffect(Runners.Rpcs, {
-		spanPrefix: "RunnerServer",
-		disableTracing: true,
-	}).pipe(Effect.provideContext(handlers));
-});
+  Effect.Effect<HttpServerResponse, never, Scope | HttpServerRequest>,
+  never,
+  Scope | RpcSerialization.RpcSerialization | Sharding.Sharding | MessageStorage
+> = Effect.gen(function*() {
+  const handlers = yield* Layer.build(RunnerServer.layerHandlers)
+  return yield* RpcServer.toHttpEffect(Runners.Rpcs, {
+    spanPrefix: "RunnerServer",
+    disableTracing: true
+  }).pipe(Effect.provideContext(handlers))
+})
 
 /**
  * Builds an HTTP effect that serves runner RPCs over WebSocket.
@@ -183,20 +162,20 @@ export const toHttpEffect: Effect.Effect<
  * The returned effect is produced from `RunnerServer.layerHandlers` and the
  * cluster runner RPC group.
  *
- * @category Http App
+ * @category http app
  * @since 4.0.0
  */
 export const toHttpEffectWebsocket: Effect.Effect<
-	Effect.Effect<HttpServerResponse, never, Scope | HttpServerRequest>,
-	never,
-	Scope | RpcSerialization.RpcSerialization | Sharding.Sharding | MessageStorage
-> = Effect.gen(function* () {
-	const handlers = yield* Layer.build(RunnerServer.layerHandlers);
-	return yield* RpcServer.toHttpEffectWebsocket(Runners.Rpcs, {
-		spanPrefix: "RunnerServer",
-		disableTracing: true,
-	}).pipe(Effect.provideContext(handlers));
-});
+  Effect.Effect<HttpServerResponse, never, Scope | HttpServerRequest>,
+  never,
+  Scope | RpcSerialization.RpcSerialization | Sharding.Sharding | MessageStorage
+> = Effect.gen(function*() {
+  const handlers = yield* Layer.build(RunnerServer.layerHandlers)
+  return yield* RpcServer.toHttpEffectWebsocket(Runners.Rpcs, {
+    spanPrefix: "RunnerServer",
+    disableTracing: true
+  }).pipe(Effect.provideContext(handlers))
+})
 
 /**
  * Layer that provides `Sharding` and `Runners` using the configured runner RPC
@@ -206,65 +185,61 @@ export const toHttpEffectWebsocket: Effect.Effect<
  * @since 4.0.0
  */
 export const layerClient: Layer.Layer<
-	Sharding.Sharding | Runners.Runners,
-	never,
-	| ShardingConfig.ShardingConfig
-	| Runners.RpcClientProtocol
-	| MessageStorage
-	| RunnerStorage
-	| RunnerHealth
-> = Sharding.layer.pipe(Layer.provideMerge(Runners.layerRpc));
+  Sharding.Sharding | Runners.Runners,
+  never,
+  ShardingConfig.ShardingConfig | Runners.RpcClientProtocol | MessageStorage | RunnerStorage | RunnerHealth
+> = Sharding.layer.pipe(
+  Layer.provideMerge(Runners.layerRpc)
+)
 
 /**
- * A HTTP layer for the `Runners` services, that adds a route to the provided
- * `HttpRouter`.
+ * Layer that adds HTTP runner routes to the provided `HttpRouter`.
  *
  * @category layers
  * @since 4.0.0
  */
 export const layerHttpOptions = (options: {
-	readonly path: HttpRouter.PathInput;
+  readonly path: HttpRouter.PathInput
 }): Layer.Layer<
-	Sharding.Sharding | Runners.Runners,
-	never,
-	| RunnerStorage
-	| RunnerHealth
-	| RpcSerialization.RpcSerialization
-	| MessageStorage
-	| ShardingConfig.ShardingConfig
-	| Runners.RpcClientProtocol
-	| HttpRouter.HttpRouter
+  Sharding.Sharding | Runners.Runners,
+  never,
+  | RunnerStorage
+  | RunnerHealth
+  | RpcSerialization.RpcSerialization
+  | MessageStorage
+  | ShardingConfig.ShardingConfig
+  | Runners.RpcClientProtocol
+  | HttpRouter.HttpRouter
 > =>
-	RunnerServer.layerWithClients.pipe(
-		Layer.provide(RpcServer.layerProtocolHttp(options)),
-	);
+  RunnerServer.layerWithClients.pipe(
+    Layer.provide(RpcServer.layerProtocolHttp(options))
+  )
 
 /**
- * WebSocket layer for the `Runners` services that adds a route to the provided
- * `HttpRouter`.
+ * Layer that adds WebSocket runner routes to the provided `HttpRouter`.
  *
  * @category layers
  * @since 4.0.0
  */
 export const layerWebsocketOptions = (options: {
-	readonly path: HttpRouter.PathInput;
+  readonly path: HttpRouter.PathInput
 }): Layer.Layer<
-	Sharding.Sharding | Runners.Runners,
-	never,
-	| ShardingConfig.ShardingConfig
-	| Runners.RpcClientProtocol
-	| MessageStorage
-	| RunnerStorage
-	| RunnerHealth
-	| RpcSerialization.RpcSerialization
-	| HttpRouter.HttpRouter
+  Sharding.Sharding | Runners.Runners,
+  never,
+  | ShardingConfig.ShardingConfig
+  | Runners.RpcClientProtocol
+  | MessageStorage
+  | RunnerStorage
+  | RunnerHealth
+  | RpcSerialization.RpcSerialization
+  | HttpRouter.HttpRouter
 > =>
-	RunnerServer.layerWithClients.pipe(
-		Layer.provide(RpcServer.layerProtocolWebsocket(options)),
-	);
+  RunnerServer.layerWithClients.pipe(
+    Layer.provide(RpcServer.layerProtocolWebsocket(options))
+  )
 
 /**
- * Complete HTTP runner layer.
+ * Layer that serves runner routes at `/` and configures HTTP runner clients.
  *
  * **Details**
  *
@@ -275,21 +250,26 @@ export const layerWebsocketOptions = (options: {
  * @since 4.0.0
  */
 export const layerHttp: Layer.Layer<
-	Sharding.Sharding | Runners.Runners,
-	never,
-	| RpcSerialization.RpcSerialization
-	| ShardingConfig.ShardingConfig
-	| HttpClient.HttpClient
-	| HttpServer.HttpServer
-	| MessageStorage
-	| RunnerStorage
-	| RunnerHealth
+  Sharding.Sharding | Runners.Runners,
+  never,
+  | RpcSerialization.RpcSerialization
+  | ShardingConfig.ShardingConfig
+  | HttpClient.HttpClient
+  | HttpServer.HttpServer
+  | MessageStorage
+  | RunnerStorage
+  | RunnerHealth
 > = HttpRouter.serve(layerHttpOptions({ path: "/" })).pipe(
-	Layer.provide(layerClientProtocolHttpDefault),
-);
+  Layer.provide(layerClientProtocolHttpDefault)
+)
 
 /**
- * Client-only HTTP runner layer.
+ * Provides a client-only HTTP runner layer.
+ *
+ * **When to use**
+ *
+ * Use to provide runner clients over HTTP from a process that should not serve
+ * runner routes.
  *
  * **Details**
  *
@@ -300,19 +280,19 @@ export const layerHttp: Layer.Layer<
  * @since 4.0.0
  */
 export const layerHttpClientOnly: Layer.Layer<
-	Sharding.Sharding | Runners.Runners,
-	never,
-	| RpcSerialization.RpcSerialization
-	| ShardingConfig.ShardingConfig
-	| HttpClient.HttpClient
-	| MessageStorage
-	| RunnerStorage
+  Sharding.Sharding | Runners.Runners,
+  never,
+  | RpcSerialization.RpcSerialization
+  | ShardingConfig.ShardingConfig
+  | HttpClient.HttpClient
+  | MessageStorage
+  | RunnerStorage
 > = RunnerServer.layerClientOnly.pipe(
-	Layer.provide(layerClientProtocolHttpDefault),
-);
+  Layer.provide(layerClientProtocolHttpDefault)
+)
 
 /**
- * Complete WebSocket runner layer.
+ * Layer that serves runner routes at `/` and configures WebSocket runner clients.
  *
  * **Details**
  *
@@ -323,21 +303,26 @@ export const layerHttpClientOnly: Layer.Layer<
  * @since 4.0.0
  */
 export const layerWebsocket: Layer.Layer<
-	Sharding.Sharding | Runners.Runners,
-	never,
-	| RpcSerialization.RpcSerialization
-	| ShardingConfig.ShardingConfig
-	| Socket.WebSocketConstructor
-	| HttpServer.HttpServer
-	| MessageStorage
-	| RunnerStorage
-	| RunnerHealth
+  Sharding.Sharding | Runners.Runners,
+  never,
+  | RpcSerialization.RpcSerialization
+  | ShardingConfig.ShardingConfig
+  | Socket.WebSocketConstructor
+  | HttpServer.HttpServer
+  | MessageStorage
+  | RunnerStorage
+  | RunnerHealth
 > = HttpRouter.serve(layerWebsocketOptions({ path: "/" })).pipe(
-	Layer.provide(layerClientProtocolWebsocketDefault),
-);
+  Layer.provide(layerClientProtocolWebsocketDefault)
+)
 
 /**
- * Client-only WebSocket runner layer.
+ * Provides a client-only WebSocket runner layer.
+ *
+ * **When to use**
+ *
+ * Use to provide runner clients over WebSocket from a process that should not
+ * serve runner routes.
  *
  * **Details**
  *
@@ -348,13 +333,13 @@ export const layerWebsocket: Layer.Layer<
  * @since 4.0.0
  */
 export const layerWebsocketClientOnly: Layer.Layer<
-	Sharding.Sharding | Runners.Runners,
-	never,
-	| ShardingConfig.ShardingConfig
-	| MessageStorage
-	| RunnerStorage
-	| RpcSerialization.RpcSerialization
-	| Socket.WebSocketConstructor
+  Sharding.Sharding | Runners.Runners,
+  never,
+  | ShardingConfig.ShardingConfig
+  | MessageStorage
+  | RunnerStorage
+  | RpcSerialization.RpcSerialization
+  | Socket.WebSocketConstructor
 > = RunnerServer.layerClientOnly.pipe(
-	Layer.provide(layerClientProtocolWebsocketDefault),
-);
+  Layer.provide(layerClientProtocolWebsocketDefault)
+)

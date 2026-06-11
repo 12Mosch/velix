@@ -1,35 +1,25 @@
 /**
- * The `Flag` module provides typed command-line options for Effect CLI
- * applications. A `Flag<A>` describes how to read one named option from the
- * parsed command line, validate it, and produce a value of type `A`.
+ * Defines named options for command-line applications.
  *
- * Use flags for inputs that are naturally named options, such as ports,
- * verbosity switches, configuration files, output directories, enum-like
- * choices, secrets, and repeated values. Constructors such as {@link string},
- * {@link boolean}, {@link integer}, {@link file}, and {@link fileSchema}
- * define the accepted input shape, while combinators add aliases, defaults,
- * optionality, fallback config or prompts, validation, and typed mapping.
- *
- * Flag names are rendered as long options, for example `Flag.integer("port")`
- * parses `--port 8080`. Boolean flags also support the disabled form shown by
- * this module's boolean documentation, and repeated flags are modeled with the
- * repetition combinators instead of by manually inspecting raw arguments. Help
- * text is generated from flag metadata, so prefer {@link withDescription} and
- * {@link withMetavar} when a flag's value, format, or file-system expectation
- * would otherwise be ambiguous.
+ * A `Flag<A>` describes how to read one named value from parsed command-line
+ * input, validate it, and produce an `A`. Flags are useful for inputs such as
+ * ports, verbosity switches, configuration files, output directories, choices,
+ * secrets, and repeated values. The helpers here build flags with aliases,
+ * defaults, optional values, prompts, configuration fallbacks, validation, and
+ * value transformations.
  *
  * @since 4.0.0
  */
-import type * as Config from "../../Config.ts";
-import type * as Effect from "../../Effect.ts";
-import { dual, type LazyArg } from "../../Function.ts";
-import type * as Option from "../../Option.ts";
-import type * as Redacted from "../../Redacted.ts";
-import type * as Result from "../../Result.ts";
-import type * as Schema from "../../Schema.ts";
-import type * as CliError from "./CliError.ts";
-import * as Param from "./Param.ts";
-import type * as Primitive from "./Primitive.ts";
+import type * as Config from "../../Config.ts"
+import type * as Effect from "../../Effect.ts"
+import { dual, type LazyArg } from "../../Function.ts"
+import type * as Option from "../../Option.ts"
+import type * as Redacted from "../../Redacted.ts"
+import type * as Result from "../../Result.ts"
+import type * as Schema from "../../Schema.ts"
+import type * as CliError from "./CliError.ts"
+import * as Param from "./Param.ts"
+import type * as Primitive from "./Primitive.ts"
 
 // -------------------------------------------------------------------------------------
 // models
@@ -62,8 +52,7 @@ export interface Flag<A> extends Param.Param<typeof Param.flagKind, A> {}
  * @category constructors
  * @since 4.0.0
  */
-export const string = (name: string): Flag<string> =>
-	Param.string(Param.flagKind, name);
+export const string = (name: string): Flag<string> => Param.string(Param.flagKind, name)
 
 /**
  * Creates a boolean flag that can be enabled or disabled.
@@ -80,8 +69,7 @@ export const string = (name: string): Flag<string> =>
  * @category constructors
  * @since 4.0.0
  */
-export const boolean = (name: string): Flag<boolean> =>
-	Param.boolean(Param.flagKind, name);
+export const boolean = (name: string): Flag<boolean> => Param.boolean(Param.flagKind, name)
 
 /**
  * Creates an integer flag that accepts whole number input.
@@ -98,8 +86,7 @@ export const boolean = (name: string): Flag<boolean> =>
  * @category constructors
  * @since 4.0.0
  */
-export const integer = (name: string): Flag<number> =>
-	Param.integer(Param.flagKind, name);
+export const integer = (name: string): Flag<number> => Param.integer(Param.flagKind, name)
 
 /**
  * Creates a float flag that accepts decimal number input.
@@ -116,8 +103,7 @@ export const integer = (name: string): Flag<number> =>
  * @category constructors
  * @since 4.0.0
  */
-export const float = (name: string): Flag<number> =>
-	Param.float(Param.flagKind, name);
+export const float = (name: string): Flag<number> => Param.float(Param.flagKind, name)
 
 /**
  * Creates a date flag that accepts date input in ISO format.
@@ -134,8 +120,7 @@ export const float = (name: string): Flag<number> =>
  * @category constructors
  * @since 4.0.0
  */
-export const date = (name: string): Flag<Date> =>
-	Param.date(Param.flagKind, name);
+export const date = (name: string): Flag<Date> => Param.date(Param.flagKind, name)
 
 /**
  * Constructs option parameters that represent a choice between several inputs.
@@ -160,24 +145,33 @@ export const date = (name: string): Flag<Date> =>
  * @category constructors
  * @since 4.0.0
  */
-export const choiceWithValue = <
-	const Choice extends ReadonlyArray<readonly [string, any]>,
->(
-	name: string,
-	choices: Choice,
-): Flag<Choice[number][1]> =>
-	Param.choiceWithValue(Param.flagKind, name, choices);
+export const choiceWithValue = <const Choice extends ReadonlyArray<readonly [string, any]>>(
+  name: string,
+  choices: Choice
+): Flag<Choice[number][1]> => Param.choiceWithValue(Param.flagKind, name, choices)
 
 /**
- * Simpler variant of `choiceWithValue` which maps each string to itself.
+ * Creates a flag that accepts one of the provided string choices and returns
+ * the selected string.
+ *
+ * **When to use**
+ *
+ * Use when you need to define a named CLI flag with fixed string choices and no
+ * custom value mapping.
+ *
+ * **Gotchas**
+ *
+ * An empty choices array compiles, but no input value can parse successfully.
+ *
+ * @see {@link choiceWithValue} for mapping accepted strings to different typed values
  *
  * @category constructors
  * @since 4.0.0
  */
 export const choice = <const Choices extends ReadonlyArray<string>>(
-	name: string,
-	choices: Choices,
-): Flag<Choices[number]> => Param.choice(Param.flagKind, name, choices);
+  name: string,
+  choices: Choices
+): Flag<Choices[number]> => Param.choice(Param.flagKind, name, choices)
 
 /**
  * Creates a path flag that accepts file system path input with validation options.
@@ -206,14 +200,11 @@ export const choice = <const Choices extends ReadonlyArray<string>>(
  * @category constructors
  * @since 4.0.0
  */
-export const path = (
-	name: string,
-	options?: {
-		readonly pathType?: "file" | "directory" | "either" | undefined;
-		readonly mustExist?: boolean | undefined;
-		readonly typeName?: string | undefined;
-	},
-): Flag<string> => Param.path(Param.flagKind, name, options);
+export const path = (name: string, options?: {
+  readonly pathType?: "file" | "directory" | "either" | undefined
+  readonly mustExist?: boolean | undefined
+  readonly typeName?: string | undefined
+}): Flag<string> => Param.path(Param.flagKind, name, options)
 
 /**
  * Creates a file path flag that accepts file paths with optional existence validation.
@@ -235,12 +226,9 @@ export const path = (
  * @category constructors
  * @since 4.0.0
  */
-export const file = (
-	name: string,
-	options?: {
-		readonly mustExist?: boolean | undefined;
-	},
-): Flag<string> => Param.file(Param.flagKind, name, options);
+export const file = (name: string, options?: {
+  readonly mustExist?: boolean | undefined
+}): Flag<string> => Param.file(Param.flagKind, name, options)
 
 /**
  * Creates a directory path flag that accepts directory paths with optional existence validation.
@@ -262,12 +250,9 @@ export const file = (
  * @category constructors
  * @since 4.0.0
  */
-export const directory = (
-	name: string,
-	options?: {
-		readonly mustExist?: boolean | undefined;
-	},
-): Flag<string> => Param.directory(Param.flagKind, name, options);
+export const directory = (name: string, options?: {
+  readonly mustExist?: boolean | undefined
+}): Flag<string> => Param.directory(Param.flagKind, name, options)
 
 /**
  * Creates a string flag whose parsed value is wrapped in `Redacted.Redacted` so
@@ -299,8 +284,7 @@ export const directory = (
  * @category constructors
  * @since 4.0.0
  */
-export const redacted = (name: string): Flag<Redacted.Redacted<string>> =>
-	Param.redacted(Param.flagKind, name);
+export const redacted = (name: string): Flag<Redacted.Redacted<string>> => Param.redacted(Param.flagKind, name)
 
 /**
  * Creates a flag that reads and returns file content as a string.
@@ -317,8 +301,7 @@ export const redacted = (name: string): Flag<Redacted.Redacted<string>> =>
  * @category constructors
  * @since 4.0.0
  */
-export const fileText = (name: string): Flag<string> =>
-	Param.fileText(Param.flagKind, name);
+export const fileText = (name: string): Flag<string> => Param.fileText(Param.flagKind, name)
 
 /**
  * Creates a flag that reads and parses the content of the specified file.
@@ -345,9 +328,9 @@ export const fileText = (name: string): Flag<string> =>
  * @since 4.0.0
  */
 export const fileParse = (
-	name: string,
-	options?: Primitive.FileParseOptions | undefined,
-): Flag<unknown> => Param.fileParse(Param.flagKind, name, options);
+  name: string,
+  options?: Primitive.FileParseOptions | undefined
+): Flag<unknown> => Param.fileParse(Param.flagKind, name, options)
 
 /**
  * Creates a flag that reads and validates file content using the specified
@@ -371,17 +354,18 @@ export const fileParse = (
  * @since 4.0.0
  */
 export const fileSchema = <A>(
-	name: string,
-	schema: Schema.Decoder<A>,
-	options?: Primitive.FileSchemaOptions | undefined,
-): Flag<A> => Param.fileSchema(Param.flagKind, name, schema, options);
+  name: string,
+  schema: Schema.Decoder<A>,
+  options?: Primitive.FileSchemaOptions | undefined
+): Flag<A> => Param.fileSchema(Param.flagKind, name, schema, options)
 
 /**
  * Creates a flag that parses key=value pairs.
  *
  * **When to use**
  *
- * Use this for options that accept configuration values.
+ * Use when you need a CLI flag that accepts one or more `key=value`
+ * configuration entries.
  *
  * **Details**
  *
@@ -400,8 +384,7 @@ export const fileSchema = <A>(
  * @category constructors
  * @since 4.0.0
  */
-export const keyValuePair = (name: string): Flag<Record<string, string>> =>
-	Param.keyValuePair(Param.flagKind, name);
+export const keyValuePair = (name: string): Flag<Record<string, string>> => Param.keyValuePair(Param.flagKind, name)
 
 /**
  * Creates an empty sentinel flag that always fails to parse.
@@ -422,7 +405,7 @@ export const keyValuePair = (name: string): Flag<Record<string, string>> =>
  * @category constructors
  * @since 4.0.0
  */
-export const none: Flag<never> = Param.none(Param.flagKind);
+export const none: Flag<never> = Param.none(Param.flagKind)
 
 // -------------------------------------------------------------------------------------
 // combinators
@@ -452,12 +435,63 @@ export const none: Flag<never> = Param.none(Param.flagKind);
  * @since 4.0.0
  */
 export const withAlias: {
-	<A>(alias: string): (self: Flag<A>) => Flag<A>;
-	<A>(self: Flag<A>, alias: string): Flag<A>;
-} = dual(
-	2,
-	<A>(self: Flag<A>, alias: string): Flag<A> => Param.withAlias(self, alias),
-);
+  // -------------------------------------------------------------------------------------
+  // combinators
+  // -------------------------------------------------------------------------------------
+
+  /**
+   * Adds an alias to a flag, allowing it to be referenced by multiple names.
+   *
+   * **Example** (Adding flag aliases)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Flag can be used as both --verbose and -v
+   * const verboseFlag = Flag.boolean("verbose").pipe(
+   *   Flag.withAlias("v")
+   * )
+   *
+   * // Multiple aliases can be chained
+   * const helpFlag = Flag.boolean("help").pipe(
+   *   Flag.withAlias("h"),
+   *   Flag.withAlias("?")
+   * )
+   * ```
+   *
+   * @category aliasing
+   * @since 4.0.0
+   */
+  <A>(alias: string): (self: Flag<A>) => Flag<A>
+  // -------------------------------------------------------------------------------------
+  // combinators
+  // -------------------------------------------------------------------------------------
+
+  /**
+   * Adds an alias to a flag, allowing it to be referenced by multiple names.
+   *
+   * **Example** (Adding flag aliases)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Flag can be used as both --verbose and -v
+   * const verboseFlag = Flag.boolean("verbose").pipe(
+   *   Flag.withAlias("v")
+   * )
+   *
+   * // Multiple aliases can be chained
+   * const helpFlag = Flag.boolean("help").pipe(
+   *   Flag.withAlias("h"),
+   *   Flag.withAlias("?")
+   * )
+   * ```
+   *
+   * @category aliasing
+   * @since 4.0.0
+   */
+  <A>(self: Flag<A>, alias: string): Flag<A>
+} = dual(2, <A>(self: Flag<A>, alias: string): Flag<A> => Param.withAlias(self, alias))
 
 /**
  * Adds a description to a flag for help documentation.
@@ -480,11 +514,49 @@ export const withAlias: {
  * @since 4.0.0
  */
 export const withDescription: {
-	<A>(description: string): (self: Flag<A>) => Flag<A>;
-	<A>(self: Flag<A>, description: string): Flag<A>;
-} = dual(2, <A>(self: Flag<A>, description: string) =>
-	Param.withDescription(self, description),
-);
+  /**
+   * Adds a description to a flag for help documentation.
+   *
+   * **Example** (Adding help descriptions)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const portFlag = Flag.integer("port").pipe(
+   *   Flag.withDescription("The port number to listen on")
+   * )
+   *
+   * const configFlag = Flag.file("config").pipe(
+   *   Flag.withDescription("Path to the configuration file")
+   * )
+   * ```
+   *
+   * @category help documentation
+   * @since 4.0.0
+   */
+  <A>(description: string): (self: Flag<A>) => Flag<A>
+  /**
+   * Adds a description to a flag for help documentation.
+   *
+   * **Example** (Adding help descriptions)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const portFlag = Flag.integer("port").pipe(
+   *   Flag.withDescription("The port number to listen on")
+   * )
+   *
+   * const configFlag = Flag.file("config").pipe(
+   *   Flag.withDescription("Path to the configuration file")
+   * )
+   * ```
+   *
+   * @category help documentation
+   * @since 4.0.0
+   */
+  <A>(self: Flag<A>, description: string): Flag<A>
+} = dual(2, <A>(self: Flag<A>, description: string) => Param.withDescription(self, description))
 
 // -------------------------------------------------------------------------------------
 // metadata
@@ -519,11 +591,73 @@ export const withDescription: {
  * @since 4.0.0
  */
 export const withMetavar: {
-	<A>(metavar: string): (self: Flag<A>) => Flag<A>;
-	<A>(self: Flag<A>, metavar: string): Flag<A>;
-} = dual(2, <A>(self: Flag<A>, metavar: string) =>
-	Param.withMetavar(self, metavar),
-);
+  // -------------------------------------------------------------------------------------
+  // metadata
+  // -------------------------------------------------------------------------------------
+
+  /**
+   * Sets a custom metavar (placeholder name) for the flag in help documentation.
+   *
+   * **Details**
+   *
+   * The metavar is displayed in usage text to indicate what value the user should
+   * provide. For example, `--output FILE` shows `FILE` as the metavar.
+   *
+   * **Example** (Setting metavars)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const databaseFlag = Flag.string("database-url").pipe(
+   *   Flag.withMetavar("URL"),
+   *   Flag.withDescription("Database connection URL")
+   * )
+   * // In help: --database-url URL
+   *
+   * const timeoutFlag = Flag.integer("timeout").pipe(
+   *   Flag.withMetavar("SECONDS")
+   * )
+   * // In help: --timeout SECONDS
+   * ```
+   *
+   * @category metadata
+   * @since 4.0.0
+   */
+  <A>(metavar: string): (self: Flag<A>) => Flag<A>
+  // -------------------------------------------------------------------------------------
+  // metadata
+  // -------------------------------------------------------------------------------------
+
+  /**
+   * Sets a custom metavar (placeholder name) for the flag in help documentation.
+   *
+   * **Details**
+   *
+   * The metavar is displayed in usage text to indicate what value the user should
+   * provide. For example, `--output FILE` shows `FILE` as the metavar.
+   *
+   * **Example** (Setting metavars)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const databaseFlag = Flag.string("database-url").pipe(
+   *   Flag.withMetavar("URL"),
+   *   Flag.withDescription("Database connection URL")
+   * )
+   * // In help: --database-url URL
+   *
+   * const timeoutFlag = Flag.integer("timeout").pipe(
+   *   Flag.withMetavar("SECONDS")
+   * )
+   * // In help: --timeout SECONDS
+   * ```
+   *
+   * @category metadata
+   * @since 4.0.0
+   */
+  <A>(self: Flag<A>, metavar: string): Flag<A>
+} = dual(2, <A>(self: Flag<A>, metavar: string) => Param.withMetavar(self, metavar))
 
 /**
  * Hides a flag from generated help output and shell completions while keeping
@@ -531,9 +665,9 @@ export const withMetavar: {
  *
  * **When to use**
  *
- * Use this for experimental or internal flags that should be accepted but not
- * advertised, such as `--experimental-foo`, debug toggles, or escape hatches
- * that are not yet committed to the public CLI surface.
+ * Use when experimental or internal flags should be accepted but not advertised, such as
+ * `--experimental-foo`, debug toggles, or escape hatches that are not yet committed to the
+ * public CLI surface.
  *
  * **Example** (Hiding a flag from help)
  *
@@ -549,7 +683,7 @@ export const withMetavar: {
  * @category metadata
  * @since 4.0.0
  */
-export const withHidden = <A>(self: Flag<A>): Flag<A> => Param.withHidden(self);
+export const withHidden = <A>(self: Flag<A>): Flag<A> => Param.withHidden(self)
 
 /**
  * Makes a flag optional, returning an Option type that can be None if not provided.
@@ -578,8 +712,7 @@ export const withHidden = <A>(self: Flag<A>): Flag<A> => Param.withHidden(self);
  * @category optionality
  * @since 4.0.0
  */
-export const optional = <A>(param: Flag<A>): Flag<Option.Option<A>> =>
-	Param.optional(param);
+export const optional = <A>(param: Flag<A>): Flag<Option.Option<A>> => Param.optional(param)
 
 /**
  * Provides a default value for a flag when it's not specified.
@@ -604,14 +737,56 @@ export const optional = <A>(param: Flag<A>): Flag<Option.Option<A>> =>
  * @since 4.0.0
  */
 export const withDefault: {
-	<const B>(
-		defaultValue: B | Effect.Effect<B, CliError.CliError, Param.Environment>,
-	): <A>(self: Flag<A>) => Flag<A | B>;
-	<A, const B>(
-		self: Flag<A>,
-		defaultValue: B | Effect.Effect<B, CliError.CliError, Param.Environment>,
-	): Flag<A | B>;
-} = Param.withDefault;
+  /**
+   * Provides a default value for a flag when it's not specified.
+   *
+   * **Example** (Providing default values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const portFlag = Flag.integer("port").pipe(
+   *   Flag.withDefault(8080)
+   * )
+   * // If --port is not provided, defaults to 8080
+   *
+   * const hostFlag = Flag.string("host").pipe(
+   *   Flag.withDefault("localhost")
+   * )
+   * // If --host is not provided, defaults to "localhost"
+   * ```
+   *
+   * @category optionality
+   * @since 4.0.0
+   */
+  <const B>(defaultValue: B | Effect.Effect<B, CliError.CliError, Param.Environment>): <A>(self: Flag<A>) => Flag<A | B>
+  /**
+   * Provides a default value for a flag when it's not specified.
+   *
+   * **Example** (Providing default values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const portFlag = Flag.integer("port").pipe(
+   *   Flag.withDefault(8080)
+   * )
+   * // If --port is not provided, defaults to 8080
+   *
+   * const hostFlag = Flag.string("host").pipe(
+   *   Flag.withDefault("localhost")
+   * )
+   * // If --host is not provided, defaults to "localhost"
+   * ```
+   *
+   * @category optionality
+   * @since 4.0.0
+   */
+  <A, const B>(
+   self: Flag<A>,
+   defaultValue: B | Effect.Effect<B, CliError.CliError, Param.Environment>
+  ): Flag<A | B>
+} = Param.withDefault
 
 /**
  * Adds a fallback config that is loaded when a required flag is missing.
@@ -631,11 +806,43 @@ export const withDefault: {
  * @since 4.0.0
  */
 export const withFallbackConfig: {
-	<B>(config: Config.Config<B>): <A>(self: Flag<A>) => Flag<A | B>;
-	<A, B>(self: Flag<A>, config: Config.Config<B>): Flag<A | B>;
-} = dual(2, <A, B>(self: Flag<A>, config: Config.Config<B>) =>
-	Param.withFallbackConfig(self, config),
-);
+  /**
+   * Adds a fallback config that is loaded when a required flag is missing.
+   *
+   * **Example** (Falling back to config)
+   *
+   * ```ts
+   * import { Config } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const verbose = Flag.boolean("verbose").pipe(
+   *   Flag.withFallbackConfig(Config.boolean("VERBOSE"))
+   * )
+   * ```
+   *
+   * @category combinators
+   * @since 4.0.0
+   */
+  <B>(config: Config.Config<B>): <A>(self: Flag<A>) => Flag<A | B>
+  /**
+   * Adds a fallback config that is loaded when a required flag is missing.
+   *
+   * **Example** (Falling back to config)
+   *
+   * ```ts
+   * import { Config } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const verbose = Flag.boolean("verbose").pipe(
+   *   Flag.withFallbackConfig(Config.boolean("VERBOSE"))
+   * )
+   * ```
+   *
+   * @category combinators
+   * @since 4.0.0
+   */
+  <A, B>(self: Flag<A>, config: Config.Config<B>): Flag<A | B>
+} = dual(2, <A, B>(self: Flag<A>, config: Config.Config<B>) => Param.withFallbackConfig(self, config))
 
 /**
  * Adds a fallback prompt that is shown when a required flag is missing.
@@ -654,11 +861,41 @@ export const withFallbackConfig: {
  * @since 4.0.0
  */
 export const withFallbackPrompt: {
-	<B>(prompt: Param.FallbackPrompt<B>): <A>(self: Flag<A>) => Flag<A | B>;
-	<A, B>(self: Flag<A>, prompt: Param.FallbackPrompt<B>): Flag<A | B>;
-} = dual(2, <A, B>(self: Flag<A>, prompt: Param.FallbackPrompt<B>) =>
-	Param.withFallbackPrompt(self, prompt),
-);
+  /**
+   * Adds a fallback prompt that is shown when a required flag is missing.
+   *
+   * **Example** (Falling back to prompts)
+   *
+   * ```ts
+   * import { Flag, Prompt } from "effect/unstable/cli"
+   *
+   * const name = Flag.string("name").pipe(
+   *   Flag.withFallbackPrompt(Prompt.text({ message: "Name" }))
+   * )
+   * ```
+   *
+   * @category combinators
+   * @since 4.0.0
+   */
+  <B>(prompt: Param.FallbackPrompt<B>): <A>(self: Flag<A>) => Flag<A | B>
+  /**
+   * Adds a fallback prompt that is shown when a required flag is missing.
+   *
+   * **Example** (Falling back to prompts)
+   *
+   * ```ts
+   * import { Flag, Prompt } from "effect/unstable/cli"
+   *
+   * const name = Flag.string("name").pipe(
+   *   Flag.withFallbackPrompt(Prompt.text({ message: "Name" }))
+   * )
+   * ```
+   *
+   * @category combinators
+   * @since 4.0.0
+   */
+  <A, B>(self: Flag<A>, prompt: Param.FallbackPrompt<B>): Flag<A | B>
+} = dual(2, <A, B>(self: Flag<A>, prompt: Param.FallbackPrompt<B>) => Param.withFallbackPrompt(self, prompt))
 
 /**
  * Transforms the parsed value of a flag using a mapping function.
@@ -683,9 +920,53 @@ export const withFallbackPrompt: {
  * @since 4.0.0
  */
 export const map: {
-	<A, B>(f: (a: A) => B): (self: Flag<A>) => Flag<B>;
-	<A, B>(self: Flag<A>, f: (a: A) => B): Flag<B>;
-} = dual(2, <A, B>(self: Flag<A>, f: (a: A) => B) => Param.map(self, f));
+  /**
+   * Transforms the parsed value of a flag using a mapping function.
+   *
+   * **Example** (Mapping parsed values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Convert string to uppercase
+   * const nameFlag = Flag.string("name").pipe(
+   *   Flag.map((name) => name.toUpperCase())
+   * )
+   *
+   * // Convert port to URL
+   * const urlFlag = Flag.integer("port").pipe(
+   *   Flag.map((port) => `http://localhost:${port}`)
+   * )
+   * ```
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A, B>(f: (a: A) => B): (self: Flag<A>) => Flag<B>
+  /**
+   * Transforms the parsed value of a flag using a mapping function.
+   *
+   * **Example** (Mapping parsed values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Convert string to uppercase
+   * const nameFlag = Flag.string("name").pipe(
+   *   Flag.map((name) => name.toUpperCase())
+   * )
+   *
+   * // Convert port to URL
+   * const urlFlag = Flag.integer("port").pipe(
+   *   Flag.map((port) => `http://localhost:${port}`)
+   * )
+   * ```
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A, B>(self: Flag<A>, f: (a: A) => B): Flag<B>
+} = dual(2, <A, B>(self: Flag<A>, f: (a: A) => B) => Param.map(self, f))
 
 /**
  * Transforms the parsed value using an Effect that can perform IO operations.
@@ -710,20 +991,59 @@ export const map: {
  * @since 4.0.0
  */
 export const mapEffect: {
-	<A, B>(
-		f: (a: A) => Effect.Effect<B, CliError.CliError, Param.Environment>,
-	): (self: Flag<A>) => Flag<B>;
-	<A, B>(
-		self: Flag<A>,
-		f: (a: A) => Effect.Effect<B, CliError.CliError, Param.Environment>,
-	): Flag<B>;
-} = dual(
-	2,
-	<A, B>(
-		self: Flag<A>,
-		f: (a: A) => Effect.Effect<B, CliError.CliError, Param.Environment>,
-	) => Param.mapEffect(self, f),
-);
+  /**
+   * Transforms the parsed value using an Effect that can perform IO operations.
+   *
+   * **Example** (Mapping parsed values effectfully)
+   *
+   * ```ts
+   * import { Effect, FileSystem } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Read file size from path flag
+   * const fileSizeFlag = Flag.file("input").pipe(
+   *   Flag.mapEffect(Effect.fnUntraced(function*(path) {
+   *     const fs = yield* FileSystem.FileSystem
+   *     const stats = yield* Effect.orDie(fs.stat(path))
+   *     return stats.size
+   *   }))
+   * )
+   * ```
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A, B>(f: (a: A) => Effect.Effect<B, CliError.CliError, Param.Environment>): (self: Flag<A>) => Flag<B>
+  /**
+   * Transforms the parsed value using an Effect that can perform IO operations.
+   *
+   * **Example** (Mapping parsed values effectfully)
+   *
+   * ```ts
+   * import { Effect, FileSystem } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Read file size from path flag
+   * const fileSizeFlag = Flag.file("input").pipe(
+   *   Flag.mapEffect(Effect.fnUntraced(function*(path) {
+   *     const fs = yield* FileSystem.FileSystem
+   *     const stats = yield* Effect.orDie(fs.stat(path))
+   *     return stats.size
+   *   }))
+   * )
+   * ```
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A, B>(
+   self: Flag<A>,
+   f: (a: A) => Effect.Effect<B, CliError.CliError, Param.Environment>
+  ): Flag<B>
+} = dual(2, <A, B>(
+  self: Flag<A>,
+  f: (a: A) => Effect.Effect<B, CliError.CliError, Param.Environment>
+) => Param.mapEffect(self, f))
 
 /**
  * Transforms the parsed value using a function that might throw, with error handling.
@@ -754,23 +1074,72 @@ export const mapEffect: {
  * @since 4.0.0
  */
 export const mapTryCatch: {
-	<A, B>(
-		f: (a: A) => B,
-		onError: (error: unknown) => string,
-	): (self: Flag<A>) => Flag<B>;
-	<A, B>(
-		self: Flag<A>,
-		f: (a: A) => B,
-		onError: (error: unknown) => string,
-	): Flag<B>;
-} = dual(
-	3,
-	<A, B>(self: Flag<A>, f: (a: A) => B, onError: (error: unknown) => string) =>
-		Param.mapTryCatch(self, f, onError),
-);
+  /**
+   * Transforms the parsed value using a function that might throw, with error handling.
+   *
+   * **Example** (Mapping thrown errors)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Parse JSON string with error handling
+   * const jsonFlag = Flag.string("config").pipe(
+   *   Flag.mapTryCatch(
+   *     (json) => JSON.parse(json),
+   *     (error) => `Invalid JSON: ${error}`
+   *   )
+   * )
+   *
+   * // Parse URL with error handling
+   * const urlFlag = Flag.string("url").pipe(
+   *   Flag.mapTryCatch(
+   *     (url) => new URL(url),
+   *     (error) => `Invalid URL: ${error}`
+   *   )
+   * )
+   * ```
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A, B>(f: (a: A) => B, onError: (error: unknown) => string): (self: Flag<A>) => Flag<B>
+  /**
+   * Transforms the parsed value using a function that might throw, with error handling.
+   *
+   * **Example** (Mapping thrown errors)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Parse JSON string with error handling
+   * const jsonFlag = Flag.string("config").pipe(
+   *   Flag.mapTryCatch(
+   *     (json) => JSON.parse(json),
+   *     (error) => `Invalid JSON: ${error}`
+   *   )
+   * )
+   *
+   * // Parse URL with error handling
+   * const urlFlag = Flag.string("url").pipe(
+   *   Flag.mapTryCatch(
+   *     (url) => new URL(url),
+   *     (error) => `Invalid URL: ${error}`
+   *   )
+   * )
+   * ```
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A, B>(self: Flag<A>, f: (a: A) => B, onError: (error: unknown) => string): Flag<B>
+} = dual(3, <A, B>(
+  self: Flag<A>,
+  f: (a: A) => B,
+  onError: (error: unknown) => string
+) => Param.mapTryCatch(self, f, onError))
 
 /**
- * Requires a flag to be specified at least a minimum number of times.
+ * Ensures a flag is specified at least a minimum number of times.
  *
  * **Example** (Requiring repeated values)
  *
@@ -791,12 +1160,54 @@ export const mapTryCatch: {
  * @since 4.0.0
  */
 export const atLeast: {
-	<A>(min: number): (self: Flag<A>) => Flag<ReadonlyArray<A>>;
-	<A>(self: Flag<A>, min: number): Flag<ReadonlyArray<A>>;
-} = dual(2, <A>(self: Flag<A>, min: number) => Param.atLeast(self, min));
+  /**
+   * Ensures a flag is specified at least a minimum number of times.
+   *
+   * **Example** (Requiring repeated values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const sourceFlag = Flag.atLeast(Flag.file("source"), 2)
+   * // Requires at least 2 source files
+   * // Usage: --source file1.ts --source file2.ts
+   *
+   * const tagFlag = Flag.string("tag").pipe(
+   *   Flag.atLeast(1)
+   * )
+   * // Requires at least 1 tag
+   * ```
+   *
+   * @category repetition
+   * @since 4.0.0
+   */
+  <A>(min: number): (self: Flag<A>) => Flag<ReadonlyArray<A>>
+  /**
+   * Ensures a flag is specified at least a minimum number of times.
+   *
+   * **Example** (Requiring repeated values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const sourceFlag = Flag.atLeast(Flag.file("source"), 2)
+   * // Requires at least 2 source files
+   * // Usage: --source file1.ts --source file2.ts
+   *
+   * const tagFlag = Flag.string("tag").pipe(
+   *   Flag.atLeast(1)
+   * )
+   * // Requires at least 1 tag
+   * ```
+   *
+   * @category repetition
+   * @since 4.0.0
+   */
+  <A>(self: Flag<A>, min: number): Flag<ReadonlyArray<A>>
+} = dual(2, <A>(self: Flag<A>, min: number) => Param.atLeast(self, min))
 
 /**
- * Limits a flag to be specified at most a maximum number of times.
+ * Ensures a flag is specified at most a maximum number of times.
  *
  * **Example** (Limiting repeated values)
  *
@@ -817,12 +1228,54 @@ export const atLeast: {
  * @since 4.0.0
  */
 export const atMost: {
-	<A>(max: number): (self: Flag<A>) => Flag<ReadonlyArray<A>>;
-	<A>(self: Flag<A>, max: number): Flag<ReadonlyArray<A>>;
-} = dual(2, <A>(self: Flag<A>, max: number) => Param.atMost(self, max));
+  /**
+   * Ensures a flag is specified at most a maximum number of times.
+   *
+   * **Example** (Limiting repeated values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const warningFlag = Flag.atMost(Flag.string("warning"), 3)
+   * // Allows up to 3 warning flags
+   * // Usage: --warning w1 --warning w2 --warning w3
+   *
+   * const debugFlag = Flag.string("debug").pipe(
+   *   Flag.atMost(1)
+   * )
+   * // Allows at most 1 debug flag
+   * ```
+   *
+   * @category repetition
+   * @since 4.0.0
+   */
+  <A>(max: number): (self: Flag<A>) => Flag<ReadonlyArray<A>>
+  /**
+   * Ensures a flag is specified at most a maximum number of times.
+   *
+   * **Example** (Limiting repeated values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const warningFlag = Flag.atMost(Flag.string("warning"), 3)
+   * // Allows up to 3 warning flags
+   * // Usage: --warning w1 --warning w2 --warning w3
+   *
+   * const debugFlag = Flag.string("debug").pipe(
+   *   Flag.atMost(1)
+   * )
+   * // Allows at most 1 debug flag
+   * ```
+   *
+   * @category repetition
+   * @since 4.0.0
+   */
+  <A>(self: Flag<A>, max: number): Flag<ReadonlyArray<A>>
+} = dual(2, <A>(self: Flag<A>, max: number) => Param.atMost(self, max))
 
 /**
- * Constrains a flag to be specified between a minimum and maximum number of times.
+ * Ensures a flag is specified between a minimum and maximum number of times.
  *
  * **Example** (Bounding repeated values)
  *
@@ -843,11 +1296,51 @@ export const atMost: {
  * @since 4.0.0
  */
 export const between: {
-	<A>(min: number, max: number): (self: Flag<A>) => Flag<ReadonlyArray<A>>;
-	<A>(self: Flag<A>, min: number, max: number): Flag<ReadonlyArray<A>>;
-} = dual(3, <A>(self: Flag<A>, min: number, max: number) =>
-	Param.between(self, min, max),
-);
+  /**
+   * Ensures a flag is specified between a minimum and maximum number of times.
+   *
+   * **Example** (Bounding repeated values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const hostFlag = Flag.between(Flag.string("host"), 1, 3)
+   * // Requires 1-3 host flags
+   * // Usage: --host host1 --host host2
+   *
+   * const excludeFlag = Flag.string("exclude").pipe(
+   *   Flag.between(0, 5)
+   * )
+   * // Allows 0-5 exclude patterns
+   * ```
+   *
+   * @category repetition
+   * @since 4.0.0
+   */
+  <A>(min: number, max: number): (self: Flag<A>) => Flag<ReadonlyArray<A>>
+  /**
+   * Ensures a flag is specified between a minimum and maximum number of times.
+   *
+   * **Example** (Bounding repeated values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const hostFlag = Flag.between(Flag.string("host"), 1, 3)
+   * // Requires 1-3 host flags
+   * // Usage: --host host1 --host host2
+   *
+   * const excludeFlag = Flag.string("exclude").pipe(
+   *   Flag.between(0, 5)
+   * )
+   * // Allows 0-5 exclude patterns
+   * ```
+   *
+   * @category repetition
+   * @since 4.0.0
+   */
+  <A>(self: Flag<A>, min: number, max: number): Flag<ReadonlyArray<A>>
+} = dual(3, <A>(self: Flag<A>, min: number, max: number) => Param.between(self, min, max))
 
 /**
  * Transforms and filters a flag value, failing with a custom error if the transformation returns None.
@@ -879,23 +1372,71 @@ export const between: {
  * @since 4.0.0
  */
 export const filterMap: {
-	<A, B>(
-		f: (a: A) => Option.Option<B>,
-		onNone: (a: A) => string,
-	): (self: Flag<A>) => Flag<B>;
-	<A, B>(
-		self: Flag<A>,
-		f: (a: A) => Option.Option<B>,
-		onNone: (a: A) => string,
-	): Flag<B>;
-} = dual(
-	3,
-	<A, B>(
-		self: Flag<A>,
-		f: (a: A) => Option.Option<B>,
-		onNone: (a: A) => string,
-	) => Param.filterMap(self, f, onNone),
-);
+  /**
+   * Transforms and filters a flag value, failing with a custom error if the transformation returns None.
+   *
+   * **Example** (Filtering and transforming values)
+   *
+   * ```ts
+   * import { Option } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Parse positive integers only
+   * const positiveInt = Flag.integer("count").pipe(
+   *   Flag.filterMap(
+   *     (n) => n > 0 ? Option.some(n) : Option.none(),
+   *     (n) => `Expected positive integer, got ${n}`
+   *   )
+   * )
+   *
+   * // Parse valid email addresses
+   * const emailFlag = Flag.string("email").pipe(
+   *   Flag.filterMap(
+   *     (email) => email.includes("@") ? Option.some(email) : Option.none(),
+   *     (email) => `Invalid email address: ${email}`
+   *   )
+   * )
+   * ```
+   *
+   * @category filtering
+   * @since 4.0.0
+   */
+  <A, B>(f: (a: A) => Option.Option<B>, onNone: (a: A) => string): (self: Flag<A>) => Flag<B>
+  /**
+   * Transforms and filters a flag value, failing with a custom error if the transformation returns None.
+   *
+   * **Example** (Filtering and transforming values)
+   *
+   * ```ts
+   * import { Option } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Parse positive integers only
+   * const positiveInt = Flag.integer("count").pipe(
+   *   Flag.filterMap(
+   *     (n) => n > 0 ? Option.some(n) : Option.none(),
+   *     (n) => `Expected positive integer, got ${n}`
+   *   )
+   * )
+   *
+   * // Parse valid email addresses
+   * const emailFlag = Flag.string("email").pipe(
+   *   Flag.filterMap(
+   *     (email) => email.includes("@") ? Option.some(email) : Option.none(),
+   *     (email) => `Invalid email address: ${email}`
+   *   )
+   * )
+   * ```
+   *
+   * @category filtering
+   * @since 4.0.0
+   */
+  <A, B>(self: Flag<A>, f: (a: A) => Option.Option<B>, onNone: (a: A) => string): Flag<B>
+} = dual(3, <A, B>(
+  self: Flag<A>,
+  f: (a: A) => Option.Option<B>,
+  onNone: (a: A) => string
+) => Param.filterMap(self, f, onNone))
 
 /**
  * Filters a flag value based on a predicate, failing with a custom error if the predicate returns false.
@@ -926,20 +1467,69 @@ export const filterMap: {
  * @since 4.0.0
  */
 export const filter: {
-	<A>(
-		predicate: (a: A) => boolean,
-		onFalse: (a: A) => string,
-	): (self: Flag<A>) => Flag<A>;
-	<A>(
-		self: Flag<A>,
-		predicate: (a: A) => boolean,
-		onFalse: (a: A) => string,
-	): Flag<A>;
-} = dual(
-	3,
-	<A>(self: Flag<A>, predicate: (a: A) => boolean, onFalse: (a: A) => string) =>
-		Param.filter(self, predicate, onFalse),
-);
+  /**
+   * Filters a flag value based on a predicate, failing with a custom error if the predicate returns false.
+   *
+   * **Example** (Filtering parsed values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Ensure port is in valid range
+   * const portFlag = Flag.integer("port").pipe(
+   *   Flag.filter(
+   *     (port) => port >= 1 && port <= 65535,
+   *     (port) => `Port ${port} is out of range (1-65535)`
+   *   )
+   * )
+   *
+   * // Ensure non-empty string
+   * const nameFlag = Flag.string("name").pipe(
+   *   Flag.filter(
+   *     (name) => name.trim().length > 0,
+   *     () => "Name cannot be empty"
+   *   )
+   * )
+   * ```
+   *
+   * @category filtering
+   * @since 4.0.0
+   */
+  <A>(predicate: (a: A) => boolean, onFalse: (a: A) => string): (self: Flag<A>) => Flag<A>
+  /**
+   * Filters a flag value based on a predicate, failing with a custom error if the predicate returns false.
+   *
+   * **Example** (Filtering parsed values)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Ensure port is in valid range
+   * const portFlag = Flag.integer("port").pipe(
+   *   Flag.filter(
+   *     (port) => port >= 1 && port <= 65535,
+   *     (port) => `Port ${port} is out of range (1-65535)`
+   *   )
+   * )
+   *
+   * // Ensure non-empty string
+   * const nameFlag = Flag.string("name").pipe(
+   *   Flag.filter(
+   *     (name) => name.trim().length > 0,
+   *     () => "Name cannot be empty"
+   *   )
+   * )
+   * ```
+   *
+   * @category filtering
+   * @since 4.0.0
+   */
+  <A>(self: Flag<A>, predicate: (a: A) => boolean, onFalse: (a: A) => string): Flag<A>
+} = dual(3, <A>(
+  self: Flag<A>,
+  predicate: (a: A) => boolean,
+  onFalse: (a: A) => string
+) => Param.filter(self, predicate, onFalse))
 
 /**
  * Provides an alternative flag if the first one fails to parse.
@@ -966,11 +1556,57 @@ export const filter: {
  * @since 4.0.0
  */
 export const orElse: {
-	<B>(that: LazyArg<Flag<B>>): <A>(self: Flag<A>) => Flag<A | B>;
-	<A, B>(self: Flag<A>, that: LazyArg<Flag<B>>): Flag<A | B>;
-} = dual(2, <A, B>(self: Flag<A>, that: LazyArg<Flag<B>>) =>
-	Param.orElse(self, that),
-);
+  /**
+   * Provides an alternative flag if the first one fails to parse.
+   *
+   * **Example** (Falling back to another flag)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Try parsing as integer, fallback to string
+   * const valueFlag = Flag.orElse(
+   *   Flag.integer("value"),
+   *   () => Flag.string("value")
+   * )
+   *
+   * // Multiple input sources with fallback
+   * const configFlag = Flag.orElse(
+   *   Flag.file("config"),
+   *   () => Flag.string("config-url")
+   * )
+   * ```
+   *
+   * @category alternatives
+   * @since 4.0.0
+   */
+  <B>(that: LazyArg<Flag<B>>): <A>(self: Flag<A>) => Flag<A | B>
+  /**
+   * Provides an alternative flag if the first one fails to parse.
+   *
+   * **Example** (Falling back to another flag)
+   *
+   * ```ts
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Try parsing as integer, fallback to string
+   * const valueFlag = Flag.orElse(
+   *   Flag.integer("value"),
+   *   () => Flag.string("value")
+   * )
+   *
+   * // Multiple input sources with fallback
+   * const configFlag = Flag.orElse(
+   *   Flag.file("config"),
+   *   () => Flag.string("config-url")
+   * )
+   * ```
+   *
+   * @category alternatives
+   * @since 4.0.0
+   */
+  <A, B>(self: Flag<A>, that: LazyArg<Flag<B>>): Flag<A | B>
+} = dual(2, <A, B>(self: Flag<A>, that: LazyArg<Flag<B>>) => Param.orElse(self, that))
 
 /**
  * Tries to parse with the first flag, then the second, returning a Result that indicates which succeeded.
@@ -1004,11 +1640,71 @@ export const orElse: {
  * @since 4.0.0
  */
 export const orElseResult: {
-	<B>(that: LazyArg<Flag<B>>): <A>(self: Flag<A>) => Flag<Result.Result<A, B>>;
-	<A, B>(self: Flag<A>, that: LazyArg<Flag<B>>): Flag<Result.Result<A, B>>;
-} = dual(2, <A, B>(self: Flag<A>, that: LazyArg<Flag<B>>) =>
-	Param.orElseResult(self, that),
-);
+  /**
+   * Tries to parse with the first flag, then the second, returning a Result that indicates which succeeded.
+   *
+   * **Example** (Returning fallback results)
+   *
+   * ```ts
+   * import { Effect, Result } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Try file path, fallback to URL
+   * const sourceFlag = Flag.orElseResult(
+   *   Flag.file("source"),
+   *   () => Flag.string("source-url")
+   * )
+   *
+   * const program = Effect.gen(function*() {
+   *   const [leftover, source] = yield* sourceFlag.parse({
+   *     arguments: [],
+   *     flags: { "source-url": ["https://google.com"] }
+   *   })
+   *   if (Result.isSuccess(source)) {
+   *     console.log("Using file:", source.success)
+   *   } else {
+   *     console.log("Using URL:", source.failure)
+   *   }
+   * })
+   * ```
+   *
+   * @category alternatives
+   * @since 4.0.0
+   */
+  <B>(that: LazyArg<Flag<B>>): <A>(self: Flag<A>) => Flag<Result.Result<A, B>>
+  /**
+   * Tries to parse with the first flag, then the second, returning a Result that indicates which succeeded.
+   *
+   * **Example** (Returning fallback results)
+   *
+   * ```ts
+   * import { Effect, Result } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * // Try file path, fallback to URL
+   * const sourceFlag = Flag.orElseResult(
+   *   Flag.file("source"),
+   *   () => Flag.string("source-url")
+   * )
+   *
+   * const program = Effect.gen(function*() {
+   *   const [leftover, source] = yield* sourceFlag.parse({
+   *     arguments: [],
+   *     flags: { "source-url": ["https://google.com"] }
+   *   })
+   *   if (Result.isSuccess(source)) {
+   *     console.log("Using file:", source.success)
+   *   } else {
+   *     console.log("Using URL:", source.failure)
+   *   }
+   * })
+   * ```
+   *
+   * @category alternatives
+   * @since 4.0.0
+   */
+  <A, B>(self: Flag<A>, that: LazyArg<Flag<B>>): Flag<Result.Result<A, B>>
+} = dual(2, <A, B>(self: Flag<A>, that: LazyArg<Flag<B>>) => Param.orElseResult(self, that))
 
 /**
  * Validates and transforms a flag value using a Schema codec.
@@ -1048,8 +1744,80 @@ export const orElseResult: {
  * @since 4.0.0
  */
 export const withSchema: {
-	<A, B>(schema: Schema.Codec<B, A>): (self: Flag<A>) => Flag<B>;
-	<A, B>(self: Flag<A>, schema: Schema.Codec<B, A>): Flag<B>;
-} = dual(2, <A, B>(self: Flag<A>, schema: Schema.Codec<B, A>) =>
-	Param.withSchema(self, schema),
-);
+  /**
+   * Validates and transforms a flag value using a Schema codec.
+   *
+   * **Example** (Validating with schemas)
+   *
+   * ```ts
+   * import { Schema } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const isEmail = Schema.isPattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, {
+   *   message: "Must be a valid email address"
+   * })
+   *
+   * // Parse and validate email with custom schema
+   * const EmailSchema = Schema.String.pipe(
+   *   Schema.check(isEmail)
+   * )
+   *
+   * const emailFlag = Flag.string("email").pipe(
+   *   Flag.withSchema(EmailSchema)
+   * )
+   *
+   * // Parse JSON configuration with schema validation
+   * const ConfigSchema = Schema.Struct({
+   *   port: Schema.Number,
+   *   host: Schema.String,
+   *   ssl: Schema.optional(Schema.Boolean)
+   * }).pipe(Schema.fromJsonString)
+   *
+   * const configFlag = Flag.string("config").pipe(
+   *   Flag.withSchema(ConfigSchema)
+   * )
+   * ```
+   *
+   * @category schemas
+   * @since 4.0.0
+   */
+  <A, B>(schema: Schema.Codec<B, A>): (self: Flag<A>) => Flag<B>
+  /**
+   * Validates and transforms a flag value using a Schema codec.
+   *
+   * **Example** (Validating with schemas)
+   *
+   * ```ts
+   * import { Schema } from "effect"
+   * import { Flag } from "effect/unstable/cli"
+   *
+   * const isEmail = Schema.isPattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, {
+   *   message: "Must be a valid email address"
+   * })
+   *
+   * // Parse and validate email with custom schema
+   * const EmailSchema = Schema.String.pipe(
+   *   Schema.check(isEmail)
+   * )
+   *
+   * const emailFlag = Flag.string("email").pipe(
+   *   Flag.withSchema(EmailSchema)
+   * )
+   *
+   * // Parse JSON configuration with schema validation
+   * const ConfigSchema = Schema.Struct({
+   *   port: Schema.Number,
+   *   host: Schema.String,
+   *   ssl: Schema.optional(Schema.Boolean)
+   * }).pipe(Schema.fromJsonString)
+   *
+   * const configFlag = Flag.string("config").pipe(
+   *   Flag.withSchema(ConfigSchema)
+   * )
+   * ```
+   *
+   * @category schemas
+   * @since 4.0.0
+   */
+  <A, B>(self: Flag<A>, schema: Schema.Codec<B, A>): Flag<B>
+} = dual(2, <A, B>(self: Flag<A>, schema: Schema.Codec<B, A>) => Param.withSchema(self, schema))
