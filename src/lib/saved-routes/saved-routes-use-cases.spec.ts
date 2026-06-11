@@ -263,29 +263,59 @@ describe("saved routes use cases", () => {
 		]);
 	});
 
-	it("sets syncError after remote save failure without losing the optimistic route", async () => {
-		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
-		await Effect.runPromise(
-			useCases.setRemoteRepository({
-				save: vi.fn(() => Effect.fail(new TestRemoteError("network down"))),
-				delete: vi.fn(() => Effect.void),
-				mergeLocalRoutes: vi.fn(() =>
-					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
-				),
-			}),
-		);
+	it("keeps failed remote saves pending and retries them", async () => {
+		vi.useFakeTimers();
 
-		const savedRoute = await Effect.runPromise(
-			useCases.createSavedRoute(state, route),
-		);
-		expect(state.savedRoutes).toEqual([savedRoute]);
-		expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
+		try {
+			let shouldFail = true;
+			const save = vi.fn(() => {
+				if (shouldFail) {
+					shouldFail = false;
+					return Effect.fail(new TestRemoteError("network down"));
+				}
 
-		await flushPromises();
+				return Effect.void;
+			});
+			await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+			await Effect.runPromise(
+				useCases.setRemoteRepository({
+					save,
+					delete: vi.fn(() => Effect.void),
+					mergeLocalRoutes: vi.fn(() =>
+						Effect.succeed({
+							inserted: 0,
+							skipped: 0,
+							invalid: 0,
+							duplicate: 0,
+						}),
+					),
+				}),
+			);
 
-		expect(state.savedRoutes).toEqual([savedRoute]);
-		expect(state.pendingRemoteRouteIds).toEqual(new Set());
-		expect(state.syncError).toBe("Could not sync saved route: network down");
+			const savedRoute = await Effect.runPromise(
+				useCases.createSavedRoute(state, route),
+			);
+			expect(state.savedRoutes).toEqual([savedRoute]);
+			expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
+
+			await vi.advanceTimersByTimeAsync(0);
+
+			expect(save).toHaveBeenCalledTimes(1);
+			expect(state.savedRoutes).toEqual([savedRoute]);
+			expect(state.pendingRemoteRouteIds).toEqual(new Set([savedRoute.id]));
+			expect(state.syncError).toBe("Could not sync saved route: network down");
+
+			await vi.advanceTimersByTimeAsync(999);
+			expect(save).toHaveBeenCalledTimes(1);
+
+			await vi.advanceTimersByTimeAsync(1);
+
+			expect(save).toHaveBeenCalledTimes(2);
+			expect(state.pendingRemoteRouteIds).toEqual(new Set());
+			expect(state.syncError).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("sets localSaveError after local persistence failure without losing the optimistic route", async () => {
