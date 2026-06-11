@@ -104,6 +104,49 @@ function getContentLengthBytes(request: Request): number | null {
 		: null;
 }
 
+async function parseRouteRequestJsonWithBodyLimit(
+	request: Request,
+	maxBodyBytes: number,
+): Promise<unknown> {
+	if (!request.body) {
+		throw new RouteValidationError(400, "Invalid route request payload.");
+	}
+
+	const reader = request.body.getReader();
+	const decoder = new TextDecoder();
+	let bodyText = "";
+	let bytesRead = 0;
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+
+			if (done) {
+				break;
+			}
+
+			bytesRead += value.byteLength;
+
+			if (bytesRead > maxBodyBytes) {
+				try {
+					await reader.cancel();
+				} catch {
+					// Preserve the validation error even if the client stream errors during cancellation.
+				}
+				throw new RouteValidationError(413, getRouteRequestTooLargeMessage());
+			}
+
+			bodyText += decoder.decode(value, { stream: true });
+		}
+
+		bodyText += decoder.decode();
+
+		return JSON.parse(bodyText);
+	} finally {
+		reader.releaseLock();
+	}
+}
+
 function buildTooManyWaypointsFieldErrors(
 	rawWaypointInputs: readonly unknown[],
 	fieldErrors: RouteFieldErrors = {},
@@ -922,9 +965,12 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		const rawPayload = yield* Effect.tryPromise({
-			try: () => request.json(),
-			catch: () =>
-				new RouteValidationError(400, "Invalid route request payload."),
+			try: () =>
+				parseRouteRequestJsonWithBodyLimit(request, maxRouteRequestBodyBytes),
+			catch: (error) =>
+				error instanceof RouteValidationError
+					? error
+					: new RouteValidationError(400, "Invalid route request payload."),
 		});
 		const decodedPayload = decodeRouteRequestPayload(rawPayload);
 
