@@ -1,61 +1,28 @@
 /**
- * The `IdGenerator` module provides a pluggable system for generating unique identifiers
- * for tool calls and other items in the Effect AI SDKs.
+ * Provides identifier generation for AI features.
  *
- * This module offers a flexible and configurable approach to ID generation, supporting
- * custom alphabets, prefixes, separators, and sizes.
- *
- * **Example** (Generating IDs with the default service)
- *
- * ```ts
- * import { Effect } from "effect"
- * import { IdGenerator } from "effect/unstable/ai"
- *
- * // Using the default ID generator
- * const program = Effect.gen(function*() {
- *   const idGen = yield* IdGenerator.IdGenerator
- *   const toolCallId = yield* idGen.generateId()
- *   console.log(toolCallId) // "id_A7xK9mP2qR5tY8uV"
- *   return toolCallId
- * }).pipe(Effect.provideService(
- *   IdGenerator.IdGenerator,
- *   IdGenerator.defaultIdGenerator
- * ))
- * ```
- *
- * **Example** (Providing a custom ID generator)
- *
- * ```ts
- * import { Effect } from "effect"
- * import { IdGenerator } from "effect/unstable/ai"
- *
- * // Creating a custom ID generator for AI tool calls
- * const customLayer = IdGenerator.layer({
- *   alphabet: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
- *   prefix: "tool_call",
- *   separator: "-",
- *   size: 12
- * })
- *
- * const program = Effect.gen(function*() {
- *   const idGen = yield* IdGenerator.IdGenerator
- *   const id = yield* idGen.generateId()
- *   console.log(id) // "tool_call-A7XK9MP2QR5T"
- *   return id
- * }).pipe(Effect.provide(customLayer))
- * ```
+ * The `IdGenerator` service exposes one operation, `generateId`, which returns
+ * a string inside `Effect`. AI modules use it for values such as tool call ids
+ * and generated response item ids. This module includes the service tag,
+ * service interface, default generator, configurable custom generator, and layer
+ * for providing the service.
  *
  * @since 4.0.0
  */
-import * as Cause from "../../Cause.ts";
-import * as Context from "../../Context.ts";
-import * as Effect from "../../Effect.ts";
-import * as Layer from "../../Layer.ts";
-import * as Predicate from "../../Predicate.ts";
-import * as Random from "../../Random.ts";
+import * as Cause from "../../Cause.ts"
+import * as Context from "../../Context.ts"
+import * as Effect from "../../Effect.ts"
+import * as Layer from "../../Layer.ts"
+import * as Predicate from "../../Predicate.ts"
+import * as Random from "../../Random.ts"
 
 /**
- * The `IdGenerator` service tag for dependency injection.
+ * Service tag for AI identifier generation services.
+ *
+ * **When to use**
+ *
+ * Use to access or provide the service that creates identifiers for AI tool
+ * calls and related generated values.
  *
  * **Details**
  *
@@ -76,11 +43,11 @@ import * as Random from "../../Random.ts";
  * })
  * ```
  *
- * @category models
+ * @category services
  * @since 4.0.0
  */
 export class IdGenerator extends Context.Service<IdGenerator, Service>()(
-	"@effect/ai/IdGenerator",
+  "@effect/ai/IdGenerator"
 ) {}
 
 /**
@@ -115,7 +82,7 @@ export class IdGenerator extends Context.Service<IdGenerator, Service>()(
  * @since 4.0.0
  */
 export interface Service {
-	readonly generateId: () => Effect.Effect<string>;
+  readonly generateId: () => Effect.Effect<string>
 }
 
 /**
@@ -137,53 +104,52 @@ export interface Service {
  * // This will generate IDs like: "tool_A1B2C3D4"
  * ```
  *
- * @category models
+ * @category options
  * @since 4.0.0
  */
 export interface MakeOptions {
-	/**
-	 * The character set to use for generating the random portion of IDs.
-	 */
-	readonly alphabet: string;
-	/**
-	 * Optional prefix to prepend to generated IDs.
-	 */
-	readonly prefix?: string | undefined;
-	/**
-	 * Character used to separate the prefix from the random portion.
-	 */
-	readonly separator: string;
-	/**
-	 * Length of the random portion of the generated ID.
-	 */
-	readonly size: number;
+  /**
+   * The character set to use for generating the random portion of IDs.
+   */
+  readonly alphabet: string
+  /**
+   * Optional prefix to prepend to generated IDs.
+   */
+  readonly prefix?: string | undefined
+  /**
+   * Character used to separate the prefix from the random portion.
+   */
+  readonly separator: string
+  /**
+   * Length of the random portion of the generated ID.
+   */
+  readonly size: number
 }
 
-const DEFAULT_ALPHABET =
-	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-const DEFAULT_SEPARATOR = "_";
-const DEFAULT_SIZE = 16;
+const DEFAULT_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+const DEFAULT_SEPARATOR = "_"
+const DEFAULT_SIZE = 16
 
 const makeGenerator = ({
-	alphabet = DEFAULT_ALPHABET,
-	prefix,
-	separator = DEFAULT_SEPARATOR,
-	size = DEFAULT_SIZE,
+  alphabet = DEFAULT_ALPHABET,
+  prefix,
+  separator = DEFAULT_SEPARATOR,
+  size = DEFAULT_SIZE
 }: Partial<MakeOptions>) => {
-	const alphabetLength = alphabet.length;
-	return Effect.fnUntraced(function* () {
-		const chars = new Array(size);
-		for (let i = 0; i < size; i++) {
-			const index = yield* Random.next;
-			chars[i] = alphabet[(index * alphabetLength) | 0];
-		}
-		const identifier = chars.join("");
-		if (Predicate.isUndefined(prefix)) {
-			return identifier;
-		}
-		return `${prefix}${separator}${identifier}`;
-	});
-};
+  const alphabetLength = alphabet.length
+  return Effect.fnUntraced(function*() {
+    const chars = new Array(size)
+    for (let i = 0; i < size; i++) {
+      const index = yield* Random.next
+      chars[i] = alphabet[(index * alphabetLength) | 0]
+    }
+    const identifier = chars.join("")
+    if (Predicate.isUndefined(prefix)) {
+      return identifier
+    }
+    return `${prefix}${separator}${identifier}`
+  })
+}
 
 /**
  * Default ID generator service implementation.
@@ -219,8 +185,8 @@ const makeGenerator = ({
  * @since 4.0.0
  */
 export const defaultIdGenerator: Service = {
-	generateId: makeGenerator({ prefix: "id" }),
-};
+  generateId: makeGenerator({ prefix: "id" })
+}
 
 /**
  * Creates a custom ID generator service with the specified options.
@@ -278,23 +244,23 @@ export const defaultIdGenerator: Service = {
  * @category constructors
  * @since 4.0.0
  */
-export const make = Effect.fnUntraced(function* ({
-	alphabet = DEFAULT_ALPHABET,
-	prefix,
-	separator = DEFAULT_SEPARATOR,
-	size = DEFAULT_SIZE,
+export const make = Effect.fnUntraced(function*({
+  alphabet = DEFAULT_ALPHABET,
+  prefix,
+  separator = DEFAULT_SEPARATOR,
+  size = DEFAULT_SIZE
 }: MakeOptions) {
-	if (alphabet.includes(separator)) {
-		const message = `The separator "${separator}" must not be part of the alphabet "${alphabet}".`;
-		return yield* new Cause.IllegalArgumentError(message);
-	}
+  if (alphabet.includes(separator)) {
+    const message = `The separator "${separator}" must not be part of the alphabet "${alphabet}".`
+    return yield* new Cause.IllegalArgumentError(message)
+  }
 
-	const generateId = makeGenerator({ alphabet, prefix, separator, size });
+  const generateId = makeGenerator({ alphabet, prefix, separator, size })
 
-	return {
-		generateId,
-	} as const;
-});
+  return {
+    generateId
+  } as const
+})
 
 /**
  * Creates a Layer that provides the IdGenerator service with custom
@@ -302,9 +268,8 @@ export const make = Effect.fnUntraced(function* ({
  *
  * **When to use**
  *
- * This is the recommended way to provide ID generation capabilities to your
- * application. The layer will fail during construction if the configuration is
- * invalid.
+ * Use when you need to provide ID generation capabilities from validated
+ * configuration.
  *
  * **Example** (Providing an ID generator layer)
  *
@@ -331,7 +296,5 @@ export const make = Effect.fnUntraced(function* ({
  * @category constructors
  * @since 4.0.0
  */
-export const layer = (
-	options: MakeOptions,
-): Layer.Layer<IdGenerator, Cause.IllegalArgumentError> =>
-	Layer.effect(IdGenerator)(make(options));
+export const layer = (options: MakeOptions): Layer.Layer<IdGenerator, Cause.IllegalArgumentError> =>
+  Layer.effect(IdGenerator)(make(options))

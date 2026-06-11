@@ -1,27 +1,16 @@
 /**
- * Utilities for HTTP trace-context propagation.
+ * HTTP propagation helpers for Effect tracing context.
  *
- * This module converts Effect `Tracer.Span` values to outbound tracing headers
+ * This module converts Effect `Tracer.Span` values into outbound trace headers
  * and decodes inbound propagation headers into `Tracer.ExternalSpan` parents.
- * It is used by traced HTTP clients to continue the current span across an
- * outbound request, and by server middleware to parent request spans from
- * upstream services. The helpers are also useful for adapters or middleware
- * that need to bridge Effect tracing with W3C Trace Context or B3-compatible
- * systems.
- *
- * Outbound propagation writes both W3C `traceparent` and compact B3 `b3`
- * headers. Inbound decoding prefers W3C `traceparent`, then compact B3, then
- * multi-header B3 (`x-b3-*`). Header names in `Headers.Headers` are expected to
- * be lowercase; use the safe header constructors when accepting raw platform
- * headers. Invalid or unsupported header shapes simply decode to `Option.none`,
- * so callers should treat missing trace context as "start a new trace" rather
- * than as an error.
+ * HTTP clients use it to continue the current span across outgoing requests, and
+ * server middleware uses it to parent request spans from upstream services.
  *
  * @since 4.0.0
  */
-import * as Option from "../../Option.ts";
-import * as Tracer from "../../Tracer.ts";
-import * as Headers from "./Headers.ts";
+import * as Option from "../../Option.ts"
+import * as Tracer from "../../Tracer.ts"
+import * as Headers from "./Headers.ts"
 
 /**
  * Function type for decoding tracing headers into an external span.
@@ -35,7 +24,7 @@ import * as Headers from "./Headers.ts";
  * @since 4.0.0
  */
 export interface FromHeaders {
-	(headers: Headers.Headers): Option.Option<Tracer.ExternalSpan>;
+  (headers: Headers.Headers): Option.Option<Tracer.ExternalSpan>
 }
 
 /**
@@ -50,19 +39,18 @@ export interface FromHeaders {
  * @since 4.0.0
  */
 export const toHeaders = (span: Tracer.Span): Headers.Headers =>
-	Headers.fromRecordUnsafe({
-		b3: `${span.traceId}-${span.spanId}-${span.sampled ? "1" : "0"}${Option.match(
-			span.parent,
-			{
-				onNone: () => "",
-				onSome: (parent) => `-${parent.spanId}`,
-			},
-		)}`,
-		traceparent: `00-${span.traceId}-${span.spanId}-${span.sampled ? "01" : "00"}`,
-	});
+  Headers.fromRecordUnsafe({
+    b3: `${span.traceId}-${span.spanId}-${span.sampled ? "1" : "0"}${
+      Option.match(span.parent, {
+        onNone: () => "",
+        onSome: (parent) => `-${parent.spanId}`
+      })
+    }`,
+    traceparent: `00-${span.traceId}-${span.spanId}-${span.sampled ? "01" : "00"}`
+  })
 
 /**
- * Decodes an external span from HTTP trace propagation headers.
+ * Decodes an external span safely from HTTP trace propagation headers.
  *
  * **Details**
  *
@@ -72,22 +60,20 @@ export const toHeaders = (span: Tracer.Span): Headers.Headers =>
  * @category decoding
  * @since 4.0.0
  */
-export const fromHeaders = (
-	headers: Headers.Headers,
-): Option.Option<Tracer.ExternalSpan> => {
-	let span = w3c(headers);
-	if (Option.isSome(span)) {
-		return span;
-	}
-	span = b3(headers);
-	if (Option.isSome(span)) {
-		return span;
-	}
-	return xb3(headers);
-};
+export const fromHeaders = (headers: Headers.Headers): Option.Option<Tracer.ExternalSpan> => {
+  let span = w3c(headers)
+  if (Option.isSome(span)) {
+    return span
+  }
+  span = b3(headers)
+  if (Option.isSome(span)) {
+    return span
+  }
+  return xb3(headers)
+}
 
 /**
- * Decodes an external span from the compact B3 `b3` header.
+ * Decodes an external span safely from the compact B3 `b3` header.
  *
  * **Details**
  *
@@ -98,24 +84,22 @@ export const fromHeaders = (
  * @since 4.0.0
  */
 export const b3: FromHeaders = (headers) => {
-	if (!("b3" in headers)) {
-		return Option.none();
-	}
-	const parts = headers["b3"].split("-");
-	if (parts.length < 2) {
-		return Option.none();
-	}
-	return Option.some(
-		Tracer.externalSpan({
-			traceId: parts[0],
-			spanId: parts[1],
-			sampled: parts[2] ? parts[2] === "1" : true,
-		}),
-	);
-};
+  if (!("b3" in headers)) {
+    return Option.none()
+  }
+  const parts = headers["b3"].split("-")
+  if (parts.length < 2) {
+    return Option.none()
+  }
+  return Option.some(Tracer.externalSpan({
+    traceId: parts[0],
+    spanId: parts[1],
+    sampled: parts[2] ? parts[2] === "1" : true
+  }))
+}
 
 /**
- * Decodes an external span from multi-header B3 propagation headers.
+ * Decodes an external span safely from multi-header B3 propagation headers.
  *
  * **Details**
  *
@@ -126,23 +110,21 @@ export const b3: FromHeaders = (headers) => {
  * @since 4.0.0
  */
 export const xb3: FromHeaders = (headers) => {
-	if (!headers["x-b3-traceid"] || !headers["x-b3-spanid"]) {
-		return Option.none();
-	}
-	return Option.some(
-		Tracer.externalSpan({
-			traceId: headers["x-b3-traceid"],
-			spanId: headers["x-b3-spanid"],
-			sampled: headers["x-b3-sampled"] ? headers["x-b3-sampled"] === "1" : true,
-		}),
-	);
-};
+  if (!(headers["x-b3-traceid"]) || !(headers["x-b3-spanid"])) {
+    return Option.none()
+  }
+  return Option.some(Tracer.externalSpan({
+    traceId: headers["x-b3-traceid"],
+    spanId: headers["x-b3-spanid"],
+    sampled: headers["x-b3-sampled"] ? headers["x-b3-sampled"] === "1" : true
+  }))
+}
 
-const w3cTraceId = /^[0-9a-f]{32}$/i;
-const w3cSpanId = /^[0-9a-f]{16}$/i;
+const w3cTraceId = /^[0-9a-f]{32}$/i
+const w3cSpanId = /^[0-9a-f]{16}$/i
 
 /**
- * Decodes an external span from the W3C `traceparent` header.
+ * Decodes an external span safely from the W3C `traceparent` header.
  *
  * **Details**
  *
@@ -152,32 +134,27 @@ const w3cSpanId = /^[0-9a-f]{16}$/i;
  * @since 4.0.0
  */
 export const w3c: FromHeaders = (headers) => {
-	if (!headers["traceparent"]) {
-		return Option.none();
-	}
-	const parts = headers["traceparent"].split("-");
-	if (parts.length !== 4) {
-		return Option.none();
-	}
-	const [version, traceId, spanId, flags] = parts;
-	switch (version) {
-		case "00": {
-			if (
-				w3cTraceId.test(traceId) === false ||
-				w3cSpanId.test(spanId) === false
-			) {
-				return Option.none();
-			}
-			return Option.some(
-				Tracer.externalSpan({
-					traceId,
-					spanId,
-					sampled: (parseInt(flags, 16) & 1) === 1,
-				}),
-			);
-		}
-		default: {
-			return Option.none();
-		}
-	}
-};
+  if (!(headers["traceparent"])) {
+    return Option.none()
+  }
+  const parts = headers["traceparent"].split("-")
+  if (parts.length !== 4) {
+    return Option.none()
+  }
+  const [version, traceId, spanId, flags] = parts
+  switch (version) {
+    case "00": {
+      if (w3cTraceId.test(traceId) === false || w3cSpanId.test(spanId) === false) {
+        return Option.none()
+      }
+      return Option.some(Tracer.externalSpan({
+        traceId,
+        spanId,
+        sampled: (parseInt(flags, 16) & 1) === 1
+      }))
+    }
+    default: {
+      return Option.none()
+    }
+  }
+}

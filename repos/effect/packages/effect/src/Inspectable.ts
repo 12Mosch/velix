@@ -1,48 +1,24 @@
 /**
- * This module provides utilities for making values inspectable and debuggable in TypeScript.
+ * Controls how values appear in logs and debugging output.
  *
- * The Inspectable interface provides a standard way to implement custom string representations
- * for objects, making them easier to debug and inspect. It includes support for JSON
- * serialization, Node.js inspection, and safe circular reference handling.
- *
- * The module also includes redaction capabilities for sensitive data, allowing objects
- * to provide different representations based on the current execution context.
- *
- * **Example** (Creating inspectable values)
- *
- * ```ts
- * import { Formatter, Inspectable } from "effect"
- *
- * class User extends Inspectable.Class {
- *   constructor(
- *     public readonly name: string,
- *     public readonly email: string
- *   ) {
- *     super()
- *   }
- *
- *   toJSON() {
- *     return {
- *       _tag: "User",
- *       name: this.name,
- *       email: this.email
- *     }
- *   }
- * }
- *
- * const user = new User("Alice", "alice@example.com")
- * console.log(user.toString()) // Pretty printed JSON
- * console.log(Formatter.format(user)) // Same as toString()
- * ```
+ * Effect data types use `Inspectable` to provide stable string, JSON, and
+ * Node.js inspection output. This keeps custom values readable in logs, REPLs,
+ * test failures, and diagnostics. This module defines the Node inspect symbol,
+ * the `Inspectable` interface, safe conversion helpers, and shared prototype or
+ * class implementations for custom values.
  *
  * @since 2.0.0
  */
-import { format, formatJson } from "./Formatter.ts";
-import * as Predicate from "./Predicate.ts";
-import { redact } from "./Redactable.ts";
+import { format, formatJson } from "./Formatter.ts"
+import * as Predicate from "./Predicate.ts"
+import { redact } from "./Redactable.ts"
 
 /**
- * Symbol used by Node.js for custom object inspection.
+ * Defines the symbol used by Node.js for custom object inspection.
+ *
+ * **When to use**
+ *
+ * Use to implement Node.js custom inspection for a value.
  *
  * **Details**
  *
@@ -70,12 +46,16 @@ import { redact } from "./Redactable.ts";
  * @category symbols
  * @since 2.0.0
  */
-export const NodeInspectSymbol = Symbol.for("nodejs.util.inspect.custom");
+export const NodeInspectSymbol = Symbol.for("nodejs.util.inspect.custom")
 
 /**
  * The type of the Node.js inspection symbol used for custom object inspection.
  * This symbol type is used to implement custom inspection behavior in Node.js
  * environments.
+ *
+ * **When to use**
+ *
+ * Use to type methods keyed by the Node.js custom inspection symbol.
  *
  * **Example** (Typing custom Node inspection)
  *
@@ -97,10 +77,14 @@ export const NodeInspectSymbol = Symbol.for("nodejs.util.inspect.custom");
  * @category symbols
  * @since 2.0.0
  */
-export type NodeInspectSymbol = typeof NodeInspectSymbol;
+export type NodeInspectSymbol = typeof NodeInspectSymbol
 
 /**
  * Interface for objects that can be inspected and provide custom string representations.
+ *
+ * **When to use**
+ *
+ * Use to define values with custom string, JSON, and Node.js inspection output.
  *
  * **Details**
  *
@@ -140,13 +124,18 @@ export type NodeInspectSymbol = typeof NodeInspectSymbol;
  * @since 2.0.0
  */
 export interface Inspectable {
-	toString(): string;
-	toJSON(): unknown;
-	[NodeInspectSymbol](): unknown;
+  toString(): string
+  toJSON(): unknown
+  [NodeInspectSymbol](): unknown
 }
 
 /**
- * Safely converts a value to a JSON-serializable representation.
+ * Converts a value to a JSON-serializable representation safely.
+ *
+ * **When to use**
+ *
+ * Use when you need a safe, JSON-serializable representation of a value
+ * without risking unhandled errors.
  *
  * **Details**
  *
@@ -155,28 +144,34 @@ export interface Inspectable {
  * For objects that don't have a `toJSON` method, it applies redaction to
  * protect sensitive information.
  *
+ * @see {@link toStringUnknown} for converting unknown values to strings
+ *
  * @category converting
  * @since 4.0.0
  */
 export const toJson = (input: unknown): unknown => {
-	try {
-		if (
-			Predicate.hasProperty(input, "toJSON") &&
-			Predicate.isFunction(input["toJSON"]) &&
-			input["toJSON"].length === 0
-		) {
-			return input.toJSON();
-		} else if (Array.isArray(input)) {
-			return input.map(toJson);
-		}
-	} catch {
-		return "[toJSON threw]";
-	}
-	return redact(input);
-};
+  try {
+    if (
+      Predicate.hasProperty(input, "toJSON") &&
+      Predicate.isFunction(input["toJSON"]) &&
+      input["toJSON"].length === 0
+    ) {
+      return input.toJSON()
+    } else if (Array.isArray(input)) {
+      return input.map(toJson)
+    }
+  } catch {
+    return "[toJSON threw]"
+  }
+  return redact(input)
+}
 
 /**
  * Converts an unknown value to a string for diagnostics.
+ *
+ * **When to use**
+ *
+ * Use to produce a diagnostic string from a value whose runtime type is unknown.
  *
  * **Details**
  *
@@ -187,24 +182,23 @@ export const toJson = (input: unknown): unknown => {
  * @category converting
  * @since 2.0.0
  */
-export const toStringUnknown = (
-	u: unknown,
-	whitespace: number | string | undefined = 2,
-): string => {
-	if (typeof u === "string") {
-		return u;
-	}
-	try {
-		return typeof u === "object"
-			? formatJson(u, { space: whitespace })
-			: String(u);
-	} catch {
-		return String(u);
-	}
-};
+export const toStringUnknown = (u: unknown, whitespace: number | string | undefined = 2): string => {
+  if (typeof u === "string") {
+    return u
+  }
+  try {
+    return typeof u === "object" ? formatJson(u, { space: whitespace }) : String(u)
+  } catch {
+    return String(u)
+  }
+}
 
 /**
  * A base prototype object that implements the {@link Inspectable} interface.
+ *
+ * **When to use**
+ *
+ * Use as a prototype for plain objects that should share standard inspectable behavior.
  *
  * **Details**
  *
@@ -232,23 +226,27 @@ export const toStringUnknown = (
  * MyClass.prototype.constructor = MyClass
  * ```
  *
- * @category models
+ * @category prototypes
  * @since 2.0.0
  */
 export const BaseProto: Inspectable = {
-	toJSON() {
-		return toJson(this);
-	},
-	[NodeInspectSymbol]() {
-		return this.toJSON();
-	},
-	toString() {
-		return format(this.toJSON());
-	},
-};
+  toJSON() {
+    return toJson(this)
+  },
+  [NodeInspectSymbol]() {
+    return this.toJSON()
+  },
+  toString() {
+    return format(this.toJSON())
+  }
+}
 
 /**
- * Abstract base class that implements the Inspectable interface.
+ * Provides an abstract base class that implements the Inspectable interface.
+ *
+ * **When to use**
+ *
+ * Use as a base class for inspectable objects that define their own JSON representation.
  *
  * **Details**
  *
@@ -289,31 +287,43 @@ export const BaseProto: Inspectable = {
  * @since 2.0.0
  */
 export abstract class Class {
-	/**
-	 * Returns a JSON representation of this object.
-	 *
-	 * **Details**
-	 *
-	 * Subclasses must implement this method to define how the object
-	 * should be serialized for debugging and inspection purposes.
-	 *
-	 * @since 2.0.0
-	 */
-	abstract toJSON(): unknown;
-	/**
-	 * Node.js custom inspection method.
-	 *
-	 * @since 2.0.0
-	 */
-	[NodeInspectSymbol]() {
-		return this.toJSON();
-	}
-	/**
-	 * Returns a formatted string representation of this object.
-	 *
-	 * @since 2.0.0
-	 */
-	toString() {
-		return format(this.toJSON());
-	}
+  /**
+   * Returns a JSON representation of this object.
+   *
+   * **When to use**
+   *
+   * Use to provide the JSON representation consumed by inherited inspection methods.
+   *
+   * **Details**
+   *
+   * Subclasses must implement this method to define how the object
+   * should be serialized for debugging and inspection purposes.
+   *
+   * @since 2.0.0
+   */
+  abstract toJSON(): unknown
+  /**
+   * Node.js custom inspection method.
+   *
+   * **When to use**
+   *
+   * Use to expose the class JSON representation to Node.js inspection.
+   *
+   * @since 2.0.0
+   */
+  [NodeInspectSymbol]() {
+    return this.toJSON()
+  }
+  /**
+   * Returns a formatted string representation of this object.
+   *
+   * **When to use**
+   *
+   * Use to format the class JSON representation as a string.
+   *
+   * @since 2.0.0
+   */
+  toString() {
+    return format(this.toJSON())
+  }
 }

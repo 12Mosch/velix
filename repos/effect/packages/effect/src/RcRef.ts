@@ -1,33 +1,29 @@
 /**
- * The `RcRef` module provides reference-counted access to a shared resource
- * whose lifecycle is managed by `Scope`. An `RcRef<A, E>` lazily acquires its
- * resource the first time it is requested, shares that resource across active
- * users, and releases it when the final scope holding a reference closes.
- *
- * Use `RcRef` when several scoped operations should reuse the same expensive
- * or stateful resource, such as a connection, client, cache, or worker, without
- * making each operation acquire and release its own copy. `make` defines how
- * the resource is acquired, `get` borrows the current resource for the active
- * scope, and `invalidate` forces a future `get` to acquire a fresh resource.
- *
- * The resource is tied to scopes rather than ordinary object reachability:
- * every `get` must run with a `Scope`, and the reference count is decremented
- * when that scope closes. If `idleTimeToLive` is configured, a resource whose
- * reference count reaches zero can remain cached briefly before release.
+ * Reference-counted handles for sharing one scoped resource across many scoped
+ * users. An `RcRef<A, E>` acquires the resource lazily the first time `get`
+ * needs it, reuses that value while it is borrowed or kept idle, and finalizes
+ * it when the final borrowing scope closes unless an idle timeout keeps it
+ * available. The module also provides `invalidate` for forcing the next `get`
+ * to acquire a fresh resource.
  *
  * @since 3.5.0
  */
-import type * as Duration from "./Duration.ts";
-import type * as Effect from "./Effect.ts";
-import * as internal from "./internal/rcRef.ts";
-import type { Pipeable } from "./Pipeable.ts";
-import type { Scope } from "./Scope.ts";
-import type * as Types from "./Types.ts";
+import type * as Duration from "./Duration.ts"
+import type * as Effect from "./Effect.ts"
+import * as internal from "./internal/rcRef.ts"
+import type { Pipeable } from "./Pipeable.ts"
+import type { Scope } from "./Scope.ts"
+import type * as Types from "./Types.ts"
 
-const TypeId = "~effect/RcRef";
+const TypeId = "~effect/RcRef"
 
 /**
  * A reference counted reference that manages resource lifecycle.
+ *
+ * **When to use**
+ *
+ * Use to share a scoped resource across active users with reference-counted
+ * acquisition and release.
  *
  * **Details**
  *
@@ -65,7 +61,7 @@ const TypeId = "~effect/RcRef";
  * @since 3.5.0
  */
 export interface RcRef<out A, out E = never> extends Pipeable {
-	readonly [TypeId]: RcRef.Variance<A, E>;
+  readonly [TypeId]: RcRef.Variance<A, E>
 }
 
 /**
@@ -84,26 +80,36 @@ export interface RcRef<out A, out E = never> extends Pipeable {
  * @since 3.5.0
  */
 export declare namespace RcRef {
-	/**
-	 * Type-level variance marker for `RcRef`.
-	 *
-	 * **Details**
-	 *
-	 * This interface records the covariant value and error types carried by an
-	 * `RcRef`. It is used by Effect's type machinery and is not normally
-	 * referenced directly by users.
-	 *
-	 * @category models
-	 * @since 3.5.0
-	 */
-	export interface Variance<A, E> {
-		readonly _A: Types.Covariant<A>;
-		readonly _E: Types.Covariant<E>;
-	}
+  /**
+   * Type-level variance marker for `RcRef`.
+   *
+   * **When to use**
+   *
+   * Use to carry the value and error type parameters for `RcRef` in Effect's
+   * type machinery.
+   *
+   * **Details**
+   *
+   * This interface records the covariant value and error types carried by an
+   * `RcRef`. It is used by Effect's type machinery and is not normally
+   * referenced directly by users.
+   *
+   * @category models
+   * @since 3.5.0
+   */
+  export interface Variance<A, E> {
+    readonly _A: Types.Covariant<A>
+    readonly _E: Types.Covariant<E>
+  }
 }
 
 /**
  * Creates an `RcRef` from an acquire effect.
+ *
+ * **When to use**
+ *
+ * Use to create a lazily acquired, reference-counted resource from an acquire
+ * effect.
  *
  * **Details**
  *
@@ -138,17 +144,24 @@ export declare namespace RcRef {
  * @category constructors
  * @since 3.5.0
  */
-export const make: <A, E, R>(options: {
-	readonly acquire: Effect.Effect<A, E, R>;
-	/**
-	 * When the reference count reaches zero, the resource will be released
-	 * after this duration.
-	 */
-	readonly idleTimeToLive?: Duration.Input | undefined;
-}) => Effect.Effect<RcRef<A, E>, never, R | Scope> = internal.make;
+export const make: <A, E, R>(
+  options: {
+    readonly acquire: Effect.Effect<A, E, R>
+    /**
+     * When the reference count reaches zero, the resource will be released
+     * after this duration.
+     */
+    readonly idleTimeToLive?: Duration.Input | undefined
+  }
+) => Effect.Effect<RcRef<A, E>, never, R | Scope> = internal.make
 
 /**
  * Gets the value from an `RcRef`, acquiring it first if needed.
+ *
+ * **When to use**
+ *
+ * Use to borrow the current resource within a `Scope`, acquiring it first if
+ * necessary.
  *
  * **Details**
  *
@@ -185,20 +198,28 @@ export const make: <A, E, R>(options: {
  * @category combinators
  * @since 3.5.0
  */
-export const get: <A, E>(self: RcRef<A, E>) => Effect.Effect<A, E, Scope> =
-	internal.get;
+export const get: <A, E>(self: RcRef<A, E>) => Effect.Effect<A, E, Scope> = internal.get
 
 /**
  * Invalidates the currently cached resource, if one has been acquired.
  *
+ * **When to use**
+ *
+ * Use to force future `RcRef.get` calls to acquire a fresh resource when the
+ * currently cached resource should no longer be reused.
+ *
  * **Details**
  *
- * After invalidation, the next `get` acquires a fresh resource. If the current
- * resource is still referenced by active scopes, it remains usable until those
- * scopes close; otherwise it is closed immediately.
+ * After invalidation, the next `get` acquires a fresh resource.
+ *
+ * **Gotchas**
+ *
+ * Invalidation does not revoke resources already borrowed by active scopes;
+ * those remain usable until their scopes close.
+ *
+ * @see {@link get} for acquiring the current cached resource or the fresh resource after invalidation
  *
  * @category combinators
  * @since 3.19.6
  */
-export const invalidate: <A, E>(self: RcRef<A, E>) => Effect.Effect<void> =
-	internal.invalidate;
+export const invalidate: <A, E>(self: RcRef<A, E>) => Effect.Effect<void> = internal.invalidate

@@ -1,22 +1,18 @@
 /**
- * The `ResponseIdTracker` module provides a small service for reusing provider
- * response IDs across incremental language model calls. It records which prompt
- * message objects were sent for a provider response, then prepares a later
- * prompt by returning the recognized `previousResponseId` together with only
- * the new messages that should be sent.
+ * Track provider response IDs for incremental language model calls.
  *
- * Use this when integrating providers that support continuing a conversation
- * from a prior response ID instead of resending the entire prompt. The tracker
- * is intentionally identity-based and mutable: it only recognizes the same
- * message objects that were previously marked, and it clears its state when a
- * prompt can no longer be matched safely.
+ * Some providers can continue from a prior response by accepting a
+ * `previousResponseId` plus only the messages added after that response. This
+ * module exposes a small mutable service that remembers which prompt message
+ * objects were included in each provider response and prepares a shorter prompt
+ * when a later call extends the same conversation.
  *
  * @since 4.0.0
  */
-import * as Context from "../../Context.ts";
-import * as Effect from "../../Effect.ts";
-import * as Option from "../../Option.ts";
-import * as Prompt from "./Prompt.ts";
+import * as Context from "../../Context.ts"
+import * as Effect from "../../Effect.ts"
+import * as Option from "../../Option.ts"
+import * as Prompt from "./Prompt.ts"
 
 /**
  * Result returned when a tracked prompt can be sent incrementally.
@@ -31,8 +27,8 @@ import * as Prompt from "./Prompt.ts";
  * @since 4.0.0
  */
 export interface PrepareResult {
-	readonly previousResponseId: string;
-	readonly prompt: Prompt.Prompt;
+  readonly previousResponseId: string
+  readonly prompt: Prompt.Prompt
 }
 
 /**
@@ -50,9 +46,9 @@ export interface PrepareResult {
  * @since 4.0.0
  */
 export interface Service {
-	clearUnsafe(): void;
-	markParts(parts: ReadonlyArray<object>, responseId: string): void;
-	prepareUnsafe(prompt: Prompt.Prompt): Option.Option<PrepareResult>;
+  clearUnsafe(): void
+  markParts(parts: ReadonlyArray<object>, responseId: string): void
+  prepareUnsafe(prompt: Prompt.Prompt): Option.Option<PrepareResult>
 }
 
 /**
@@ -61,16 +57,14 @@ export interface Service {
  *
  * **When to use**
  *
- * When provided, language model operations can use the tracker to send only new
- * prompt messages together with the provider's prior response ID.
+ * Use when you provide a language model with previous-response ID tracking so
+ * later calls can send only new prompt messages together with the provider's
+ * prior response ID.
  *
  * @category services
  * @since 4.0.0
  */
-export class ResponseIdTracker extends Context.Service<
-	ResponseIdTracker,
-	Service
->()("effect/ai/ResponseIdTracker") {}
+export class ResponseIdTracker extends Context.Service<ResponseIdTracker, Service>()("effect/ai/ResponseIdTracker") {}
 
 /**
  * Creates an in-memory `ResponseIdTracker` service.
@@ -86,60 +80,60 @@ export class ResponseIdTracker extends Context.Service<
  * @since 4.0.0
  */
 export const make: Effect.Effect<Service> = Effect.sync(() => {
-	const sentParts = new Map<object, string>();
+  const sentParts = new Map<object, string>()
 
-	const none = () => {
-		sentParts.clear();
-		return Option.none<PrepareResult>();
-	};
+  const none = () => {
+    sentParts.clear()
+    return Option.none<PrepareResult>()
+  }
 
-	return {
-		clearUnsafe() {
-			sentParts.clear();
-		},
-		markParts(parts, responseId) {
-			for (let i = 0; i < parts.length; i++) {
-				sentParts.set(parts[i], responseId);
-			}
-		},
-		prepareUnsafe(prompt) {
-			const messages = prompt.content;
+  return {
+    clearUnsafe() {
+      sentParts.clear()
+    },
+    markParts(parts, responseId) {
+      for (let i = 0; i < parts.length; i++) {
+        sentParts.set(parts[i], responseId)
+      }
+    },
+    prepareUnsafe(prompt) {
+      const messages = prompt.content
 
-			let anyTracked = false;
-			for (let i = 0; i < messages.length; i++) {
-				if (sentParts.has(messages[i])) {
-					anyTracked = true;
-					break;
-				}
-			}
-			if (!anyTracked) return none();
+      let anyTracked = false
+      for (let i = 0; i < messages.length; i++) {
+        if (sentParts.has(messages[i])) {
+          anyTracked = true
+          break
+        }
+      }
+      if (!anyTracked) return none()
 
-			let lastAssistantIndex = -1;
-			for (let i = messages.length - 1; i >= 0; i--) {
-				if (messages[i].role === "assistant") {
-					lastAssistantIndex = i;
-					break;
-				}
-			}
-			if (lastAssistantIndex === -1) return none();
+      let lastAssistantIndex = -1
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "assistant") {
+          lastAssistantIndex = i
+          break
+        }
+      }
+      if (lastAssistantIndex === -1) return none()
 
-			let responseId: string | undefined;
-			for (let i = 0; i < lastAssistantIndex; i++) {
-				const id = sentParts.get(messages[i]);
-				if (id === undefined) return none();
-				responseId = id;
-			}
-			if (responseId === undefined) return none();
+      let responseId: string | undefined
+      for (let i = 0; i < lastAssistantIndex; i++) {
+        const id = sentParts.get(messages[i])
+        if (id === undefined) return none()
+        responseId = id
+      }
+      if (responseId === undefined) return none()
 
-			const partsAfterLastAssistant = messages.slice(lastAssistantIndex + 1);
-			if (partsAfterLastAssistant.length === 0) {
-				return none();
-			}
+      const partsAfterLastAssistant = messages.slice(lastAssistantIndex + 1)
+      if (partsAfterLastAssistant.length === 0) {
+        return none()
+      }
 
-			return Option.some({
-				previousResponseId: responseId,
-				prompt: Prompt.fromMessages(partsAfterLastAssistant),
-			});
-		},
-	};
-});
+      return Option.some({
+        previousResponseId: responseId,
+        prompt: Prompt.fromMessages(partsAfterLastAssistant)
+      })
+    }
+  }
+})

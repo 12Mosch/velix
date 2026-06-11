@@ -1,93 +1,40 @@
 /**
- * A synchronous, pure type for representing computations that can succeed
- * (`Success<A>`) or fail (`Failure<E>`). Unlike `Effect`, `Result` is
- * evaluated eagerly and carries no side effects.
+ * Models a value that has already succeeded or failed.
  *
- * **Mental model**
- *
- * - `Result<A, E>` is a discriminated union: `Success<A, E> | Failure<A, E>`
- * - `Success` wraps a value of type `A`, accessed via `.success`
- * - `Failure` wraps an error of type `E`, accessed via `.failure`
- * - `Result` is a monad: chain operations with {@link flatMap}, compose pipelines with `pipe`
- * - All operations are pure and return new `Result` values; the input is never mutated
- * - `Result` is yieldable in `Effect.gen`, producing the inner value or short-circuiting on failure
- *
- * **Common tasks**
- *
- * - Create from a value: {@link succeed}, {@link fail}
- * - Create from nullable: {@link fromNullishOr}
- * - Create from Option: {@link fromOption}
- * - Create from throwing code: {@link try_ try}
- * - Create from predicate: {@link liftPredicate}
- * - Transform: {@link map}, {@link mapError}, {@link mapBoth}
- * - Unwrap: {@link getOrElse}, {@link getOrNull}, {@link getOrUndefined}, {@link getOrThrow}
- * - Pattern match: {@link match}
- * - Sequence: {@link flatMap}, {@link andThen}, {@link all}
- * - Recover: {@link orElse}
- * - Filter: {@link filterOrFail}
- * - Convert to Option: {@link getSuccess}, {@link getFailure}
- * - Generator syntax: {@link gen}
- * - Do notation: {@link Do}, {@link bind}, {@link let_ let}
- * - Check variant: {@link isResult}, {@link isSuccess}, {@link isFailure}
- *
- * **Gotchas**
- *
- * - `E` defaults to `never`, so `Result<number>` means a result that cannot fail
- * - {@link andThen} accepts a `Result`, a function returning a `Result`, a plain value, or a function returning a plain value; {@link flatMap} only accepts a function returning a `Result`
- * - {@link all} short-circuits on the first `Failure` and returns it; later elements are not inspected
- * - {@link getOrThrow} throws the raw failure value `E`; use {@link getOrThrowWith} for custom error objects
- * - {@link tap} runs a side-effect but does not change the result; its return value is ignored
- *
- * **Quickstart**
- *
- * **Example** (Parsing and validating with Result)
- *
- * ```ts
- * import { Result } from "effect"
- *
- * const parse = (input: string): Result.Result<number, string> =>
- *   isNaN(Number(input))
- *     ? Result.fail("not a number")
- *     : Result.succeed(Number(input))
- *
- * const ensurePositive = (n: number): Result.Result<number, string> =>
- *   n > 0 ? Result.succeed(n) : Result.fail("not positive")
- *
- * const result = Result.flatMap(parse("42"), ensurePositive)
- *
- * console.log(Result.getOrElse(result, (err) => `Error: ${err}`))
- * // Output: 42
- * ```
- *
- * **See also**
- *
- * - {@link succeed} / {@link fail} to create values
- * - {@link match} to fold both branches
- * - {@link gen} for generator-based composition
+ * A `Result<A, E>` is `Success<A, E>` when a value is available and
+ * `Failure<A, E>` when an error is available. It is plain data, so inspecting
+ * or transforming it does not run side effects. This module includes helpers
+ * for creating, checking, mapping, combining, and extracting results, plus
+ * conversions to and from `Option` and nullable values.
  *
  * @since 4.0.0
  */
 
-import * as Equivalence from "./Equivalence.ts";
-import type { LazyArg } from "./Function.ts";
-import { constNull, constUndefined, dual, identity } from "./Function.ts";
-import type { TypeLambda } from "./HKT.ts";
-import type { Inspectable } from "./Inspectable.ts";
-import * as doNotation from "./internal/doNotation.ts";
-import * as option_ from "./internal/option.ts";
-import * as result from "./internal/result.ts";
-import type { Option } from "./Option.ts";
-import type { Pipeable } from "./Pipeable.ts";
-import type { Predicate, Refinement } from "./Predicate.ts";
-import { isFunction } from "./Predicate.ts";
-import type { Covariant, NoInfer, NotFunction } from "./Types.ts";
-import type * as Unify from "./Unify.ts";
-import type * as Gen from "./Utils.ts";
+import * as Equivalence from "./Equivalence.ts"
+import type { LazyArg } from "./Function.ts"
+import { constNull, constUndefined, dual, identity } from "./Function.ts"
+import type { TypeLambda } from "./HKT.ts"
+import type { Inspectable } from "./Inspectable.ts"
+import * as doNotation from "./internal/doNotation.ts"
+import * as option_ from "./internal/option.ts"
+import * as result from "./internal/result.ts"
+import type { Option } from "./Option.ts"
+import type { Pipeable } from "./Pipeable.ts"
+import type { Predicate, Refinement } from "./Predicate.ts"
+import { isFunction } from "./Predicate.ts"
+import type { Covariant, NoInfer, NotFunction } from "./Types.ts"
+import type * as Unify from "./Unify.ts"
+import type * as Gen from "./Utils.ts"
 
-const TypeId = "~effect/data/Result";
+const TypeId = "~effect/data/Result"
 
 /**
  * A value that is either `Success<A, E>` or `Failure<A, E>`.
+ *
+ * **When to use**
+ *
+ * Use when both success and failure should remain available as data and
+ * `Option` would lose failure information.
  *
  * **Details**
  *
@@ -120,7 +67,7 @@ const TypeId = "~effect/data/Result";
  * @category models
  * @since 4.0.0
  */
-export type Result<A, E = never> = Success<A, E> | Failure<A, E>;
+export type Result<A, E = never> = Success<A, E> | Failure<A, E>
 
 /**
  * The failure variant of {@link Result}. Wraps an error of type `E`.
@@ -152,28 +99,37 @@ export type Result<A, E = never> = Success<A, E> | Failure<A, E>;
  * @since 4.0.0
  */
 export interface Failure<out A, out E> extends Pipeable, Inspectable {
-	readonly _tag: "Failure";
-	readonly _op: "Failure";
-	readonly failure: E;
-	readonly [TypeId]: {
-		readonly _A: Covariant<E>;
-		readonly _E: Covariant<A>;
-	};
-	[Symbol.iterator](): ResultIterator<Result<A, E>>;
-	[Unify.typeSymbol]?: unknown;
-	[Unify.unifySymbol]?: ResultUnify<this>;
-	[Unify.ignoreSymbol]?: ResultUnifyIgnore;
+  readonly _tag: "Failure"
+  readonly _op: "Failure"
+  readonly failure: E
+  readonly [TypeId]: {
+    readonly _A: Covariant<E>
+    readonly _E: Covariant<A>
+  }
+  [Symbol.iterator](): ResultIterator<Result<A, E>>
+  [Unify.typeSymbol]?: unknown
+  [Unify.unifySymbol]?: ResultUnify<this>
+  [Unify.ignoreSymbol]?: ResultUnifyIgnore
 }
 
 /**
  * Iterator protocol used to yield a `Result` inside {@link gen}, returning the
  * success value type back to the generator.
  *
- * @category Generators
+ * **When to use**
+ *
+ * Use when defining or typing `[Symbol.iterator]()` for `Result` values so
+ * `yield*` can pass the success value type back into `Result.gen`.
+ *
+ * @see {@link gen} for writing generator-based `Result` code that consumes this iterator protocol
+ *
+ * @category generators
  * @since 4.0.0
  */
 export interface ResultIterator<T extends Result<any, any>> {
-	next(...args: ReadonlyArray<any>): IteratorResult<T, Result.Success<T>>;
+  next(
+    ...args: ReadonlyArray<any>
+  ): IteratorResult<T, Result.Success<T>>
 }
 
 /**
@@ -206,17 +162,17 @@ export interface ResultIterator<T extends Result<any, any>> {
  * @since 4.0.0
  */
 export interface Success<out A, out E> extends Pipeable, Inspectable {
-	readonly _tag: "Success";
-	readonly _op: "Success";
-	readonly success: A;
-	readonly [TypeId]: {
-		readonly _A: Covariant<E>;
-		readonly _E: Covariant<A>;
-	};
-	[Symbol.iterator](): ResultIterator<Result<A, E>>;
-	[Unify.typeSymbol]?: unknown;
-	[Unify.unifySymbol]?: ResultUnify<this>;
-	[Unify.ignoreSymbol]?: ResultUnifyIgnore;
+  readonly _tag: "Success"
+  readonly _op: "Success"
+  readonly success: A
+  readonly [TypeId]: {
+    readonly _A: Covariant<E>
+    readonly _E: Covariant<A>
+  }
+  [Symbol.iterator](): ResultIterator<Result<A, E>>
+  [Unify.typeSymbol]?: unknown
+  [Unify.unifySymbol]?: ResultUnify<this>
+  [Unify.ignoreSymbol]?: ResultUnifyIgnore
 }
 
 /**
@@ -231,9 +187,7 @@ export interface Success<out A, out E> extends Pipeable, Inspectable {
  * @since 4.0.0
  */
 export interface ResultUnify<T extends { [Unify.typeSymbol]?: any }> {
-	Result?: () => T[Unify.typeSymbol] extends Result<infer A, infer E> | infer _
-		? Result<A, E>
-		: never;
+  Result?: () => T[Unify.typeSymbol] extends Result<infer A, infer E> | infer _ ? Result<A, E> : never
 }
 
 /**
@@ -258,11 +212,11 @@ export interface ResultUnifyIgnore {}
  * (e.g., `map`, `flatMap` abstractions). You typically do not need to
  * reference this directly.
  *
- * @category Type Lambdas
+ * @category type lambdas
  * @since 4.0.0
  */
 export interface ResultTypeLambda extends TypeLambda {
-	readonly type: Result<this["Target"], this["Out1"]>;
+  readonly type: Result<this["Target"], this["Out1"]>
 }
 
 /**
@@ -286,28 +240,20 @@ export interface ResultTypeLambda extends TypeLambda {
  * @since 4.0.0
  */
 export declare namespace Result {
-	/**
-	 * Extracts the failure type `E` from `Result<A, E>`.
-	 *
-	 * @category Type Level
-	 * @since 4.0.0
-	 */
-	export type Failure<T extends Result<any, any>> = [T] extends [
-		Result<infer _A, infer _E>,
-	]
-		? _E
-		: never;
-	/**
-	 * Extracts the success type `A` from `Result<A, E>`.
-	 *
-	 * @category Type Level
-	 * @since 4.0.0
-	 */
-	export type Success<T extends Result<any, any>> = [T] extends [
-		Result<infer _A, infer _E>,
-	]
-		? _A
-		: never;
+  /**
+   * Extracts the failure type `E` from `Result<A, E>`.
+   *
+   * @category Type Level
+   * @since 4.0.0
+   */
+  export type Failure<T extends Result<any, any>> = [T] extends [Result<infer _A, infer _E>] ? _E : never
+  /**
+   * Extracts the success type `A` from `Result<A, E>`.
+   *
+   * @category Type Level
+   * @since 4.0.0
+   */
+  export type Success<T extends Result<any, any>> = [T] extends [Result<infer _A, infer _E>] ? _A : never
 }
 
 /**
@@ -317,7 +263,6 @@ export declare namespace Result {
  *
  * - Use when you have a value and want to lift it into the `Result` type
  * - The error type `E` defaults to `never`
- * - Does not mutate input; allocates a new `Success` wrapper
  *
  * **Example** (Wrapping a value)
  *
@@ -331,21 +276,23 @@ export declare namespace Result {
  * ```
  *
  * @see {@link fail} to create a Failure
- * @see {@link void} for a pre-built `Success<void>`
+ * @see {@link void_ void} for a pre-built `Success<void>`
  *
  * @category constructors
  * @since 4.0.0
  */
-export const succeed: <A>(right: A) => Result<A> = result.succeed;
+export const succeed: <A>(right: A) => Result<A> = result.succeed
 
 /**
  * Creates a `Result` holding a `Failure` value.
  *
+ * **When to use**
+ *
+ * Use to represent a failed `Result` with a typed failure value.
+ *
  * **Details**
  *
- * - Use when you want to represent a failed computation
  * - The success type `A` defaults to `never`
- * - Does not mutate input; allocates a new `Failure` wrapper
  *
  * **Example** (Creating a failure)
  *
@@ -364,54 +311,81 @@ export const succeed: <A>(right: A) => Result<A> = result.succeed;
  * @category constructors
  * @since 4.0.0
  */
-export const fail: <E>(left: E) => Result<never, E> = result.fail;
+export const fail: <E>(left: E) => Result<never, E> = result.fail
 
-const void_: Result<void> = succeed(void 0);
+const void_: Result<void> = succeed(void 0)
 export {
-	/**
-	 * A pre-built `Result<void>` holding `undefined` as its success value.
-	 *
-	 * **Details**
-	 *
-	 * - Use when you need a `Result` that represents "completed with no meaningful value"
-	 * - Equivalent to `Result.succeed(undefined)` but avoids an extra allocation
-	 *
-	 * **Example** (Using void result)
-	 *
-	 * ```ts
-	 * import { Result } from "effect"
-	 *
-	 * const result: Result.Result<void> = Result.void
-	 *
-	 * console.log(Result.isSuccess(result))
-	 * // Output: true
-	 * ```
-	 *
-	 * @see {@link succeed}
-	 *
-	 * @category constructors
-	 * @since 3.13.0
-	 */
-	void_ as void,
-};
+  /**
+   * Provides a pre-built successful `Result` that carries `undefined`.
+   *
+   * **When to use**
+   *
+   * Use when you need a successful `Result` value that signals completion
+   * without carrying meaningful data.
+   *
+   * **Details**
+   *
+   * This is equivalent to `Result.succeed(undefined)`, but reuses a shared
+   * `Success` wrapper instead of allocating one each time.
+   *
+   * **Example** (Using void result)
+   *
+   * ```ts
+   * import { Result } from "effect"
+   *
+   * const result: Result.Result<void> = Result.void
+   *
+   * console.log(Result.isSuccess(result))
+   * // Output: true
+   * ```
+   *
+   * @see {@link succeed} to create a Success with a specific value
+   *
+   * @category constructors
+   * @since 3.13.0
+   */
+  void_ as void
+}
 
 /**
- * A pre-built failed `Result` whose failure value is `undefined`.
+ * Provides a pre-built failed `Result` whose failure value is `undefined`.
+ *
+ * **When to use**
+ *
+ * Use when you need a failed `Result` value that acts only as a control signal
+ * without failure data.
  *
  * **Details**
  *
  * This is equivalent to `Result.fail(undefined)` with type
- * `Result<never, void>`, but avoids allocating a new `Failure` wrapper.
+ * `Result<never, void>`, but reuses a shared `Failure` wrapper instead of
+ * allocating one each time.
  *
- * @see {@link fail}
+ * **Example** (Using a failure without a payload)
+ *
+ * ```ts
+ * import { Result } from "effect"
+ *
+ * const result = Result.failVoid
+ *
+ * console.log(Result.isFailure(result))
+ * // Output: true
+ * ```
+ *
+ * @see {@link fail} to create a Failure with a specific value
  *
  * @category constructors
  * @since 4.0.0
  */
-export const failVoid: Result<never, void> = fail(void 0);
+export const failVoid: Result<never, void> = fail(void 0)
 
 /**
  * Converts a possibly `null` or `undefined` value into a `Result`.
+ *
+ * **When to use**
+ *
+ * Use when you need `null` or `undefined` input to become a `Failure` while
+ * present values remain available as `Success`.
  *
  * **Details**
  *
@@ -439,16 +413,87 @@ export const failVoid: Result<never, void> = fail(void 0);
  * @since 4.0.0
  */
 export const fromNullishOr: {
-	<A, E>(onNullish: (a: A) => E): (self: A) => Result<NonNullable<A>, E>;
-	<A, E>(self: A, onNullish: (a: A) => E): Result<NonNullable<A>, E>;
+  /**
+   * Converts a possibly `null` or `undefined` value into a `Result`.
+   *
+   * **When to use**
+   *
+   * Use when you need `null` or `undefined` input to become a `Failure` while
+   * present values remain available as `Success`.
+   *
+   * **Details**
+   *
+   * - Non-nullish values become `Success<NonNullable<A>>`
+   * - `null` or `undefined` becomes `Failure<E>` using the provided function
+   * - Supports both data-first and data-last (piped) usage
+   * - The `onNullish` callback receives the original value
+   *
+   * **Example** (Handling nullable values)
+   *
+   * ```ts
+   * import { Result } from "effect"
+   *
+   * console.log(Result.fromNullishOr(1, () => "fallback"))
+   * // Output: { _tag: "Success", success: 1, ... }
+   *
+   * console.log(Result.fromNullishOr(null, () => "fallback"))
+   * // Output: { _tag: "Failure", failure: "fallback", ... }
+   * ```
+   *
+   * @see {@link fromOption} to convert from an Option
+   * @see {@link succeed} / {@link fail} for direct construction
+   *
+   * @category constructors
+   * @since 4.0.0
+   */
+  <A, E>(onNullish: (a: A) => E): (self: A) => Result<NonNullable<A>, E>
+  /**
+   * Converts a possibly `null` or `undefined` value into a `Result`.
+   *
+   * **When to use**
+   *
+   * Use when you need `null` or `undefined` input to become a `Failure` while
+   * present values remain available as `Success`.
+   *
+   * **Details**
+   *
+   * - Non-nullish values become `Success<NonNullable<A>>`
+   * - `null` or `undefined` becomes `Failure<E>` using the provided function
+   * - Supports both data-first and data-last (piped) usage
+   * - The `onNullish` callback receives the original value
+   *
+   * **Example** (Handling nullable values)
+   *
+   * ```ts
+   * import { Result } from "effect"
+   *
+   * console.log(Result.fromNullishOr(1, () => "fallback"))
+   * // Output: { _tag: "Success", success: 1, ... }
+   *
+   * console.log(Result.fromNullishOr(null, () => "fallback"))
+   * // Output: { _tag: "Failure", failure: "fallback", ... }
+   * ```
+   *
+   * @see {@link fromOption} to convert from an Option
+   * @see {@link succeed} / {@link fail} for direct construction
+   *
+   * @category constructors
+   * @since 4.0.0
+   */
+  <A, E>(self: A, onNullish: (a: A) => E): Result<NonNullable<A>, E>
 } = dual(
-	2,
-	<A, E>(self: A, onNullish: (a: A) => E): Result<NonNullable<A>, E> =>
-		self == null ? fail(onNullish(self)) : succeed(self),
-);
+  2,
+  <A, E>(self: A, onNullish: (a: A) => E): Result<NonNullable<A>, E> =>
+    self == null ? fail(onNullish(self)) : succeed(self)
+)
 
 /**
  * Converts an `Option<A>` into a `Result<A, E>`.
+ *
+ * **When to use**
+ *
+ * Use when an existing `Option` should become a `Result`, preserving `Some` as
+ * success and turning `None` into a caller-provided failure.
  *
  * **Details**
  *
@@ -470,89 +515,163 @@ export const fromNullishOr: {
  * // Output: { _tag: "Failure", failure: "missing", ... }
  * ```
  *
- * @see {@link getSuccess} / {@link getFailure} to convert back to Option
- * @see {@link fromNullishOr} to convert from nullable values
+ * @see {@link getSuccess} to extract the success value as an Option
+ * @see {@link getFailure} to extract the failure value as an Option
+ * @see {@link fromNullishOr} to build a Result from nullable values
  *
  * @category constructors
  * @since 2.0.0
  */
 export const fromOption: {
-	<E>(onNone: () => E): <A>(self: Option<A>) => Result<A, E>;
-	<A, E>(self: Option<A>, onNone: () => E): Result<A, E>;
-} = result.fromOption;
+  /**
+   * Converts an `Option<A>` into a `Result<A, E>`.
+   *
+   * **When to use**
+   *
+   * Use when an existing `Option` should become a `Result`, preserving `Some` as
+   * success and turning `None` into a caller-provided failure.
+   *
+   * **Details**
+   *
+   * - `Some<A>` becomes `Success<A>`
+   * - `None` becomes `Failure<E>` using the provided function
+   * - Supports both data-first and data-last (piped) usage
+   *
+   * **Example** (Converting an Option to a Result)
+   *
+   * ```ts
+   * import { Option, Result } from "effect"
+   *
+   * const some = Result.fromOption(Option.some(1), () => "missing")
+   * console.log(some)
+   * // Output: { _tag: "Success", success: 1, ... }
+   *
+   * const none = Result.fromOption(Option.none(), () => "missing")
+   * console.log(none)
+   * // Output: { _tag: "Failure", failure: "missing", ... }
+   * ```
+   *
+   * @see {@link getSuccess} to extract the success value as an Option
+   * @see {@link getFailure} to extract the failure value as an Option
+   * @see {@link fromNullishOr} to build a Result from nullable values
+   *
+   * @category constructors
+   * @since 2.0.0
+   */
+  <E>(onNone: () => E): <A>(self: Option<A>) => Result<A, E>
+  /**
+   * Converts an `Option<A>` into a `Result<A, E>`.
+   *
+   * **When to use**
+   *
+   * Use when an existing `Option` should become a `Result`, preserving `Some` as
+   * success and turning `None` into a caller-provided failure.
+   *
+   * **Details**
+   *
+   * - `Some<A>` becomes `Success<A>`
+   * - `None` becomes `Failure<E>` using the provided function
+   * - Supports both data-first and data-last (piped) usage
+   *
+   * **Example** (Converting an Option to a Result)
+   *
+   * ```ts
+   * import { Option, Result } from "effect"
+   *
+   * const some = Result.fromOption(Option.some(1), () => "missing")
+   * console.log(some)
+   * // Output: { _tag: "Success", success: 1, ... }
+   *
+   * const none = Result.fromOption(Option.none(), () => "missing")
+   * console.log(none)
+   * // Output: { _tag: "Failure", failure: "missing", ... }
+   * ```
+   *
+   * @see {@link getSuccess} to extract the success value as an Option
+   * @see {@link getFailure} to extract the failure value as an Option
+   * @see {@link fromNullishOr} to build a Result from nullable values
+   *
+   * @category constructors
+   * @since 2.0.0
+   */
+  <A, E>(self: Option<A>, onNone: () => E): Result<A, E>
+} = result.fromOption
 
 const try_: {
-	<A, E>(options: {
-		readonly try: LazyArg<A>;
-		readonly catch: (error: unknown) => E;
-	}): Result<A, E>;
-	<A>(evaluate: LazyArg<A>): Result<A, unknown>;
+  <A, E>(
+    options: {
+      readonly try: LazyArg<A>
+      readonly catch: (error: unknown) => E
+    }
+  ): Result<A, E>
+  <A>(evaluate: LazyArg<A>): Result<A, unknown>
 } = <A, E>(
-	evaluate:
-		| LazyArg<A>
-		| {
-				readonly try: LazyArg<A>;
-				readonly catch: (error: unknown) => E;
-		  },
+  evaluate: LazyArg<A> | {
+    readonly try: LazyArg<A>
+    readonly catch: (error: unknown) => E
+  }
 ) => {
-	if (isFunction(evaluate)) {
-		try {
-			return succeed(evaluate());
-		} catch (e) {
-			return fail(e);
-		}
-	} else {
-		try {
-			return succeed(evaluate.try());
-		} catch (e) {
-			return fail(evaluate.catch(e));
-		}
-	}
-};
+  if (isFunction(evaluate)) {
+    try {
+      return succeed(evaluate())
+    } catch (e) {
+      return fail(e)
+    }
+  } else {
+    try {
+      return succeed(evaluate.try())
+    } catch (e) {
+      return fail(evaluate.catch(e))
+    }
+  }
+}
 
 export {
-	/**
-	 * Wraps a synchronous computation that may throw into a `Result`.
-	 *
-	 * **Details**
-	 *
-	 * - If the function returns normally, the result is `Success<A>`
-	 * - If the function throws, the exception is caught and becomes `Failure<E>`
-	 * - With a single function argument, the error type is `unknown`
-	 * - With `{ try, catch }` options, the `catch` function maps the thrown value to `E`
-	 *
-	 * **Example** (Catching JSON parse errors)
-	 *
-	 * ```ts
-	 * import { Result } from "effect"
-	 *
-	 * const ok = Result.try(() => JSON.parse('{"name": "Alice"}'))
-	 * console.log(ok)
-	 * // Output: { _tag: "Success", success: { name: "Alice" }, ... }
-	 *
-	 * const err = Result.try({
-	 *   try: () => JSON.parse("not json"),
-	 *   catch: (e) => `Parse failed: ${e}`
-	 * })
-	 * console.log(Result.isFailure(err))
-	 * // Output: true
-	 * ```
-	 *
-	 * @see {@link succeed} / {@link fail} for direct construction
-	 * @see {@link fromNullishOr} for nullable values
-	 *
-	 * @category constructors
-	 * @since 2.0.0
-	 */
-	try_ as try,
-};
+  /**
+   * Wraps a synchronous computation that may throw into a `Result` safely.
+   *
+   * **Details**
+   *
+   * - If the function returns normally, the result is `Success<A>`
+   * - If the function throws, the exception is caught and becomes `Failure<E>`
+   * - With a single function argument, the error type is `unknown`
+   * - With `{ try, catch }` options, the `catch` function maps the thrown value to `E`
+   *
+   * **Example** (Catching JSON parse errors)
+   *
+   * ```ts
+   * import { Result } from "effect"
+   *
+   * const ok = Result.try(() => JSON.parse('{"name": "Alice"}'))
+   * console.log(ok)
+   * // Output: { _tag: "Success", success: { name: "Alice" }, ... }
+   *
+   * const err = Result.try({
+   *   try: () => JSON.parse("not json"),
+   *   catch: (e) => `Parse failed: ${e}`
+   * })
+   * console.log(Result.isFailure(err))
+   * // Output: true
+   * ```
+   *
+   * @see {@link succeed} / {@link fail} for direct construction
+   * @see {@link fromNullishOr} for nullable values
+   *
+   * @category constructors
+   * @since 2.0.0
+   */
+  try_ as try
+}
 
 /**
- * Tests whether a value is a `Result` (either `Success` or `Failure`).
+ * Checks whether a value is a `Result` (either `Success` or `Failure`).
+ *
+ * **When to use**
+ *
+ * Use to validate unknown input before operating on it as a `Result`.
  *
  * **Details**
  *
- * - Use to validate unknown input before operating on it as a `Result`
  * - Returns `true` for both `Success` and `Failure` variants
  * - Acts as a TypeScript type guard, narrowing to `Result<unknown, unknown>`
  *
@@ -570,14 +689,17 @@ export {
  *
  * @see {@link isSuccess} / {@link isFailure} to narrow to a specific variant
  *
- * @category Type Guards
+ * @category guards
  * @since 4.0.0
  */
-export const isResult: (input: unknown) => input is Result<unknown, unknown> =
-	result.isResult;
+export const isResult: (input: unknown) => input is Result<unknown, unknown> = result.isResult
 
 /**
  * Checks whether a `Result` is a `Failure`.
+ *
+ * **When to use**
+ *
+ * Use to narrow a known `Result` to the `Failure` variant.
  *
  * **Details**
  *
@@ -600,14 +722,17 @@ export const isResult: (input: unknown) => input is Result<unknown, unknown> =
  * @see {@link isSuccess} for the opposite check
  * @see {@link isResult} to check if a value is any Result
  *
- * @category Type Guards
+ * @category guards
  * @since 4.0.0
  */
-export const isFailure: <A, E>(self: Result<A, E>) => self is Failure<A, E> =
-	result.isFailure;
+export const isFailure: <A, E>(self: Result<A, E>) => self is Failure<A, E> = result.isFailure
 
 /**
  * Checks whether a `Result` is a `Success`.
+ *
+ * **When to use**
+ *
+ * Use to narrow a known `Result` to the `Success` variant.
  *
  * **Details**
  *
@@ -630,20 +755,23 @@ export const isFailure: <A, E>(self: Result<A, E>) => self is Failure<A, E> =
  * @see {@link isFailure} for the opposite check
  * @see {@link isResult} to check if a value is any Result
  *
- * @category Type Guards
+ * @category guards
  * @since 4.0.0
  */
-export const isSuccess: <A, E>(self: Result<A, E>) => self is Success<A, E> =
-	result.isSuccess;
+export const isSuccess: <A, E>(self: Result<A, E>) => self is Success<A, E> = result.isSuccess
 
 /**
  * Extracts the success value as an `Option`, discarding the failure.
+ *
+ * **When to use**
+ *
+ * Use when you need to extract the success value from a `Result` as an
+ * `Option` and discard failure information.
  *
  * **Details**
  *
  * - `Success<A>` becomes `Some<A>`
  * - `Failure<E>` becomes `None`
- * - Use when you only care about the success case and want to discard error info
  *
  * **Example** (Extracting the success as an Option)
  *
@@ -663,17 +791,20 @@ export const isSuccess: <A, E>(self: Result<A, E>) => self is Success<A, E> =
  * @category getters
  * @since 4.0.0
  */
-export const getSuccess: <A, E>(self: Result<A, E>) => Option<A> =
-	result.getSuccess;
+export const getSuccess: <A, E>(self: Result<A, E>) => Option<A> = result.getSuccess
 
 /**
  * Extracts the failure value as an `Option`, discarding the success.
+ *
+ * **When to use**
+ *
+ * Use when you need to extract the failure value from a `Result` as an
+ * `Option` and discard successful values.
  *
  * **Details**
  *
  * - `Failure<E>` becomes `Some<E>`
  * - `Success<A>` becomes `None`
- * - Use when you only care about the error case
  *
  * **Example** (Extracting the failure as an Option)
  *
@@ -693,8 +824,7 @@ export const getSuccess: <A, E>(self: Result<A, E>) => Option<A> =
  * @category getters
  * @since 4.0.0
  */
-export const getFailure: <A, E>(self: Result<A, E>) => Option<E> =
-	result.getFailure;
+export const getFailure: <A, E>(self: Result<A, E>) => Option<E> = result.getFailure
 
 /**
  * Creates an `Equivalence` for comparing two `Result` values.
@@ -722,28 +852,31 @@ export const getFailure: <A, E>(self: Result<A, E>) => Option<E> =
  * // Output: false
  * ```
  *
- * @category Equivalence
+ * @category instances
  * @since 4.0.0
  */
 export const makeEquivalence = <A, E>(
-	success: Equivalence.Equivalence<A>,
-	failure: Equivalence.Equivalence<E>,
+  success: Equivalence.Equivalence<A>,
+  failure: Equivalence.Equivalence<E>
 ): Equivalence.Equivalence<Result<A, E>> =>
-	Equivalence.make((x, y) =>
-		isFailure(x)
-			? isFailure(y) && failure(x.failure, y.failure)
-			: isSuccess(y) && success(x.success, y.success),
-	);
+  Equivalence.make((x, y) =>
+    isFailure(x) ?
+      isFailure(y) && failure(x.failure, y.failure) :
+      isSuccess(y) && success(x.success, y.success)
+  )
 
 /**
  * Transforms both the success and failure channels of a `Result`.
+ *
+ * **When to use**
+ *
+ * Use to transform both success and failure values without changing whether the
+ * result succeeds or fails.
  *
  * **Details**
  *
  * - Applies `onSuccess` if the result is a `Success`
  * - Applies `onFailure` if the result is a `Failure`
- * - Returns a new `Result`; does not mutate the input
- * - Use when you need to transform both channels in a single operation
  *
  * **Example** (Mapping both channels)
  *
@@ -769,42 +902,110 @@ export const makeEquivalence = <A, E>(
  * @since 2.0.0
  */
 export const mapBoth: {
-	<E, E2, A, A2>(options: {
-		readonly onFailure: (left: E) => E2;
-		readonly onSuccess: (right: A) => A2;
-	}): (self: Result<A, E>) => Result<A2, E2>;
-	<E, A, E2, A2>(
-		self: Result<A, E>,
-		options: {
-			readonly onFailure: (left: E) => E2;
-			readonly onSuccess: (right: A) => A2;
-		},
-	): Result<A2, E2>;
+  /**
+   * Transforms both the success and failure channels of a `Result`.
+   *
+   * **When to use**
+   *
+   * Use to transform both success and failure values without changing whether the
+   * result succeeds or fails.
+   *
+   * **Details**
+   *
+   * - Applies `onSuccess` if the result is a `Success`
+   * - Applies `onFailure` if the result is a `Failure`
+   *
+   * **Example** (Mapping both channels)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(1),
+   *   Result.mapBoth({
+   *     onSuccess: (n) => n + 1,
+   *     onFailure: (e) => `Error: ${e}`
+   *   })
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: 2, ... }
+   * ```
+   *
+   * @see {@link map} to transform only the success value
+   * @see {@link mapError} to transform only the error value
+   * @see {@link match} to fold into a single value
+   *
+   * @category mapping
+   * @since 2.0.0
+   */
+  <E, E2, A, A2>(
+    options: {
+      readonly onFailure: (left: E) => E2
+      readonly onSuccess: (right: A) => A2
+    }
+  ): (self: Result<A, E>) => Result<A2, E2>
+  /**
+   * Transforms both the success and failure channels of a `Result`.
+   *
+   * **When to use**
+   *
+   * Use to transform both success and failure values without changing whether the
+   * result succeeds or fails.
+   *
+   * **Details**
+   *
+   * - Applies `onSuccess` if the result is a `Success`
+   * - Applies `onFailure` if the result is a `Failure`
+   *
+   * **Example** (Mapping both channels)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(1),
+   *   Result.mapBoth({
+   *     onSuccess: (n) => n + 1,
+   *     onFailure: (e) => `Error: ${e}`
+   *   })
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: 2, ... }
+   * ```
+   *
+   * @see {@link map} to transform only the success value
+   * @see {@link mapError} to transform only the error value
+   * @see {@link match} to fold into a single value
+   *
+   * @category mapping
+   * @since 2.0.0
+   */
+  <E, A, E2, A2>(
+    self: Result<A, E>,
+    options: {
+      readonly onFailure: (left: E) => E2
+      readonly onSuccess: (right: A) => A2
+    }
+  ): Result<A2, E2>
 } = dual(
-	2,
-	<E, A, E2, A2>(
-		self: Result<A, E>,
-		{
-			onFailure,
-			onSuccess,
-		}: {
-			readonly onFailure: (left: E) => E2;
-			readonly onSuccess: (right: A) => A2;
-		},
-	): Result<A2, E2> =>
-		isFailure(self)
-			? fail(onFailure(self.failure))
-			: succeed(onSuccess(self.success)),
-);
+  2,
+  <E, A, E2, A2>(self: Result<A, E>, { onFailure, onSuccess }: {
+    readonly onFailure: (left: E) => E2
+    readonly onSuccess: (right: A) => A2
+  }): Result<A2, E2> => isFailure(self) ? fail(onFailure(self.failure)) : succeed(onSuccess(self.success))
+)
 
 /**
  * Transforms the failure channel of a `Result`, leaving the success channel unchanged.
+ *
+ * **When to use**
+ *
+ * Use to transform only the failure channel while preserving success values.
  *
  * **Details**
  *
  * - If the result is a `Failure`, applies `f` to the error and returns a new `Failure`
  * - If the result is a `Success`, returns it as-is
- * - Does not mutate the input
  *
  * **Example** (Adding context to an error)
  *
@@ -826,22 +1027,88 @@ export const mapBoth: {
  * @since 4.0.0
  */
 export const mapError: {
-	<E, E2>(f: (err: E) => E2): <A>(self: Result<A, E>) => Result<A, E2>;
-	<A, E, E2>(self: Result<A, E>, f: (err: E) => E2): Result<A, E2>;
+  /**
+   * Transforms the failure channel of a `Result`, leaving the success channel unchanged.
+   *
+   * **When to use**
+   *
+   * Use to transform only the failure channel while preserving success values.
+   *
+   * **Details**
+   *
+   * - If the result is a `Failure`, applies `f` to the error and returns a new `Failure`
+   * - If the result is a `Success`, returns it as-is
+   *
+   * **Example** (Adding context to an error)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.fail("not found"),
+   *   Result.mapError((e) => `Error: ${e}`)
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Failure", failure: "Error: not found", ... }
+   * ```
+   *
+   * @see {@link map} to transform only the success value
+   * @see {@link mapBoth} to transform both channels
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <E, E2>(f: (err: E) => E2): <A>(self: Result<A, E>) => Result<A, E2>
+  /**
+   * Transforms the failure channel of a `Result`, leaving the success channel unchanged.
+   *
+   * **When to use**
+   *
+   * Use to transform only the failure channel while preserving success values.
+   *
+   * **Details**
+   *
+   * - If the result is a `Failure`, applies `f` to the error and returns a new `Failure`
+   * - If the result is a `Success`, returns it as-is
+   *
+   * **Example** (Adding context to an error)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.fail("not found"),
+   *   Result.mapError((e) => `Error: ${e}`)
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Failure", failure: "Error: not found", ... }
+   * ```
+   *
+   * @see {@link map} to transform only the success value
+   * @see {@link mapBoth} to transform both channels
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A, E, E2>(self: Result<A, E>, f: (err: E) => E2): Result<A, E2>
 } = dual(
-	2,
-	<A, E, E2>(self: Result<A, E>, f: (err: E) => E2): Result<A, E2> =>
-		isFailure(self) ? fail(f(self.failure)) : succeed(self.success),
-);
+  2,
+  <A, E, E2>(self: Result<A, E>, f: (err: E) => E2): Result<A, E2> =>
+    isFailure(self) ? fail(f(self.failure)) : succeed(self.success)
+)
 
 /**
  * Transforms the success channel of a `Result`, leaving the failure channel unchanged.
+ *
+ * **When to use**
+ *
+ * Use to apply a transformation to the success value of a `Result` while
+ * preserving any existing failure.
  *
  * **Details**
  *
  * - If the result is a `Success`, applies `f` to the value and returns a new `Success`
  * - If the result is a `Failure`, returns it as-is
- * - Does not mutate the input
  * - Use {@link flatMap} if `f` returns a `Result` (to avoid nested Results)
  *
  * **Example** (Doubling the success value)
@@ -865,23 +1132,95 @@ export const mapError: {
  * @since 2.0.0
  */
 export const map: {
-	<A, A2>(f: (ok: A) => A2): <E>(self: Result<A, E>) => Result<A2, E>;
-	<A, E, A2>(self: Result<A, E>, f: (ok: A) => A2): Result<A2, E>;
+  /**
+   * Transforms the success channel of a `Result`, leaving the failure channel unchanged.
+   *
+   * **When to use**
+   *
+   * Use to apply a transformation to the success value of a `Result` while
+   * preserving any existing failure.
+   *
+   * **Details**
+   *
+   * - If the result is a `Success`, applies `f` to the value and returns a new `Success`
+   * - If the result is a `Failure`, returns it as-is
+   * - Use {@link flatMap} if `f` returns a `Result` (to avoid nested Results)
+   *
+   * **Example** (Doubling the success value)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(3),
+   *   Result.map((n) => n * 2)
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: 6, ... }
+   * ```
+   *
+   * @see {@link mapError} to transform only the error value
+   * @see {@link mapBoth} to transform both channels
+   * @see {@link flatMap} when `f` returns a `Result`
+   *
+   * @category mapping
+   * @since 2.0.0
+   */
+  <A, A2>(f: (ok: A) => A2): <E>(self: Result<A, E>) => Result<A2, E>
+  /**
+   * Transforms the success channel of a `Result`, leaving the failure channel unchanged.
+   *
+   * **When to use**
+   *
+   * Use to apply a transformation to the success value of a `Result` while
+   * preserving any existing failure.
+   *
+   * **Details**
+   *
+   * - If the result is a `Success`, applies `f` to the value and returns a new `Success`
+   * - If the result is a `Failure`, returns it as-is
+   * - Use {@link flatMap} if `f` returns a `Result` (to avoid nested Results)
+   *
+   * **Example** (Doubling the success value)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(3),
+   *   Result.map((n) => n * 2)
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: 6, ... }
+   * ```
+   *
+   * @see {@link mapError} to transform only the error value
+   * @see {@link mapBoth} to transform both channels
+   * @see {@link flatMap} when `f` returns a `Result`
+   *
+   * @category mapping
+   * @since 2.0.0
+   */
+  <A, E, A2>(self: Result<A, E>, f: (ok: A) => A2): Result<A2, E>
 } = dual(
-	2,
-	<A, E, A2>(self: Result<A, E>, f: (ok: A) => A2): Result<A2, E> =>
-		isSuccess(self) ? succeed(f(self.success)) : fail(self.failure),
-);
+  2,
+  <A, E, A2>(self: Result<A, E>, f: (ok: A) => A2): Result<A2, E> =>
+    isSuccess(self) ? succeed(f(self.success)) : fail(self.failure)
+)
 
 /**
  * Folds a `Result` into a single value by applying one of two functions.
+ *
+ * **When to use**
+ *
+ * Use when a `Result`'s success and failure branches should be collapsed into
+ * one plain output type.
  *
  * **Details**
  *
  * - Applies `onSuccess` if the result is a `Success`
  * - Applies `onFailure` if the result is a `Failure`
  * - Both branches must return the same type (or a common supertype)
- * - Use when you need to "exit" the `Result` type and produce a plain value
  *
  * **Example** (Folding to a string)
  *
@@ -903,38 +1242,112 @@ export const map: {
  * @see {@link merge} to extract `A | E` without mapping
  * @see {@link getOrElse} to unwrap only the success with a fallback
  *
- * @category Pattern Matching
+ * @category pattern matching
  * @since 2.0.0
  */
 export const match: {
-	<E, B, A, C = B>(options: {
-		readonly onFailure: (error: E) => B;
-		readonly onSuccess: (ok: A) => C;
-	}): (self: Result<A, E>) => B | C;
-	<A, E, B, C = B>(
-		self: Result<A, E>,
-		options: {
-			readonly onFailure: (error: E) => B;
-			readonly onSuccess: (ok: A) => C;
-		},
-	): B | C;
+  /**
+   * Folds a `Result` into a single value by applying one of two functions.
+   *
+   * **When to use**
+   *
+   * Use when a `Result`'s success and failure branches should be collapsed into
+   * one plain output type.
+   *
+   * **Details**
+   *
+   * - Applies `onSuccess` if the result is a `Success`
+   * - Applies `onFailure` if the result is a `Failure`
+   * - Both branches must return the same type (or a common supertype)
+   *
+   * **Example** (Folding to a string)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const format = Result.match({
+   *   onSuccess: (n: number) => `Got ${n}`,
+   *   onFailure: (e: string) => `Err: ${e}`
+   * })
+   *
+   * console.log(format(Result.succeed(42)))
+   * // Output: "Got 42"
+   *
+   * console.log(format(Result.fail("timeout")))
+   * // Output: "Err: timeout"
+   * ```
+   *
+   * @see {@link merge} to extract `A | E` without mapping
+   * @see {@link getOrElse} to unwrap only the success with a fallback
+   *
+   * @category pattern matching
+   * @since 2.0.0
+   */
+  <E, B, A, C = B>(
+    options: {
+      readonly onFailure: (error: E) => B
+      readonly onSuccess: (ok: A) => C
+    }
+  ): (self: Result<A, E>) => B | C
+  /**
+   * Folds a `Result` into a single value by applying one of two functions.
+   *
+   * **When to use**
+   *
+   * Use when a `Result`'s success and failure branches should be collapsed into
+   * one plain output type.
+   *
+   * **Details**
+   *
+   * - Applies `onSuccess` if the result is a `Success`
+   * - Applies `onFailure` if the result is a `Failure`
+   * - Both branches must return the same type (or a common supertype)
+   *
+   * **Example** (Folding to a string)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const format = Result.match({
+   *   onSuccess: (n: number) => `Got ${n}`,
+   *   onFailure: (e: string) => `Err: ${e}`
+   * })
+   *
+   * console.log(format(Result.succeed(42)))
+   * // Output: "Got 42"
+   *
+   * console.log(format(Result.fail("timeout")))
+   * // Output: "Err: timeout"
+   * ```
+   *
+   * @see {@link merge} to extract `A | E` without mapping
+   * @see {@link getOrElse} to unwrap only the success with a fallback
+   *
+   * @category pattern matching
+   * @since 2.0.0
+   */
+  <A, E, B, C = B>(
+    self: Result<A, E>,
+    options: {
+      readonly onFailure: (error: E) => B
+      readonly onSuccess: (ok: A) => C
+    }
+  ): B | C
 } = dual(
-	2,
-	<A, E, B, C = B>(
-		self: Result<A, E>,
-		{
-			onFailure,
-			onSuccess,
-		}: {
-			readonly onFailure: (error: E) => B;
-			readonly onSuccess: (ok: A) => C;
-		},
-	): B | C =>
-		isFailure(self) ? onFailure(self.failure) : onSuccess(self.success),
-);
+  2,
+  <A, E, B, C = B>(self: Result<A, E>, { onFailure, onSuccess }: {
+    readonly onFailure: (error: E) => B
+    readonly onSuccess: (ok: A) => C
+  }): B | C => isFailure(self) ? onFailure(self.failure) : onSuccess(self.success)
+)
 
 /**
  * Lifts a value into a `Result` based on a predicate or refinement.
+ *
+ * **When to use**
+ *
+ * Use to construct a `Result` from a raw value guarded by a predicate or
+ * refinement.
  *
  * **Details**
  *
@@ -966,36 +1379,172 @@ export const match: {
  * @since 3.4.0
  */
 export const liftPredicate: {
-	<A, B extends A, E>(
-		refinement: Refinement<A, B>,
-		orFailWith: (a: A) => E,
-	): (a: A) => Result<B, E>;
-	<B extends A, E, A = B>(
-		predicate: Predicate<A>,
-		orFailWith: (a: A) => E,
-	): (a: B) => Result<B, E>;
-	<A, E, B extends A>(
-		self: A,
-		refinement: Refinement<A, B>,
-		orFailWith: (a: A) => E,
-	): Result<B, E>;
-	<B extends A, E, A = B>(
-		self: B,
-		predicate: Predicate<A>,
-		orFailWith: (a: A) => E,
-	): Result<B, E>;
+  /**
+   * Lifts a value into a `Result` based on a predicate or refinement.
+   *
+   * **When to use**
+   *
+   * Use to construct a `Result` from a raw value guarded by a predicate or
+   * refinement.
+   *
+   * **Details**
+   *
+   * - If the predicate returns `true`, the value becomes `Success<A>`
+   * - If the predicate returns `false`, `orFailWith` produces the error for `Failure<E>`
+   * - Also accepts a `Refinement` to narrow the success type
+   * - Supports both data-first and data-last (piped) usage
+   *
+   * **Example** (Validating a number)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const ensurePositive = pipe(
+   *   5,
+   *   Result.liftPredicate(
+   *     (n: number) => n > 0,
+   *     (n) => `${n} is not positive`
+   *   )
+   * )
+   * console.log(ensurePositive)
+   * // Output: { _tag: "Success", success: 5, ... }
+   * ```
+   *
+   * @see {@link filterOrFail} to validate a value that is already in a `Result`
+   * @see {@link fromNullishOr} for nullable-based construction
+   *
+   * @category constructors
+   * @since 3.4.0
+   */
+  <A, B extends A, E>(refinement: Refinement<A, B>, orFailWith: (a: A) => E): (a: A) => Result<B, E>
+  /**
+   * Lifts a value into a `Result` based on a predicate or refinement.
+   *
+   * **When to use**
+   *
+   * Use to construct a `Result` from a raw value guarded by a predicate or
+   * refinement.
+   *
+   * **Details**
+   *
+   * - If the predicate returns `true`, the value becomes `Success<A>`
+   * - If the predicate returns `false`, `orFailWith` produces the error for `Failure<E>`
+   * - Also accepts a `Refinement` to narrow the success type
+   * - Supports both data-first and data-last (piped) usage
+   *
+   * **Example** (Validating a number)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const ensurePositive = pipe(
+   *   5,
+   *   Result.liftPredicate(
+   *     (n: number) => n > 0,
+   *     (n) => `${n} is not positive`
+   *   )
+   * )
+   * console.log(ensurePositive)
+   * // Output: { _tag: "Success", success: 5, ... }
+   * ```
+   *
+   * @see {@link filterOrFail} to validate a value that is already in a `Result`
+   * @see {@link fromNullishOr} for nullable-based construction
+   *
+   * @category constructors
+   * @since 3.4.0
+   */
+  <B extends A, E, A = B>(predicate: Predicate<A>, orFailWith: (a: A) => E): (a: B) => Result<B, E>
+  /**
+   * Lifts a value into a `Result` based on a predicate or refinement.
+   *
+   * **When to use**
+   *
+   * Use to construct a `Result` from a raw value guarded by a predicate or
+   * refinement.
+   *
+   * **Details**
+   *
+   * - If the predicate returns `true`, the value becomes `Success<A>`
+   * - If the predicate returns `false`, `orFailWith` produces the error for `Failure<E>`
+   * - Also accepts a `Refinement` to narrow the success type
+   * - Supports both data-first and data-last (piped) usage
+   *
+   * **Example** (Validating a number)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const ensurePositive = pipe(
+   *   5,
+   *   Result.liftPredicate(
+   *     (n: number) => n > 0,
+   *     (n) => `${n} is not positive`
+   *   )
+   * )
+   * console.log(ensurePositive)
+   * // Output: { _tag: "Success", success: 5, ... }
+   * ```
+   *
+   * @see {@link filterOrFail} to validate a value that is already in a `Result`
+   * @see {@link fromNullishOr} for nullable-based construction
+   *
+   * @category constructors
+   * @since 3.4.0
+   */
+  <A, E, B extends A>(self: A, refinement: Refinement<A, B>, orFailWith: (a: A) => E): Result<B, E>
+  /**
+   * Lifts a value into a `Result` based on a predicate or refinement.
+   *
+   * **When to use**
+   *
+   * Use to construct a `Result` from a raw value guarded by a predicate or
+   * refinement.
+   *
+   * **Details**
+   *
+   * - If the predicate returns `true`, the value becomes `Success<A>`
+   * - If the predicate returns `false`, `orFailWith` produces the error for `Failure<E>`
+   * - Also accepts a `Refinement` to narrow the success type
+   * - Supports both data-first and data-last (piped) usage
+   *
+   * **Example** (Validating a number)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const ensurePositive = pipe(
+   *   5,
+   *   Result.liftPredicate(
+   *     (n: number) => n > 0,
+   *     (n) => `${n} is not positive`
+   *   )
+   * )
+   * console.log(ensurePositive)
+   * // Output: { _tag: "Success", success: 5, ... }
+   * ```
+   *
+   * @see {@link filterOrFail} to validate a value that is already in a `Result`
+   * @see {@link fromNullishOr} for nullable-based construction
+   *
+   * @category constructors
+   * @since 3.4.0
+   */
+  <B extends A, E, A = B>(self: B, predicate: Predicate<A>, orFailWith: (a: A) => E): Result<B, E>
 } = dual(
-	3,
-	<A, E>(
-		a: A,
-		predicate: Predicate<A>,
-		orFailWith: (a: A) => E,
-	): Result<A, E> => (predicate(a) ? succeed(a) : fail(orFailWith(a))),
-);
+  3,
+  <A, E>(a: A, predicate: Predicate<A>, orFailWith: (a: A) => E): Result<A, E> =>
+    predicate(a) ? succeed(a) : fail(orFailWith(a))
+)
 
 /**
  * Validates the success value of a `Result` using a predicate, failing with a
  * custom error if the predicate returns `false`.
+ *
+ * **When to use**
+ *
+ * Use to validate an already-successful `Result` value with a predicate or
+ * refinement.
  *
  * **Details**
  *
@@ -1028,33 +1577,178 @@ export const liftPredicate: {
  * @since 4.0.0
  */
 export const filterOrFail: {
-	<A, B extends A, E2>(
-		refinement: Refinement<NoInfer<A>, B>,
-		orFailWith: (value: NoInfer<A>) => E2,
-	): <E>(self: Result<A, E>) => Result<B, E2 | E>;
-	<A, E2>(
-		predicate: Predicate<NoInfer<A>>,
-		orFailWith: (value: NoInfer<A>) => E2,
-	): <E>(self: Result<A, E>) => Result<A, E2 | E>;
-	<A, E, B extends A, E2>(
-		self: Result<A, E>,
-		refinement: Refinement<A, B>,
-		orFailWith: (value: A) => E2,
-	): Result<B, E | E2>;
-	<A, E, E2>(
-		self: Result<A, E>,
-		predicate: Predicate<A>,
-		orFailWith: (value: A) => E2,
-	): Result<A, E | E2>;
-} = dual(
-	3,
-	<A, E, E2>(
-		self: Result<A, E>,
-		predicate: Predicate<A>,
-		orFailWith: (value: A) => E2,
-	): Result<A, E | E2> =>
-		flatMap(self, (a) => (predicate(a) ? succeed(a) : fail(orFailWith(a)))),
-);
+  /**
+   * Validates the success value of a `Result` using a predicate, failing with a
+   * custom error if the predicate returns `false`.
+   *
+   * **When to use**
+   *
+   * Use to validate an already-successful `Result` value with a predicate or
+   * refinement.
+   *
+   * **Details**
+   *
+   * - If the result is already a `Failure`, it is returned as-is
+   * - If the predicate passes, the `Success` is returned unchanged
+   * - If the predicate fails, `orFailWith` produces the error for a new `Failure`
+   * - Also accepts a `Refinement` to narrow the success type
+   * - The error type of the output is the union of both error types
+   *
+   * **Example** (Filtering a success value)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(0),
+   *   Result.filterOrFail(
+   *     (n) => n > 0,
+   *     (n) => `${n} is not positive`
+   *   )
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Failure", failure: "0 is not positive", ... }
+   * ```
+   *
+   * @see {@link liftPredicate} to create a `Result` from a raw value with a predicate
+   * @see {@link flatMap} for general conditional chaining
+   *
+   * @category filtering
+   * @since 4.0.0
+   */
+  <A, B extends A, E2>(
+    refinement: Refinement<NoInfer<A>, B>,
+    orFailWith: (value: NoInfer<A>) => E2
+  ): <E>(self: Result<A, E>) => Result<B, E2 | E>
+  /**
+   * Validates the success value of a `Result` using a predicate, failing with a
+   * custom error if the predicate returns `false`.
+   *
+   * **When to use**
+   *
+   * Use to validate an already-successful `Result` value with a predicate or
+   * refinement.
+   *
+   * **Details**
+   *
+   * - If the result is already a `Failure`, it is returned as-is
+   * - If the predicate passes, the `Success` is returned unchanged
+   * - If the predicate fails, `orFailWith` produces the error for a new `Failure`
+   * - Also accepts a `Refinement` to narrow the success type
+   * - The error type of the output is the union of both error types
+   *
+   * **Example** (Filtering a success value)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(0),
+   *   Result.filterOrFail(
+   *     (n) => n > 0,
+   *     (n) => `${n} is not positive`
+   *   )
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Failure", failure: "0 is not positive", ... }
+   * ```
+   *
+   * @see {@link liftPredicate} to create a `Result` from a raw value with a predicate
+   * @see {@link flatMap} for general conditional chaining
+   *
+   * @category filtering
+   * @since 4.0.0
+   */
+  <A, E2>(predicate: Predicate<NoInfer<A>>, orFailWith: (value: NoInfer<A>) => E2): <E>(self: Result<A, E>) => Result<A, E2 | E>
+  /**
+   * Validates the success value of a `Result` using a predicate, failing with a
+   * custom error if the predicate returns `false`.
+   *
+   * **When to use**
+   *
+   * Use to validate an already-successful `Result` value with a predicate or
+   * refinement.
+   *
+   * **Details**
+   *
+   * - If the result is already a `Failure`, it is returned as-is
+   * - If the predicate passes, the `Success` is returned unchanged
+   * - If the predicate fails, `orFailWith` produces the error for a new `Failure`
+   * - Also accepts a `Refinement` to narrow the success type
+   * - The error type of the output is the union of both error types
+   *
+   * **Example** (Filtering a success value)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(0),
+   *   Result.filterOrFail(
+   *     (n) => n > 0,
+   *     (n) => `${n} is not positive`
+   *   )
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Failure", failure: "0 is not positive", ... }
+   * ```
+   *
+   * @see {@link liftPredicate} to create a `Result` from a raw value with a predicate
+   * @see {@link flatMap} for general conditional chaining
+   *
+   * @category filtering
+   * @since 4.0.0
+   */
+  <A, E, B extends A, E2>(
+    self: Result<A, E>,
+    refinement: Refinement<A, B>,
+    orFailWith: (value: A) => E2
+  ): Result<B, E | E2>
+  /**
+   * Validates the success value of a `Result` using a predicate, failing with a
+   * custom error if the predicate returns `false`.
+   *
+   * **When to use**
+   *
+   * Use to validate an already-successful `Result` value with a predicate or
+   * refinement.
+   *
+   * **Details**
+   *
+   * - If the result is already a `Failure`, it is returned as-is
+   * - If the predicate passes, the `Success` is returned unchanged
+   * - If the predicate fails, `orFailWith` produces the error for a new `Failure`
+   * - Also accepts a `Refinement` to narrow the success type
+   * - The error type of the output is the union of both error types
+   *
+   * **Example** (Filtering a success value)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(0),
+   *   Result.filterOrFail(
+   *     (n) => n > 0,
+   *     (n) => `${n} is not positive`
+   *   )
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Failure", failure: "0 is not positive", ... }
+   * ```
+   *
+   * @see {@link liftPredicate} to create a `Result` from a raw value with a predicate
+   * @see {@link flatMap} for general conditional chaining
+   *
+   * @category filtering
+   * @since 4.0.0
+   */
+  <A, E, E2>(self: Result<A, E>, predicate: Predicate<A>, orFailWith: (value: A) => E2): Result<A, E | E2>
+} = dual(3, <A, E, E2>(
+  self: Result<A, E>,
+  predicate: Predicate<A>,
+  orFailWith: (value: A) => E2
+): Result<A, E | E2> => flatMap(self, (a) => predicate(a) ? succeed(a) : fail(orFailWith(a))))
 
 /**
  * Unwraps a `Result` into `A | E` by returning the inner value regardless
@@ -1084,13 +1778,15 @@ export const filterOrFail: {
  * @category getters
  * @since 2.0.0
  */
-export const merge: <A, E>(self: Result<A, E>) => E | A = match({
-	onFailure: identity,
-	onSuccess: identity,
-});
+export const merge: <A, E>(self: Result<A, E>) => E | A = match({ onFailure: identity, onSuccess: identity })
 
 /**
  * Extracts the success value, or computes a fallback from the error.
+ *
+ * **When to use**
+ *
+ * Use when you need the success value from a `Result`, with a fallback computed
+ * from the failure value.
  *
  * **Details**
  *
@@ -1113,27 +1809,100 @@ export const merge: <A, E>(self: Result<A, E>) => E | A = match({
  * @see {@link getOrNull} / {@link getOrUndefined} for simpler fallbacks
  * @see {@link getOrThrow} to throw on failure
  * @see {@link match} to map both branches
+ * @see {@link orElse} to recover with another Result instead of unwrapping
  *
  * @category getters
  * @since 2.0.0
  */
 export const getOrElse: {
-	<E, A2>(onFailure: (err: E) => A2): <A>(self: Result<A, E>) => A2 | A;
-	<A, E, A2>(self: Result<A, E>, onFailure: (err: E) => A2): A | A2;
+  /**
+   * Extracts the success value, or computes a fallback from the error.
+   *
+   * **When to use**
+   *
+   * Use when you need the success value from a `Result`, with a fallback computed
+   * from the failure value.
+   *
+   * **Details**
+   *
+   * - `Success<A>` returns the inner value
+   * - `Failure<E>` applies `onFailure` to the error and returns the result
+   * - The return type is `A | A2` (union of both branches)
+   *
+   * **Example** (Providing a fallback)
+   *
+   * ```ts
+   * import { Result } from "effect"
+   *
+   * console.log(Result.getOrElse(Result.succeed(1), () => 0))
+   * // Output: 1
+   *
+   * console.log(Result.getOrElse(Result.fail("err"), () => 0))
+   * // Output: 0
+   * ```
+   *
+   * @see {@link getOrNull} / {@link getOrUndefined} for simpler fallbacks
+   * @see {@link getOrThrow} to throw on failure
+   * @see {@link match} to map both branches
+   * @see {@link orElse} to recover with another Result instead of unwrapping
+   *
+   * @category getters
+   * @since 2.0.0
+   */
+  <E, A2>(onFailure: (err: E) => A2): <A>(self: Result<A, E>) => A2 | A
+  /**
+   * Extracts the success value, or computes a fallback from the error.
+   *
+   * **When to use**
+   *
+   * Use when you need the success value from a `Result`, with a fallback computed
+   * from the failure value.
+   *
+   * **Details**
+   *
+   * - `Success<A>` returns the inner value
+   * - `Failure<E>` applies `onFailure` to the error and returns the result
+   * - The return type is `A | A2` (union of both branches)
+   *
+   * **Example** (Providing a fallback)
+   *
+   * ```ts
+   * import { Result } from "effect"
+   *
+   * console.log(Result.getOrElse(Result.succeed(1), () => 0))
+   * // Output: 1
+   *
+   * console.log(Result.getOrElse(Result.fail("err"), () => 0))
+   * // Output: 0
+   * ```
+   *
+   * @see {@link getOrNull} / {@link getOrUndefined} for simpler fallbacks
+   * @see {@link getOrThrow} to throw on failure
+   * @see {@link match} to map both branches
+   * @see {@link orElse} to recover with another Result instead of unwrapping
+   *
+   * @category getters
+   * @since 2.0.0
+   */
+  <A, E, A2>(self: Result<A, E>, onFailure: (err: E) => A2): A | A2
 } = dual(
-	2,
-	<A, E, A2>(self: Result<A, E>, onFailure: (err: E) => A2): A | A2 =>
-		isFailure(self) ? onFailure(self.failure) : self.success,
-);
+  2,
+  <A, E, A2>(self: Result<A, E>, onFailure: (err: E) => A2): A | A2 =>
+    isFailure(self) ? onFailure(self.failure) : self.success
+)
 
 /**
  * Extracts the success value, or returns `null` on failure.
+ *
+ * **When to use**
+ *
+ * Use when you need to pass failed `Result` values to APIs that represent
+ * absence as `null`.
  *
  * **Details**
  *
  * - `Success<A>` returns `A`
  * - `Failure<E>` returns `null`
- * - Convenient for interop with APIs that use `null` to represent absence
  *
  * **Example** (Unwrapping to nullable)
  *
@@ -1153,17 +1922,20 @@ export const getOrElse: {
  * @category getters
  * @since 2.0.0
  */
-export const getOrNull: <A, E>(self: Result<A, E>) => A | null =
-	getOrElse(constNull);
+export const getOrNull: <A, E>(self: Result<A, E>) => A | null = getOrElse(constNull)
 
 /**
  * Extracts the success value, or returns `undefined` on failure.
+ *
+ * **When to use**
+ *
+ * Use when you need to pass failed `Result` values to APIs that represent
+ * absence as `undefined`.
  *
  * **Details**
  *
  * - `Success<A>` returns `A`
  * - `Failure<E>` returns `undefined`
- * - Convenient for interop with APIs that use `undefined` to represent absence
  *
  * **Example** (Unwrapping to optional)
  *
@@ -1183,18 +1955,20 @@ export const getOrNull: <A, E>(self: Result<A, E>) => A | null =
  * @category getters
  * @since 2.0.0
  */
-export const getOrUndefined: <A, E>(self: Result<A, E>) => A | undefined =
-	getOrElse(constUndefined);
+export const getOrUndefined: <A, E>(self: Result<A, E>) => A | undefined = getOrElse(constUndefined)
 
 /**
  * Extracts the success value or throws a custom error derived from the failure.
+ *
+ * **When to use**
+ *
+ * Use when converting a `Result` into a thrown exception with a custom error
+ * message or error type.
  *
  * **Details**
  *
  * - `Success<A>` returns `A`
  * - `Failure<E>` throws the value returned by `onFailure(e)`
- * - Use when you want to convert a `Result` into a thrown exception with a
- *   custom error message or error type
  *
  * **Example** (Throwing a custom error)
  *
@@ -1220,17 +1994,93 @@ export const getOrUndefined: <A, E>(self: Result<A, E>) => A | undefined =
  * @since 2.0.0
  */
 export const getOrThrowWith: {
-	<E>(onFailure: (err: E) => unknown): <A>(self: Result<A, E>) => A;
-	<A, E>(self: Result<A, E>, onFailure: (err: E) => unknown): A;
+  /**
+   * Extracts the success value or throws a custom error derived from the failure.
+   *
+   * **When to use**
+   *
+   * Use when converting a `Result` into a thrown exception with a custom error
+   * message or error type.
+   *
+   * **Details**
+   *
+   * - `Success<A>` returns `A`
+   * - `Failure<E>` throws the value returned by `onFailure(e)`
+   *
+   * **Example** (Throwing a custom error)
+   *
+   * ```ts
+   * import { Result } from "effect"
+   *
+   * console.log(
+   *   Result.getOrThrowWith(Result.succeed(1), () => new Error("fail"))
+   * )
+   * // Output: 1
+   *
+   * // This would throw: new Error("Unexpected: oops")
+   * // Result.getOrThrowWith(
+   * //   Result.fail("oops"),
+   * //   (err) => new Error(`Unexpected: ${err}`)
+   * // )
+   * ```
+   *
+   * @see {@link getOrThrow} to throw the raw failure value
+   * @see {@link getOrElse} for a non-throwing alternative
+   *
+   * @category getters
+   * @since 2.0.0
+   */
+  <E>(onFailure: (err: E) => unknown): <A>(self: Result<A, E>) => A
+  /**
+   * Extracts the success value or throws a custom error derived from the failure.
+   *
+   * **When to use**
+   *
+   * Use when converting a `Result` into a thrown exception with a custom error
+   * message or error type.
+   *
+   * **Details**
+   *
+   * - `Success<A>` returns `A`
+   * - `Failure<E>` throws the value returned by `onFailure(e)`
+   *
+   * **Example** (Throwing a custom error)
+   *
+   * ```ts
+   * import { Result } from "effect"
+   *
+   * console.log(
+   *   Result.getOrThrowWith(Result.succeed(1), () => new Error("fail"))
+   * )
+   * // Output: 1
+   *
+   * // This would throw: new Error("Unexpected: oops")
+   * // Result.getOrThrowWith(
+   * //   Result.fail("oops"),
+   * //   (err) => new Error(`Unexpected: ${err}`)
+   * // )
+   * ```
+   *
+   * @see {@link getOrThrow} to throw the raw failure value
+   * @see {@link getOrElse} for a non-throwing alternative
+   *
+   * @category getters
+   * @since 2.0.0
+   */
+  <A, E>(self: Result<A, E>, onFailure: (err: E) => unknown): A
 } = dual(2, <A, E>(self: Result<A, E>, onFailure: (err: E) => unknown): A => {
-	if (isSuccess(self)) {
-		return self.success;
-	}
-	throw onFailure(self.failure);
-});
+  if (isSuccess(self)) {
+    return self.success
+  }
+  throw onFailure(self.failure)
+})
 
 /**
  * Extracts the success value or throws the raw failure value `E`.
+ *
+ * **When to use**
+ *
+ * Use when unchecked boundaries should turn failures into thrown exceptions.
  *
  * **Details**
  *
@@ -1256,18 +2106,21 @@ export const getOrThrowWith: {
  * @category getters
  * @since 2.0.0
  */
-export const getOrThrow: <A, E>(self: Result<A, E>) => A =
-	getOrThrowWith(identity);
+export const getOrThrow: <A, E>(self: Result<A, E>) => A = getOrThrowWith(identity)
 
 /**
  * Returns the original `Result` if it is a `Success`, otherwise applies
  * `that` to the error and returns the resulting `Result`.
  *
+ * **When to use**
+ *
+ * Use when a failure should recover into another `Result` while keeping
+ * successes unchanged.
+ *
  * **Details**
  *
  * - `Success<A>` is returned unchanged
  * - `Failure<E>` calls `that(e)` to produce a new `Result`
- * - Use to provide a recovery path or fallback computation on failure
  *
  * **Example** (Recovering from a failure)
  *
@@ -1289,24 +2142,87 @@ export const getOrThrow: <A, E>(self: Result<A, E>) => A =
  * @since 2.0.0
  */
 export const orElse: {
-	<E, A2, E2>(
-		that: (err: E) => Result<A2, E2>,
-	): <A>(self: Result<A, E>) => Result<A | A2, E2>;
-	<A, E, A2, E2>(
-		self: Result<A, E>,
-		that: (err: E) => Result<A2, E2>,
-	): Result<A | A2, E2>;
+  /**
+   * Returns the original `Result` if it is a `Success`, otherwise applies
+   * `that` to the error and returns the resulting `Result`.
+   *
+   * **When to use**
+   *
+   * Use when a failure should recover into another `Result` while keeping
+   * successes unchanged.
+   *
+   * **Details**
+   *
+   * - `Success<A>` is returned unchanged
+   * - `Failure<E>` calls `that(e)` to produce a new `Result`
+   *
+   * **Example** (Recovering from a failure)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.fail("primary failed"),
+   *   Result.orElse(() => Result.succeed(99))
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: 99, ... }
+   * ```
+   *
+   * @see {@link getOrElse} to unwrap with a fallback value (not a Result)
+   * @see {@link mapError} to transform the error without recovering
+   *
+   * @category error handling
+   * @since 2.0.0
+   */
+  <E, A2, E2>(that: (err: E) => Result<A2, E2>): <A>(self: Result<A, E>) => Result<A | A2, E2>
+  /**
+   * Returns the original `Result` if it is a `Success`, otherwise applies
+   * `that` to the error and returns the resulting `Result`.
+   *
+   * **When to use**
+   *
+   * Use when a failure should recover into another `Result` while keeping
+   * successes unchanged.
+   *
+   * **Details**
+   *
+   * - `Success<A>` is returned unchanged
+   * - `Failure<E>` calls `that(e)` to produce a new `Result`
+   *
+   * **Example** (Recovering from a failure)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.fail("primary failed"),
+   *   Result.orElse(() => Result.succeed(99))
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: 99, ... }
+   * ```
+   *
+   * @see {@link getOrElse} to unwrap with a fallback value (not a Result)
+   * @see {@link mapError} to transform the error without recovering
+   *
+   * @category error handling
+   * @since 2.0.0
+   */
+  <A, E, A2, E2>(self: Result<A, E>, that: (err: E) => Result<A2, E2>): Result<A | A2, E2>
 } = dual(
-	2,
-	<A, E, A2, E2>(
-		self: Result<A, E>,
-		that: (err: E) => Result<A2, E2>,
-	): Result<A | A2, E2> =>
-		isFailure(self) ? that(self.failure) : succeed(self.success),
-);
+  2,
+  <A, E, A2, E2>(self: Result<A, E>, that: (err: E) => Result<A2, E2>): Result<A | A2, E2> =>
+    isFailure(self) ? that(self.failure) : succeed(self.success)
+)
 
 /**
  * Chains a function that returns a `Result` onto a successful value.
+ *
+ * **When to use**
+ *
+ * Use to sequence `Result`-returning computations that should short-circuit on
+ * failure.
  *
  * **Details**
  *
@@ -1337,24 +2253,93 @@ export const orElse: {
  * @since 2.0.0
  */
 export const flatMap: {
-	<A, A2, E2>(
-		f: (a: A) => Result<A2, E2>,
-	): <E>(self: Result<A, E>) => Result<A2, E | E2>;
-	<A, E, A2, E2>(
-		self: Result<A, E>,
-		f: (a: A) => Result<A2, E2>,
-	): Result<A2, E | E2>;
+  /**
+   * Chains a function that returns a `Result` onto a successful value.
+   *
+   * **When to use**
+   *
+   * Use to sequence `Result`-returning computations that should short-circuit on
+   * failure.
+   *
+   * **Details**
+   *
+   * - If `self` is a `Success`, applies `f` to the value and returns the resulting `Result`
+   * - If `self` is a `Failure`, short-circuits and returns it unchanged
+   * - The error types are merged into a union (`E | E2`)
+   * - This is the monadic `bind` / `>>=` for `Result`
+   *
+   * **Example** (Sequential validation)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(5),
+   *   Result.flatMap((n) =>
+   *     n > 0 ? Result.succeed(n * 2) : Result.fail("not positive")
+   *   )
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: 10, ... }
+   * ```
+   *
+   * @see {@link andThen} for a more flexible variant that also accepts plain values
+   * @see {@link map} when `f` does not return a `Result`
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A, A2, E2>(f: (a: A) => Result<A2, E2>): <E>(self: Result<A, E>) => Result<A2, E | E2>
+  /**
+   * Chains a function that returns a `Result` onto a successful value.
+   *
+   * **When to use**
+   *
+   * Use to sequence `Result`-returning computations that should short-circuit on
+   * failure.
+   *
+   * **Details**
+   *
+   * - If `self` is a `Success`, applies `f` to the value and returns the resulting `Result`
+   * - If `self` is a `Failure`, short-circuits and returns it unchanged
+   * - The error types are merged into a union (`E | E2`)
+   * - This is the monadic `bind` / `>>=` for `Result`
+   *
+   * **Example** (Sequential validation)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(5),
+   *   Result.flatMap((n) =>
+   *     n > 0 ? Result.succeed(n * 2) : Result.fail("not positive")
+   *   )
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: 10, ... }
+   * ```
+   *
+   * @see {@link andThen} for a more flexible variant that also accepts plain values
+   * @see {@link map} when `f` does not return a `Result`
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A, E, A2, E2>(self: Result<A, E>, f: (a: A) => Result<A2, E2>): Result<A2, E | E2>
 } = dual(
-	2,
-	<A, E, A2, E2>(
-		self: Result<A, E>,
-		f: (a: A) => Result<A2, E2>,
-	): Result<A2, E | E2> =>
-		isFailure(self) ? fail(self.failure) : f(self.success),
-);
+  2,
+  <A, E, A2, E2>(self: Result<A, E>, f: (a: A) => Result<A2, E2>): Result<A2, E | E2> =>
+    isFailure(self) ? fail(self.failure) : f(self.success)
+)
 
 /**
- * A flexible variant of {@link flatMap} that accepts multiple input shapes.
+ * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+ *
+ * **When to use**
+ *
+ * Use to sequence a next step that may be a `Result`, a function, or a plain
+ * value.
  *
  * **Details**
  *
@@ -1396,33 +2381,409 @@ export const flatMap: {
  * @since 2.0.0
  */
 export const andThen: {
-	<A, A2, E2>(
-		f: (a: A) => Result<A2, E2>,
-	): <E>(self: Result<A, E>) => Result<A2, E | E2>;
-	<A2, E2>(f: Result<A2, E2>): <A, E>(self: Result<A, E>) => Result<A2, E | E2>;
-	<A, A2>(f: (a: A) => A2): <E>(self: Result<A, E>) => Result<A2, E>;
-	<A2>(right: NotFunction<A2>): <A, E>(self: Result<A, E>) => Result<A2, E>;
-	<A, E, A2, E2>(
-		self: Result<A, E>,
-		f: (a: A) => Result<A2, E2>,
-	): Result<A2, E | E2>;
-	<A, E, A2, E2>(self: Result<A, E>, f: Result<A2, E2>): Result<A2, E | E2>;
-	<A, E, A2>(self: Result<A, E>, f: (a: A) => A2): Result<A2, E>;
-	<A, E, A2>(self: Result<A, E>, f: NotFunction<A2>): Result<A2, E>;
+  /**
+   * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+   *
+   * **When to use**
+   *
+   * Use to sequence a next step that may be a `Result`, a function, or a plain
+   * value.
+   *
+   * **Details**
+   *
+   * The second argument can be:
+   * - A function `(a: A) => Result<A2, E2>` (same as `flatMap`)
+   * - A function `(a: A) => A2` (auto-wrapped in `succeed`)
+   * - A `Result<A2, E2>` value (ignores the success of `self`)
+   * - A plain value `A2` (auto-wrapped in `succeed`, ignores `self`)
+   *
+   * If `self` is a `Failure`, the second argument is never evaluated.
+   *
+   * **Example** (Using andThen with different argument types)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * // With a function returning a Result
+   * const a = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => Result.succeed(n + 1))
+   * )
+   *
+   * // With a plain mapping function
+   * const b = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => n + 1)
+   * )
+   *
+   * // With a constant value
+   * const c = pipe(Result.succeed(1), Result.andThen("done"))
+   *
+   * console.log(a, b, c)
+   * ```
+   *
+   * @see {@link flatMap} for the stricter variant (function returning Result only)
+   * @see {@link map} when you always return a plain value
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A, A2, E2>(f: (a: A) => Result<A2, E2>): <E>(self: Result<A, E>) => Result<A2, E | E2>
+  /**
+   * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+   *
+   * **When to use**
+   *
+   * Use to sequence a next step that may be a `Result`, a function, or a plain
+   * value.
+   *
+   * **Details**
+   *
+   * The second argument can be:
+   * - A function `(a: A) => Result<A2, E2>` (same as `flatMap`)
+   * - A function `(a: A) => A2` (auto-wrapped in `succeed`)
+   * - A `Result<A2, E2>` value (ignores the success of `self`)
+   * - A plain value `A2` (auto-wrapped in `succeed`, ignores `self`)
+   *
+   * If `self` is a `Failure`, the second argument is never evaluated.
+   *
+   * **Example** (Using andThen with different argument types)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * // With a function returning a Result
+   * const a = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => Result.succeed(n + 1))
+   * )
+   *
+   * // With a plain mapping function
+   * const b = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => n + 1)
+   * )
+   *
+   * // With a constant value
+   * const c = pipe(Result.succeed(1), Result.andThen("done"))
+   *
+   * console.log(a, b, c)
+   * ```
+   *
+   * @see {@link flatMap} for the stricter variant (function returning Result only)
+   * @see {@link map} when you always return a plain value
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A2, E2>(f: Result<A2, E2>): <A, E>(self: Result<A, E>) => Result<A2, E | E2>
+  /**
+   * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+   *
+   * **When to use**
+   *
+   * Use to sequence a next step that may be a `Result`, a function, or a plain
+   * value.
+   *
+   * **Details**
+   *
+   * The second argument can be:
+   * - A function `(a: A) => Result<A2, E2>` (same as `flatMap`)
+   * - A function `(a: A) => A2` (auto-wrapped in `succeed`)
+   * - A `Result<A2, E2>` value (ignores the success of `self`)
+   * - A plain value `A2` (auto-wrapped in `succeed`, ignores `self`)
+   *
+   * If `self` is a `Failure`, the second argument is never evaluated.
+   *
+   * **Example** (Using andThen with different argument types)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * // With a function returning a Result
+   * const a = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => Result.succeed(n + 1))
+   * )
+   *
+   * // With a plain mapping function
+   * const b = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => n + 1)
+   * )
+   *
+   * // With a constant value
+   * const c = pipe(Result.succeed(1), Result.andThen("done"))
+   *
+   * console.log(a, b, c)
+   * ```
+   *
+   * @see {@link flatMap} for the stricter variant (function returning Result only)
+   * @see {@link map} when you always return a plain value
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A, A2>(f: (a: A) => A2): <E>(self: Result<A, E>) => Result<A2, E>
+  /**
+   * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+   *
+   * **When to use**
+   *
+   * Use to sequence a next step that may be a `Result`, a function, or a plain
+   * value.
+   *
+   * **Details**
+   *
+   * The second argument can be:
+   * - A function `(a: A) => Result<A2, E2>` (same as `flatMap`)
+   * - A function `(a: A) => A2` (auto-wrapped in `succeed`)
+   * - A `Result<A2, E2>` value (ignores the success of `self`)
+   * - A plain value `A2` (auto-wrapped in `succeed`, ignores `self`)
+   *
+   * If `self` is a `Failure`, the second argument is never evaluated.
+   *
+   * **Example** (Using andThen with different argument types)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * // With a function returning a Result
+   * const a = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => Result.succeed(n + 1))
+   * )
+   *
+   * // With a plain mapping function
+   * const b = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => n + 1)
+   * )
+   *
+   * // With a constant value
+   * const c = pipe(Result.succeed(1), Result.andThen("done"))
+   *
+   * console.log(a, b, c)
+   * ```
+   *
+   * @see {@link flatMap} for the stricter variant (function returning Result only)
+   * @see {@link map} when you always return a plain value
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A2>(right: NotFunction<A2>): <A, E>(self: Result<A, E>) => Result<A2, E>
+  /**
+   * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+   *
+   * **When to use**
+   *
+   * Use to sequence a next step that may be a `Result`, a function, or a plain
+   * value.
+   *
+   * **Details**
+   *
+   * The second argument can be:
+   * - A function `(a: A) => Result<A2, E2>` (same as `flatMap`)
+   * - A function `(a: A) => A2` (auto-wrapped in `succeed`)
+   * - A `Result<A2, E2>` value (ignores the success of `self`)
+   * - A plain value `A2` (auto-wrapped in `succeed`, ignores `self`)
+   *
+   * If `self` is a `Failure`, the second argument is never evaluated.
+   *
+   * **Example** (Using andThen with different argument types)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * // With a function returning a Result
+   * const a = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => Result.succeed(n + 1))
+   * )
+   *
+   * // With a plain mapping function
+   * const b = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => n + 1)
+   * )
+   *
+   * // With a constant value
+   * const c = pipe(Result.succeed(1), Result.andThen("done"))
+   *
+   * console.log(a, b, c)
+   * ```
+   *
+   * @see {@link flatMap} for the stricter variant (function returning Result only)
+   * @see {@link map} when you always return a plain value
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A, E, A2, E2>(self: Result<A, E>, f: (a: A) => Result<A2, E2>): Result<A2, E | E2>
+  /**
+   * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+   *
+   * **When to use**
+   *
+   * Use to sequence a next step that may be a `Result`, a function, or a plain
+   * value.
+   *
+   * **Details**
+   *
+   * The second argument can be:
+   * - A function `(a: A) => Result<A2, E2>` (same as `flatMap`)
+   * - A function `(a: A) => A2` (auto-wrapped in `succeed`)
+   * - A `Result<A2, E2>` value (ignores the success of `self`)
+   * - A plain value `A2` (auto-wrapped in `succeed`, ignores `self`)
+   *
+   * If `self` is a `Failure`, the second argument is never evaluated.
+   *
+   * **Example** (Using andThen with different argument types)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * // With a function returning a Result
+   * const a = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => Result.succeed(n + 1))
+   * )
+   *
+   * // With a plain mapping function
+   * const b = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => n + 1)
+   * )
+   *
+   * // With a constant value
+   * const c = pipe(Result.succeed(1), Result.andThen("done"))
+   *
+   * console.log(a, b, c)
+   * ```
+   *
+   * @see {@link flatMap} for the stricter variant (function returning Result only)
+   * @see {@link map} when you always return a plain value
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A, E, A2, E2>(self: Result<A, E>, f: Result<A2, E2>): Result<A2, E | E2>
+  /**
+   * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+   *
+   * **When to use**
+   *
+   * Use to sequence a next step that may be a `Result`, a function, or a plain
+   * value.
+   *
+   * **Details**
+   *
+   * The second argument can be:
+   * - A function `(a: A) => Result<A2, E2>` (same as `flatMap`)
+   * - A function `(a: A) => A2` (auto-wrapped in `succeed`)
+   * - A `Result<A2, E2>` value (ignores the success of `self`)
+   * - A plain value `A2` (auto-wrapped in `succeed`, ignores `self`)
+   *
+   * If `self` is a `Failure`, the second argument is never evaluated.
+   *
+   * **Example** (Using andThen with different argument types)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * // With a function returning a Result
+   * const a = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => Result.succeed(n + 1))
+   * )
+   *
+   * // With a plain mapping function
+   * const b = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => n + 1)
+   * )
+   *
+   * // With a constant value
+   * const c = pipe(Result.succeed(1), Result.andThen("done"))
+   *
+   * console.log(a, b, c)
+   * ```
+   *
+   * @see {@link flatMap} for the stricter variant (function returning Result only)
+   * @see {@link map} when you always return a plain value
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A, E, A2>(self: Result<A, E>, f: (a: A) => A2): Result<A2, E>
+  /**
+   * Provides a flexible variant of {@link flatMap} that accepts multiple input shapes.
+   *
+   * **When to use**
+   *
+   * Use to sequence a next step that may be a `Result`, a function, or a plain
+   * value.
+   *
+   * **Details**
+   *
+   * The second argument can be:
+   * - A function `(a: A) => Result<A2, E2>` (same as `flatMap`)
+   * - A function `(a: A) => A2` (auto-wrapped in `succeed`)
+   * - A `Result<A2, E2>` value (ignores the success of `self`)
+   * - A plain value `A2` (auto-wrapped in `succeed`, ignores `self`)
+   *
+   * If `self` is a `Failure`, the second argument is never evaluated.
+   *
+   * **Example** (Using andThen with different argument types)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * // With a function returning a Result
+   * const a = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => Result.succeed(n + 1))
+   * )
+   *
+   * // With a plain mapping function
+   * const b = pipe(
+   *   Result.succeed(1),
+   *   Result.andThen((n) => n + 1)
+   * )
+   *
+   * // With a constant value
+   * const c = pipe(Result.succeed(1), Result.andThen("done"))
+   *
+   * console.log(a, b, c)
+   * ```
+   *
+   * @see {@link flatMap} for the stricter variant (function returning Result only)
+   * @see {@link map} when you always return a plain value
+   *
+   * @category sequencing
+   * @since 2.0.0
+   */
+  <A, E, A2>(self: Result<A, E>, f: NotFunction<A2>): Result<A2, E>
 } = dual(
-	2,
-	<A, E, A2, E2>(
-		self: Result<A, E>,
-		f: ((a: A) => Result<A2, E2> | A2) | Result<A2, E2> | A2,
-	): Result<A2, E | E2> =>
-		flatMap(self, (a) => {
-			const out = isFunction(f) ? f(a) : f;
-			return isResult(out) ? out : succeed(out);
-		}),
-);
+  2,
+  <A, E, A2, E2>(
+    self: Result<A, E>,
+    f: ((a: A) => Result<A2, E2> | A2) | Result<A2, E2> | A2
+  ): Result<A2, E | E2> =>
+    flatMap(self, (a) => {
+      const out = isFunction(f) ? f(a) : f
+      return isResult(out) ? out : succeed(out)
+    })
+)
 
 /**
  * Collects a structure of `Result`s into a single `Result` of collected values.
+ *
+ * **When to use**
+ *
+ * Use to collect independent `Result` values into one `Result` while preserving
+ * the original structure.
  *
  * **Details**
  *
@@ -1456,63 +2817,48 @@ export const andThen: {
  * @since 2.0.0
  */
 // @ts-expect-error
-export const all: <
-	const I extends Iterable<Result<any, any>> | Record<string, Result<any, any>>,
->(
-	input: I,
-) => [I] extends [ReadonlyArray<Result<any, any>>]
-	? Result<
-			{
-				-readonly [K in keyof I]: [I[K]] extends [Result<infer R, any>]
-					? R
-					: never;
-			},
-			I[number] extends never
-				? never
-				: [I[number]] extends [Result<any, infer L>]
-					? L
-					: never
-		>
-	: [I] extends [Iterable<Result<infer R, infer L>>]
-		? Result<Array<R>, L>
-		: Result<
-				{
-					-readonly [K in keyof I]: [I[K]] extends [Result<infer R, any>]
-						? R
-						: never;
-				},
-				I[keyof I] extends never
-					? never
-					: [I[keyof I]] extends [Result<any, infer L>]
-						? L
-						: never
-			> = (
-	input: Iterable<Result<any, any>> | Record<string, Result<any, any>>,
-): Result<any, any> => {
-	if (Symbol.iterator in input) {
-		const out: Array<Result<any, any>> = [];
-		for (const e of input) {
-			if (isFailure(e)) {
-				return e;
-			}
-			out.push(e.success);
-		}
-		return succeed(out);
-	}
+export const all: <const I extends Iterable<Result<any, any>> | Record<string, Result<any, any>>>(
+  input: I
+) => [I] extends [ReadonlyArray<Result<any, any>>] ? Result<
+    { -readonly [K in keyof I]: [I[K]] extends [Result<infer R, any>] ? R : never },
+    I[number] extends never ? never : [I[number]] extends [Result<any, infer L>] ? L : never
+  >
+  : [I] extends [Iterable<Result<infer R, infer L>>] ? Result<Array<R>, L>
+  : Result<
+    { -readonly [K in keyof I]: [I[K]] extends [Result<infer R, any>] ? R : never },
+    I[keyof I] extends never ? never : [I[keyof I]] extends [Result<any, infer L>] ? L : never
+  > = (
+    input: Iterable<Result<any, any>> | Record<string, Result<any, any>>
+  ): Result<any, any> => {
+    if (Symbol.iterator in input) {
+      const out: Array<Result<any, any>> = []
+      for (const e of input) {
+        if (isFailure(e)) {
+          return e
+        }
+        out.push(e.success)
+      }
+      return succeed(out)
+    }
 
-	const out: Record<string, any> = {};
-	for (const key of Object.keys(input)) {
-		const e = input[key];
-		if (isFailure(e)) {
-			return e;
-		}
-		out[key] = e.success;
-	}
-	return succeed(out);
-};
+    const out: Record<string, any> = {}
+    for (const key of Object.keys(input)) {
+      const e = input[key]
+      if (isFailure(e)) {
+        return e
+      }
+      out[key] = e.success
+    }
+    return succeed(out)
+  }
 
 /**
  * Swaps the success and failure channels of a `Result`.
+ *
+ * **When to use**
+ *
+ * Use to swap channels when failure-focused operations are easier through
+ * success-oriented combinators.
  *
  * **Details**
  *
@@ -1535,14 +2881,19 @@ export const all: <
  *
  * @see {@link mapError} to transform the error without swapping
  *
- * @category utils
+ * @category transforming
  * @since 2.0.0
  */
 export const flip = <A, E>(self: Result<A, E>): Result<E, A> =>
-	isFailure(self) ? succeed(self.failure) : fail(self.success);
+  isFailure(self) ? succeed(self.failure) : fail(self.success)
 
 /**
- * Generator-based syntax for composing `Result` values sequentially.
+ * Provides generator-based syntax for composing `Result` values sequentially.
+ *
+ * **When to use**
+ *
+ * Use when you need generator syntax to compose sequential `Result`
+ * computations instead of nested `flatMap` calls.
  *
  * **Details**
  *
@@ -1569,29 +2920,35 @@ export const flip = <A, E>(self: Result<A, E>): Result<E, A> =>
  * @see {@link flatMap} for point-free sequential composition
  * @see {@link all} to collect multiple independent Results
  *
- * @category Generators
+ * @category generators
  * @since 2.0.0
  */
 export const gen: Gen.Gen<ResultTypeLambda> = (...args) => {
-	const f = args.length === 1 ? args[0] : args[1].bind(args[0]);
-	const iterator = f();
-	let state: IteratorResult<any> = iterator.next();
-	while (!state.done) {
-		const current = state.value;
-		if (isFailure(current)) {
-			return current;
-		}
-		state = iterator.next(current.success as never);
-	}
-	return succeed(state.value) as any;
-};
+  const f = args.length === 1 ? args[0] : args[1].bind(args[0])
+  const iterator = f()
+  let state: IteratorResult<any> = iterator.next()
+  while (!state.done) {
+    const current = state.value
+    if (isFailure(current)) {
+      return current
+    }
+    state = iterator.next(current.success as never)
+  }
+  return succeed(state.value) as any
+}
 
 // -------------------------------------------------------------------------------------
 // do notation
 // -------------------------------------------------------------------------------------
 
 /**
- * Starting point for the "do notation" simulation with `Result`.
+ * Provides the starting point for the "do notation" simulation with `Result`.
+ *
+ * **When to use**
+ *
+ * Use to start a `Result` do-notation pipeline from an empty successful record
+ * before adding named fields from `Result`-producing computations and pure
+ * computed values.
  *
  * **Details**
  *
@@ -1617,15 +2974,22 @@ export const gen: Gen.Gen<ResultTypeLambda> = (...args) => {
  * @see {@link bind} to add Result-producing fields
  * @see {@link let_ let} to add pure computed fields
  * @see {@link gen} for an alternative generator-based syntax
+ * @see {@link bindTo} for starting a do-notation chain from an existing Result
  *
- * @category Do Notation
+ * @category do notation
  * @since 2.0.0
  */
-export const Do: Result<{}> = succeed({});
+export const Do: Result<{}> = succeed({})
 
 /**
  * Adds a named field to the do-notation accumulator by running a `Result`-producing
  * function that receives the current accumulated object.
+ *
+ * **When to use**
+ *
+ * Use when you need to add a `Result`-producing step to a `Result`
+ * do-notation pipeline and store its successful value under a named field in
+ * the accumulated object.
  *
  * **Details**
  *
@@ -1651,26 +3015,100 @@ export const Do: Result<{}> = succeed({});
  * @see {@link let_ let} for pure computed fields
  * @see {@link bindTo} to wrap an initial Result into a named field
  *
- * @category Do Notation
+ * @category do notation
  * @since 2.0.0
  */
 export const bind: {
-	<N extends string, A extends object, B, L2>(
-		name: Exclude<N, keyof A>,
-		f: (a: NoInfer<A>) => Result<B, L2>,
-	): <L1>(
-		self: Result<A, L1>,
-	) => Result<{ [K in N | keyof A]: K extends keyof A ? A[K] : B }, L1 | L2>;
-	<A extends object, L1, N extends string, B, L2>(
-		self: Result<A, L1>,
-		name: Exclude<N, keyof A>,
-		f: (a: NoInfer<A>) => Result<B, L2>,
-	): Result<{ [K in N | keyof A]: K extends keyof A ? A[K] : B }, L1 | L2>;
-} = doNotation.bind<ResultTypeLambda>(map, flatMap);
+  /**
+   * Adds a named field to the do-notation accumulator by running a `Result`-producing
+   * function that receives the current accumulated object.
+   *
+   * **When to use**
+   *
+   * Use when you need to add a `Result`-producing step to a `Result`
+   * do-notation pipeline and store its successful value under a named field in
+   * the accumulated object.
+   *
+   * **Details**
+   *
+   * - Short-circuits on the first `Failure`
+   * - The field name must not collide with existing keys
+   * - Use {@link let_ let} for pure (non-Result) computed fields
+   *
+   * **Example** (Binding Result values)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.Do,
+   *   Result.bind("x", () => Result.succeed(2)),
+   *   Result.bind("y", ({ x }) => Result.succeed(x + 3))
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: { x: 2, y: 5 }, ... }
+   * ```
+   *
+   * @see {@link Do} to start the do-notation chain
+   * @see {@link let_ let} for pure computed fields
+   * @see {@link bindTo} to wrap an initial Result into a named field
+   *
+   * @category do notation
+   * @since 2.0.0
+   */
+  <N extends string, A extends object, B, L2>(name: Exclude<N, keyof A>, f: (a: NoInfer<A>) => Result<B, L2>): <L1>(self: Result<A, L1>) => Result<{ [K in N | keyof A]: K extends keyof A ? A[K] : B }, L1 | L2>
+  /**
+   * Adds a named field to the do-notation accumulator by running a `Result`-producing
+   * function that receives the current accumulated object.
+   *
+   * **When to use**
+   *
+   * Use when you need to add a `Result`-producing step to a `Result`
+   * do-notation pipeline and store its successful value under a named field in
+   * the accumulated object.
+   *
+   * **Details**
+   *
+   * - Short-circuits on the first `Failure`
+   * - The field name must not collide with existing keys
+   * - Use {@link let_ let} for pure (non-Result) computed fields
+   *
+   * **Example** (Binding Result values)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.Do,
+   *   Result.bind("x", () => Result.succeed(2)),
+   *   Result.bind("y", ({ x }) => Result.succeed(x + 3))
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: { x: 2, y: 5 }, ... }
+   * ```
+   *
+   * @see {@link Do} to start the do-notation chain
+   * @see {@link let_ let} for pure computed fields
+   * @see {@link bindTo} to wrap an initial Result into a named field
+   *
+   * @category do notation
+   * @since 2.0.0
+   */
+  <A extends object, L1, N extends string, B, L2>(
+    self: Result<A, L1>,
+    name: Exclude<N, keyof A>,
+    f: (a: NoInfer<A>) => Result<B, L2>
+  ): Result<{ [K in N | keyof A]: K extends keyof A ? A[K] : B }, L1 | L2>
+} = doNotation.bind<ResultTypeLambda>(map, flatMap)
 
 /**
  * Wraps the success value of a `Result` into a named field, producing a
  * `Result<Record<N, A>>`.
+ *
+ * **When to use**
+ *
+ * Use to name the success value of an existing `Result` before continuing a
+ * do-notation pipeline.
  *
  * **Details**
  *
@@ -1693,69 +3131,138 @@ export const bind: {
  * @see {@link Do} to start from an empty object
  * @see {@link bind} to add more fields
  *
- * @category Do Notation
+ * @category do notation
  * @since 2.0.0
  */
 export const bindTo: {
-	<N extends string>(
-		name: N,
-	): <R, L>(self: Result<R, L>) => Result<Record<N, R>, L>;
-	<R, L, N extends string>(
-		self: Result<R, L>,
-		name: N,
-	): Result<Record<N, R>, L>;
-} = doNotation.bindTo<ResultTypeLambda>(map);
+  /**
+   * Wraps the success value of a `Result` into a named field, producing a
+   * `Result<Record<N, A>>`.
+   *
+   * **When to use**
+   *
+   * Use to name the success value of an existing `Result` before continuing a
+   * do-notation pipeline.
+   *
+   * **Details**
+   *
+   * This is typically used to start a do-notation chain from an existing
+   * `Result`.
+   *
+   * **Example** (Wrapping a value into a named field)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(42),
+   *   Result.bindTo("answer")
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: { answer: 42 }, ... }
+   * ```
+   *
+   * @see {@link Do} to start from an empty object
+   * @see {@link bind} to add more fields
+   *
+   * @category do notation
+   * @since 2.0.0
+   */
+  <N extends string>(name: N): <R, L>(self: Result<R, L>) => Result<Record<N, R>, L>
+  /**
+   * Wraps the success value of a `Result` into a named field, producing a
+   * `Result<Record<N, A>>`.
+   *
+   * **When to use**
+   *
+   * Use to name the success value of an existing `Result` before continuing a
+   * do-notation pipeline.
+   *
+   * **Details**
+   *
+   * This is typically used to start a do-notation chain from an existing
+   * `Result`.
+   *
+   * **Example** (Wrapping a value into a named field)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(42),
+   *   Result.bindTo("answer")
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: { answer: 42 }, ... }
+   * ```
+   *
+   * @see {@link Do} to start from an empty object
+   * @see {@link bind} to add more fields
+   *
+   * @category do notation
+   * @since 2.0.0
+   */
+  <R, L, N extends string>(self: Result<R, L>, name: N): Result<Record<N, R>, L>
+} = doNotation.bindTo<ResultTypeLambda>(map)
 
 const let_: {
-	<N extends string, R extends object, B>(
-		name: Exclude<N, keyof R>,
-		f: (r: NoInfer<R>) => B,
-	): <L>(
-		self: Result<R, L>,
-	) => Result<{ [K in N | keyof R]: K extends keyof R ? R[K] : B }, L>;
-	<R extends object, L, N extends string, B>(
-		self: Result<R, L>,
-		name: Exclude<N, keyof R>,
-		f: (r: NoInfer<R>) => B,
-	): Result<{ [K in N | keyof R]: K extends keyof R ? R[K] : B }, L>;
-} = doNotation.let_<ResultTypeLambda>(map);
+  <N extends string, R extends object, B>(
+    name: Exclude<N, keyof R>,
+    f: (r: NoInfer<R>) => B
+  ): <L>(self: Result<R, L>) => Result<{ [K in N | keyof R]: K extends keyof R ? R[K] : B }, L>
+  <R extends object, L, N extends string, B>(
+    self: Result<R, L>,
+    name: Exclude<N, keyof R>,
+    f: (r: NoInfer<R>) => B
+  ): Result<{ [K in N | keyof R]: K extends keyof R ? R[K] : B }, L>
+} = doNotation.let_<ResultTypeLambda>(map)
 
 export {
-	/**
-	 * Adds a named field to the do-notation accumulator by computing a pure
-	 * (non-Result) value from the current accumulated object.
-	 *
-	 * **Details**
-	 *
-	 * - Use {@link bind} when the computation returns a `Result`
-	 * - The field name must not collide with existing keys
-	 *
-	 * **Example** (Adding a computed field)
-	 *
-	 * ```ts
-	 * import { pipe, Result } from "effect"
-	 *
-	 * const result = pipe(
-	 *   Result.Do,
-	 *   Result.bind("x", () => Result.succeed(2)),
-	 *   Result.bind("y", () => Result.succeed(3)),
-	 *   Result.let("sum", ({ x, y }) => x + y)
-	 * )
-	 * console.log(result)
-	 * // Output: { _tag: "Success", success: { x: 2, y: 3, sum: 5 }, ... }
-	 * ```
-	 *
-	 * @see {@link Do} to start the do-notation chain
-	 * @see {@link bind} for Result-producing fields
-	 *
-	 * @category Do Notation
-	 * @since 2.0.0
-	 */
-	let_ as let,
-};
+  /**
+   * Adds a named field to the do-notation accumulator by computing a pure
+   * (non-Result) value from the current accumulated object.
+   *
+   * **When to use**
+   *
+   * Use when you need to add a derived field that cannot fail inside a
+   * do-notation pipeline.
+   *
+   * **Details**
+   *
+   * - Use {@link bind} when the computation returns a `Result`
+   * - The field name must not collide with existing keys
+   *
+   * **Example** (Adding a computed field)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.Do,
+   *   Result.bind("x", () => Result.succeed(2)),
+   *   Result.bind("y", () => Result.succeed(3)),
+   *   Result.let("sum", ({ x, y }) => x + y)
+   * )
+   * console.log(result)
+   * // Output: { _tag: "Success", success: { x: 2, y: 3, sum: 5 }, ... }
+   * ```
+   *
+   * @see {@link Do} to start the do-notation chain
+   * @see {@link bind} for Result-producing fields
+   *
+   * @category do notation
+   * @since 2.0.0
+   */
+  let_ as let
+}
 
 /**
  * Transforms `Option<Result<A, E>>` into `Result<Option<A>, E>`.
+ *
+ * **When to use**
+ *
+ * Use when optional absence should be treated as a successful `None`, while an
+ * inner `Result` failure should still fail the whole result.
  *
  * **Details**
  *
@@ -1783,14 +3290,19 @@ export {
  * @since 3.14.0
  */
 export const transposeOption = <A = never, E = never>(
-	self: Option<Result<A, E>>,
+  self: Option<Result<A, E>>
 ): Result<Option<A>, E> => {
-	return option_.isNone(self) ? succeedNone : map(self.value, option_.some);
-};
+  return option_.isNone(self) ? succeedNone : map(self.value, option_.some)
+}
 
 /**
  * Maps an `Option` value with a `Result`-producing function, then transposes
  * the structure from `Option<Result<B, E>>` to `Result<Option<B>, E>`.
+ *
+ * **When to use**
+ *
+ * Use when an optional value should be validated only when present, preserving
+ * absence as a successful `None`.
  *
  * **Details**
  *
@@ -1821,24 +3333,96 @@ export const transposeOption = <A = never, E = never>(
  * @since 3.15.0
  */
 export const transposeMapOption = dual<
-	<A, B, E = never>(
-		f: (self: A) => Result<B, E>,
-	) => (self: Option<A>) => Result<Option<B>, E>,
-	<A, B, E = never>(
-		self: Option<A>,
-		f: (self: A) => Result<B, E>,
-	) => Result<Option<B>, E>
->(2, (self, f) =>
-	option_.isNone(self) ? succeedNone : map(f(self.value), option_.some),
-);
+  /**
+   * Maps an `Option` value with a `Result`-producing function, then transposes
+   * the structure from `Option<Result<B, E>>` to `Result<Option<B>, E>`.
+   *
+   * **When to use**
+   *
+   * Use when an optional value should be validated only when present, preserving
+   * absence as a successful `None`.
+   *
+   * **Details**
+   *
+   * - `None` becomes `Success(None)` (the function is never called)
+   * - `Some(a)` where `f(a)` is `Success(b)` becomes `Success(Some(b))`
+   * - `Some(a)` where `f(a)` is `Failure(e)` becomes `Failure(e)`
+   *
+   * **Example** (Map and transpose in one step)
+   *
+   * ```ts
+   * import { Option, Result } from "effect"
+   *
+   * const parse = (s: string) =>
+   *   isNaN(Number(s))
+   *     ? Result.fail("not a number" as const)
+   *     : Result.succeed(Number(s))
+   *
+   * console.log(Result.transposeMapOption(Option.some("42"), parse))
+   * // Output: { _tag: "Success", success: { _tag: "Some", value: 42 }, ... }
+   *
+   * console.log(Result.transposeMapOption(Option.none(), parse))
+   * // Output: { _tag: "Success", success: { _tag: "None" }, ... }
+   * ```
+   *
+   * @see {@link transposeOption} when the Option already contains a Result
+   *
+   * @category Transposing
+   * @since 3.15.0
+   */
+  <A, B, E = never>(f: (self: A) => Result<B, E>) => (self: Option<A>) => Result<Option<B>, E>,
+  /**
+   * Maps an `Option` value with a `Result`-producing function, then transposes
+   * the structure from `Option<Result<B, E>>` to `Result<Option<B>, E>`.
+   *
+   * **When to use**
+   *
+   * Use when an optional value should be validated only when present, preserving
+   * absence as a successful `None`.
+   *
+   * **Details**
+   *
+   * - `None` becomes `Success(None)` (the function is never called)
+   * - `Some(a)` where `f(a)` is `Success(b)` becomes `Success(Some(b))`
+   * - `Some(a)` where `f(a)` is `Failure(e)` becomes `Failure(e)`
+   *
+   * **Example** (Map and transpose in one step)
+   *
+   * ```ts
+   * import { Option, Result } from "effect"
+   *
+   * const parse = (s: string) =>
+   *   isNaN(Number(s))
+   *     ? Result.fail("not a number" as const)
+   *     : Result.succeed(Number(s))
+   *
+   * console.log(Result.transposeMapOption(Option.some("42"), parse))
+   * // Output: { _tag: "Success", success: { _tag: "Some", value: 42 }, ... }
+   *
+   * console.log(Result.transposeMapOption(Option.none(), parse))
+   * // Output: { _tag: "Success", success: { _tag: "None" }, ... }
+   * ```
+   *
+   * @see {@link transposeOption} when the Option already contains a Result
+   *
+   * @category Transposing
+   * @since 3.15.0
+   */
+  <A, B, E = never>(self: Option<A>, f: (self: A) => Result<B, E>) => Result<Option<B>, E>
+>(2, (self, f) => option_.isNone(self) ? succeedNone : map(f(self.value), option_.some))
 
 /**
- * A pre-built `Result<Option<never>>` that succeeds with `None`.
+ * Provides a pre-built `Result<Option<never>>` that succeeds with `None`.
+ *
+ * **When to use**
+ *
+ * Use when an optional success should be absent, such as the `None` branch of
+ * `transposeOption` or `transposeMapOption`.
  *
  * **Details**
  *
- * - Equivalent to `Result.succeed(Option.none())` but avoids an extra allocation
- * - Useful with {@link transposeOption} patterns
+ * This is equivalent to `Result.succeed(Option.none())`, but reuses a shared
+ * `Success` wrapper instead of allocating one each time.
  *
  * **Example** (Using succeedNone)
  *
@@ -1850,11 +3434,13 @@ export const transposeMapOption = dual<
  * ```
  *
  * @see {@link succeedSome} for the `Some` counterpart
+ * @see {@link transposeOption} to transpose an Option that already contains a Result
+ * @see {@link transposeMapOption} to map and transpose an Option in one step
  *
  * @category constructors
  * @since 4.0.0
  */
-export const succeedNone = succeed(option_.none);
+export const succeedNone = succeed(option_.none)
 
 /**
  * Creates a `Result<Option<A>>` that succeeds with `Some(a)`.
@@ -1879,8 +3465,7 @@ export const succeedNone = succeed(option_.none);
  * @category constructors
  * @since 4.0.0
  */
-export const succeedSome = <A, E = never>(a: A): Result<Option<A>, E> =>
-	succeed(option_.some(a));
+export const succeedSome = <A, E = never>(a: A): Result<Option<A>, E> => succeed(option_.some(a))
 
 /**
  * Runs a side-effect on the success value without altering the `Result`.
@@ -1913,11 +3498,74 @@ export const succeedSome = <A, E = never>(a: A): Result<Option<A>, E> =>
  * @since 4.0.0
  */
 export const tap: {
-	<A>(f: (a: A) => void): <E>(self: Result<A, E>) => Result<A, E>;
-	<A, E>(self: Result<A, E>, f: (a: A) => void): Result<A, E>;
-} = dual(2, <A, E>(self: Result<A, E>, f: (a: A) => void): Result<A, E> => {
-	if (isSuccess(self)) {
-		f(self.success);
-	}
-	return self;
-});
+  /**
+   * Runs a side-effect on the success value without altering the `Result`.
+   *
+   * **Details**
+   *
+   * - If the result is a `Success`, calls `f` with the value (return value is ignored)
+   * - If the result is a `Failure`, `f` is not called
+   * - Returns the original `Result` unchanged (same reference)
+   * - Useful for logging, debugging, or performing mutations outside the Result chain
+   *
+   * **Example** (Logging a success value)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(42),
+   *   Result.tap((n) => console.log("Got:", n))
+   * )
+   * // Output: "Got: 42"
+   *
+   * console.log(Result.isSuccess(result))
+   * // Output: true
+   * ```
+   *
+   * @see {@link map} to transform the success value
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A>(f: (a: A) => void): <E>(self: Result<A, E>) => Result<A, E>
+  /**
+   * Runs a side-effect on the success value without altering the `Result`.
+   *
+   * **Details**
+   *
+   * - If the result is a `Success`, calls `f` with the value (return value is ignored)
+   * - If the result is a `Failure`, `f` is not called
+   * - Returns the original `Result` unchanged (same reference)
+   * - Useful for logging, debugging, or performing mutations outside the Result chain
+   *
+   * **Example** (Logging a success value)
+   *
+   * ```ts
+   * import { pipe, Result } from "effect"
+   *
+   * const result = pipe(
+   *   Result.succeed(42),
+   *   Result.tap((n) => console.log("Got:", n))
+   * )
+   * // Output: "Got: 42"
+   *
+   * console.log(Result.isSuccess(result))
+   * // Output: true
+   * ```
+   *
+   * @see {@link map} to transform the success value
+   *
+   * @category mapping
+   * @since 4.0.0
+   */
+  <A, E>(self: Result<A, E>, f: (a: A) => void): Result<A, E>
+} = dual(
+  2,
+  <A, E>(self: Result<A, E>, f: (a: A) => void): Result<A, E> => {
+    if (isSuccess(self)) {
+      f(self.success)
+    }
+    return self
+  }
+)

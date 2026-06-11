@@ -1,76 +1,23 @@
 /**
- * Lightweight wrapper types that prevent accidental mixing of structurally
- * identical values (e.g. `UserId` vs `OrderId`, both `string` at runtime).
+ * Creates compile-time-only wrappers around existing value types.
  *
- * **Mental model**
- *
- * - **Newtype** — a compile-time wrapper around a **carrier** type (the
- *   underlying primitive or object). At runtime the value is unchanged; the
- *   tag exists only in the type system.
- * - **Key** — a unique string literal that distinguishes one newtype from
- *   another (e.g. `"Label"`, `"UserId"`).
- * - **Carrier** — the underlying type the newtype wraps (e.g. `string`,
- *   `number`).
- * - **Iso** — a lossless two-way conversion between a newtype and its carrier,
- *   created with {@link makeIso}. Use `iso.set(carrier)` to wrap and
- *   `iso.get(newtype)` to unwrap.
- *
- * **Common tasks**
- *
- * - Define a newtype → declare an `interface` extending
- *   `Newtype.Newtype<Key, Carrier>`
- * - Wrap / unwrap values → {@link makeIso} (returns an `Optic.Iso`)
- * - Unwrap only → {@link value}
- * - Lift an `Equivalence` → {@link makeEquivalence}
- * - Lift an `Order` → {@link makeOrder}
- * - Lift a `Combiner` → {@link makeCombiner}
- * - Lift a `Reducer` → {@link makeReducer}
- *
- * **Gotchas**
- *
- * - Newtypes are **purely compile-time**. There is zero runtime overhead;
- *   `value` and `makeIso` use identity casts.
- * - Two newtypes sharing the same key string will be assignable to each other.
- *   Choose unique key strings.
- * - A newtype value is **not** assignable to its carrier type without
- *   explicitly unwrapping via {@link value} or an iso.
- *
- * **Quickstart**
- *
- * **Example** (defining and using a newtype)
- *
- * ```ts
- * import { Newtype } from "effect"
- *
- * // 1. Define a newtype
- * interface Label extends Newtype.Newtype<"Label", string> {}
- *
- * // 2. Create an iso for wrapping/unwrapping
- * const labelIso = Newtype.makeIso<Label>()
- *
- * // 3. Wrap a raw string
- * const myLabel: Label = labelIso.set("hello")
- *
- * // 4. Unwrap back to string
- * const raw: string = labelIso.get(myLabel) // "hello"
- * ```
- *
- * **See also**
- *
- * - {@link Newtype} (the tagged interface)
- * - {@link makeIso} (wrap and unwrap)
- * - {@link value} (unwrap only)
+ * A newtype lets TypeScript distinguish values with the same runtime shape, such
+ * as two different ids that are both strings. The tag exists only in the type
+ * system, so wrapping does not allocate a runtime object. This module includes
+ * the base `Newtype` interface, wrapping and unwrapping helpers, optics, and
+ * helpers for reusing carrier instances such as `Equivalence`, `Order`,
+ * `Combiner`, and `Reducer`.
  *
  * @since 4.0.0
  */
-import type * as Combiner from "./Combiner.ts";
-import type * as Equivalence from "./Equivalence.ts";
-import { cast } from "./Function.ts";
-import * as Optic from "./Optic.ts";
-import type * as Order from "./Order.ts";
-import type * as Reducer from "./Reducer.ts";
+import type * as Combiner from "./Combiner.ts"
+import type * as Equivalence from "./Equivalence.ts"
+import { cast } from "./Function.ts"
+import * as Optic from "./Optic.ts"
+import type * as Order from "./Order.ts"
+import type * as Reducer from "./Reducer.ts"
 
-const TypeId = "~effect/Newtype";
+const TypeId = "~effect/Newtype"
 
 /**
  * A tagged interface that wraps a carrier type under a unique key, preventing
@@ -78,9 +25,9 @@ const TypeId = "~effect/Newtype";
  *
  * **When to use**
  *
- * Define your newtype as an `interface` extending
- * `Newtype<"MyKey", CarrierType>` when you need two structurally identical
- * carrier types to remain distinct in TypeScript.
+ * Use to define a newtype as an `interface` extending
+ * `Newtype<"MyKey", CarrierType>` when structurally identical carrier types
+ * should remain distinct in TypeScript.
  *
  * **Details**
  *
@@ -106,55 +53,62 @@ const TypeId = "~effect/Newtype";
  * @since 4.0.0
  */
 export interface Newtype<in out Key extends string, out Carrier> {
-	readonly [TypeId]: {
-		readonly key: Key;
-		readonly carrier: Carrier;
-	};
+  readonly [TypeId]: {
+    readonly key: Key
+    readonly carrier: Carrier
+  }
 }
 
 /**
  * Namespace containing type-level helpers for `Newtype` values, including
  * constraints and utilities for extracting a newtype's key and carrier type.
  *
+ * **When to use**
+ *
+ * Use to access generic constraints and type-level utilities for `Newtype`
+ * values.
+ *
  * @since 4.0.0
  */
 export declare namespace Newtype {
-	/**
-	 * A type that matches any `Newtype`, useful as a generic constraint:
-	 * `<N extends Newtype.Any>`.
-	 *
-	 * @see {@link Newtype} — the base tagged interface
-	 *
-	 * @category utility types
-	 * @since 4.0.0
-	 */
-	export type Any = Newtype<any, unknown>;
+  /**
+   * A type that matches any `Newtype`, useful as a generic constraint:
+   * `<N extends Newtype.Any>`.
+   *
+   * **When to use**
+   *
+   * Use as a generic constraint when a type parameter can be any `Newtype`.
+   *
+   * @see {@link Newtype} — the base tagged interface
+   *
+   * @category utility types
+   * @since 4.0.0
+   */
+  export type Any = Newtype<any, unknown>
 
-	/**
-	 * Extracts the key literal type from a newtype.
-	 *
-	 * **When to use**
-	 *
-	 * Use this in generic code that needs to inspect or constrain the key.
-	 *
-	 * @category utility types
-	 * @since 4.0.0
-	 */
-	export type Key<N extends Any> =
-		N extends Newtype<infer Key, unknown> ? Key : never;
+  /**
+   * Extracts the key literal type from a newtype.
+   *
+   * **When to use**
+   *
+   * Use to inspect or constrain a newtype's key in generic code.
+   *
+   * @category utility types
+   * @since 4.0.0
+   */
+  export type Key<N extends Any> = N extends Newtype<infer Key, unknown> ? Key : never
 
-	/**
-	 * Extracts the carrier (underlying) type from a newtype.
-	 *
-	 * **When to use**
-	 *
-	 * Use this when you need to refer to the wrapped type in generic utilities.
-	 *
-	 * @category utility types
-	 * @since 4.0.0
-	 */
-	export type Carrier<N extends Any> =
-		N extends Newtype<infer _Key, infer Carrier> ? Carrier : never;
+  /**
+   * Extracts the carrier (underlying) type from a newtype.
+   *
+   * **When to use**
+   *
+   * Use when you need to refer to the wrapped type in generic utilities.
+   *
+   * @category utility types
+   * @since 4.0.0
+   */
+  export type Carrier<N extends Any> = N extends Newtype<infer _Key, infer Carrier> ? Carrier : never
 }
 
 /**
@@ -162,8 +116,8 @@ export declare namespace Newtype {
  *
  * **When to use**
  *
- * Use this when you only need to read the inner value and do not need to wrap
- * new values. For both wrapping and unwrapping, prefer {@link makeIso}.
+ * Use when you need the carrier value from an existing newtype without
+ * constructing a new newtype value at the same call site.
  *
  * **Details**
  *
@@ -187,8 +141,7 @@ export declare namespace Newtype {
  * @category getters
  * @since 4.0.0
  */
-export const value: <N extends Newtype.Any>(newtype: N) => Newtype.Carrier<N> =
-	cast;
+export const value: <N extends Newtype.Any>(newtype: N) => Newtype.Carrier<N> = cast
 
 /**
  * Creates an `Optic.Iso` for a newtype, providing both wrapping (`set`) and
@@ -196,7 +149,7 @@ export const value: <N extends Newtype.Any>(newtype: N) => Newtype.Carrier<N> =
  *
  * **When to use**
  *
- * Use this as the primary way to construct and deconstruct newtype values.
+ * Use as the primary way to construct and deconstruct newtype values.
  *
  * **Details**
  *
@@ -221,11 +174,8 @@ export const value: <N extends Newtype.Any>(newtype: N) => Newtype.Carrier<N> =
  * @category constructors
  * @since 4.0.0
  */
-export function makeIso<N extends Newtype.Any>(): Optic.Iso<
-	N,
-	Newtype.Carrier<N>
-> {
-	return Optic.makeIso(value, cast);
+export function makeIso<N extends Newtype.Any>(): Optic.Iso<N, Newtype.Carrier<N>> {
+  return Optic.makeIso(value, cast)
 }
 
 /**
@@ -234,7 +184,8 @@ export function makeIso<N extends Newtype.Any>(): Optic.Iso<
  *
  * **When to use**
  *
- * Use this when you need to compare two newtype values for equality.
+ * Use when you need equality for newtype-wrapped values to behave like
+ * equality for the wrapped carrier value, without manually unwrapping.
  *
  * **Details**
  *
@@ -261,15 +212,16 @@ export function makeIso<N extends Newtype.Any>(): Optic.Iso<
  * @since 4.0.0
  */
 export const makeEquivalence: <N extends Newtype.Any>(
-	equivalence: Equivalence.Equivalence<Newtype.Carrier<N>>,
-) => Equivalence.Equivalence<N> = cast;
+  equivalence: Equivalence.Equivalence<Newtype.Carrier<N>>
+) => Equivalence.Equivalence<N> = cast
 
 /**
  * Lifts an `Order` for the carrier type into an `Order` for the newtype.
  *
  * **When to use**
  *
- * Use this when you need to sort or compare newtype values.
+ * Use when you need to sort newtype-wrapped values according to the ordering
+ * of the wrapped carrier value, without manually unwrapping.
  *
  * **Details**
  *
@@ -293,16 +245,15 @@ export const makeEquivalence: <N extends Newtype.Any>(
  * @category constructors
  * @since 4.0.0
  */
-export const makeOrder: <N extends Newtype.Any>(
-	order: Order.Order<Newtype.Carrier<N>>,
-) => Order.Order<N> = cast;
+export const makeOrder: <N extends Newtype.Any>(order: Order.Order<Newtype.Carrier<N>>) => Order.Order<N> = cast
 
 /**
  * Lifts a `Combiner` for the carrier type into a `Combiner` for the newtype.
  *
  * **When to use**
  *
- * Use this when you need to combine newtype values.
+ * Use when you need to combine newtype-wrapped values with the carrier's
+ * combining logic, without manually unwrapping.
  *
  * **Details**
  *
@@ -329,16 +280,16 @@ export const makeOrder: <N extends Newtype.Any>(
  * @since 4.0.0
  */
 export const makeCombiner: <N extends Newtype.Any>(
-	combiner: Combiner.Combiner<Newtype.Carrier<N>>,
-) => Combiner.Combiner<N> = cast;
+  combiner: Combiner.Combiner<Newtype.Carrier<N>>
+) => Combiner.Combiner<N> = cast
 
 /**
  * Lifts a `Reducer` for the carrier type into a `Reducer` for the newtype.
  *
  * **When to use**
  *
- * Use this when you need to fold or reduce over a collection of newtype
- * values.
+ * Use when you need to reduce a collection of newtype-wrapped values with the
+ * carrier's reducer, without manually unwrapping.
  *
  * **Details**
  *
@@ -364,6 +315,5 @@ export const makeCombiner: <N extends Newtype.Any>(
  * @category constructors
  * @since 4.0.0
  */
-export const makeReducer: <N extends Newtype.Any>(
-	reducer: Reducer.Reducer<Newtype.Carrier<N>>,
-) => Reducer.Reducer<N> = cast;
+export const makeReducer: <N extends Newtype.Any>(reducer: Reducer.Reducer<Newtype.Carrier<N>>) => Reducer.Reducer<N> =
+  cast

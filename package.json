@@ -55,7 +55,7 @@
 		"@lucide/svelte": "^1.17.0",
 		"convex": "^1.41.0",
 		"convex-svelte": "0.13.0",
-		"effect": "^4.0.0-beta.70",
+		"effect": "^4.0.0-beta.79",
 		"maplibre-gl": "^5.24.0",
 		"mode-watcher": "^1.1.0",
 		"svelte-clerk": "^1.1.9"

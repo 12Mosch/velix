@@ -1,97 +1,28 @@
 /**
- * Provides the data source layer for the `Config` module. A `ConfigProvider`
- * knows how to load raw configuration nodes from a backing store (environment
- * variables, JSON objects, `.env` files, file trees) and expose them through a
- * uniform `Node` interface that `Config` schemas consume.
- *
- * ## Mental model
- *
- * - **Node** – a discriminated union (`Value | Record | Array`) that describes
- *   what lives at a given path in the configuration tree.
- * - **Path** – an array of string or numeric segments used to address a node
- *   (e.g. `["database", "host"]`).
- * - **ConfigProvider** – an object with a `load(path)` method that resolves a
- *   path to a `Node | undefined`. Providers can be composed and transformed.
- * - **Context.Reference** – `ConfigProvider` is registered as a reference
- *   service that defaults to `fromEnv()`, so it works without explicit
- *   provision.
- * - **SourceError** – the typed error returned when a backing store is
- *   unreadable (I/O failure, permission error, etc.).
- *
- * ## Common tasks
- *
- * - Read from environment variables → {@link fromEnv}
- * - Read from a JSON / plain object → {@link fromUnknown}
- * - Parse a `.env` string → {@link fromDotEnvContents}
- * - Load a `.env` file → {@link fromDotEnv}
- * - Read from a directory tree → {@link fromDir}
- * - Build a custom provider → {@link make}
- * - Fall back to another provider → {@link orElse}
- * - Scope a provider under a prefix → {@link nested}
- * - Convert path segments to `CONSTANT_CASE` → {@link constantCase}
- * - Transform path segments arbitrarily → {@link mapInput}
- * - Install a provider as a Layer → {@link layer} / {@link layerAdd}
- *
- * ## Gotchas
- *
- * - `fromEnv` joins path segments with `_` for lookup **and** splits env var
- *   names on `_` to discover child keys. `DATABASE_HOST=x` is therefore
- *   accessible at both `["DATABASE_HOST"]` and `["DATABASE", "HOST"]`.
- * - Because of `_` splitting, querying a parent path like `["DATABASE"]`
- *   returns a `Record` node with child key `"HOST"`, even if no env var
- *   named `DATABASE` exists.
- * - When using `fromEnv` with schemas that use camelCase keys, pipe the
- *   provider through {@link constantCase} so `databaseHost` resolves to
- *   `DATABASE_HOST`.
- * - `orElse` only falls back when the primary provider returns `undefined`
- *   (path not found). It does **not** catch `SourceError`.
- * - `nested` prepends segments to the path *after* `mapInput` has run, so
- *   the order of composition matters.
- *
- * ## Quickstart
- *
- * **Example** (Reading config from environment variables)
- *
- * ```ts
- * import { Config, ConfigProvider, Effect } from "effect"
- *
- * const provider = ConfigProvider.fromEnv({
- *   env: { APP_PORT: "3000", APP_HOST: "localhost" }
- * })
- *
- * const port = Config.number("port")
- *
- * const program = port.parse(
- *   provider.pipe(
- *     ConfigProvider.nested("app"),
- *     ConfigProvider.constantCase
- *   )
- * )
- *
- * // Effect.runSync(program) // 3000
- * ```
- *
- * @see {@link make} – build a provider from a lookup function
- * @see {@link fromEnv} – the default provider backed by `process.env`
- * @see {@link fromUnknown} – provider backed by a plain JS object
+ * Data sources used by `Config` to load raw configuration values. A
+ * `ConfigProvider` reads paths from places such as environment variables,
+ * JavaScript objects, `.env` contents, or directories, and returns a uniform
+ * `Node` shape that config schemas can decode. The module also includes helpers
+ * for composing providers, changing paths, and installing providers through
+ * layers.
  *
  * @since 4.0.0
  */
 
-import * as Context from "./Context.ts";
-import * as Data from "./Data.ts";
-import * as Effect from "./Effect.ts";
-import * as FileSystem from "./FileSystem.ts";
-import { format } from "./Formatter.ts";
-import { dual, flow } from "./Function.ts";
-import { PipeInspectableProto } from "./internal/core.ts";
-import * as Layer from "./Layer.ts";
-import * as Path_ from "./Path.ts";
-import type { Pipeable } from "./Pipeable.ts";
-import type { PlatformError } from "./PlatformError.ts";
-import * as Predicate from "./Predicate.ts";
-import type { Scope } from "./Scope.ts";
-import * as Str from "./String.ts";
+import * as Context from "./Context.ts"
+import * as Data from "./Data.ts"
+import * as Effect from "./Effect.ts"
+import * as FileSystem from "./FileSystem.ts"
+import { format } from "./Formatter.ts"
+import { dual, flow } from "./Function.ts"
+import { PipeInspectableProto } from "./internal/core.ts"
+import * as Layer from "./Layer.ts"
+import * as Path_ from "./Path.ts"
+import type { Pipeable } from "./Pipeable.ts"
+import type { PlatformError } from "./PlatformError.ts"
+import * as Predicate from "./Predicate.ts"
+import type { Scope } from "./Scope.ts"
+import * as Str from "./String.ts"
 
 /**
  * A discriminated union describing the shape of a configuration value at a
@@ -99,7 +30,7 @@ import * as Str from "./String.ts";
  *
  * **When to use**
  *
- * Use `Node` when implementing a custom `ConfigProvider` by returning raw
+ * Use when implementing a custom `ConfigProvider` by returning raw
  * nodes from the `get` callback passed to {@link make}, or when inspecting raw
  * provider output before schema parsing.
  *
@@ -118,35 +49,35 @@ import * as Str from "./String.ts";
  * @since 4.0.0
  */
 export type Node =
-	/** A terminal string value */
-	| {
-			readonly _tag: "Value";
-			readonly value: string;
-	  }
-	/** An object; keys are unordered */
-	| {
-			readonly _tag: "Record";
-			readonly keys: ReadonlySet<string>;
-			readonly value: string | undefined;
-	  }
-	/** An array-like container; length is the number of elements */
-	| {
-			readonly _tag: "Array";
-			readonly length: number;
-			readonly value: string | undefined;
-	  };
+  /** A terminal string value */
+  | {
+    readonly _tag: "Value"
+    readonly value: string
+  }
+  /** An object; keys are unordered */
+  | {
+    readonly _tag: "Record"
+    readonly keys: ReadonlySet<string>
+    readonly value: string | undefined
+  }
+  /** An array-like container; length is the number of elements */
+  | {
+    readonly _tag: "Array"
+    readonly length: number
+    readonly value: string | undefined
+  }
 
 /**
  * Creates a `Value` node representing a terminal string leaf.
  *
  * **When to use**
  *
- * Use this when building nodes inside a custom `ConfigProvider`'s `get`
+ * Use when building nodes inside a custom `ConfigProvider`'s `get`
  * callback.
  *
  * **Details**
  *
- * The function does not mutate input and returns a new plain object.
+ * The function returns a new plain object.
  *
  * **Example** (Creating a value node)
  *
@@ -164,7 +95,7 @@ export type Node =
  * @since 4.0.0
  */
 export function makeValue(value: string): Node {
-	return { _tag: "Value", value };
+  return { _tag: "Value", value }
 }
 
 /**
@@ -173,7 +104,7 @@ export function makeValue(value: string): Node {
  *
  * **When to use**
  *
- * Use this when describing a directory or JSON object inside a custom
+ * Use when you need to describe a directory or JSON object inside a custom
  * provider.
  *
  * **Details**
@@ -198,7 +129,7 @@ export function makeValue(value: string): Node {
  * @since 4.0.0
  */
 export function makeRecord(keys: ReadonlySet<string>, value?: string): Node {
-	return { _tag: "Record", keys, value };
+  return { _tag: "Record", keys, value }
 }
 
 /**
@@ -207,8 +138,8 @@ export function makeRecord(keys: ReadonlySet<string>, value?: string): Node {
  *
  * **When to use**
  *
- * Use this when describing a JSON array or a set of numerically-indexed env
- * vars inside a custom provider.
+ * Use when you need to describe a JSON array or numerically indexed env vars
+ * inside a custom provider.
  *
  * **Details**
  *
@@ -231,7 +162,7 @@ export function makeRecord(keys: ReadonlySet<string>, value?: string): Node {
  * @since 4.0.0
  */
 export function makeArray(length: number, value?: string): Node {
-	return { _tag: "Array", length, value };
+  return { _tag: "Array", length, value }
 }
 
 /**
@@ -239,9 +170,8 @@ export function makeArray(length: number, value?: string): Node {
  *
  * **When to use**
  *
- * Use this from a custom provider's `get` callback when the underlying store
- * is unreachable or produces an I/O error, or match on it in error channels
- * when consuming provider output directly.
+ * Use when you need to report that a custom provider's underlying store is
+ * unreachable or produced an I/O error while reading configuration data.
  *
  * **Gotchas**
  *
@@ -267,14 +197,19 @@ export function makeArray(length: number, value?: string): Node {
  * @since 4.0.0
  */
 export class SourceError extends Data.TaggedError("SourceError")<{
-	readonly message: string;
-	readonly cause?: unknown;
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
 /**
  * An ordered sequence of string or numeric segments that addresses a node in
  * the configuration tree. String segments name object keys; numeric segments
  * index into arrays.
+ *
+ * **When to use**
+ *
+ * Use to address raw configuration nodes when implementing or transforming a
+ * `ConfigProvider`.
  *
  * **Example** (A typical config path)
  *
@@ -287,14 +222,14 @@ export class SourceError extends Data.TaggedError("SourceError")<{
  * @category models
  * @since 4.0.0
  */
-export type Path = ReadonlyArray<string | number>;
+export type Path = ReadonlyArray<string | number>
 
 /**
  * The core interface for loading raw configuration data.
  *
  * **When to use**
  *
- * Use this to type-annotate variables that hold a provider or to implement a
+ * Use to type-annotate variables that hold a provider or to implement a
  * custom provider via {@link make}.
  *
  * **Details**
@@ -314,40 +249,56 @@ export type Path = ReadonlyArray<string | number>;
  * @since 2.0.0
  */
 export interface ConfigProvider extends Pipeable {
-	/**
-	 * Returns the node found at `path`, or `undefined` if it does not exist.
-	 * Fails with `SourceError` when the underlying source cannot be read.
-	 */
-	readonly load: (path: Path) => Effect.Effect<Node | undefined, SourceError>;
+  /**
+   * Returns the node found at `path`, or `undefined` if it does not exist.
+   * Fails with `SourceError` when the underlying source cannot be read.
+   *
+   * **When to use**
+   *
+   * Use to resolve a path through this provider's path transformations before
+   * reading the backing source.
+   */
+  readonly load: (path: Path) => Effect.Effect<Node | undefined, SourceError>
 
-	/**
-	 * Raw access to the underlying source.
-	 */
-	readonly get: (path: Path) => Effect.Effect<Node | undefined, SourceError>;
+  /**
+   * Raw access to the underlying source.
+   *
+   * **When to use**
+   *
+   * Use to read from the backing source without applying this provider's path
+   * transformations.
+   */
+  readonly get: (path: Path) => Effect.Effect<Node | undefined, SourceError>
 
-	/**
-	 * Function to map the input path.
-	 */
-	readonly mapInput: ((path: Path) => Path) | undefined;
+  /**
+   * Function to map the input path.
+   *
+   * **When to use**
+   *
+   * Use to store the path transformation applied before raw provider lookup.
+   */
+  readonly mapInput: ((path: Path) => Path) | undefined
 
-	/**
-	 * Prefix to add to the input path.
-	 */
-	readonly prefix: Path | undefined;
+  /**
+   * Prefix to add to the input path.
+   *
+   * **When to use**
+   *
+   * Use to store the path prefix applied before raw provider lookup.
+   */
+  readonly prefix: Path | undefined
 }
 
 /**
- * The `ConfigProvider` service reference, registered in the context with a
+ * Context reference for the active raw configuration provider, registered in the context with a
  * default value of `fromEnv()`. Because it is a `Context.Reference`, it is
  * available without explicit provision; `Config` schemas automatically resolve
  * it.
  *
  * **When to use**
  *
- * Use this to override the provider for an entire program via
- * `Effect.provideService(ConfigProvider.ConfigProvider, myProvider)`, or to
- * retrieve the current provider inside an Effect with
- * `yield* ConfigProvider.ConfigProvider`.
+ * Use to override the active raw configuration provider for an entire program,
+ * or retrieve the current provider inside an Effect.
  *
  * **Example** (Providing a custom provider)
  *
@@ -370,26 +321,26 @@ export interface ConfigProvider extends Pipeable {
  * @category services
  * @since 2.0.0
  */
-export const ConfigProvider: Context.Reference<ConfigProvider> =
-	Context.Reference<ConfigProvider>("effect/ConfigProvider", {
-		defaultValue: () => fromEnv(),
-	});
+export const ConfigProvider: Context.Reference<ConfigProvider> = Context.Reference<ConfigProvider>(
+  "effect/ConfigProvider",
+  { defaultValue: () => fromEnv() }
+)
 
 const Proto = {
-	...PipeInspectableProto,
-	toJSON(this: ConfigProvider) {
-		return {
-			_id: "ConfigProvider",
-		};
-	},
-};
+  ...PipeInspectableProto,
+  toJSON(this: ConfigProvider) {
+    return {
+      _id: "ConfigProvider"
+    }
+  }
+}
 
 /**
  * Creates a `ConfigProvider` from a raw lookup function.
  *
  * **When to use**
  *
- * Use this when implementing a provider backed by a custom store, such as a
+ * Use when implementing a provider backed by a custom store, such as a
  * database, remote API, or in-memory map.
  *
  * **Details**
@@ -428,20 +379,20 @@ const Proto = {
  * @since 2.0.0
  */
 export function make(
-	get: (path: Path) => Effect.Effect<Node | undefined, SourceError>,
-	mapInput?: (path: Path) => Path,
-	prefix?: Path,
+  get: (path: Path) => Effect.Effect<Node | undefined, SourceError>,
+  mapInput?: (path: Path) => Path,
+  prefix?: Path
 ): ConfigProvider {
-	const self = Object.create(Proto);
-	self.get = get;
-	self.mapInput = mapInput;
-	self.prefix = prefix;
-	self.load = (path: Path) => {
-		if (mapInput) path = mapInput(path);
-		if (prefix) path = [...prefix, ...path];
-		return get(path);
-	};
-	return self;
+  const self = Object.create(Proto)
+  self.get = get
+  self.mapInput = mapInput
+  self.prefix = prefix
+  self.load = (path: Path) => {
+    if (mapInput) path = mapInput(path)
+    if (prefix) path = [...prefix, ...path]
+    return get(path)
+  }
+  return self
 }
 
 /**
@@ -450,8 +401,8 @@ export function make(
  *
  * **When to use**
  *
- * Use this to layer multiple config sources, such as env vars plus a defaults
- * file, or to provide partial overrides on top of a base config.
+ * Use to layer multiple config sources, such as env vars plus a defaults file,
+ * or provide partial overrides on top of a base config.
  *
  * **Details**
  *
@@ -481,26 +432,93 @@ export function make(
  * @since 2.0.0
  */
 export const orElse: {
-	(that: ConfigProvider): (self: ConfigProvider) => ConfigProvider;
-	(self: ConfigProvider, that: ConfigProvider): ConfigProvider;
+  /**
+   * Returns a provider that falls back to `that` when `self` returns `undefined`
+   * for a path.
+   *
+   * **When to use**
+   *
+   * Use to layer multiple config sources, such as env vars plus a defaults file,
+   * or provide partial overrides on top of a base config.
+   *
+   * **Details**
+   *
+   * Supports both data-last and data-first calling conventions.
+   *
+   * **Gotchas**
+   *
+   * The fallback only runs when the path is not found (`undefined`). A
+   * `SourceError` from `self` is not caught; it propagates immediately.
+   *
+   * **Example** (Falling back to a default provider)
+   *
+   * ```ts
+   * import { ConfigProvider } from "effect"
+   *
+   * const envProvider = ConfigProvider.fromEnv({
+   *   env: { HOST: "prod.example.com" }
+   * })
+   * const defaults = ConfigProvider.fromUnknown({ HOST: "localhost", PORT: "3000" })
+   *
+   * const combined = ConfigProvider.orElse(envProvider, defaults)
+   * ```
+   *
+   * @see {@link layerAdd} – install a fallback provider via a Layer
+   *
+   * @category combinators
+   * @since 2.0.0
+   */
+  (that: ConfigProvider): (self: ConfigProvider) => ConfigProvider
+  /**
+   * Returns a provider that falls back to `that` when `self` returns `undefined`
+   * for a path.
+   *
+   * **When to use**
+   *
+   * Use to layer multiple config sources, such as env vars plus a defaults file,
+   * or provide partial overrides on top of a base config.
+   *
+   * **Details**
+   *
+   * Supports both data-last and data-first calling conventions.
+   *
+   * **Gotchas**
+   *
+   * The fallback only runs when the path is not found (`undefined`). A
+   * `SourceError` from `self` is not caught; it propagates immediately.
+   *
+   * **Example** (Falling back to a default provider)
+   *
+   * ```ts
+   * import { ConfigProvider } from "effect"
+   *
+   * const envProvider = ConfigProvider.fromEnv({
+   *   env: { HOST: "prod.example.com" }
+   * })
+   * const defaults = ConfigProvider.fromUnknown({ HOST: "localhost", PORT: "3000" })
+   *
+   * const combined = ConfigProvider.orElse(envProvider, defaults)
+   * ```
+   *
+   * @see {@link layerAdd} – install a fallback provider via a Layer
+   *
+   * @category combinators
+   * @since 2.0.0
+   */
+  (self: ConfigProvider, that: ConfigProvider): ConfigProvider
 } = dual(
-	2,
-	(self: ConfigProvider, that: ConfigProvider): ConfigProvider =>
-		make((path) =>
-			Effect.flatMap(self.get(path), (node) =>
-				node ? Effect.succeed(node) : that.get(path),
-			),
-		),
-);
+  2,
+  (self: ConfigProvider, that: ConfigProvider): ConfigProvider =>
+    make((path) => Effect.flatMap(self.get(path), (node) => node ? Effect.succeed(node) : that.get(path)))
+)
 
 /**
  * Transforms the path segments before they reach the underlying store.
  *
  * **When to use**
  *
- * Use this for renaming or re-casing path segments, or for adding suffixes and
- * other per-segment transformations. See {@link constantCase} for a common
- * specialization.
+ * Use when you need to rename, re-case, or otherwise transform config path
+ * segments before lookup.
  *
  * **Details**
  *
@@ -532,22 +550,95 @@ export const orElse: {
  * @since 4.0.0
  */
 export const mapInput: {
-	(f: (path: Path) => Path): (self: ConfigProvider) => ConfigProvider;
-	(self: ConfigProvider, f: (path: Path) => Path): ConfigProvider;
-} = dual(2, (self: ConfigProvider, f: (path: Path) => Path): ConfigProvider => {
-	return make(
-		self.get,
-		self.mapInput ? flow(self.mapInput, f) : f,
-		self.prefix ? f(self.prefix) : undefined,
-	);
-});
+  /**
+   * Transforms the path segments before they reach the underlying store.
+   *
+   * **When to use**
+   *
+   * Use when you need to rename, re-case, or otherwise transform config path
+   * segments before lookup.
+   *
+   * **Details**
+   *
+   * The function `f` receives the full path and must return a new path. If the
+   * provider already has a `mapInput`, the functions compose: the existing
+   * mapping runs first, then `f`. Supports both data-last and data-first calling
+   * conventions.
+   *
+   * **Example** (Uppercasing path segments)
+   *
+   * ```ts
+   * import { ConfigProvider } from "effect"
+   *
+   * const provider = ConfigProvider.fromEnv({
+   *   env: { APP_HOST: "localhost" }
+   * })
+   *
+   * const upper = ConfigProvider.mapInput(provider, (path) =>
+   *   path.map((seg) =>
+   *     typeof seg === "string" ? seg.toUpperCase() : seg
+   *   )
+   * )
+   * ```
+   *
+   * @see {@link constantCase} – a preset that converts to `CONSTANT_CASE`
+   * @see {@link nested} – for prepending a prefix instead of transforming
+   *
+   * @category combinators
+   * @since 4.0.0
+   */
+  (f: (path: Path) => Path): (self: ConfigProvider) => ConfigProvider
+  /**
+   * Transforms the path segments before they reach the underlying store.
+   *
+   * **When to use**
+   *
+   * Use when you need to rename, re-case, or otherwise transform config path
+   * segments before lookup.
+   *
+   * **Details**
+   *
+   * The function `f` receives the full path and must return a new path. If the
+   * provider already has a `mapInput`, the functions compose: the existing
+   * mapping runs first, then `f`. Supports both data-last and data-first calling
+   * conventions.
+   *
+   * **Example** (Uppercasing path segments)
+   *
+   * ```ts
+   * import { ConfigProvider } from "effect"
+   *
+   * const provider = ConfigProvider.fromEnv({
+   *   env: { APP_HOST: "localhost" }
+   * })
+   *
+   * const upper = ConfigProvider.mapInput(provider, (path) =>
+   *   path.map((seg) =>
+   *     typeof seg === "string" ? seg.toUpperCase() : seg
+   *   )
+   * )
+   * ```
+   *
+   * @see {@link constantCase} – a preset that converts to `CONSTANT_CASE`
+   * @see {@link nested} – for prepending a prefix instead of transforming
+   *
+   * @category combinators
+   * @since 4.0.0
+   */
+  (self: ConfigProvider, f: (path: Path) => Path): ConfigProvider
+} = dual(
+  2,
+  (self: ConfigProvider, f: (path: Path) => Path): ConfigProvider => {
+    return make(self.get, self.mapInput ? flow(self.mapInput, f) : f, self.prefix ? f(self.prefix) : undefined)
+  }
+)
 
 /**
  * Converts all string path segments to `CONSTANT_CASE` before lookup.
  *
  * **When to use**
  *
- * Use this to bridge camelCase schema keys to `SCREAMING_SNAKE_CASE`
+ * Use to bridge camelCase schema keys to `SCREAMING_SNAKE_CASE`
  * environment variables.
  *
  * **Details**
@@ -572,10 +663,9 @@ export const mapInput: {
  * @category combinators
  * @since 2.0.0
  */
-export const constantCase: (self: ConfigProvider) => ConfigProvider = mapInput(
-	(path) =>
-		path.map((seg) => (typeof seg === "number" ? seg : Str.constantCase(seg))),
-);
+export const constantCase: (self: ConfigProvider) => ConfigProvider = mapInput((path) =>
+  path.map((seg) => typeof seg === "number" ? seg : Str.constantCase(seg))
+)
 
 /**
  * Scopes a provider so that all lookups are prefixed with the given path
@@ -583,8 +673,8 @@ export const constantCase: (self: ConfigProvider) => ConfigProvider = mapInput(
  *
  * **When to use**
  *
- * Use this to namespace config under a prefix like `"app"` or `"database"`, or
- * to reuse the same provider shape for multiple sub-configs.
+ * Use to namespace config under a prefix like `"app"` or `"database"`, or
+ * reuse the same provider shape for multiple sub-configs.
  *
  * **Details**
  *
@@ -616,24 +706,99 @@ export const constantCase: (self: ConfigProvider) => ConfigProvider = mapInput(
  * @since 2.0.0
  */
 export const nested: {
-	(prefix: string | Path): (self: ConfigProvider) => ConfigProvider;
-	(self: ConfigProvider, prefix: string | Path): ConfigProvider;
-} = dual(2, (self: ConfigProvider, prefix: string | Path): ConfigProvider => {
-	const path = typeof prefix === "string" ? [prefix] : prefix;
-	return make(
-		self.get,
-		self.mapInput,
-		self.prefix ? [...self.prefix, ...path] : path,
-	);
-});
+  /**
+   * Scopes a provider so that all lookups are prefixed with the given path
+   * segments.
+   *
+   * **When to use**
+   *
+   * Use to namespace config under a prefix like `"app"` or `"database"`, or
+   * reuse the same provider shape for multiple sub-configs.
+   *
+   * **Details**
+   *
+   * Accepts a single string or a full `Path` array. Supports both data-last and
+   * data-first calling conventions.
+   *
+   * **Gotchas**
+   *
+   * The prefix is prepended after any `mapInput` transformation runs, so
+   * ordering matters when composing with {@link mapInput} or
+   * {@link constantCase}.
+   *
+   * **Example** (Nesting under a prefix)
+   *
+   * ```ts
+   * import { ConfigProvider } from "effect"
+   *
+   * const provider = ConfigProvider.fromEnv({
+   *   env: { APP_HOST: "localhost", APP_PORT: "3000" }
+   * })
+   *
+   * // Lookups for ["HOST"] now resolve to ["APP", "HOST"]
+   * const scoped = ConfigProvider.nested(provider, "APP")
+   * ```
+   *
+   * @see {@link mapInput} – for arbitrary path transformations
+   *
+   * @category combinators
+   * @since 2.0.0
+   */
+  (prefix: string | Path): (self: ConfigProvider) => ConfigProvider
+  /**
+   * Scopes a provider so that all lookups are prefixed with the given path
+   * segments.
+   *
+   * **When to use**
+   *
+   * Use to namespace config under a prefix like `"app"` or `"database"`, or
+   * reuse the same provider shape for multiple sub-configs.
+   *
+   * **Details**
+   *
+   * Accepts a single string or a full `Path` array. Supports both data-last and
+   * data-first calling conventions.
+   *
+   * **Gotchas**
+   *
+   * The prefix is prepended after any `mapInput` transformation runs, so
+   * ordering matters when composing with {@link mapInput} or
+   * {@link constantCase}.
+   *
+   * **Example** (Nesting under a prefix)
+   *
+   * ```ts
+   * import { ConfigProvider } from "effect"
+   *
+   * const provider = ConfigProvider.fromEnv({
+   *   env: { APP_HOST: "localhost", APP_PORT: "3000" }
+   * })
+   *
+   * // Lookups for ["HOST"] now resolve to ["APP", "HOST"]
+   * const scoped = ConfigProvider.nested(provider, "APP")
+   * ```
+   *
+   * @see {@link mapInput} – for arbitrary path transformations
+   *
+   * @category combinators
+   * @since 2.0.0
+   */
+  (self: ConfigProvider, prefix: string | Path): ConfigProvider
+} = dual(
+  2,
+  (self: ConfigProvider, prefix: string | Path): ConfigProvider => {
+    const path = typeof prefix === "string" ? [prefix] : prefix
+    return make(self.get, self.mapInput, self.prefix ? [...self.prefix, ...path] : path)
+  }
+)
 
 /**
- * Installs a `ConfigProvider` as the active provider for all downstream
- * effects, replacing any previously installed provider.
+ * Provides a layer that installs a `ConfigProvider` as the active provider for
+ * all downstream effects, replacing any previously installed provider.
  *
  * **When to use**
  *
- * Use this to set the config source for an entire application or test suite.
+ * Use to set the config source for an entire application or test suite.
  *
  * **Details**
  *
@@ -663,11 +828,9 @@ export const nested: {
  * @since 4.0.0
  */
 export const layer = <E = never, R = never>(
-	self: ConfigProvider | Effect.Effect<ConfigProvider, E, R>,
+  self: ConfigProvider | Effect.Effect<ConfigProvider, E, R>
 ): Layer.Layer<never, E, Exclude<R, Scope>> =>
-	Effect.isEffect(self)
-		? Layer.effect(ConfigProvider)(self)
-		: Layer.succeed(ConfigProvider)(self);
+  Effect.isEffect(self) ? Layer.effect(ConfigProvider)(self) : Layer.succeed(ConfigProvider)(self)
 
 /**
  * Creates a Layer that composes a new `ConfigProvider` with the currently
@@ -675,9 +838,9 @@ export const layer = <E = never, R = never>(
  *
  * **When to use**
  *
- * Use this to add defaults that should only apply when the primary provider
- * has no value for a path, or to override specific keys while keeping the rest
- * from the existing provider by setting `asPrimary: true`.
+ * Use to add defaults that should only apply when the primary provider has no
+ * value for a path, or override specific keys while keeping the rest from the
+ * existing provider by setting `asPrimary: true`.
  *
  * **Details**
  *
@@ -706,22 +869,18 @@ export const layer = <E = never, R = never>(
  * @since 4.0.0
  */
 export const layerAdd = <E = never, R = never>(
-	self: ConfigProvider | Effect.Effect<ConfigProvider, E, R>,
-	options?:
-		| {
-				readonly asPrimary?: boolean | undefined;
-		  }
-		| undefined,
+  self: ConfigProvider | Effect.Effect<ConfigProvider, E, R>,
+  options?: {
+    readonly asPrimary?: boolean | undefined
+  } | undefined
 ): Layer.Layer<never, E, Exclude<R, Scope>> =>
-	Layer.effect(ConfigProvider)(
-		Effect.gen(function* () {
-			const current = yield* ConfigProvider;
-			const configProvider = Effect.isEffect(self) ? yield* self : self;
-			return options?.asPrimary
-				? orElse(configProvider, current)
-				: orElse(current, configProvider);
-		}),
-	);
+  Layer.effect(ConfigProvider)(
+    Effect.gen(function*() {
+      const current = yield* ConfigProvider
+      const configProvider = Effect.isEffect(self) ? yield* self : self
+      return options?.asPrimary ? orElse(configProvider, current) : orElse(current, configProvider)
+    })
+  )
 
 /**
  * Creates a `ConfigProvider` backed by an in-memory JavaScript value
@@ -729,9 +888,8 @@ export const layerAdd = <E = never, R = never>(
  *
  * **When to use**
  *
- * Use this in unit or integration tests where you want deterministic config
- * without touching the environment, or when embedding config directly in code
- * or reading a JSON file.
+ * Use when you need deterministic config from an in-memory JavaScript value,
+ * such as in tests, embedded config, or parsed JSON.
  *
  * **Details**
  *
@@ -768,57 +926,47 @@ export const layerAdd = <E = never, R = never>(
  * @since 4.0.0
  */
 export function fromUnknown(root: unknown): ConfigProvider {
-	return make((path) => Effect.succeed(nodeAtJson(root, path)));
+  return make((path) => Effect.succeed(nodeAtJson(root, path)))
 }
 
 function nodeAtJson(root: unknown, path: Path): Node | undefined {
-	let cur: unknown = root;
+  let cur: unknown = root
 
-	for (const seg of path) {
-		if (cur === null || cur === undefined) return undefined;
+  for (const seg of path) {
+    if (cur === null || cur === undefined) return undefined
 
-		if (Array.isArray(cur)) {
-			if (
-				typeof seg !== "number" ||
-				!Number.isInteger(seg) ||
-				seg < 0 ||
-				seg >= cur.length
-			)
-				return undefined;
-			cur = cur[seg];
-			continue;
-		}
+    if (Array.isArray(cur)) {
+      if (typeof seg !== "number" || !Number.isInteger(seg) || seg < 0 || seg >= cur.length) return undefined
+      cur = cur[seg]
+      continue
+    }
 
-		if (Predicate.isObject(cur)) {
-			if (typeof seg !== "string") return undefined;
-			if (!Object.hasOwn(cur, seg)) return undefined;
-			cur = cur[seg];
-			continue;
-		}
+    if (Predicate.isObject(cur)) {
+      if (typeof seg !== "string") return undefined
+      if (!Object.hasOwn(cur, seg)) return undefined
+      cur = cur[seg]
+      continue
+    }
 
-		// cannot descend
-		return undefined;
-	}
+    // cannot descend
+    return undefined
+  }
 
-	return describeUnknown(cur);
+  return describeUnknown(cur)
 }
 
 function describeUnknown(u: unknown): Node | undefined {
-	if (u === undefined || u === null) return undefined;
-	if (typeof u === "string") return makeValue(u);
-	if (
-		typeof u === "number" ||
-		typeof u === "boolean" ||
-		typeof u === "bigint"
-	) {
-		return makeValue(String(u));
-	}
-	if (Array.isArray(u)) return makeArray(u.length);
-	if (Predicate.isObject(u)) {
-		return makeRecord(new Set(Object.keys(u)));
-	}
-	// unknown values
-	return makeValue(format(u));
+  if (u === undefined || u === null) return undefined
+  if (typeof u === "string") return makeValue(u)
+  if (typeof u === "number" || typeof u === "boolean" || typeof u === "bigint") {
+    return makeValue(String(u))
+  }
+  if (Array.isArray(u)) return makeArray(u.length)
+  if (Predicate.isObject(u)) {
+    return makeRecord(new Set(Object.keys(u)))
+  }
+  // unknown values
+  return makeValue(format(u))
 }
 
 /**
@@ -826,8 +974,8 @@ function describeUnknown(u: unknown): Node | undefined {
  *
  * **When to use**
  *
- * Use this to read configuration from `process.env`, which is the default when
- * no provider is explicitly set, or to pass a custom env record for testing or
+ * Use to read configuration from `process.env`, which is the default when no
+ * provider is explicitly set, or pass a custom env record for testing or
  * non-Node runtimes.
  *
  * **Details**
@@ -869,82 +1017,76 @@ function describeUnknown(u: unknown): Node | undefined {
  * @category ConfigProviders
  * @since 2.0.0
  */
-export function fromEnv(options?: {
-	readonly env?: Record<string, string> | undefined;
-}): ConfigProvider {
-	const env = options?.env ?? {
-		...globalThis?.process?.env,
-		...(import.meta as any)?.env,
-	};
+export function fromEnv(options?: { readonly env?: Record<string, string> | undefined }): ConfigProvider {
+  const env = options?.env ?? {
+    ...globalThis?.process?.env,
+    ...(import.meta as any)?.env
+  }
 
-	const trie = buildEnvTrie(env);
+  const trie = buildEnvTrie(env)
 
-	return make((path) => Effect.succeed(nodeAtEnv(trie, env, path)));
+  return make((path) => Effect.succeed(nodeAtEnv(trie, env, path)))
 }
 
 type EnvTrieNode = {
-	value?: string;
-	children?: Record<string, EnvTrieNode>;
-};
-
-function buildEnvTrie(env: Record<string, string | undefined>): EnvTrieNode {
-	const root: EnvTrieNode = {};
-
-	for (const [name, value] of Object.entries(env)) {
-		if (value === undefined) continue;
-
-		// Split on "_" and keep empty segments (no special handling for "__")
-		const segments = name.split("_");
-
-		let node = root;
-		for (const seg of segments) {
-			node.children ??= {};
-			node = node.children[seg] ??= {};
-		}
-
-		// co-located value at this node
-		node.value = value;
-	}
-
-	return root;
+  value?: string
+  children?: Record<string, EnvTrieNode>
 }
 
-const NUMERIC_INDEX = /^(0|[1-9][0-9]*)$/;
+function buildEnvTrie(env: Record<string, string | undefined>): EnvTrieNode {
+  const root: EnvTrieNode = {}
 
-function nodeAtEnv(
-	trie: EnvTrieNode,
-	env: Record<string, string | undefined>,
-	path: Path,
-): Node | undefined {
-	const key = path.map(String).join("_");
-	const leafValue = env[key];
+  for (const [name, value] of Object.entries(env)) {
+    if (value === undefined) continue
 
-	const trieNode = trieNodeAt(trie, path);
-	const children = trieNode?.children ? Object.keys(trieNode.children) : [];
+    // Split on "_" and keep empty segments (no special handling for "__")
+    const segments = name.split("_")
 
-	if (children.length === 0) {
-		return leafValue === undefined ? undefined : makeValue(leafValue);
-	}
+    let node = root
+    for (const seg of segments) {
+      node.children ??= {}
+      node = node.children[seg] ??= {}
+    }
 
-	const allNumeric = children.every((k) => NUMERIC_INDEX.test(k));
-	if (allNumeric) {
-		const length = Math.max(...children.map((k) => parseInt(k, 10))) + 1;
-		return makeArray(length, leafValue);
-	}
+    // co-located value at this node
+    node.value = value
+  }
 
-	return makeRecord(new Set(children), leafValue);
+  return root
+}
+
+const NUMERIC_INDEX = /^(0|[1-9][0-9]*)$/
+
+function nodeAtEnv(trie: EnvTrieNode, env: Record<string, string | undefined>, path: Path): Node | undefined {
+  const key = path.map(String).join("_")
+  const leafValue = env[key]
+
+  const trieNode = trieNodeAt(trie, path)
+  const children = trieNode?.children ? Object.keys(trieNode.children) : []
+
+  if (children.length === 0) {
+    return leafValue === undefined ? undefined : makeValue(leafValue)
+  }
+
+  const allNumeric = children.every((k) => NUMERIC_INDEX.test(k))
+  if (allNumeric) {
+    const length = Math.max(...children.map((k) => parseInt(k, 10))) + 1
+    return makeArray(length, leafValue)
+  }
+
+  return makeRecord(new Set(children), leafValue)
 }
 
 function trieNodeAt(root: EnvTrieNode, path: Path): EnvTrieNode | undefined {
-	if (path.length === 0) return root;
+  if (path.length === 0) return root
 
-	// Convert path segments to strings and navigate through the trie
-	let node: EnvTrieNode | undefined = root;
-	for (const seg of path) {
-		node = node?.children?.[String(seg)];
-		if (!node) return undefined;
-	}
-	return node;
+  // Convert path segments to strings and navigate through the trie
+  let node: EnvTrieNode | undefined = root
+  for (const seg of path) {
+    node = node?.children?.[String(seg)]
+    if (!node) return undefined
+  }
+  return node
 }
 
 /**
@@ -952,9 +1094,8 @@ function trieNodeAt(root: EnvTrieNode, path: Path): EnvTrieNode | undefined {
  *
  * **When to use**
  *
- * Use this when you already have the `.env` contents as a string, such as
- * contents fetched from a remote store or embedded in a test. Use
- * {@link fromDotEnv} instead if you want to read a `.env` file from disk.
+ * Use when you already have the `.env` contents as a string, such as contents
+ * fetched from a remote store or embedded in a test.
  *
  * **Details**
  *
@@ -986,112 +1127,106 @@ function trieNodeAt(root: EnvTrieNode, path: Path): EnvTrieNode | undefined {
  * @category ConfigProviders
  * @since 4.0.0
  */
-export function fromDotEnvContents(
-	lines: string,
-	options?: {
-		readonly expandVariables?: boolean | undefined;
-	},
-): ConfigProvider {
-	let env = parseDotEnvContents(lines);
-	if (options?.expandVariables) {
-		env = dotEnvExpand(env);
-	}
-	return fromEnv({ env });
+export function fromDotEnvContents(lines: string, options?: {
+  readonly expandVariables?: boolean | undefined
+}): ConfigProvider {
+  let env = parseDotEnvContents(lines)
+  if (options?.expandVariables) {
+    env = dotEnvExpand(env)
+  }
+  return fromEnv({ env })
 }
 
 const DOT_ENV_LINE =
-	/(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/gm;
+  /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/mg
 
 function parseDotEnvContents(lines: string): Record<string, string> {
-	const obj: Record<string, string> = {};
+  const obj: Record<string, string> = {}
 
-	// Convert line breaks to same format
-	lines = lines.replace(/\r\n?/gm, "\n");
+  // Convert line breaks to same format
+  lines = lines.replace(/\r\n?/gm, "\n")
 
-	let match: RegExpExecArray | null;
-	while ((match = DOT_ENV_LINE.exec(lines)) != null) {
-		const key = match[1];
+  let match: RegExpExecArray | null
+  while ((match = DOT_ENV_LINE.exec(lines)) != null) {
+    const key = match[1]
 
-		// Default undefined or null to empty string
-		let value = match[2] || "";
+    // Default undefined or null to empty string
+    let value = match[2] || ""
 
-		// Remove whitespace
-		value = value.trim();
+    // Remove whitespace
+    value = value.trim()
 
-		// Check if double quoted
-		const maybeQuote = value[0];
+    // Check if double quoted
+    const maybeQuote = value[0]
 
-		// Remove surrounding quotes
-		value = value.replace(/^(['"`])([\s\S]*)\1$/gm, "$2");
+    // Remove surrounding quotes
+    value = value.replace(/^(['"`])([\s\S]*)\1$/gm, "$2")
 
-		// Expand newlines if double quoted
-		if (maybeQuote === '"') {
-			value = value.replace(/\\n/g, "\n");
-			value = value.replace(/\\r/g, "\r");
-		}
+    // Expand newlines if double quoted
+    if (maybeQuote === "\"") {
+      value = value.replace(/\\n/g, "\n")
+      value = value.replace(/\\r/g, "\r")
+    }
 
-		// Add to object
-		obj[key] = value;
-	}
+    // Add to object
+    obj[key] = value
+  }
 
-	return obj;
+  return obj
 }
 
 function dotEnvExpand(parsed: Record<string, string>): Record<string, string> {
-	const newParsed: Record<string, string> = {};
+  const newParsed: Record<string, string> = {}
 
-	for (const configKey in parsed) {
-		// resolve escape sequences
-		newParsed[configKey] = interpolate(parsed[configKey], parsed).replace(
-			/\\\$/g,
-			"$",
-		);
-	}
+  for (const configKey in parsed) {
+    // resolve escape sequences
+    newParsed[configKey] = interpolate(parsed[configKey], parsed).replace(/\\\$/g, "$")
+  }
 
-	return newParsed;
+  return newParsed
 }
 
 function interpolate(envValue: string, parsed: Record<string, string>): string {
-	// find the last unescaped dollar sign in the
-	// value so that we can evaluate it
-	const lastUnescapedDollarSignIndex = searchLast(envValue, /(?!(?<=\\))\$/g);
+  // find the last unescaped dollar sign in the
+  // value so that we can evaluate it
+  const lastUnescapedDollarSignIndex = searchLast(envValue, /(?!(?<=\\))\$/g)
 
-	// If we couldn't match any unescaped dollar sign
-	// let's return the string as is
-	if (lastUnescapedDollarSignIndex === -1) return envValue;
+  // If we couldn't match any unescaped dollar sign
+  // let's return the string as is
+  if (lastUnescapedDollarSignIndex === -1) return envValue
 
-	// This is the right-most group of variables in the string
-	const rightMostGroup = envValue.slice(lastUnescapedDollarSignIndex);
+  // This is the right-most group of variables in the string
+  const rightMostGroup = envValue.slice(lastUnescapedDollarSignIndex)
 
-	/**
-	 * This finds the inner most variable/group divided
-	 * by variable name and default value (if present)
-	 * (
-	 *   (?!(?<=\\))\$        // only match dollar signs that are not escaped
-	 *   {?                   // optional opening curly brace
-	 *     ([\w]+)            // match the variable name
-	 *     (?::-([^}\\]*))?   // match an optional default value
-	 *   }?                   // optional closing curly brace
-	 * )
-	 */
-	const matchGroup = /((?!(?<=\\))\${?([\w]+)(?::-([^}\\]*))?}?)/;
-	const match = rightMostGroup.match(matchGroup);
+  /**
+   * This finds the inner most variable/group divided
+   * by variable name and default value (if present)
+   * (
+   *   (?!(?<=\\))\$        // only match dollar signs that are not escaped
+   *   {?                   // optional opening curly brace
+   *     ([\w]+)            // match the variable name
+   *     (?::-([^}\\]*))?   // match an optional default value
+   *   }?                   // optional closing curly brace
+   * )
+   */
+  const matchGroup = /((?!(?<=\\))\${?([\w]+)(?::-([^}\\]*))?}?)/
+  const match = rightMostGroup.match(matchGroup)
 
-	if (match !== null) {
-		const [_, group, variableName, defaultValue] = match;
+  if (match !== null) {
+    const [_, group, variableName, defaultValue] = match
 
-		return interpolate(
-			envValue.replace(group, defaultValue || parsed[variableName] || ""),
-			parsed,
-		);
-	}
+    return interpolate(
+      envValue.replace(group, defaultValue || parsed[variableName] || ""),
+      parsed
+    )
+  }
 
-	return envValue;
+  return envValue
 }
 
 function searchLast(str: string, rgx: RegExp): number {
-	const matches = Array.from(str.matchAll(rgx));
-	return matches.length > 0 ? matches.slice(-1)[0].index : -1;
+  const matches = Array.from(str.matchAll(rgx))
+  return matches.length > 0 ? matches.slice(-1)[0].index : -1
 }
 
 /**
@@ -1100,9 +1235,7 @@ function searchLast(str: string, rgx: RegExp): number {
  *
  * **When to use**
  *
- * Use this to load environment config from a `.env` file at application
- * startup. Use {@link fromDotEnvContents} if you already have the file
- * contents as a string.
+ * Use to load environment config from a `.env` file at application startup.
  *
  * **Details**
  *
@@ -1130,14 +1263,15 @@ function searchLast(str: string, rgx: RegExp): number {
  * @since 4.0.0
  */
 export const fromDotEnv: (options?: {
-	readonly path?: string | undefined;
-	readonly expandVariables?: boolean | undefined;
-}) => Effect.Effect<ConfigProvider, PlatformError, FileSystem.FileSystem> =
-	Effect.fnUntraced(function* (options) {
-		const fs = yield* FileSystem.FileSystem;
-		const content = yield* fs.readFileString(options?.path ?? ".env");
-		return fromEnv({ env: parseDotEnvContents(content) });
-	});
+  readonly path?: string | undefined
+  readonly expandVariables?: boolean | undefined
+}) => Effect.Effect<ConfigProvider, PlatformError, FileSystem.FileSystem> = Effect.fnUntraced(
+  function*(options) {
+    const fs = yield* FileSystem.FileSystem
+    const content = yield* fs.readFileString(options?.path ?? ".env")
+    return fromEnv({ env: parseDotEnvContents(content) })
+  }
+)
 
 /**
  * Creates a `ConfigProvider` that reads configuration from a directory tree
@@ -1145,8 +1279,8 @@ export const fromDotEnv: (options?: {
  *
  * **When to use**
  *
- * Use this for Kubernetes ConfigMap or Secret volume mounts, where each key is
- * a file under a mount path, or for any file-per-key configuration layout.
+ * Use when you expose each config key as a file under a directory, such as
+ * Kubernetes ConfigMap or Secret volume mounts.
  *
  * **Details**
  *
@@ -1178,43 +1312,41 @@ export const fromDotEnv: (options?: {
  * @since 4.0.0
  */
 export const fromDir: (options?: {
-	readonly rootPath?: string | undefined;
-}) => Effect.Effect<ConfigProvider, never, Path_.Path | FileSystem.FileSystem> =
-	Effect.fnUntraced(function* (options) {
-		const platformPath = yield* Path_.Path;
-		const fs = yield* FileSystem.FileSystem;
-		const rootPath = options?.rootPath ?? "/";
+  readonly rootPath?: string | undefined
+}) => Effect.Effect<
+  ConfigProvider,
+  never,
+  Path_.Path | FileSystem.FileSystem
+> = Effect.fnUntraced(function*(options) {
+  const platformPath = yield* Path_.Path
+  const fs = yield* FileSystem.FileSystem
+  const rootPath = options?.rootPath ?? "/"
 
-		return make((path) => {
-			const fullPath = platformPath.join(rootPath, ...path.map(String));
+  return make((path) => {
+    const fullPath = platformPath.join(rootPath, ...path.map(String))
 
-			// Try reading as a *file*
-			const asFile = fs
-				.readFileString(fullPath)
-				.pipe(Effect.map((content) => makeValue(content.trim())));
+    // Try reading as a *file*
+    const asFile = fs.readFileString(fullPath).pipe(
+      Effect.map((content) => makeValue(content.trim()))
+    )
 
-			// If not a file, try reading as a *directory*
-			const asDirectory = fs.readDirectory(fullPath).pipe(
-				Effect.map((entries: ReadonlyArray<any>) => {
-					// Support both string paths and DirEntry-like objects
-					const keys = entries.map((e) =>
-						typeof e === "string"
-							? platformPath.basename(e)
-							: format(e?.name ?? ""),
-					);
-					return makeRecord(new Set(keys));
-				}),
-			);
+    // If not a file, try reading as a *directory*
+    const asDirectory = fs.readDirectory(fullPath).pipe(
+      Effect.map((entries: ReadonlyArray<any>) => {
+        // Support both string paths and DirEntry-like objects
+        const keys = entries.map((e) => typeof e === "string" ? platformPath.basename(e) : format(e?.name ?? ""))
+        return makeRecord(new Set(keys))
+      })
+    )
 
-			return asFile.pipe(
-				Effect.catch(() => asDirectory),
-				Effect.mapError(
-					(cause: PlatformError) =>
-						new SourceError({
-							message: `Failed to read file at ${platformPath.join(rootPath, ...path.map(String))}`,
-							cause,
-						}),
-				),
-			);
-		});
-	});
+    return asFile.pipe(
+      Effect.catch(() => asDirectory),
+      Effect.mapError((cause: PlatformError) =>
+        new SourceError({
+          message: `Failed to read file at ${platformPath.join(rootPath, ...path.map(String))}`,
+          cause
+        })
+      )
+    )
+  })
+})
