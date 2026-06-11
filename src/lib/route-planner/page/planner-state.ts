@@ -143,7 +143,7 @@ export function getRouteStopInput(stop: PlannerStop): RouteStopInput {
 export function getRoundCourseTarget(
 	route: PlannedRoute | null | undefined,
 ): RoundCourseTarget | null {
-	if (!route || route.mode !== "round_course") {
+	if (route?.mode !== "round_course") {
 		return null;
 	}
 

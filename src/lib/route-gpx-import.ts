@@ -433,7 +433,7 @@ function getOutAndBackTurnaround(
 	explicitStops: ReturnType<typeof buildEditableStops> | null,
 	coordinates: RouteCoordinate[],
 ): { label: string; coordinate: RouteCoordinate } | null {
-	if (!explicitStops || explicitStops.stops.length !== 2) {
+	if (explicitStops?.stops.length !== 2) {
 		return null;
 	}
 
