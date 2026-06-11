@@ -764,6 +764,17 @@ export class SavedRoutesUseCases {
 		});
 	}
 
+	private setRemoteSaveFailureEffect(
+		state: SavedRoutesStateModel,
+		routeId: string,
+		message: string,
+	): Effect.Effect<void> {
+		return Effect.gen({ self: this }, function* () {
+			yield* this.trackPendingRemoteRouteEffect(state, routeId);
+			state.syncError = message;
+		});
+	}
+
 	private syncSavedRouteEffect(
 		state: SavedRoutesStateModel,
 		savedRoute: SavedRoute,
@@ -795,7 +806,7 @@ export class SavedRoutesUseCases {
 			clearTimeout(this.remoteSaveFlushTimer);
 		}
 
-		this.remoteSaveFlushTimer = setTimeout(
+		const timer = setTimeout(
 			() => {
 				this.remoteSaveFlushTimer = null;
 				void Effect.runPromise(
@@ -804,6 +815,10 @@ export class SavedRoutesUseCases {
 			},
 			flushMode === "soon" ? 0 : 1000,
 		);
+		if (typeof timer === "object" && timer !== null && "unref" in timer) {
+			(timer as { unref?: () => void }).unref?.();
+		}
+		this.remoteSaveFlushTimer = timer;
 	}
 
 	private flushRemoteSavesEffect(
@@ -821,9 +836,12 @@ export class SavedRoutesUseCases {
 			}
 
 			const pendingSaves = [...this.pendingRemoteSaves.values()];
-			this.pendingRemoteSaves.clear();
 
 			for (const savedRoute of pendingSaves) {
+				if (this.pendingRemoteSaves.get(savedRoute.id) !== savedRoute) {
+					continue;
+				}
+
 				yield* fromRemoteAdapter(
 					remoteRepository.save(serializeSavedRouteForRemote(savedRoute)),
 				).pipe(
@@ -832,21 +850,59 @@ export class SavedRoutesUseCases {
 					),
 					Effect.flatMap(() =>
 						this.isCurrentRemoteSession(state, userId, sessionVersion)
-							? this.clearPendingRemoteRouteEffect(state, savedRoute.id).pipe(
-									Effect.andThen(() =>
-										Effect.sync(() => {
-											state.syncError = null;
-										}),
+							? Effect.sync(() => {
+									if (
+										this.pendingRemoteSaves.get(savedRoute.id) !== savedRoute
+									) {
+										return false;
+									}
+
+									this.pendingRemoteSaves.delete(savedRoute.id);
+									return true;
+								}).pipe(
+									Effect.flatMap((clearedCurrentSave) =>
+										clearedCurrentSave
+											? this.clearPendingRemoteRouteEffect(
+													state,
+													savedRoute.id,
+												).pipe(
+													Effect.andThen(() =>
+														Effect.sync(() => {
+															state.syncError = null;
+														}),
+													),
+												)
+											: Effect.void,
 									),
 								)
 							: Effect.void,
 					),
 					Effect.catch((error) =>
 						this.isCurrentRemoteSession(state, userId, sessionVersion)
-							? this.setRemoteFailureEffect(
-									state,
-									savedRoute.id,
-									`Could not sync saved route: ${error.message}`,
+							? Effect.sync(
+									() =>
+										this.pendingRemoteSaves.get(savedRoute.id) === savedRoute,
+								).pipe(
+									Effect.flatMap((isCurrentSave) =>
+										isCurrentSave
+											? this.setRemoteSaveFailureEffect(
+													state,
+													savedRoute.id,
+													`Could not sync saved route: ${error.message}`,
+												).pipe(
+													Effect.andThen(() =>
+														Effect.sync(() => {
+															this.scheduleRemoteSaveFlush(
+																state,
+																userId,
+																sessionVersion,
+																"deferred",
+															);
+														}),
+													),
+												)
+											: Effect.void,
+									),
 								)
 							: Effect.void,
 					),
