@@ -1,14 +1,9 @@
 <script lang="ts">
 	import { Effect } from "effect";
 	import { onMount } from "svelte";
-	import type { FeatureCollection } from "geojson";
 	import type {
-		ControlPosition,
-		IControl,
-		LngLatBoundsLike,
 		Map as MapLibreMap,
 		MapOptions,
-		ScaleControlOptions,
 	} from "maplibre-gl";
 
 	import {
@@ -21,104 +16,47 @@
 		initUnitPreference,
 		unitPreference,
 	} from "$lib/unit-settings.svelte";
-	import {
-		type MapCameraPreference,
-		areMapCameraPreferencesEqual,
-		readMapCameraPreference,
-		writeMapCameraPreference,
-	} from "$lib/preferences/map-camera-preferences";
+	import type { MapCameraPreference } from "$lib/preferences/map-camera-preferences";
 	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-	import { createBrowserStorage } from "$lib/storage/browser-storage";
 	import { getBasemapStyleUrl } from "$lib/map/basemaps";
-	import type { SidebarLayoutState } from "$lib/components/ui/sidebar/context.svelte.js";
-	import type {
-		PlannedRoute,
-		RouteBounds,
-		RouteCoordinate,
-		RouteMapOverlay,
-		RouteMode,
-	} from "$lib/route-planning";
 	import {
-		removeConstraintOverlay as removeRenderedConstraintOverlay,
-		removeCurrentLocationOverlay as removeRenderedCurrentLocationOverlay,
-		removeHoveredRouteOverlay as removeRenderedHoveredRouteOverlay,
-		removeLockedSegmentOverlay as removeRenderedLockedSegmentOverlay,
-		removeRouteAvoidanceOverlay as removeRenderedRouteAvoidanceOverlay,
-		removeRouteOverlays as removeRenderedRouteOverlays,
-		syncConstraintOverlay,
-		syncCurrentLocationOverlay,
-		syncHoveredRouteOverlay,
-		syncLockedSegmentOverlay,
-		syncRouteAvoidanceOverlay,
-		syncRouteOverlays,
-	} from "$lib/map/map-view-renderer";
+		attachMapCameraPreferenceListeners,
+		readStoredMapCameraPreference,
+		writeStoredMapCameraPreference,
+	} from "$lib/map/map-view-camera-preferences";
+	import {
+		asLngLatBounds,
+		defaultCenter,
+		getBoundsKey,
+		getCurrentMapCameraPreference,
+		getFitBoundsOptions,
+		mapCameraPreferenceDebounceMs,
+		resolveMapBearing,
+		resolveMapCenter,
+		resolveMapPitch,
+		resolveMapZoom,
+		resolveRouteBounds,
+		shouldPersistMapCameraPreference,
+	} from "$lib/map/map-view-camera";
+	import { createMapViewOverlayController } from "$lib/map/map-view-overlays";
+	import {
+		emptyMapScaleControlState,
+		removeMapScaleControl,
+		syncMapScaleControl,
+	} from "$lib/map/map-view-scale-control";
+	import {
+		createSmoothMapResizer,
+		layoutTransitionBufferMs,
+	} from "$lib/map/map-view-resize";
+	import {
+		canCreateMapWebGLContext,
+		isWebGLContextCreationError,
+		webglUnavailableMessage,
+	} from "$lib/map/map-view-webgl";
+	import type { MapViewProps as Props } from "$lib/components/map-view-types";
 	import {
 		createRouteEditInteractions,
-		type RouteSegmentDetail,
-		type RouteStopDragEndDetail,
-		type SelectedRouteStop,
 	} from "$lib/map/route-edit-interactions";
-
-	type Props = {
-		initialCenter?: [number, number];
-		initialZoom?: number;
-		ariaLabel?: string;
-		routeOverlays?: RouteMapOverlay[] | null;
-		plannedRoute?: PlannedRoute | null;
-		routeMode?: RouteMode | null;
-		manualEditingEnabled?: boolean;
-		lockedSegmentOverlay?: FeatureCollection | null;
-		lockedSegmentIndexes?: number[];
-		constraintOverlay?: FeatureCollection | null;
-		avoidanceOverlay?: FeatureCollection | null;
-		fitBounds?: RouteBounds | null;
-		fitInitialBoundsWithRestoredCamera?: boolean;
-		manualRecenterBounds?: RouteBounds | null;
-		manualRecenterRequestKey?: number;
-		hoveredRouteCoordinate?: RouteCoordinate | null;
-		focusedRouteCoordinate?: RouteCoordinate | null;
-		focusedRouteCoordinateKey?: number;
-		currentLocation?: {
-			point: [number, number];
-			accuracyMeters?: number;
-		} | null;
-		currentLocationFocusKey?: number;
-		layoutState?: SidebarLayoutState | null;
-		onMapClick?: ((detail: {
-			point: [number, number];
-			screenPoint: {
-				x: number;
-				y: number;
-			};
-			selectedStop?: SelectedRouteStop;
-			selectedSegment?: {
-				coordinateSegmentIndex: number;
-				segmentIndex: number;
-			};
-		}) => void) | null;
-		onRouteStopDragEnd?: ((detail: RouteStopDragEndDetail) => void) | null;
-		onRouteSegmentDragEnd?: ((detail: RouteSegmentDetail) => void) | null;
-		onRouteSegmentSelection?: ((detail: RouteSegmentDetail) => void) | null;
-	};
-
-	const defaultCenter = [11.394, 47.268] as [number, number];
-	// Matches the 200ms sidebar width transition plus a small buffer for interrupted toggles.
-	const layoutTransitionBufferMs = 260;
-	const scaleControlPosition: ControlPosition = "bottom-left";
-	const webglUnavailableMessage =
-		"Map cannot be shown because this browser or device could not create a WebGL context.";
-	const defaultZoom = 10;
-	const defaultBearing = 0;
-	const defaultPitch = 0;
-	const mapCameraPreferenceDebounceMs = 100;
-	const mapCanvasContextAttributes: WebGLContextAttributes = {
-		antialias: false,
-		depth: true,
-		failIfMajorPerformanceCaveat: false,
-		powerPreference: "high-performance",
-		preserveDrawingBuffer: false,
-		stencil: true,
-	};
 
 	let {
 		initialCenter = defaultCenter,
@@ -151,8 +89,7 @@
 	let mapContainer = $state<HTMLDivElement | null>(null);
 	let map = $state<MapLibreMap | null>(null);
 	let maplibreglModule = $state<typeof import("maplibre-gl") | null>(null);
-	let scaleControl = $state<IControl | null>(null);
-	let currentScaleControlUnit: "metric" | "imperial" | null = null;
+	let scaleControlState = emptyMapScaleControlState;
 	let isLoaded = $state(false);
 	let isStyleReady = $state(false);
 	let loadError = $state<string | null>(null);
@@ -164,67 +101,19 @@
 	let detachRouteEditingListeners = () => {};
 	let routeEditInteractions: ReturnType<typeof createRouteEditInteractions> | null =
 		null;
-	let resizeAnimationFrameId: number | null = null;
-	let resizeLoopUntil = 0;
-	let renderedRouteOverlayIds: string[] = [];
-	let renderedRouteOverlayGeoJsonRefs = new Map<string, FeatureCollection>();
 	let lastFocusedCurrentLocationKey: number | null = null;
 	let lastFocusedRouteCoordinateKey: number | null = null;
 	let pendingCameraPreferenceTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastPersistedCameraPreference: MapCameraPreference | null = null;
-
-	function canCreateMapWebGLContext() {
-		if (typeof document === "undefined") {
-			return false;
-		}
-
-		const canvas = document.createElement("canvas");
-
-		try {
-			const gl =
-				canvas.getContext("webgl2", mapCanvasContextAttributes) ??
-				canvas.getContext("webgl", mapCanvasContextAttributes);
-			gl?.getExtension("WEBGL_lose_context")?.loseContext();
-
-			return gl !== null;
-		} catch {
-			return false;
-		}
-	}
-
-	function parseErrorMessageJson(error: unknown): Record<string, unknown> | null {
-		if (!(error instanceof Error)) {
-			return null;
-		}
-
-		try {
-			const parsed = JSON.parse(error.message) as unknown;
-
-			return parsed && typeof parsed === "object"
-				? (parsed as Record<string, unknown>)
-				: null;
-		} catch {
-			return null;
-		}
-	}
-
-	function isWebGLContextCreationError(error: unknown) {
-		const parsedError = parseErrorMessageJson(error);
-
-		if (parsedError?.type === "webglcontextcreationerror") {
-			return true;
-		}
-
-		const messageParts = [
-			error instanceof Error ? error.message : null,
-			typeof parsedError?.message === "string" ? parsedError.message : null,
-			typeof parsedError?.statusMessage === "string"
-				? parsedError.statusMessage
-				: null,
-		].filter((message): message is string => typeof message === "string");
-
-		return messageParts.some((message) => /webgl/i.test(message));
-	}
+	const smoothMapResizer = createSmoothMapResizer(() => {
+		map?.resize();
+		map?.triggerRepaint?.();
+	});
+	const overlayController = createMapViewOverlayController({
+		getMap: () => map,
+		getIsStyleReady: () => isStyleReady,
+		clearProjectionCache: () => routeEditInteractions?.clearProjectionCache(),
+	});
 
 	function setWebGLUnavailableError() {
 		loadError = webglUnavailableMessage;
@@ -238,232 +127,25 @@
 		}
 	}
 
-	function cancelSmoothResize() {
-		resizeLoopUntil = 0;
-
-		if (resizeAnimationFrameId === null || typeof window === "undefined") {
-			return;
-		}
-
-		window.cancelAnimationFrame(resizeAnimationFrameId);
-		resizeAnimationFrameId = null;
-	}
-
-	function resizeMap() {
-		map?.resize();
-	}
-
-	function repaintMap() {
-		map?.triggerRepaint?.();
-	}
-
 	function removeScaleControl() {
-		if (map && scaleControl) {
-			map.removeControl(scaleControl);
-		}
-
-		scaleControl = null;
-		currentScaleControlUnit = null;
+		scaleControlState = removeMapScaleControl(map, scaleControlState);
 	}
 
 	function syncScaleControl() {
-		if (!map || !maplibreglModule) {
-			return;
-		}
-
-		const nextScaleControlUnit = getMapLibreScaleUnit();
-		if (scaleControl && currentScaleControlUnit === nextScaleControlUnit) {
-			return;
-		}
-
-		removeScaleControl();
-		scaleControl = new maplibreglModule.ScaleControl({
-			maxWidth: 96,
-			unit: nextScaleControlUnit,
-		} satisfies ScaleControlOptions);
-		currentScaleControlUnit = nextScaleControlUnit;
-		map.addControl(scaleControl, scaleControlPosition);
-	}
-
-	function syncMapFrame() {
-		resizeMap();
-		repaintMap();
-	}
-
-	function keepMapResized() {
-		if (typeof window === "undefined") {
-			return;
-		}
-
-		syncMapFrame();
-
-		if (resizeLoopUntil <= window.performance.now()) {
-			resizeLoopUntil = 0;
-			resizeAnimationFrameId = null;
-			return;
-		}
-
-		resizeAnimationFrameId = window.requestAnimationFrame(() => {
-			keepMapResized();
+		scaleControlState = syncMapScaleControl({
+			map,
+			maplibreglModule,
+			state: scaleControlState,
+			unit: getMapLibreScaleUnit(),
 		});
 	}
 
 	function scheduleSmoothResize(durationMs = layoutTransitionBufferMs) {
-		if (!map || typeof window === "undefined") {
+		if (!map) {
 			return;
 		}
 
-		const nextDeadline = window.performance.now() + durationMs;
-
-		if (nextDeadline <= resizeLoopUntil) {
-			return;
-		}
-
-		resizeLoopUntil = nextDeadline;
-
-		if (resizeAnimationFrameId !== null) {
-			return;
-		}
-
-		keepMapResized();
-	}
-
-	function removeRouteOverlays() {
-		if (map && isStyleReady) {
-			removeRenderedRouteOverlays(map, renderedRouteOverlayIds);
-		}
-
-		renderedRouteOverlayIds = [];
-		renderedRouteOverlayGeoJsonRefs.clear();
-		routeEditInteractions?.clearProjectionCache();
-	}
-
-	function removeConstraintOverlay() {
-		if (map && isStyleReady) {
-			removeRenderedConstraintOverlay(map);
-		}
-	}
-
-	function removeRouteAvoidanceOverlay() {
-		if (map && isStyleReady) {
-			removeRenderedRouteAvoidanceOverlay(map);
-		}
-	}
-
-	function removeLockedSegmentOverlay() {
-		if (map && isStyleReady) {
-			removeRenderedLockedSegmentOverlay(map);
-		}
-	}
-
-	function removeHoveredRouteOverlay() {
-		if (map && isStyleReady) {
-			removeRenderedHoveredRouteOverlay(map);
-		}
-	}
-
-	function removeCurrentLocationOverlay() {
-		if (map && isStyleReady) {
-			removeRenderedCurrentLocationOverlay(map);
-		}
-	}
-
-	function ensureRouteOverlays() {
-		if (!map || !isStyleReady) {
-			return;
-		}
-
-		renderedRouteOverlayIds = syncRouteOverlays(
-			map,
-			routeOverlays,
-			renderedRouteOverlayIds,
-			renderedRouteOverlayGeoJsonRefs,
-		);
-		routeEditInteractions?.clearProjectionCache();
-	}
-
-	function ensureConstraintOverlay() {
-		if (!map || !isStyleReady) {
-			return;
-		}
-
-		syncConstraintOverlay(map, constraintOverlay);
-	}
-
-	function ensureRouteAvoidanceOverlay() {
-		if (!map || !isStyleReady) {
-			return;
-		}
-
-		syncRouteAvoidanceOverlay(map, avoidanceOverlay);
-	}
-
-	function ensureLockedSegmentOverlay() {
-		if (!map || !isStyleReady) {
-			return;
-		}
-
-		syncLockedSegmentOverlay(map, lockedSegmentOverlay);
-	}
-
-	function ensureHoveredRouteOverlay() {
-		if (!map || !isStyleReady) {
-			return;
-		}
-
-		syncHoveredRouteOverlay(map, hoveredRouteCoordinate);
-	}
-
-	function ensureCurrentLocationOverlay() {
-		if (!map || !isStyleReady) {
-			return;
-		}
-
-		syncCurrentLocationOverlay(map, currentLocation);
-	}
-
-	function getFitPadding() {
-		if (typeof window === "undefined") {
-			return 48;
-		}
-
-		const getBottomPadding = (topPadding: number, desiredPadding: number) => {
-			const minimumVisibleMapHeight = window.innerWidth >= 768 ? 180 : 150;
-			const maximumBottomPadding = Math.max(
-				96,
-				window.innerHeight - topPadding - minimumVisibleMapHeight,
-			);
-
-			return Math.min(desiredPadding, maximumBottomPadding);
-		};
-
-		if (window.innerWidth >= 768) {
-			const top = 84;
-
-			return {
-				top,
-				right: 48,
-				bottom: getBottomPadding(top, 360),
-				left: 420,
-			};
-		}
-
-		const top = 88;
-
-		return {
-			top,
-			right: 24,
-			bottom: getBottomPadding(top, 380),
-			left: 24,
-		};
-	}
-
-	function getFitBoundsOptions() {
-		return {
-			padding: getFitPadding(),
-			duration: 700,
-			maxZoom: 14,
-		};
+		smoothMapResizer.schedule(durationMs);
 	}
 
 	function fitRouteBounds() {
@@ -479,7 +161,7 @@
 			return;
 		}
 
-		map.fitBounds(nextFitBounds as LngLatBoundsLike, getFitBoundsOptions());
+		map.fitBounds(asLngLatBounds(nextFitBounds), getFitBoundsOptions());
 		lastFittedBoundsKey = nextBoundsKey;
 	}
 
@@ -490,95 +172,7 @@
 			return;
 		}
 
-		map.fitBounds(nextRecenterBounds as LngLatBoundsLike, getFitBoundsOptions());
-	}
-
-	function getBoundsKey(bounds: RouteBounds | null) {
-		return resolveRouteBounds(bounds)?.join(",") ?? null;
-	}
-
-	function isFiniteNumber(value: unknown): value is number {
-		return typeof value === "number" && Number.isFinite(value);
-	}
-
-	function isValidLngLat(value: unknown): value is [number, number] {
-		if (!Array.isArray(value) || value.length !== 2) {
-			return false;
-		}
-
-		const [lng, lat] = value;
-
-		return (
-			isFiniteNumber(lng) &&
-			lng >= -180 &&
-			lng <= 180 &&
-			isFiniteNumber(lat) &&
-			lat >= -90 &&
-			lat <= 90
-		);
-	}
-
-	function isValidRouteBounds(value: unknown): value is RouteBounds {
-		if (!Array.isArray(value) || value.length !== 4) {
-			return false;
-		}
-
-		const [minLng, minLat, maxLng, maxLat] = value;
-
-		return (
-			isValidLngLat([minLng, minLat]) &&
-			isValidLngLat([maxLng, maxLat]) &&
-			minLng <= maxLng &&
-			minLat <= maxLat
-		);
-	}
-
-	function resolveRouteBounds(bounds: RouteBounds | null) {
-		return isValidRouteBounds(bounds) ? bounds : null;
-	}
-
-	function isValidMapZoom(value: unknown): value is number {
-		return isFiniteNumber(value) && value >= 0 && value <= 24;
-	}
-
-	function isValidMapBearing(value: unknown): value is number {
-		return isFiniteNumber(value) && value >= -360 && value <= 360;
-	}
-
-	function isValidMapPitch(value: unknown): value is number {
-		return isFiniteNumber(value) && value >= 0 && value <= 85;
-	}
-
-	function resolveMapCenter(cameraCenter: unknown): [number, number] {
-		if (isValidLngLat(cameraCenter)) {
-			return cameraCenter;
-		}
-
-		if (isValidLngLat(initialCenter)) {
-			return initialCenter;
-		}
-
-		return defaultCenter;
-	}
-
-	function resolveMapZoom(cameraZoom: unknown) {
-		if (isValidMapZoom(cameraZoom)) {
-			return cameraZoom;
-		}
-
-		if (isValidMapZoom(initialZoom)) {
-			return initialZoom;
-		}
-
-		return defaultZoom;
-	}
-
-	function resolveMapBearing(cameraBearing: unknown) {
-		return isValidMapBearing(cameraBearing) ? cameraBearing : defaultBearing;
-	}
-
-	function resolveMapPitch(cameraPitch: unknown) {
-		return isValidMapPitch(cameraPitch) ? cameraPitch : defaultPitch;
+		map.fitBounds(asLngLatBounds(nextRecenterBounds), getFitBoundsOptions());
 	}
 
 	function flushCurrentMapCameraPersistence() {
@@ -588,34 +182,11 @@
 			return;
 		}
 
-		const center = map.getCenter();
-		const cameraCenter = [center.lng, center.lat] as [number, number];
-
-		if (!isValidLngLat(cameraCenter)) {
-			return;
-		}
-
-		const zoom = map.getZoom();
-		const bearing = map.getBearing();
-		const pitch = map.getPitch();
+		const currentCamera = getCurrentMapCameraPreference(map);
 
 		if (
-			!isValidMapZoom(zoom) ||
-			!isValidMapBearing(bearing) ||
-			!isValidMapPitch(pitch)
-		) {
-			return;
-		}
-
-		const currentCamera = {
-			center: cameraCenter,
-			zoom,
-			bearing,
-			pitch,
-		};
-
-		if (
-			areMapCameraPreferencesEqual(
+			!currentCamera ||
+			!shouldPersistMapCameraPreference(
 				lastPersistedCameraPreference,
 				currentCamera,
 			)
@@ -624,12 +195,7 @@
 		}
 
 		try {
-			Effect.runSync(
-				Effect.gen(function* () {
-					const storage = yield* createBrowserStorage();
-					yield* writeMapCameraPreference(storage, currentCamera);
-				}),
-			);
+			writeStoredMapCameraPreference(currentCamera);
 			lastPersistedCameraPreference = currentCamera;
 		} catch (error) {
 			console.error("Failed to persist map camera preference", error);
@@ -654,25 +220,12 @@
 	}
 
 	function attachCameraPreferenceListeners() {
-		if (!map || typeof map.on !== "function" || typeof map.off !== "function") {
-			return;
-		}
-
-		const events = ["moveend", "zoomend", "rotateend", "pitchend"] as const;
-
-		for (const event of events) {
-			map.on(event, scheduleCurrentMapCameraPersistence);
-		}
-
+		const detach = attachMapCameraPreferenceListeners(
+			map,
+			scheduleCurrentMapCameraPersistence,
+		);
 		detachCameraPreferenceListeners = () => {
-			if (!map || typeof map.off !== "function") {
-				return;
-			}
-
-			for (const event of events) {
-				map.off(event, scheduleCurrentMapCameraPersistence);
-			}
-
+			detach();
 			detachCameraPreferenceListeners = () => {};
 		};
 	}
@@ -682,7 +235,7 @@
 			return;
 		}
 
-		ensureRouteOverlays();
+		overlayController.ensureRouteOverlays(routeOverlays);
 	});
 
 	$effect(() => {
@@ -690,7 +243,7 @@
 			return;
 		}
 
-		ensureConstraintOverlay();
+		overlayController.ensureConstraintOverlay(constraintOverlay);
 	});
 
 	$effect(() => {
@@ -698,7 +251,7 @@
 			return;
 		}
 
-		ensureRouteAvoidanceOverlay();
+		overlayController.ensureRouteAvoidanceOverlay(avoidanceOverlay);
 	});
 
 	$effect(() => {
@@ -706,7 +259,7 @@
 			return;
 		}
 
-		ensureLockedSegmentOverlay();
+		overlayController.ensureLockedSegmentOverlay(lockedSegmentOverlay);
 	});
 
 	$effect(() => {
@@ -739,7 +292,7 @@
 			return;
 		}
 
-		ensureHoveredRouteOverlay();
+		overlayController.ensureHoveredRouteOverlay(hoveredRouteCoordinate);
 	});
 
 	$effect(() => {
@@ -747,7 +300,7 @@
 			return;
 		}
 
-		ensureCurrentLocationOverlay();
+		overlayController.ensureCurrentLocationOverlay(currentLocation);
 	});
 
 	$effect(() => {
@@ -806,6 +359,7 @@
 		const nextStyleUrl = basemapId ? getBasemapStyleUrl(basemapId) : null;
 
 		if (!nextStyleUrl) {
+			currentStyleUrl = null;
 			loadError = "No map styles configured";
 			isLoaded = false;
 			isStyleReady = false;
@@ -821,6 +375,7 @@
 		}
 
 		currentStyleUrl = nextStyleUrl;
+		overlayController.removeRouteOverlays();
 		loadError = null;
 		isLoaded = false;
 		isStyleReady = false;
@@ -920,13 +475,7 @@
 				currentStyleUrl = initialStyleUrl;
 				let restoredCamera: MapCameraPreference | undefined;
 				try {
-					restoredCamera =
-						Effect.runSync(
-							Effect.gen(function* () {
-								const storage = yield* createBrowserStorage();
-								return yield* readMapCameraPreference(storage);
-							}),
-						) ?? undefined;
+					restoredCamera = readStoredMapCameraPreference();
 				} catch (error) {
 					console.error("Failed to restore map camera preference", error);
 				}
@@ -942,12 +491,12 @@
 
 				const options: MapOptions = {
 					attributionControl: false,
-					center: resolveMapCenter(restoredCamera?.center),
+					center: resolveMapCenter(restoredCamera?.center, initialCenter),
 					container: mapContainer,
 					bearing: resolveMapBearing(restoredCamera?.bearing),
 					pitch: resolveMapPitch(restoredCamera?.pitch),
 					style: initialStyleUrl,
-					zoom: resolveMapZoom(restoredCamera?.zoom),
+					zoom: resolveMapZoom(restoredCamera?.zoom, initialZoom),
 				};
 
 				map = new maplibregl.Map(options);
@@ -1010,14 +559,14 @@
 			detachCameraPreferenceListeners();
 			cancelPendingMapCameraPersistence();
 			detachRouteEditingListeners();
-			cancelSmoothResize();
+			smoothMapResizer.cancel();
 			resizeObserver?.disconnect();
-			removeRouteOverlays();
-			removeConstraintOverlay();
-			removeRouteAvoidanceOverlay();
-			removeLockedSegmentOverlay();
-			removeHoveredRouteOverlay();
-			removeCurrentLocationOverlay();
+			overlayController.removeRouteOverlays();
+			overlayController.removeConstraintOverlay();
+			overlayController.removeRouteAvoidanceOverlay();
+			overlayController.removeLockedSegmentOverlay();
+			overlayController.removeHoveredRouteOverlay();
+			overlayController.removeCurrentLocationOverlay();
 			removeScaleControl();
 			map?.remove();
 			map = null;
