@@ -1226,7 +1226,8 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and a round-course target are required.",
+			error:
+				"Corridor constraints are available for point-to-point and out-and-back routes.",
 			fieldErrors: {
 				spatialConstraint:
 					"Corridor constraints are available for point-to-point and out-and-back routes.",
@@ -1501,7 +1502,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and turnaround are required.",
+			error: "Enter a turnaround point.",
 			fieldErrors: {
 				destinationQuery: "Enter a turnaround point.",
 			},
@@ -1837,7 +1838,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and destination are required.",
+			error: "Enter a start point.",
 			fieldErrors: {
 				startQuery: "Enter a start point.",
 				waypointQueries: ["Enter a waypoint or remove this stop.", ""],
@@ -1870,7 +1871,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and destination are required.",
+			error: "Enter a start point.",
 			fieldErrors: {
 				startQuery: "Enter a start point.",
 				waypointQueries: ["Enter a waypoint or remove this stop.", ""],
@@ -1951,7 +1952,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and destination are required.",
+			error: "Choose an area or corridor constraint.",
 			fieldErrors: {
 				spatialConstraint: "Choose an area or corridor constraint.",
 			},
@@ -2077,7 +2078,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and a round-course target are required.",
+			error: "Enter a target distance.",
 			fieldErrors: {
 				roundCourseTarget: "Enter a target distance.",
 			},
@@ -2106,7 +2107,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and a round-course target are required.",
+			error: "Enter a target time.",
 			fieldErrors: {
 				roundCourseTarget: "Enter a target time.",
 			},
@@ -2135,7 +2136,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(400);
 		expect(fetchMock).not.toHaveBeenCalled();
 		await expect(response.json()).resolves.toEqual({
-			error: "Start and a round-course target are required.",
+			error: "Enter a target climb.",
 			fieldErrors: {
 				roundCourseTarget: "Enter a target climb.",
 			},
