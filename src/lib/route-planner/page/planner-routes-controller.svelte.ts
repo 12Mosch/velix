@@ -87,6 +87,8 @@ export function createPlannerRoutesController(
 	let lockedSegmentIndexes = $state<number[]>([]);
 	let avoidedRoads = $state<ResolvedRouteAvoidance[]>([]);
 	let lastGeneratedRouteCount = $state<number | null>(null);
+	let routeRequestRevision = 0;
+	let activeRouteRequestRevision: number | null = null;
 	let fitInitialSavedRouteBounds = $state(false);
 	let undoStack = $state<RouteEditSnapshot[]>([]);
 	let redoStack = $state<RouteEditSnapshot[]>([]);
@@ -173,6 +175,33 @@ export function createPlannerRoutesController(
 	function clearManualRouteState() {
 		lockedSegmentIndexes = [];
 		avoidedRoads = [];
+	}
+
+	function invalidateRouteRequests() {
+		routeRequestRevision += 1;
+	}
+
+	function startRouteRequest() {
+		invalidateRouteRequests();
+		activeRouteRequestRevision = routeRequestRevision;
+		isRouting = true;
+		return routeRequestRevision;
+	}
+
+	function isCurrentRouteRequest(revision: number) {
+		return (
+			routeRequestRevision === revision &&
+			activeRouteRequestRevision === revision
+		);
+	}
+
+	function finishRouteRequest(revision: number) {
+		if (activeRouteRequestRevision !== revision) {
+			return;
+		}
+
+		activeRouteRequestRevision = null;
+		isRouting = false;
 	}
 
 	function syncStopsFromRoute(route: PlannedRoute) {
@@ -289,6 +318,10 @@ export function createPlannerRoutesController(
 	) {
 		const requiresRecalculation = options.requiresRecalculation ?? true;
 		const staleRouteShareKey = dependencies.getActiveRouteShareKey();
+
+		if (isRouting || (requiresRecalculation && getActiveRoute())) {
+			invalidateRouteRequests();
+		}
 
 		if (routeRequestError) {
 			routeRequestError = null;
@@ -541,6 +574,7 @@ export function createPlannerRoutesController(
 		routeRequest: RouteRequestPayload & {
 			manualEditing?: ManualRouteEditingState;
 		},
+		requestRevision?: number,
 	) {
 		const clientFetch = dependencies.getFetch();
 		if (!clientFetch) {
@@ -568,8 +602,22 @@ export function createPlannerRoutesController(
 				try: () => response.json() as Promise<RouteApiError>,
 				catch: (cause) => new PlannerRouteRequestError({ cause }),
 			});
+			if (
+				requestRevision !== undefined &&
+				!isCurrentRouteRequest(requestRevision)
+			) {
+				return null;
+			}
+
 			dependencies.setFieldErrors(errorPayload.fieldErrors ?? {});
 			routeRequestError = errorPayload.error;
+			return null;
+		}
+
+		if (
+			requestRevision !== undefined &&
+			!isCurrentRouteRequest(requestRevision)
+		) {
 			return null;
 		}
 
@@ -636,7 +684,7 @@ export function createPlannerRoutesController(
 			return false;
 		}
 
-		isRouting = true;
+		const requestRevision = startRouteRequest();
 		dependencies.setPendingSavedRouteId(null);
 		dependencies.markUnsaved();
 		routeNeedsRecalculation = true;
@@ -655,9 +703,14 @@ export function createPlannerRoutesController(
 					),
 					yield* getPlannerAvoidanceRequest(avoidedRoads),
 				),
+				requestRevision,
 			);
 
 			if (!payload) {
+				return false;
+			}
+
+			if (!isCurrentRouteRequest(requestRevision)) {
 				return false;
 			}
 
@@ -682,7 +735,7 @@ export function createPlannerRoutesController(
 			}),
 			Effect.ensuring(
 				Effect.sync(() => {
-					isRouting = false;
+					finishRouteRequest(requestRevision);
 				}),
 			),
 		);
@@ -742,7 +795,7 @@ export function createPlannerRoutesController(
 				return;
 			}
 
-			isRouting = true;
+			const requestRevision = startRouteRequest();
 
 			return yield* Effect.gen(function* () {
 				const payload = yield* requestRouteCalculationEffect(
@@ -754,9 +807,14 @@ export function createPlannerRoutesController(
 						),
 						yield* getPlannerAvoidanceRequest(avoidedRoads),
 					),
+					requestRevision,
 				);
 
 				if (!payload) {
+					return;
+				}
+
+				if (!isCurrentRouteRequest(requestRevision)) {
 					return;
 				}
 
@@ -791,7 +849,7 @@ export function createPlannerRoutesController(
 				}),
 				Effect.ensuring(
 					Effect.sync(() => {
-						isRouting = false;
+						finishRouteRequest(requestRevision);
 					}),
 				),
 			);
