@@ -64,6 +64,10 @@ export class SavedRoutesUseCases {
 	private pendingRemoteSaves = new Map<string, SavedRoute>();
 	private remoteSaveFlushTimer: ReturnType<typeof setTimeout> | null = null;
 	private remoteSessionVersion = 0;
+	private readonly remoteRouteOperations = new Map<
+		string,
+		{ kind: "save" | "delete"; revision: number }
+	>();
 
 	constructor(private readonly repository: SavedRoutesRepository) {}
 
@@ -736,6 +740,7 @@ export class SavedRoutesUseCases {
 				...state.pendingRemoteRouteIds,
 				savedRoute.id,
 			]);
+			this.advanceRemoteRouteOperation(savedRoute.id, "save");
 			this.pendingRemoteSaves.set(savedRoute.id, savedRoute);
 			this.scheduleRemoteSaveFlush(state, userId, sessionVersion, flushMode);
 		});
@@ -783,9 +788,14 @@ export class SavedRoutesUseCases {
 			const pendingSaves = [...this.pendingRemoteSaves.values()];
 
 			for (const savedRoute of pendingSaves) {
-				if (this.pendingRemoteSaves.get(savedRoute.id) !== savedRoute) {
+				const saveOperation = this.remoteRouteOperations.get(savedRoute.id);
+				if (
+					this.pendingRemoteSaves.get(savedRoute.id) !== savedRoute ||
+					saveOperation?.kind !== "save"
+				) {
 					continue;
 				}
+				const saveRevision = saveOperation.revision;
 
 				yield* fromRemoteAdapter(
 					remoteRepository.save(serializeSavedRouteForRemote(savedRoute)),
@@ -794,7 +804,12 @@ export class SavedRoutesUseCases {
 						toSavedRoutesOperationError(cause, "Could not sync saved route."),
 					),
 					Effect.flatMap(() =>
-						this.isCurrentRemoteSession(state, userId, sessionVersion)
+						this.isCurrentRemoteSession(state, userId, sessionVersion) &&
+						this.isCurrentRemoteRouteOperation(
+							savedRoute.id,
+							"save",
+							saveRevision,
+						)
 							? Effect.sync(() => {
 									if (
 										this.pendingRemoteSaves.get(savedRoute.id) !== savedRoute
@@ -823,7 +838,12 @@ export class SavedRoutesUseCases {
 							: Effect.void,
 					),
 					Effect.catch((error) =>
-						this.isCurrentRemoteSession(state, userId, sessionVersion)
+						this.isCurrentRemoteSession(state, userId, sessionVersion) &&
+						this.isCurrentRemoteRouteOperation(
+							savedRoute.id,
+							"save",
+							saveRevision,
+						)
 							? Effect.sync(
 									() =>
 										this.pendingRemoteSaves.get(savedRoute.id) === savedRoute,
@@ -868,6 +888,10 @@ export class SavedRoutesUseCases {
 			const remoteRepository = this.remoteRepository;
 			const userId = state.authUserId;
 			const sessionVersion = this.remoteSessionVersion;
+			const deleteRevision = this.advanceRemoteRouteOperation(
+				routeId,
+				"delete",
+			);
 			this.pendingRemoteSaves.delete(routeId);
 			yield* this.trackPendingRemoteRouteEffect(state, routeId);
 			yield* this.forkBackgroundEffect(() =>
@@ -879,7 +903,12 @@ export class SavedRoutesUseCases {
 						),
 					),
 					Effect.flatMap(() =>
-						this.isCurrentRemoteSession(state, userId, sessionVersion)
+						this.isCurrentRemoteSession(state, userId, sessionVersion) &&
+						this.isCurrentRemoteRouteOperation(
+							routeId,
+							"delete",
+							deleteRevision,
+						)
 							? this.clearPendingRemoteRouteEffect(state, routeId).pipe(
 									Effect.andThen(() =>
 										Effect.sync(() => {
@@ -890,7 +919,12 @@ export class SavedRoutesUseCases {
 							: Effect.void,
 					),
 					Effect.catch((error) =>
-						this.isCurrentRemoteSession(state, userId, sessionVersion)
+						this.isCurrentRemoteSession(state, userId, sessionVersion) &&
+						this.isCurrentRemoteRouteOperation(
+							routeId,
+							"delete",
+							deleteRevision,
+						)
 							? this.setRemoteFailureEffect(
 									state,
 									routeId,
@@ -915,6 +949,7 @@ export class SavedRoutesUseCases {
 		this.remoteSessionVersion += 1;
 		this.inFlightMerges.clear();
 		this.pendingRemoteSaves.clear();
+		this.remoteRouteOperations.clear();
 		if (this.remoteSaveFlushTimer) {
 			clearTimeout(this.remoteSaveFlushTimer);
 			this.remoteSaveFlushTimer = null;
@@ -931,5 +966,24 @@ export class SavedRoutesUseCases {
 			state.authStatus === "signedIn" &&
 			state.authUserId === userId
 		);
+	}
+
+	private advanceRemoteRouteOperation(
+		routeId: string,
+		kind: "save" | "delete",
+	) {
+		const revision =
+			(this.remoteRouteOperations.get(routeId)?.revision ?? 0) + 1;
+		this.remoteRouteOperations.set(routeId, { kind, revision });
+		return revision;
+	}
+
+	private isCurrentRemoteRouteOperation(
+		routeId: string,
+		kind: "save" | "delete",
+		revision: number,
+	) {
+		const operation = this.remoteRouteOperations.get(routeId);
+		return operation?.kind === kind && operation.revision === revision;
 	}
 }
