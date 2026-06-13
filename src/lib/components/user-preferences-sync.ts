@@ -96,10 +96,25 @@ export const syncUserPreferencesSnapshot = Effect.fn(
 	userId: string;
 }): Effect.fn.Return<UserPreferencesPatch | null, never> {
 	return yield* Effect.gen(function* () {
+		const isStaleRequest = () => getCurrentRequestId() !== requestId;
+
 		if (remotePreferences === null) {
+			if (isStaleRequest()) {
+				return null;
+			}
+
 			const localPreferences = yield* state.readLocalPreferences();
+
+			if (isStaleRequest()) {
+				return null;
+			}
+
 			yield* adapter.save(localPreferences);
 			return localPreferences;
+		}
+
+		if (isStaleRequest()) {
+			return null;
 		}
 
 		const appliedPreferences = yield* state.applyRemotePreferences(
@@ -107,7 +122,7 @@ export const syncUserPreferencesSnapshot = Effect.fn(
 			remotePreferences,
 		);
 
-		if (getCurrentRequestId() !== requestId) {
+		if (isStaleRequest()) {
 			return null;
 		}
 

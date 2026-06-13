@@ -113,6 +113,60 @@ describe("user preference account sync", () => {
 		expect(state.applyRemotePreferences).not.toHaveBeenCalled();
 	});
 
+	it("skips remote apply when the account preference request is already stale", async () => {
+		const state = createState({
+			applyRemotePreferences: vi.fn(() => Effect.succeed({})),
+		});
+		const adapter = { save: vi.fn(() => Effect.void) };
+
+		await expect(
+			Effect.runPromise(
+				syncUserPreferencesSnapshot({
+					adapter,
+					getCurrentRequestId: () => 2,
+					remotePreferences: {
+						themeMode: "dark",
+						mapStyle: "maptiler-outdoor",
+						distanceUnit: "mi",
+						createdAtMs: 1000,
+						updatedAtMs: 1000,
+					},
+					requestId: 1,
+					state,
+					userId: "user_1",
+				}),
+			),
+		).resolves.toBeNull();
+
+		expect(state.applyRemotePreferences).not.toHaveBeenCalled();
+		expect(adapter.save).not.toHaveBeenCalled();
+		expect(state.syncError).toBeNull();
+	});
+
+	it("skips local preference save when the empty remote snapshot is already stale", async () => {
+		const state = createState({
+			readLocalPreferences: vi.fn(() => Effect.succeed({})),
+		});
+		const adapter = { save: vi.fn(() => Effect.void) };
+
+		await expect(
+			Effect.runPromise(
+				syncUserPreferencesSnapshot({
+					adapter,
+					getCurrentRequestId: () => 2,
+					remotePreferences: null,
+					requestId: 1,
+					state,
+					userId: "user_1",
+				}),
+			),
+		).resolves.toBeNull();
+
+		expect(state.readLocalPreferences).not.toHaveBeenCalled();
+		expect(adapter.save).not.toHaveBeenCalled();
+		expect(state.syncError).toBeNull();
+	});
+
 	it("persists later user changes as a partial Convex mutation patch", async () => {
 		const client = createClient();
 		const adapter = createUserPreferencesRemoteAdapter(client);
@@ -176,5 +230,7 @@ describe("user preference account sync", () => {
 				}),
 			),
 		).resolves.toBeNull();
+
+		expect(state.syncError).toBeNull();
 	});
 });
