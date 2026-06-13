@@ -48,6 +48,7 @@ type SavedRouteEditMetadata = {
 	activeSavedRouteId: string | null;
 	plannerDraftRouteId: string | null;
 	pendingSavedRouteId: string | null;
+	pendingSavedRouteRestoreRevision: number | null;
 	isActiveRouteSaved: boolean;
 };
 

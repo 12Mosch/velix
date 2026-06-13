@@ -4145,6 +4145,54 @@ describe("+page.svelte", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("keeps user edits when a pending saved route arrives asynchronously", async () => {
+		window.history.replaceState({}, "", "/?savedRoute=remote-route");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await expect
+			.element(
+				page.getByText(
+					"Generate a route to see live distance, climbing, and elevation.",
+				),
+			)
+			.toBeInTheDocument();
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Nowhere");
+
+		await savedRoutesState.setAuthUser("user_1");
+		await savedRoutesState.applyRemoteRoutes("user_1", [
+			{
+				id: "remote-route",
+				createdAt: "2026-04-19T09:30:00.000Z",
+				route: successfulRoute,
+			},
+		]);
+
+		await expect
+			.poll(
+				() =>
+					(
+						page
+							.getByRole("textbox", { name: "Start" })
+							.element() as HTMLInputElement
+					).value,
+			)
+			.toBe("Nowhere");
+		await expect
+			.poll(() => document.body.textContent?.includes("61.2") ?? false)
+			.toBe(false);
+		await expect
+			.poll(
+				() =>
+					document.body.textContent?.includes("Marienplatz, Munich") ?? false,
+			)
+			.toBe(false);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("shows inline routing errors without clearing the existing map", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			const url = String(input);

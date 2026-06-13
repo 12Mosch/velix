@@ -390,6 +390,7 @@ describe("route planner page controller contract", () => {
 				activeSavedRouteId: null,
 				plannerDraftRouteId: null,
 				pendingSavedRouteId: null,
+				pendingSavedRouteRestoreRevision: null,
 				isActiveRouteSaved: false,
 			}),
 			restoreSavedRouteEditMetadata: vi.fn(),
