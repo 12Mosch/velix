@@ -26,6 +26,11 @@ type PlannerSaveControllerDependencies = {
 	clearRouteEditHistory: () => void;
 };
 
+type PendingSavedRouteRestore = {
+	id: string;
+	routeSaveRevision: number;
+};
+
 const autosaveDebounceMs = 750;
 
 export function createPlannerSaveController(
@@ -35,7 +40,7 @@ export function createPlannerSaveController(
 	let activeSavedRouteId = $state<string | null>(null);
 	let plannerDraftRouteId = $state<string | null>(null);
 	let isActiveRouteSaved = $state(false);
-	let pendingSavedRouteId = $state<string | null>(null);
+	let pendingSavedRouteRestore = $state<PendingSavedRouteRestore | null>(null);
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let routeSaveRevision = 0;
 	let lastAutosavedRouteId: string | null = null;
@@ -46,7 +51,7 @@ export function createPlannerSaveController(
 	});
 
 	$effect(() => {
-		if (!pendingSavedRouteId) {
+		if (!pendingSavedRouteRestore) {
 			return;
 		}
 
@@ -79,14 +84,42 @@ export function createPlannerSaveController(
 	}
 
 	function bumpRouteSaveRevision() {
+		pendingSavedRouteRestore = null;
 		routeSaveRevision += 1;
+	}
+
+	function getPendingSavedRouteId() {
+		return pendingSavedRouteRestore?.id ?? null;
+	}
+
+	function setPendingSavedRouteRestore(id: string | null) {
+		pendingSavedRouteRestore = id === null ? null : { id, routeSaveRevision };
+	}
+
+	function isPendingSavedRouteRestoreCurrent(token: PendingSavedRouteRestore) {
+		return (
+			pendingSavedRouteRestore?.id === token.id &&
+			pendingSavedRouteRestore.routeSaveRevision === token.routeSaveRevision &&
+			routeSaveRevision === token.routeSaveRevision
+		);
+	}
+
+	function clearPendingSavedRouteRestore(token: PendingSavedRouteRestore) {
+		if (
+			pendingSavedRouteRestore?.id === token.id &&
+			pendingSavedRouteRestore.routeSaveRevision === token.routeSaveRevision
+		) {
+			pendingSavedRouteRestore = null;
+		}
 	}
 
 	function captureSavedRouteEditMetadata() {
 		return {
 			activeSavedRouteId,
 			plannerDraftRouteId,
-			pendingSavedRouteId,
+			pendingSavedRouteId: getPendingSavedRouteId(),
+			pendingSavedRouteRestoreRevision:
+				pendingSavedRouteRestore?.routeSaveRevision ?? null,
 			isActiveRouteSaved,
 		};
 	}
@@ -95,18 +128,25 @@ export function createPlannerSaveController(
 		activeSavedRouteId: string | null;
 		plannerDraftRouteId: string | null;
 		pendingSavedRouteId: string | null;
+		pendingSavedRouteRestoreRevision: number | null;
 		isActiveRouteSaved: boolean;
 	}) {
 		activeSavedRouteId = metadata.activeSavedRouteId;
 		plannerDraftRouteId = metadata.plannerDraftRouteId;
-		pendingSavedRouteId = metadata.pendingSavedRouteId;
+		pendingSavedRouteRestore =
+			metadata.pendingSavedRouteId === null ||
+			metadata.pendingSavedRouteRestoreRevision === null
+				? null
+				: {
+						id: metadata.pendingSavedRouteId,
+						routeSaveRevision: metadata.pendingSavedRouteRestoreRevision,
+					};
 		isActiveRouteSaved = metadata.isActiveRouteSaved;
 	}
 
 	function markUnsaved() {
 		activeSavedRouteId = null;
 		isActiveRouteSaved = false;
-		pendingSavedRouteId = null;
 		bumpRouteSaveRevision();
 	}
 
@@ -114,14 +154,13 @@ export function createPlannerSaveController(
 		activeSavedRouteId = null;
 		plannerDraftRouteId = null;
 		isActiveRouteSaved = false;
-		pendingSavedRouteId = null;
 		lastAutosavedRouteId = null;
 		lastAutosavedRevision = null;
 		bumpRouteSaveRevision();
 	}
 
 	function setPendingSavedRouteId(id: string | null) {
-		pendingSavedRouteId = id;
+		setPendingSavedRouteRestore(id);
 	}
 
 	function cancelAutosaveTimer() {
@@ -242,7 +281,7 @@ export function createPlannerSaveController(
 		);
 
 		if (!savedRoute) {
-			pendingSavedRouteId = savedRouteId;
+			setPendingSavedRouteRestore(savedRouteId);
 			return;
 		}
 
@@ -256,22 +295,34 @@ export function createPlannerSaveController(
 	const restorePendingSavedRouteEffect = Effect.fn(
 		"restorePendingSavedRouteEffect",
 	)(function* () {
-		if (!pendingSavedRouteId) {
+		const pendingRestore = pendingSavedRouteRestore;
+
+		if (!pendingRestore) {
 			return;
 		}
 
-		const savedRoute = yield* getSavedRouteByIdEffect(pendingSavedRouteId).pipe(
+		if (!isPendingSavedRouteRestoreCurrent(pendingRestore)) {
+			clearPendingSavedRouteRestore(pendingRestore);
+			return;
+		}
+
+		const savedRoute = yield* getSavedRouteByIdEffect(pendingRestore.id).pipe(
 			Effect.mapError(
 				(cause) => new PlannerSavedRouteError({ operation: "read", cause }),
 			),
 		);
+
+		if (!isPendingSavedRouteRestoreCurrent(pendingRestore)) {
+			clearPendingSavedRouteRestore(pendingRestore);
+			return;
+		}
 
 		if (!savedRoute) {
 			return;
 		}
 
 		restoreSavedRoute(savedRoute);
-		pendingSavedRouteId = null;
+		clearPendingSavedRouteRestore(pendingRestore);
 	});
 
 	function restorePendingSavedRoute() {
@@ -353,7 +404,7 @@ export function createPlannerSaveController(
 			return isActiveRouteSaved;
 		},
 		get pendingSavedRouteId() {
-			return pendingSavedRouteId;
+			return getPendingSavedRouteId();
 		},
 		get routeSaveRevision() {
 			return routeSaveRevision;
