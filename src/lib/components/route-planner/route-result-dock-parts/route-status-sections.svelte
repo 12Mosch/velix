@@ -1,3 +1,4 @@
+<!-- biome-ignore-all lint/a11y/useValidAriaValues: Dynamic Svelte ARIA values are computed at runtime. -->
 <script lang="ts">
 	import { Effect } from "effect";
 	import { X } from "@lucide/svelte";
@@ -130,7 +131,7 @@ import {
 							? "border-primary/40 bg-background shadow-sm"
 							: "border-border/50 bg-background/70 hover:border-border hover:bg-background"
 					}`}
-					aria-pressed={index === dock.selectedRouteIndex}
+					aria-pressed={index === dock.selectedRouteIndex ? "true" : "false"}
 					onclick={() => routes.selectRouteAlternative(index)}
 				>
 					<div class="mb-2 flex items-center justify-between gap-2">

@@ -1,3 +1,4 @@
+<!-- biome-ignore-all lint/a11y/useValidAriaValues: Dynamic Svelte ARIA values are computed at runtime. -->
 <script lang="ts">
 	import ActionTooltip from "$lib/components/route-planner/action-tooltip.svelte";
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -111,7 +112,7 @@
 										? "border-primary/20 bg-background shadow-sm"
 										: "text-muted-foreground"
 								}`}
-								aria-pressed={builderView.plannerMode === option.mode}
+								aria-pressed={builderView.plannerMode === option.mode ? "true" : "false"}
 								onclick={() => form.setPlannerMode(option.mode)}
 							>
 								<span class="text-xs font-semibold uppercase tracking-wide">
@@ -171,7 +172,7 @@
 									value={builderView.workoutPlanInput}
 									placeholder={`10m Z2 HR\n4x\n  5m 90% FTP 90rpm\n  2m Z2\n10m Z2 HR`}
 									class="min-h-16 w-full resize-y rounded-md border-none bg-background px-3 py-2 text-sm leading-5 shadow-sm outline-none placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-primary/50 md:min-h-24"
-									aria-invalid={builderView.workoutPlanError ? "true" : undefined}
+									aria-invalid={builderView.workoutPlanError ? "true" : "false"}
 									oninput={(event) =>
 										form.updateWorkoutPlanInput(
 											(event.currentTarget as HTMLTextAreaElement).value,
@@ -230,7 +231,7 @@
 												value={builderView.roundCourseDistanceInput}
 												placeholder="e.g. 60"
 												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : undefined}
+												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : "false"}
 												oninput={(event) =>
 													form.updateRoundCourseDistanceInput(
 														(event.currentTarget as HTMLInputElement).value,
@@ -422,7 +423,7 @@
 						type="button"
 						variant="ghost"
 						class="justify-between rounded-lg border border-border/60 px-3 font-semibold"
-						aria-expanded={builderView.advancedOpen}
+						aria-expanded={builderView.advancedOpen ? "true" : "false"}
 						aria-controls="route-builder-advanced"
 						onclick={() => (form.advancedOpen = !builderView.advancedOpen)}
 					>
@@ -456,7 +457,7 @@
 														? "border-primary/20 bg-background shadow-sm"
 														: "text-muted-foreground"
 												}`}
-												aria-pressed={builderView.roundCourseTargetKind === option.kind}
+												aria-pressed={builderView.roundCourseTargetKind === option.kind ? "true" : "false"}
 												onclick={() =>
 													form.updateRoundCourseTargetKind(option.kind as RoundCourseTargetKind)}
 											>
@@ -480,7 +481,7 @@
 												value={builderView.roundCourseDurationInput}
 												placeholder="e.g. 3:30"
 												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : undefined}
+												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : "false"}
 												oninput={(event) =>
 													form.updateRoundCourseDuration(
 														(event.currentTarget as HTMLInputElement).value,
@@ -511,7 +512,7 @@
 												value={builderView.roundCourseAscendMeters}
 												placeholder="e.g. 800"
 												class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : undefined}
+												aria-invalid={builderView.fieldErrors.roundCourseTarget ? "true" : "false"}
 												oninput={(event) =>
 													form.updateRoundCourseAscend(
 														(event.currentTarget as HTMLInputElement).value,
@@ -557,7 +558,7 @@
 												? "border-primary/20 bg-background shadow-sm"
 												: "text-muted-foreground"
 										}`}
-										aria-pressed={builderView.spatialConstraintKind === option.kind}
+										aria-pressed={builderView.spatialConstraintKind === option.kind ? "true" : "false"}
 										disabled={builderView.isRoundCourseMode && option.kind === "corridor"}
 										onclick={() =>
 											form.updateSpatialConstraintKind(option.kind as SpatialConstraintKind)}
@@ -582,7 +583,7 @@
 												? "border-primary/20 bg-background shadow-sm"
 												: "text-muted-foreground"
 										}`}
-										aria-pressed={builderView.spatialConstraintEnforcement === option.enforcement}
+										aria-pressed={builderView.spatialConstraintEnforcement === option.enforcement ? "true" : "false"}
 										onclick={() =>
 											form.updateSpatialConstraintEnforcement(
 												option.enforcement as SpatialConstraintEnforcement,
@@ -628,7 +629,7 @@
 											inputmode="decimal"
 											value={builderView.areaRadiusInput}
 										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-										aria-invalid={builderView.fieldErrors.spatialConstraint ? "true" : undefined}
+										aria-invalid={builderView.fieldErrors.spatialConstraint ? "true" : "false"}
 										oninput={(event) =>
 											form.updateAreaRadiusInput(
 												(event.currentTarget as HTMLInputElement).value,
@@ -659,7 +660,7 @@
 											inputmode="decimal"
 											value={builderView.corridorWidthInput}
 										class="border-none bg-background pl-3 pr-14 focus-visible:ring-1 focus-visible:ring-primary/50"
-										aria-invalid={builderView.fieldErrors.spatialConstraint ? "true" : undefined}
+										aria-invalid={builderView.fieldErrors.spatialConstraint ? "true" : "false"}
 										oninput={(event) =>
 											form.updateCorridorWidthInput(
 												(event.currentTarget as HTMLInputElement).value,

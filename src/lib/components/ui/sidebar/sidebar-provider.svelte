@@ -53,6 +53,7 @@
 	});
 </script>
 
+<!-- biome-ignore lint/a11y/noStaticElementInteractions: Global keyboard shortcut listener. -->
 <svelte:window onkeydown={sidebar.handleShortcutKeydown} />
 
 <Tooltip.Provider delayDuration={0}>

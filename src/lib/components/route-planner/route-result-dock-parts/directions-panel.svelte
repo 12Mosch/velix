@@ -1,3 +1,4 @@
+<!-- biome-ignore-all lint/a11y/useValidAriaValues: Dynamic Svelte ARIA values are computed at runtime. -->
 <script lang="ts">
 	import {
 		ArrowLeft,
@@ -50,7 +51,7 @@
 							? "border-primary/35 bg-primary/10 text-foreground"
 							: "border-transparent bg-background/60 text-foreground hover:border-border/70 hover:bg-background"
 					}`}
-					aria-pressed={dock.selectedCueIndex === index}
+					aria-pressed={dock.selectedCueIndex === index ? "true" : "false"}
 					onclick={() => analysis.selectCue(index)}
 				>
 					<span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">

@@ -8,6 +8,7 @@
 		children,
 		child,
 		class: className,
+		href,
 		size = "md",
 		isActive = false,
 		...restProps
@@ -28,12 +29,28 @@
 		"data-active": isActive,
 		...restProps,
 	});
+
+	const childProps = $derived({
+		...mergedProps,
+		href,
+	});
 </script>
 
 {#if child}
-	{@render child({ props: mergedProps })}
-{:else}
-	<a bind:this={ref} {...mergedProps}>
+	{@render child({ props: childProps })}
+{:else if href}
+	<a bind:this={ref} href={href} {...mergedProps}>
 		{@render children?.()}
 	</a>
+{:else}
+	<span
+		bind:this={ref}
+		class={mergedProps.class}
+		data-slot="sidebar-menu-sub-button"
+		data-sidebar="menu-sub-button"
+		data-size={size}
+		data-active={isActive}
+	>
+		{@render children?.()}
+	</span>
 {/if}

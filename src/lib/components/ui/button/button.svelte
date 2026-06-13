@@ -1,3 +1,4 @@
+<!-- biome-ignore-all lint/a11y/useValidAriaValues: Dynamic Svelte ARIA values are computed at runtime. -->
 <script lang="ts">
 	import { cn } from "$lib/utils.js";
 	import { buttonVariants, type ButtonProps } from "./variants.js";
@@ -21,7 +22,7 @@
 		data-slot="button"
 		class={cn(buttonVariants({ variant, size }), className)}
 		href={disabled ? undefined : href}
-		aria-disabled={disabled}
+		aria-disabled={disabled ? "true" : "false"}
 		tabindex={disabled ? -1 : undefined}
 		{...restProps}
 	>

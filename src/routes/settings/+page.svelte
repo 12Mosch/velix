@@ -118,6 +118,8 @@
 
 			<div class="flex flex-col gap-2.5" role="radiogroup" aria-label="Basemap style">
 				{#each basemapOptions as basemap}
+					<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
+					<!-- biome-ignore lint/a11y/useSemanticElements: Button is used as a radio-style selectable card. -->
 					<Button
 						variant="outline"
 						class={`h-auto w-full justify-start rounded-lg px-0 py-0 text-left transition-colors ${
@@ -126,7 +128,7 @@
 								: "hover:bg-secondary/60"
 						}`}
 						role="radio"
-						aria-checked={isSelected(basemap.id)}
+						aria-checked={isSelected(basemap.id) ? "true" : "false"}
 						aria-label={basemap.label}
 						disabled={!basemap.available}
 						onclick={() =>
@@ -187,6 +189,7 @@
 							</div>
 						</div>
 					</Button>
+					<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 				{/each}
 			</div>
 		</div>
@@ -207,6 +210,8 @@
 
 			<div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Distance units">
 				{#each distanceUnitOptions as option}
+					<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
+					<!-- biome-ignore lint/a11y/useSemanticElements: Button is used as a radio-style segmented option. -->
 					<Button
 						variant="outline"
 						class={`h-auto w-full items-start justify-start whitespace-normal rounded-lg px-3.5 py-3 text-left transition-colors ${
@@ -215,7 +220,7 @@
 								: "hover:bg-secondary/60"
 						}`}
 						role="radio"
-						aria-checked={isSelectedDistanceUnit(option.unit)}
+						aria-checked={isSelectedDistanceUnit(option.unit) ? "true" : "false"}
 						aria-label={option.label}
 						onclick={() =>
 							runPreferenceEffect(
@@ -243,6 +248,7 @@
 							</p>
 						</div>
 					</Button>
+					<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 				{/each}
 			</div>
 		</div>

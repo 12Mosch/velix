@@ -724,6 +724,7 @@
 
 			<div class="rounded-xl border border-border bg-background p-3 shadow-sm">
 				<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+					<!-- biome-ignore lint/a11y/noLabelWithoutControl: Input renders a native input. -->
 					<label class="grid gap-1.5 text-xs font-medium text-muted-foreground">
 						<span>Min distance ({unitPreference.selectedDistanceUnit})</span>
 						<Input
@@ -735,6 +736,7 @@
 							bind:value={minDistanceInput}
 						/>
 					</label>
+					<!-- biome-ignore lint/a11y/noLabelWithoutControl: Input renders a native input. -->
 					<label class="grid gap-1.5 text-xs font-medium text-muted-foreground">
 						<span>Max distance ({unitPreference.selectedDistanceUnit})</span>
 						<Input
@@ -746,6 +748,7 @@
 							bind:value={maxDistanceInput}
 						/>
 					</label>
+					<!-- biome-ignore lint/a11y/noLabelWithoutControl: Input renders a native input. -->
 					<label class="grid gap-1.5 text-xs font-medium text-muted-foreground">
 						<span>Min elevation (m)</span>
 						<Input
@@ -757,6 +760,7 @@
 							bind:value={minElevationInput}
 						/>
 					</label>
+					<!-- biome-ignore lint/a11y/noLabelWithoutControl: Input renders a native input. -->
 					<label class="grid gap-1.5 text-xs font-medium text-muted-foreground">
 						<span>Max elevation (m)</span>
 						<Input
@@ -913,16 +917,18 @@
 									<Copy class="size-3.5" />
 									Duplicate
 								</Button>
+								<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 								<Button
 									variant="outline"
 									class="gap-1 font-semibold"
-									aria-expanded={expandedHistoryRouteId === savedRoute.id}
+									aria-expanded={expandedHistoryRouteId === savedRoute.id ? "true" : "false"}
 									aria-controls={getHistoryPanelId(savedRoute.id)}
 									onclick={() => handleToggleChangeHistory(savedRoute)}
 								>
 									<History class="size-3.5" />
 									Change history
 								</Button>
+								<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 								<Button
 									variant="outline"
 									class="gap-1 font-semibold"
@@ -961,6 +967,7 @@
 							</div>
 						</div>
 						{#if expandedHistoryRouteId === savedRoute.id}
+							<!-- biome-ignore lint/a11y/useSemanticElements: This collapsible panel is conditionally rendered inside a route card. -->
 							<div
 								id={getHistoryPanelId(savedRoute.id)}
 								class="mt-4 border-t border-border pt-4"
