@@ -8,6 +8,10 @@ import { suggestLocationsEffect } from "$lib/server/graphhopper";
 import { mapGraphHopperGeocodeError } from "$lib/server/graphhopper-route-errors";
 import { ServerLive } from "$lib/server/layers";
 import { ServerFetch } from "$lib/server/resilience";
+import {
+	getGeocodingTextTooLongMessage,
+	maxSuggestionQueryLength,
+} from "$lib/server/route-endpoint/constants";
 import { checkSuggestionRateLimitEffect } from "$lib/server/route-rate-limits";
 
 const minQueryLength = 3;
@@ -41,6 +45,15 @@ export const GET: RequestHandler = async (event) => {
 			return json({
 				suggestions: [],
 			});
+		}
+
+		if (query.length > maxSuggestionQueryLength) {
+			return json(
+				{
+					error: getGeocodingTextTooLongMessage(),
+				},
+				{ status: 400 },
+			);
 		}
 
 		const rateLimitResponse = yield* checkSuggestionRateLimitEffect(event);

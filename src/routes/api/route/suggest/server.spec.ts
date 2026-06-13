@@ -9,6 +9,10 @@ vi.mock("$env/dynamic/private", () => ({
 import { env } from "$env/dynamic/private";
 import { GET } from "./+server";
 import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
+import {
+	getGeocodingTextTooLongMessage,
+	maxSuggestionQueryLength,
+} from "$lib/server/route-endpoint/constants";
 import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
 
 let eventId = 0;
@@ -48,6 +52,21 @@ describe("GET /api/route/suggest", () => {
 		});
 		await expect(shortQueryResponse.json()).resolves.toEqual({
 			suggestions: [],
+		});
+	});
+
+	it("rejects oversized text queries before calling GraphHopper", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		const query = "a".repeat(maxSuggestionQueryLength + 1);
+
+		const response = await GET(
+			buildEvent(`http://localhost/api/route/suggest?q=${query}`, fetchMock),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: getGeocodingTextTooLongMessage(),
 		});
 	});
 
