@@ -7,6 +7,7 @@ import {
 	type SavedRoutesRepository,
 } from "$lib/saved-routes/saved-routes-repository";
 import {
+	type SavedRoutesRemoteRepository,
 	type SavedRoutesStateModel,
 	SavedRoutesUseCases,
 } from "$lib/saved-routes/saved-routes-use-cases";
@@ -87,6 +88,50 @@ async function flushPromises() {
 	await Promise.resolve();
 	await Promise.resolve();
 	await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function flushMicrotasks() {
+	await Promise.resolve();
+	await Promise.resolve();
+}
+
+function effectFromDeferred(deferred: ReturnType<typeof createDeferred<void>>) {
+	return Effect.callback<void, TestRemoteError>((resume) => {
+		void deferred.promise.then(
+			() => resume(Effect.void),
+			(error) =>
+				resume(
+					Effect.fail(
+						error instanceof TestRemoteError
+							? error
+							: new TestRemoteError(
+									error instanceof Error ? error.message : String(error),
+								),
+					),
+				),
+		);
+	});
+}
+
+function createManualRemoteRepository(): {
+	saveDeferred: ReturnType<typeof createDeferred<void>>;
+	deleteDeferred: ReturnType<typeof createDeferred<void>>;
+	repository: SavedRoutesRemoteRepository;
+} {
+	const saveDeferred = createDeferred<void>();
+	const deleteDeferred = createDeferred<void>();
+
+	return {
+		saveDeferred,
+		deleteDeferred,
+		repository: {
+			save: vi.fn(() => effectFromDeferred(saveDeferred)),
+			delete: vi.fn(() => effectFromDeferred(deleteDeferred)),
+			mergeLocalRoutes: vi.fn(() =>
+				Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+			),
+		},
+	};
 }
 
 describe("saved routes use cases", () => {
@@ -427,6 +472,147 @@ describe("saved routes use cases", () => {
 			expect(state.savedRoutes[0]?.route.destinationLabel).toBe(
 				"Latest update",
 			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("ignores late remote save success after delete succeeds", async () => {
+		vi.useFakeTimers();
+
+		try {
+			const remote = createManualRemoteRepository();
+			await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+			await Effect.runPromise(useCases.setRemoteRepository(remote.repository));
+
+			const savedRoute = await Effect.runPromise(
+				useCases.createSavedRoute(state, route),
+			);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(remote.repository.save).toHaveBeenCalledTimes(1);
+
+			await expect(
+				Effect.runPromise(useCases.deleteSavedRoute(state, savedRoute.id)),
+			).resolves.toBe(true);
+			expect(remote.repository.delete).toHaveBeenCalledTimes(1);
+
+			remote.deleteDeferred.resolve();
+			await vi.advanceTimersByTimeAsync(0);
+			await flushMicrotasks();
+			expect(state.pendingRemoteRouteIds).toEqual(new Set());
+
+			remote.saveDeferred.resolve();
+			await vi.advanceTimersByTimeAsync(1000);
+			await flushMicrotasks();
+
+			expect(remote.repository.save).toHaveBeenCalledTimes(1);
+			expect(state.savedRoutes).toEqual([]);
+			expect(state.pendingRemoteRouteIds).toEqual(new Set());
+			expect(state.syncError).toBeNull();
+			expect(
+				await Effect.runPromise(
+					repository.readRoutes({ kind: "user", userId: "user_1" }),
+				),
+			).toEqual([]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not retry stale remote save failures after delete succeeds", async () => {
+		vi.useFakeTimers();
+
+		try {
+			const remote = createManualRemoteRepository();
+			await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+			await Effect.runPromise(useCases.setRemoteRepository(remote.repository));
+
+			const savedRoute = await Effect.runPromise(
+				useCases.createSavedRoute(state, route),
+			);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(remote.repository.save).toHaveBeenCalledTimes(1);
+
+			await Effect.runPromise(useCases.deleteSavedRoute(state, savedRoute.id));
+			remote.deleteDeferred.resolve();
+			await vi.advanceTimersByTimeAsync(0);
+
+			remote.saveDeferred.reject(new TestRemoteError("late save failure"));
+			await vi.advanceTimersByTimeAsync(1000);
+			await flushMicrotasks();
+
+			expect(remote.repository.save).toHaveBeenCalledTimes(1);
+			expect(state.savedRoutes).toEqual([]);
+			expect(state.pendingRemoteRouteIds).toEqual(new Set());
+			expect(state.syncError).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("preserves delete failure state after a stale remote save succeeds", async () => {
+		vi.useFakeTimers();
+
+		try {
+			const remote = createManualRemoteRepository();
+			await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+			await Effect.runPromise(useCases.setRemoteRepository(remote.repository));
+
+			const savedRoute = await Effect.runPromise(
+				useCases.createSavedRoute(state, route),
+			);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(remote.repository.save).toHaveBeenCalledTimes(1);
+
+			await Effect.runPromise(useCases.deleteSavedRoute(state, savedRoute.id));
+			expect(remote.repository.delete).toHaveBeenCalledTimes(1);
+
+			remote.deleteDeferred.reject(new TestRemoteError("delete down"));
+			await vi.advanceTimersByTimeAsync(0);
+			await flushMicrotasks();
+			expect(state.syncError).toBe(
+				"Could not delete synced route: delete down",
+			);
+
+			remote.saveDeferred.resolve();
+			await vi.advanceTimersByTimeAsync(0);
+			await flushMicrotasks();
+
+			expect(state.savedRoutes).toEqual([]);
+			expect(state.pendingRemoteRouteIds).toEqual(new Set());
+			expect(state.syncError).toBe(
+				"Could not delete synced route: delete down",
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("ignores in-flight save and delete completions after sign-out", async () => {
+		vi.useFakeTimers();
+
+		try {
+			const remote = createManualRemoteRepository();
+			await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+			await Effect.runPromise(useCases.setRemoteRepository(remote.repository));
+
+			const savedRoute = await Effect.runPromise(
+				useCases.createSavedRoute(state, route),
+			);
+			await vi.advanceTimersByTimeAsync(0);
+			await Effect.runPromise(useCases.deleteSavedRoute(state, savedRoute.id));
+
+			await Effect.runPromise(useCases.setAuthUser(state, null));
+			remote.deleteDeferred.reject(new TestRemoteError("late delete failure"));
+			remote.saveDeferred.reject(new TestRemoteError("late save failure"));
+			await vi.advanceTimersByTimeAsync(1000);
+			await flushMicrotasks();
+
+			expect(remote.repository.save).toHaveBeenCalledTimes(1);
+			expect(remote.repository.delete).toHaveBeenCalledTimes(1);
+			expect(state.authStatus).toBe("signedOut");
+			expect(state.pendingRemoteRouteIds).toEqual(new Set());
+			expect(state.syncError).toBeNull();
 		} finally {
 			vi.useRealTimers();
 		}
