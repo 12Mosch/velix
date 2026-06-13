@@ -10,6 +10,7 @@ import {
 } from "$lib/server/route-endpoint/constants";
 import {
 	addWaypointValidationErrors,
+	addRouteStopLabelValidationError,
 	getRoundCourseTargetError,
 	hasFiniteOutOfBoundsStopPoint,
 	hasRouteStopInput,
@@ -153,6 +154,11 @@ export const handlePointToPointEffect = Effect.fn("handlePointToPointEffect")(
 		if (!hasRouteStopInput(destinationInput)) {
 			fieldErrors.destinationQuery = "Enter a destination.";
 		}
+		addRouteStopLabelValidationError(
+			fieldErrors,
+			"destinationQuery",
+			destinationInput,
+		);
 
 		if (Object.keys(fieldErrors).length > 0) {
 			return yield* validationFailure(
@@ -234,6 +240,11 @@ export const handleOutAndBackEffect = Effect.fn("handleOutAndBackEffect")(
 		if (!hasRouteStopInput(turnaroundInput)) {
 			fieldErrors.destinationQuery = "Enter a turnaround point.";
 		}
+		addRouteStopLabelValidationError(
+			fieldErrors,
+			"destinationQuery",
+			turnaroundInput,
+		);
 
 		if (Object.keys(fieldErrors).length > 0) {
 			return yield* validationFailure(

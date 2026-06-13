@@ -15,6 +15,7 @@ export function createPlannerRuntime(dependencies: PlannerRuntimeDependencies) {
 	let clientFetch = $state<typeof window.fetch | null>(null);
 	let browserWindow = $state<Window | null>(null);
 	let destroyed = $state(true);
+	let mountRevision = 0;
 	let detachRouteEditKeyboardListener = () => {};
 	const cleanupCallbacks: Array<() => void> = [];
 
@@ -30,16 +31,22 @@ export function createPlannerRuntime(dependencies: PlannerRuntimeDependencies) {
 
 	function mount(nextWindow: Window) {
 		destroyed = false;
+		mountRevision += 1;
+		const currentMountRevision = mountRevision;
 		browserWindow = nextWindow;
 		clientFetch = nextWindow.fetch.bind(nextWindow);
 		Effect.runSync(initUnitPreference());
 		dependencies.resetSpatialConstraintDefaults();
 		void initSavedRoutes()
-			.then(() =>
-				Effect.runPromise(
+			.then(() => {
+				if (destroyed || currentMountRevision !== mountRevision) {
+					return;
+				}
+
+				return Effect.runPromise(
 					dependencies.restoreSavedRouteFromLocation(nextWindow.location),
-				),
-			)
+				);
+			})
 			.catch((error) => {
 				console.error("Failed to initialize saved routes.", error);
 			});
@@ -56,6 +63,7 @@ export function createPlannerRuntime(dependencies: PlannerRuntimeDependencies) {
 
 	function destroy() {
 		destroyed = true;
+		mountRevision += 1;
 		try {
 			detachRouteEditKeyboardListener();
 		} catch (error) {

@@ -51,6 +51,8 @@ export const RouteCoordinateInputSchema = finiteCoordinateInput.pipe(
 	}),
 );
 
+// Stop label length is validated in route endpoint normalization because
+// point-bearing stops can keep display labels without sending them to geocoding.
 export const RouteStopInputSchema = Schema.Union([
 	Schema.String,
 	Schema.Struct({

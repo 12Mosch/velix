@@ -19,11 +19,13 @@ import type {
 } from "$lib/route-planning";
 import {
 	defaultRouteAvoidanceBufferMeters,
+	getGeocodingTextTooLongMessage,
 	maxAreaRadiusMeters,
 	maxCorridorWidthMeters,
 	maxRouteAvoidanceBufferMeters,
 	maxRouteAvoidanceCenterlinePoints,
 	maxRouteAvoidances,
+	maxRouteStopLabelLength,
 	minAreaRadiusMeters,
 	minCorridorWidthMeters,
 	minRouteAvoidanceBufferMeters,
@@ -177,10 +179,17 @@ function normalizeSpatialConstraintInput(
 	if (decodedConstraint.kind === "area") {
 		const center = normalizeStopInput(decodedConstraint.center);
 		const radiusMeters = decodedConstraint.radiusMeters;
+		const labelError = getRouteStopLabelValidationError(center);
 
 		if (!center.label && !center.point) {
 			return {
 				error: "Enter an area center.",
+			};
+		}
+
+		if (labelError) {
+			return {
+				error: labelError,
 			};
 		}
 
@@ -395,11 +404,35 @@ export function hasRouteStopInput(stop: RouteStopInput) {
 	return Boolean(stop.label || stop.point);
 }
 
+export function getRouteStopLabelValidationError(
+	stop: RouteStopInput,
+): string | null {
+	if (stop.point || stop.label.length <= maxRouteStopLabelLength) {
+		return null;
+	}
+
+	return getGeocodingTextTooLongMessage();
+}
+
+export function addRouteStopLabelValidationError(
+	fieldErrors: RouteFieldErrors,
+	field: "startQuery" | "destinationQuery" | "spatialConstraint",
+	stop: RouteStopInput,
+) {
+	const labelError = getRouteStopLabelValidationError(stop);
+
+	if (labelError) {
+		fieldErrors[field] = labelError;
+	}
+}
+
 function buildWaypointFieldErrors(waypointInputs: RouteStopInput[]) {
-	return waypointInputs.map((waypoint) =>
-		hasRouteStopInput(waypoint)
-			? null
-			: "Enter a waypoint or remove this stop.",
+	return waypointInputs.map(
+		(waypoint) =>
+			getRouteStopLabelValidationError(waypoint) ??
+			(hasRouteStopInput(waypoint)
+				? null
+				: "Enter a waypoint or remove this stop."),
 	);
 }
 
@@ -467,6 +500,8 @@ export function prepareRouteModeContext(
 	if (spatialConstraintResult.error) {
 		fieldErrors.spatialConstraint = spatialConstraintResult.error;
 	}
+
+	addRouteStopLabelValidationError(fieldErrors, "startQuery", startInput);
 
 	if (avoidanceResult.error) {
 		fieldErrors.avoidances = avoidanceResult.error;

@@ -14,6 +14,10 @@ import type {
 	RouteWarning,
 } from "$lib/route-planning";
 import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
+import {
+	getGeocodingTextTooLongMessage,
+	maxRouteStopLabelLength,
+} from "$lib/server/route-endpoint/constants";
 import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
 
 let eventId = 0;
@@ -548,6 +552,125 @@ describe("POST /api/route", () => {
 			[11.5755, 48.1374],
 			[11.8598, 47.7362],
 		]);
+	});
+
+	it("rejects oversized structured start labels before geocoding", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		const oversizedLabel = "a".repeat(maxRouteStopLabelLength + 1);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: oversizedLabel,
+					},
+					destination: {
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: getGeocodingTextTooLongMessage(),
+			fieldErrors: {
+				startQuery: getGeocodingTextTooLongMessage(),
+			},
+		});
+	});
+
+	it("rejects oversized structured waypoint labels with indexed field errors before geocoding", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		const oversizedLabel = "a".repeat(maxRouteStopLabelLength + 1);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						point: [11.5755, 48.1374],
+					},
+					waypoints: [
+						{
+							label: oversizedLabel,
+						},
+					],
+					destination: {
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: getGeocodingTextTooLongMessage(),
+			fieldErrors: {
+				waypointQueries: [getGeocodingTextTooLongMessage()],
+			},
+		});
+	});
+
+	it("rejects oversized legacy destination queries before geocoding", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		const oversizedLabel = "a".repeat(maxRouteStopLabelLength + 1);
+
+		const response = await POST(
+			buildEvent(
+				{
+					startQuery: "Munich",
+					waypointQueries: [],
+					destinationQuery: oversizedLabel,
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(400);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: getGeocodingTextTooLongMessage(),
+			fieldErrors: {
+				destinationQuery: getGeocodingTextTooLongMessage(),
+			},
+		});
+	});
+
+	it("accepts oversized display labels when exact stop points avoid geocoding", async () => {
+		const oversizedLabel = "a".repeat(maxRouteStopLabelLength + 1);
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponse([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: oversizedLabel,
+						point: [11.5755, 48.1374],
+					},
+					destination: {
+						label: oversizedLabel,
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
+		expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("geocode");
 	});
 
 	it("rejects impossible structured start coordinates before routing", async () => {

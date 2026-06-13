@@ -1,6 +1,9 @@
 export const maxRoutePoints = 5;
 export const maxWaypoints = maxRoutePoints - 2;
 export const maxRouteRequestBodyBytes = 128 * 1024;
+export const maxGeocodingTextLength = 200;
+export const maxSuggestionQueryLength = maxGeocodingTextLength;
+export const maxRouteStopLabelLength = maxGeocodingTextLength;
 export const minRoundCourseDurationMs = 15 * 60 * 1000;
 export const minRoundCourseAscendMeters = 50;
 export const minRoundCourseDistanceMeters = 10_000;
@@ -21,4 +24,8 @@ export function getTooManyWaypointsMessage() {
 
 export function getRouteRequestTooLargeMessage() {
 	return "Route request payload is too large.";
+}
+
+export function getGeocodingTextTooLongMessage() {
+	return `Location search text must be ${maxGeocodingTextLength} characters or fewer.`;
 }
