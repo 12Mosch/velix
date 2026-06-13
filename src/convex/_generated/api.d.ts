@@ -9,6 +9,7 @@
  */
 
 import type * as effect from "../effect.js";
+import type * as paidUpstreamRateLimits from "../paidUpstreamRateLimits.js";
 import type * as savedRouteHelpers from "../savedRouteHelpers.js";
 import type * as savedRoutes from "../savedRoutes.js";
 import type * as sharedRoutes from "../sharedRoutes.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   effect: typeof effect;
+  paidUpstreamRateLimits: typeof paidUpstreamRateLimits;
   savedRouteHelpers: typeof savedRouteHelpers;
   savedRoutes: typeof savedRoutes;
   sharedRoutes: typeof sharedRoutes;

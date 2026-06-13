@@ -6,7 +6,6 @@ import {
 	TimeoutFetch,
 	TimeoutFetchLive,
 	fetchWithTimeoutEffect,
-	makeFixedWindowRateLimiter,
 	makeTtlCache,
 } from "$lib/server/resilience";
 
@@ -216,91 +215,5 @@ describe("makeTtlCache", () => {
 		await Effect.runPromise(cache.clear);
 
 		await expect(Effect.runPromise(cache.get("a"))).resolves.toBeUndefined();
-	});
-});
-
-describe("makeFixedWindowRateLimiter", () => {
-	afterEach(() => {
-		vi.useRealTimers();
-	});
-
-	it("allows requests within the window", async () => {
-		const limiter = await Effect.runPromise(
-			makeFixedWindowRateLimiter({ maxRequests: 2, windowMs: 1_000 }),
-		);
-
-		await expect(Effect.runPromise(limiter.check("client"))).resolves.toEqual({
-			allowed: true,
-		});
-		await expect(Effect.runPromise(limiter.check("client"))).resolves.toEqual({
-			allowed: true,
-		});
-	});
-
-	it("rejects after max requests", async () => {
-		const limiter = await Effect.runPromise(
-			makeFixedWindowRateLimiter({ maxRequests: 1, windowMs: 1_000 }),
-		);
-
-		await Effect.runPromise(limiter.check("client"));
-
-		await expect(Effect.runPromise(limiter.check("client"))).resolves.toEqual({
-			allowed: false,
-			retryAfterSeconds: 1,
-		});
-	});
-
-	it("reports retry-after seconds", async () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(0);
-		const limiter = await Effect.runPromise(
-			makeFixedWindowRateLimiter({ maxRequests: 1, windowMs: 2_500 }),
-		);
-
-		await Effect.runPromise(limiter.check("client"));
-		vi.setSystemTime(1_001);
-
-		await expect(Effect.runPromise(limiter.check("client"))).resolves.toEqual({
-			allowed: false,
-			retryAfterSeconds: 2,
-		});
-	});
-
-	it("prunes expired buckets when checking another key", async () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(0);
-		const limiter = await Effect.runPromise(
-			makeFixedWindowRateLimiter({ maxRequests: 1, windowMs: 1_000 }),
-		);
-
-		await expect(Effect.runPromise(limiter.check("first"))).resolves.toEqual({
-			allowed: true,
-		});
-		await expect(Effect.runPromise(limiter.check("first"))).resolves.toEqual({
-			allowed: false,
-			retryAfterSeconds: 1,
-		});
-
-		vi.setSystemTime(1_001);
-
-		await expect(Effect.runPromise(limiter.check("second"))).resolves.toEqual({
-			allowed: true,
-		});
-		await expect(Effect.runPromise(limiter.check("first"))).resolves.toEqual({
-			allowed: true,
-		});
-	});
-
-	it("clears state", async () => {
-		const limiter = await Effect.runPromise(
-			makeFixedWindowRateLimiter({ maxRequests: 1, windowMs: 1_000 }),
-		);
-
-		await Effect.runPromise(limiter.check("client"));
-		await Effect.runPromise(limiter.clear);
-
-		await expect(Effect.runPromise(limiter.check("client"))).resolves.toEqual({
-			allowed: true,
-		});
 	});
 });
