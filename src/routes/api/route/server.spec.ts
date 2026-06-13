@@ -3,10 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("$env/dynamic/private", () => ({
 	env: {
 		GRAPHHOPPER_API_KEY: "graphhopper-test-key",
+		RATE_LIMIT_CONVEX_SECRET: "rate-limit-test-secret",
+		RATE_LIMIT_HASH_SECRET: "rate-limit-hash-secret",
+	},
+}));
+
+vi.mock("$env/dynamic/public", () => ({
+	env: {
+		PUBLIC_CONVEX_URL: "https://convex.test",
 	},
 }));
 
 import { env } from "$env/dynamic/private";
+import { env as publicEnv } from "$env/dynamic/public";
 import { POST } from "./+server";
 import type {
 	RouteApiError,
@@ -18,7 +27,11 @@ import {
 	getGeocodingTextTooLongMessage,
 	maxRouteStopLabelLength,
 } from "$lib/server/route-endpoint/constants";
-import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
+import {
+	clearRouteRateLimitsForTests,
+	installRouteRateLimiterForTests,
+	resetRouteRateLimiterForTests,
+} from "$lib/server/route-rate-limits";
 
 let eventId = 0;
 const windUnavailableWarning =
@@ -282,6 +295,11 @@ function getRoundTripRequestedDistances(fetchMock: FetchMock): number[] {
 describe("POST /api/route", () => {
 	beforeEach(() => {
 		env.GRAPHHOPPER_API_KEY = "graphhopper-test-key";
+		env.RATE_LIMIT_CONVEX_SECRET = "rate-limit-test-secret";
+		env.RATE_LIMIT_HASH_SECRET = "rate-limit-hash-secret";
+		publicEnv.PUBLIC_CONVEX_URL = "https://convex.test";
+		resetRouteRateLimiterForTests();
+		installRouteRateLimiterForTests();
 		clearGraphHopperCachesForTests();
 		clearRouteRateLimitsForTests();
 	});
@@ -480,6 +498,64 @@ describe("POST /api/route", () => {
 		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(10);
 		await expect(response.json()).resolves.toEqual({
 			error: "Too many route requests. Try again soon.",
+		});
+	});
+
+	it("fails closed when shared route rate limiting is not configured", async () => {
+		resetRouteRateLimiterForTests();
+		publicEnv.PUBLIC_CONVEX_URL = "";
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(503);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Rate limiting is temporarily unavailable. Try again soon.",
+		});
+	});
+
+	it("fails closed when the route client address cannot be read", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		const event = buildEvent(
+			{
+				mode: "point_to_point",
+				start: {
+					label: "Marienplatz, Munich, Germany",
+					point: [11.5755, 48.1374],
+				},
+				destination: {
+					label: "Schliersee, Germany",
+					point: [11.8598, 47.7362],
+				},
+			},
+			fetchMock,
+		);
+		event.getClientAddress = () => {
+			throw new Error("missing address");
+		};
+
+		const response = await POST(event);
+
+		expect(response.status).toBe(503);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Rate limiting is temporarily unavailable. Try again soon.",
 		});
 	});
 

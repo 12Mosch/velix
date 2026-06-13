@@ -30,6 +30,7 @@ Velix is a SvelteKit route-planning app for cycling routes. It uses MapLibre for
 
 - Bun
 - A GraphHopper API key for route generation and search
+- A Convex deployment for shared GraphHopper rate limiting
 - At least one map tile provider key:
   - Stadia Maps for the Stadia styles
   - MapTiler for satellite and outdoor styles
@@ -41,11 +42,18 @@ Create a local `.env` file with the keys you need:
 
 ```sh
 GRAPHHOPPER_API_KEY=...
+RATE_LIMIT_CONVEX_SECRET=...
+RATE_LIMIT_HASH_SECRET=... # (optional)
 PUBLIC_STADIA_MAPS_API_KEY=...
 PUBLIC_MAPTILER_API_KEY=...
 ```
 
-`GRAPHHOPPER_API_KEY` is server-only and must not use the `PUBLIC_` prefix.
+`GRAPHHOPPER_API_KEY`, `RATE_LIMIT_CONVEX_SECRET`, and, if set,
+`RATE_LIMIT_HASH_SECRET` are server-only and must not use the `PUBLIC_` prefix.
+Set the same `RATE_LIMIT_CONVEX_SECRET` in the Convex deployment environment.
+If `RATE_LIMIT_HASH_SECRET` is omitted, the server falls back to
+`GRAPHHOPPER_API_KEY` for hashing client addresses before sending rate-limit
+subjects to Convex.
 
 For Convex + Clerk saved-route sync, also configure:
 
@@ -67,9 +75,12 @@ without a template argument. Otherwise, it asks Clerk for
 `session.getToken({ template: "convex" })`, so signed-in route sync will stay
 local-only if that Convex token is unavailable.
 
-The app still runs without `PUBLIC_CONVEX_URL`; saved routes stay local to the
-browser. Convex auth configuration requires `CLERK_FRONTEND_API_URL` or
-`CLERK_JWT_ISSUER_DOMAIN` when Convex functions are started.
+Saved-route sync still runs locally without Clerk auth. GraphHopper-backed route,
+suggestion, and reverse-geocoding endpoints require `PUBLIC_CONVEX_URL` and
+`RATE_LIMIT_CONVEX_SECRET`; they return `503` instead of calling GraphHopper
+when shared rate limiting is unavailable. Convex auth configuration requires
+`CLERK_FRONTEND_API_URL` or `CLERK_JWT_ISSUER_DOMAIN` when Convex functions are
+started.
 
 ## Install
 

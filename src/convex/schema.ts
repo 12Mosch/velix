@@ -38,6 +38,19 @@ export default defineSchema({
 	})
 		.index("by_shareToken", ["shareToken"])
 		.index("by_owner_createdAt", ["ownerUserId", "createdAtMs"]),
+	paidUpstreamRateLimits: defineTable({
+		bucket: v.union(
+			v.literal("route"),
+			v.literal("suggestion"),
+			v.literal("reverse"),
+		),
+		subjectHash: v.string(),
+		count: v.number(),
+		resetAtMs: v.number(),
+		updatedAtMs: v.number(),
+	})
+		.index("by_bucket_subject", ["bucket", "subjectHash"])
+		.index("by_resetAtMs", ["resetAtMs"]),
 	userPreferences: defineTable({
 		userId: v.string(),
 		themeMode: optionalThemeModeValidator,

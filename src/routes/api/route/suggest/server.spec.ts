@@ -3,17 +3,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("$env/dynamic/private", () => ({
 	env: {
 		GRAPHHOPPER_API_KEY: "graphhopper-test-key",
+		RATE_LIMIT_CONVEX_SECRET: "rate-limit-test-secret",
+		RATE_LIMIT_HASH_SECRET: "rate-limit-hash-secret",
+	},
+}));
+
+vi.mock("$env/dynamic/public", () => ({
+	env: {
+		PUBLIC_CONVEX_URL: "https://convex.test",
 	},
 }));
 
 import { env } from "$env/dynamic/private";
+import { env as publicEnv } from "$env/dynamic/public";
 import { GET } from "./+server";
 import { clearGraphHopperCachesForTests } from "$lib/server/graphhopper";
 import {
 	getGeocodingTextTooLongMessage,
 	maxSuggestionQueryLength,
 } from "$lib/server/route-endpoint/constants";
-import { clearRouteRateLimitsForTests } from "$lib/server/route-rate-limits";
+import {
+	clearRouteRateLimitsForTests,
+	installRouteRateLimiterForTests,
+	resetRouteRateLimiterForTests,
+} from "$lib/server/route-rate-limits";
 
 let eventId = 0;
 
@@ -32,6 +45,11 @@ function buildEvent(
 describe("GET /api/route/suggest", () => {
 	beforeEach(() => {
 		env.GRAPHHOPPER_API_KEY = "graphhopper-test-key";
+		env.RATE_LIMIT_CONVEX_SECRET = "rate-limit-test-secret";
+		env.RATE_LIMIT_HASH_SECRET = "rate-limit-hash-secret";
+		publicEnv.PUBLIC_CONVEX_URL = "https://convex.test";
+		resetRouteRateLimiterForTests();
+		installRouteRateLimiterForTests();
 		clearGraphHopperCachesForTests();
 		clearRouteRateLimitsForTests();
 	});
@@ -220,6 +238,41 @@ describe("GET /api/route/suggest", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(60);
 		await expect(response.json()).resolves.toEqual({
 			error: "Too many suggestion requests. Try again soon.",
+		});
+	});
+
+	it("fails closed when shared suggestion rate limiting is not configured", async () => {
+		resetRouteRateLimiterForTests();
+		env.RATE_LIMIT_CONVEX_SECRET = "";
+		const fetchMock = vi.fn<typeof fetch>();
+
+		const response = await GET(
+			buildEvent("http://localhost/api/route/suggest?q=marien", fetchMock),
+		);
+
+		expect(response.status).toBe(503);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Rate limiting is temporarily unavailable. Try again soon.",
+		});
+	});
+
+	it("fails closed when the suggestion client address cannot be read", async () => {
+		const fetchMock = vi.fn<typeof fetch>();
+		const event = buildEvent(
+			"http://localhost/api/route/suggest?q=marien",
+			fetchMock,
+		);
+		event.getClientAddress = () => {
+			throw new Error("missing address");
+		};
+
+		const response = await GET(event);
+
+		expect(response.status).toBe(503);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expect(response.json()).resolves.toEqual({
+			error: "Rate limiting is temporarily unavailable. Try again soon.",
 		});
 	});
 

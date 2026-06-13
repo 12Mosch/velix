@@ -1,51 +1,118 @@
+import { createHmac } from "node:crypto";
+import { env as privateEnv } from "$env/dynamic/private";
+import { env as publicEnv } from "$env/dynamic/public";
 import { json } from "@sveltejs/kit";
-import { Context, Effect, Layer } from "effect";
+import { ConvexHttpClient } from "convex/browser";
+import { Clock, Context, Effect, Layer } from "effect";
 import type { RequestEvent } from "@sveltejs/kit";
 
-import {
-	makeFixedWindowRateLimiter,
-	type FixedWindowRateLimiterService,
-} from "$lib/server/resilience";
+import { api } from "../../convex/_generated/api";
 
-export class RouteRateLimiter extends Context.Service<
-	RouteRateLimiter,
-	FixedWindowRateLimiterService
->()("RouteRateLimiter") {}
+type PaidUpstreamRateLimitBucket = "route" | "suggestion" | "reverse";
 
-export class SuggestionRateLimiter extends Context.Service<
-	SuggestionRateLimiter,
-	FixedWindowRateLimiterService
->()("SuggestionRateLimiter") {}
+type PaidUpstreamRateLimitResult =
+	| {
+			allowed: true;
+	  }
+	| {
+			allowed: false;
+			retryAfterSeconds: number;
+	  };
 
-export class ReverseGeocodeRateLimiter extends Context.Service<
-	ReverseGeocodeRateLimiter,
-	FixedWindowRateLimiterService
->()("ReverseGeocodeRateLimiter") {}
+type PaidUpstreamRateLimiterService = {
+	readonly check: (
+		bucket: PaidUpstreamRateLimitBucket,
+		subject: string,
+	) => Effect.Effect<
+		PaidUpstreamRateLimitResult,
+		PaidUpstreamRateLimitUnavailableError
+	>;
+	readonly clear: Effect.Effect<void>;
+};
 
-const routeLimiter = Effect.runSync(
-	makeFixedWindowRateLimiter({ maxRequests: 10, windowMs: 60_000 }),
-);
-const suggestionLimiter = Effect.runSync(
-	makeFixedWindowRateLimiter({ maxRequests: 60, windowMs: 60_000 }),
-);
-const reverseLimiter = Effect.runSync(
-	makeFixedWindowRateLimiter({ maxRequests: 60, windowMs: 60_000 }),
-);
+class PaidUpstreamRateLimitUnavailableError extends Error {
+	readonly _tag = "PaidUpstreamRateLimitUnavailableError";
 
-export const RouteRateLimiterLive =
-	Layer.succeed(RouteRateLimiter)(routeLimiter);
-export const SuggestionRateLimiterLive = Layer.succeed(SuggestionRateLimiter)(
-	suggestionLimiter,
-);
-export const ReverseGeocodeRateLimiterLive = Layer.succeed(
-	ReverseGeocodeRateLimiter,
-)(reverseLimiter);
+	constructor(message = "Paid upstream rate limiting is unavailable.") {
+		super(message);
+	}
+}
 
-export const RouteRateLimitLive = Layer.mergeAll(
-	RouteRateLimiterLive,
-	SuggestionRateLimiterLive,
-	ReverseGeocodeRateLimiterLive,
-);
+export class PaidUpstreamRateLimiter extends Context.Service<
+	PaidUpstreamRateLimiter,
+	PaidUpstreamRateLimiterService
+>()("PaidUpstreamRateLimiter") {}
+
+const routeLimits: Record<
+	PaidUpstreamRateLimitBucket,
+	{ maxRequests: number; windowMs: number }
+> = {
+	route: { maxRequests: 10, windowMs: 60_000 },
+	suggestion: { maxRequests: 60, windowMs: 60_000 },
+	reverse: { maxRequests: 60, windowMs: 60_000 },
+};
+
+const convexCheckTimeoutMs = 2_000;
+
+let testRateLimiter: PaidUpstreamRateLimiterService | null = null;
+
+function getConvexUrl(): string | null {
+	const url = publicEnv.PUBLIC_CONVEX_URL?.trim();
+	return url ? url : null;
+}
+
+function getConvexSecret(): string | null {
+	const secret = privateEnv.RATE_LIMIT_CONVEX_SECRET?.trim();
+	return secret ? secret : null;
+}
+
+function getHashSecret(): string | null {
+	const hashSecret = privateEnv.RATE_LIMIT_HASH_SECRET?.trim();
+
+	if (hashSecret) {
+		return hashSecret;
+	}
+
+	const graphHopperApiKey = privateEnv.GRAPHHOPPER_API_KEY?.trim();
+	return graphHopperApiKey ? graphHopperApiKey : null;
+}
+
+function hashSubject(subject: string): string {
+	const secret = getHashSecret();
+
+	if (!secret) {
+		throw new PaidUpstreamRateLimitUnavailableError(
+			"Rate limit hash secret is missing.",
+		);
+	}
+
+	return createHmac("sha256", secret).update(subject).digest("hex");
+}
+
+function withTimeout<A>(promise: Promise<A>, timeoutMs: number): Promise<A> {
+	return new Promise((resolve, reject) => {
+		const timeout = setTimeout(
+			() =>
+				reject(
+					new PaidUpstreamRateLimitUnavailableError(
+						"Convex rate limit check timed out.",
+					),
+				),
+			timeoutMs,
+		);
+
+		promise.then(
+			(value) => {
+				clearTimeout(timeout);
+				resolve(value);
+			},
+			(error) => {
+				clearTimeout(timeout);
+				reject(error);
+			},
+		);
+	});
+}
 
 function clientAddressEffect(
 	event: Pick<RequestEvent, "getClientAddress">,
@@ -68,86 +135,133 @@ function rateLimitResponse(error: string, retryAfterSeconds: number): Response {
 	);
 }
 
+function rateLimitUnavailableResponse(): Response {
+	return json(
+		{
+			error: "Rate limiting is temporarily unavailable. Try again soon.",
+		},
+		{ status: 503 },
+	);
+}
+
+const PaidUpstreamRateLimiterLive = Layer.succeed(PaidUpstreamRateLimiter)({
+	check: (bucket, subject) =>
+		Effect.tryPromise({
+			try: async () => {
+				if (testRateLimiter) {
+					return await Effect.runPromise(
+						testRateLimiter.check(bucket, subject),
+					);
+				}
+
+				const convexUrl = getConvexUrl();
+				const secret = getConvexSecret();
+
+				if (!convexUrl || !secret) {
+					throw new PaidUpstreamRateLimitUnavailableError(
+						"Convex rate limit configuration is missing.",
+					);
+				}
+
+				const client = new ConvexHttpClient(convexUrl, {
+					logger: false,
+				});
+
+				return await withTimeout(
+					client.mutation(api.paidUpstreamRateLimits.check, {
+						bucket,
+						subjectHash: hashSubject(subject),
+						secret,
+					}),
+					convexCheckTimeoutMs,
+				);
+			},
+			catch: (cause) =>
+				cause instanceof PaidUpstreamRateLimitUnavailableError
+					? cause
+					: new PaidUpstreamRateLimitUnavailableError(),
+		}),
+	clear: Effect.sync(() => undefined),
+});
+
+export const RouteRateLimitLive = PaidUpstreamRateLimiterLive;
+
 export function checkRouteRateLimit(
 	event: Pick<RequestEvent, "getClientAddress">,
-): Response | null {
-	return Effect.runSync(
-		checkRouteRateLimitEffect(event).pipe(Effect.provide(RouteRateLimiterLive)),
+): Promise<Response | null> {
+	return Effect.runPromise(
+		checkRouteRateLimitEffect(event).pipe(Effect.provide(RouteRateLimitLive)),
 	);
 }
 
 export function checkRouteRateLimitEffect(
 	event: Pick<RequestEvent, "getClientAddress">,
-): Effect.Effect<Response | null, never, RouteRateLimiter> {
-	return Effect.gen(function* () {
-		const limiter = yield* RouteRateLimiter;
-		return yield* checkRateLimitEffect(
-			event,
-			limiter,
-			"Too many route requests. Try again soon.",
-		);
-	});
+): Effect.Effect<Response | null, never, PaidUpstreamRateLimiter> {
+	return checkRateLimitEffect(
+		event,
+		"route",
+		"Too many route requests. Try again soon.",
+	);
 }
 
 export function checkSuggestionRateLimit(
 	event: Pick<RequestEvent, "getClientAddress">,
-): Response | null {
-	return Effect.runSync(
+): Promise<Response | null> {
+	return Effect.runPromise(
 		checkSuggestionRateLimitEffect(event).pipe(
-			Effect.provide(SuggestionRateLimiterLive),
+			Effect.provide(RouteRateLimitLive),
 		),
 	);
 }
 
 export function checkSuggestionRateLimitEffect(
 	event: Pick<RequestEvent, "getClientAddress">,
-): Effect.Effect<Response | null, never, SuggestionRateLimiter> {
-	return Effect.gen(function* () {
-		const limiter = yield* SuggestionRateLimiter;
-		return yield* checkRateLimitEffect(
-			event,
-			limiter,
-			"Too many suggestion requests. Try again soon.",
-		);
-	});
+): Effect.Effect<Response | null, never, PaidUpstreamRateLimiter> {
+	return checkRateLimitEffect(
+		event,
+		"suggestion",
+		"Too many suggestion requests. Try again soon.",
+	);
 }
 
 export function checkReverseRateLimit(
 	event: Pick<RequestEvent, "getClientAddress">,
-): Response | null {
-	return Effect.runSync(
-		checkReverseRateLimitEffect(event).pipe(
-			Effect.provide(ReverseGeocodeRateLimiterLive),
-		),
+): Promise<Response | null> {
+	return Effect.runPromise(
+		checkReverseRateLimitEffect(event).pipe(Effect.provide(RouteRateLimitLive)),
 	);
 }
 
 export function checkReverseRateLimitEffect(
 	event: Pick<RequestEvent, "getClientAddress">,
-): Effect.Effect<Response | null, never, ReverseGeocodeRateLimiter> {
-	return Effect.gen(function* () {
-		const limiter = yield* ReverseGeocodeRateLimiter;
-		return yield* checkRateLimitEffect(
-			event,
-			limiter,
-			"Too many reverse geocoding requests. Try again soon.",
-		);
-	});
+): Effect.Effect<Response | null, never, PaidUpstreamRateLimiter> {
+	return checkRateLimitEffect(
+		event,
+		"reverse",
+		"Too many reverse geocoding requests. Try again soon.",
+	);
 }
 
 function checkRateLimitEffect(
 	event: Pick<RequestEvent, "getClientAddress">,
-	limiter: FixedWindowRateLimiterService,
+	bucket: PaidUpstreamRateLimitBucket,
 	error: string,
-): Effect.Effect<Response | null> {
+): Effect.Effect<Response | null, never, PaidUpstreamRateLimiter> {
 	return Effect.gen(function* () {
 		const address = yield* clientAddressEffect(event);
 
 		if (!address) {
-			return null;
+			return rateLimitUnavailableResponse();
 		}
 
-		const result = yield* limiter.check(address);
+		const limiter = yield* PaidUpstreamRateLimiter;
+		const result = yield* limiter
+			.check(bucket, address)
+			.pipe(Effect.catch(() => Effect.succeed(null)));
+
+		if (!result) {
+			return rateLimitUnavailableResponse();
+		}
 
 		if (result.allowed) {
 			return null;
@@ -157,14 +271,66 @@ function checkRateLimitEffect(
 	});
 }
 
+function createTestRateLimiter(): PaidUpstreamRateLimiterService {
+	const entries = new Map<
+		string,
+		{
+			count: number;
+			resetAtMs: number;
+		}
+	>();
+
+	return {
+		check: (bucket, subject) =>
+			Effect.gen(function* () {
+				const now = yield* Clock.currentTimeMillis;
+				const limit = routeLimits[bucket];
+				const key = `${bucket}:${subject}`;
+				const entry = entries.get(key);
+
+				if (!entry || entry.resetAtMs <= now) {
+					entries.set(key, {
+						count: 1,
+						resetAtMs: now + limit.windowMs,
+					});
+					return { allowed: true };
+				}
+
+				if (entry.count >= limit.maxRequests) {
+					return {
+						allowed: false,
+						retryAfterSeconds: Math.max(
+							1,
+							Math.ceil((entry.resetAtMs - now) / 1000),
+						),
+					};
+				}
+
+				entry.count += 1;
+				return { allowed: true };
+			}),
+		clear: Effect.sync(() => {
+			entries.clear();
+		}),
+	};
+}
+
+export function installRouteRateLimiterForTests(): void {
+	testRateLimiter = createTestRateLimiter();
+}
+
 export function clearRouteRateLimitsForTests(): void {
 	Effect.runSync(clearRouteRateLimitsForTestsEffect());
 }
 
 export function clearRouteRateLimitsForTestsEffect(): Effect.Effect<void> {
 	return Effect.gen(function* () {
-		yield* routeLimiter.clear;
-		yield* suggestionLimiter.clear;
-		yield* reverseLimiter.clear;
+		if (testRateLimiter) {
+			yield* testRateLimiter.clear;
+		}
 	});
+}
+
+export function resetRouteRateLimiterForTests(): void {
+	testRateLimiter = null;
 }

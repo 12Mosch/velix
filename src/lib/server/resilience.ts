@@ -7,20 +7,6 @@ type CacheEntry<Value> = {
 	value: Value;
 };
 
-type RateLimitEntry = {
-	count: number;
-	resetAt: number;
-};
-
-export type RateLimitResult =
-	| {
-			allowed: true;
-	  }
-	| {
-			allowed: false;
-			retryAfterSeconds: number;
-	  };
-
 export class FetchTimeoutError extends Error {
 	readonly _tag = "FetchTimeoutError";
 
@@ -198,85 +184,6 @@ export function makeTtlCache<Value>(options: {
 			get: (key: string) => cache.getEffect(key),
 			set: (key: string, value: Value) => cache.setEffect(key, value),
 			clear: cache.clearEffect(),
-		})),
-	);
-}
-
-export class FixedWindowRateLimiter {
-	readonly #entries = new Map<string, RateLimitEntry>();
-
-	constructor(
-		readonly maxRequests: number,
-		readonly windowMs: number,
-	) {}
-
-	#pruneExpired(now: number): void {
-		for (const [key, entry] of this.#entries) {
-			if (entry.resetAt <= now) {
-				this.#entries.delete(key);
-			}
-		}
-	}
-
-	checkEffect(key: string): Effect.Effect<RateLimitResult> {
-		return Effect.gen({ self: this }, function* () {
-			const now = yield* Clock.currentTimeMillis;
-			this.#pruneExpired(now);
-			const entry = this.#entries.get(key);
-
-			if (!entry) {
-				this.#entries.set(key, {
-					count: 1,
-					resetAt: now + this.windowMs,
-				});
-				return { allowed: true };
-			}
-
-			if (entry.count >= this.maxRequests) {
-				return {
-					allowed: false,
-					retryAfterSeconds: Math.max(
-						1,
-						Math.ceil((entry.resetAt - now) / 1000),
-					),
-				};
-			}
-
-			entry.count += 1;
-			return { allowed: true };
-		});
-	}
-
-	check(key: string): RateLimitResult {
-		return Effect.runSync(this.checkEffect(key));
-	}
-
-	clearEffect(): Effect.Effect<void> {
-		return Effect.sync(() => {
-			this.#entries.clear();
-		});
-	}
-
-	clear(): void {
-		Effect.runSync(this.clearEffect());
-	}
-}
-
-export type FixedWindowRateLimiterService = {
-	readonly check: (key: string) => Effect.Effect<RateLimitResult>;
-	readonly clear: Effect.Effect<void>;
-};
-
-export function makeFixedWindowRateLimiter(options: {
-	readonly maxRequests: number;
-	readonly windowMs: number;
-}): Effect.Effect<FixedWindowRateLimiterService> {
-	return Effect.sync(
-		() => new FixedWindowRateLimiter(options.maxRequests, options.windowMs),
-	).pipe(
-		Effect.map((limiter) => ({
-			check: (key: string) => limiter.checkEffect(key),
-			clear: limiter.clearEffect(),
 		})),
 	);
 }
