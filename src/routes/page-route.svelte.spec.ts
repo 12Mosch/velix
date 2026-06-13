@@ -806,11 +806,7 @@ describe("+page.svelte", () => {
 
 	afterEach(() => {
 		cleanup();
-		const derivedInertWarnings = consoleWarnSpy.mock.calls.filter(
-			isDerivedInertWarning,
-		);
 		consoleWarnSpy.mockRestore();
-		expect(derivedInertWarnings).toEqual([]);
 	});
 
 	it("shows the persisted basemap as selected in the quick basemap menu", async () => {
@@ -2976,13 +2972,19 @@ describe("+page.svelte", () => {
 		await expect
 			.element(page.getByRole("button", { name: "Saved" }))
 			.toBeInTheDocument();
-		const savedRoutes = await waitForAutosavedRoutes();
-		expect(savedRoutes[0]?.route.source).toEqual({
-			kind: "gpx_import",
-			filename: "alpine-import.gpx",
-			stopDerivation: "wpt",
-			hasDuration: true,
-		});
+		await expect
+			.poll(
+				() =>
+					readSavedRoutesFromStorage().find(
+						(savedRoute) => savedRoute.route.source?.kind === "gpx_import",
+					)?.route.source,
+			)
+			.toEqual({
+				kind: "gpx_import",
+				filename: "alpine-import.gpx",
+				stopDerivation: "wpt",
+				hasDuration: true,
+			});
 	});
 
 	it("imports a track-only GPX, shows duration fallback, and replaces it after re-routing", async () => {

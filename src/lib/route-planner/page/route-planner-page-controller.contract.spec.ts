@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { Effect } from "effect";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RouteApiError } from "$lib/route-planning";
 
+import { createPlannerRoutesController } from "./planner-routes-controller.svelte";
 import { createRoutePlannerPageController } from "./route-planner-page-controller.svelte";
+import { createPlannerStop, type PlannerFormState } from "./planner-state";
 
 const formKeys = [
 	"plannerMode",
@@ -260,6 +264,38 @@ function expectWritable(slice: object, key: string) {
 	expect(descriptor?.set, key).toEqual(expect.any(Function));
 }
 
+function createDeferredResponse(body: unknown) {
+	let resolve!: () => void;
+	const promise = new Promise<Response>((deferredResolve) => {
+		resolve = () => deferredResolve(new Response(JSON.stringify(body)));
+	});
+
+	return { promise, resolve };
+}
+
+function createTestPlannerFormState(): PlannerFormState {
+	return {
+		plannerMode: "point_to_point",
+		startStop: createPlannerStop("Munich"),
+		waypointStops: [],
+		destinationStop: createPlannerStop("Schliersee"),
+		roundCourseTargetKind: "distance",
+		roundCourseDistanceInput: "50",
+		roundCourseDistanceMetersInput: 50000,
+		roundCourseDurationInput: "",
+		roundCourseAscendMeters: "",
+		roundCourseWorkoutTarget: null,
+		spatialConstraintKind: "none",
+		spatialConstraintEnforcement: "preferred",
+		constraintCenterStop: createPlannerStop(),
+		areaRadiusInput: "30",
+		corridorWidthInput: "12",
+		areaRadiusMetersInput: 30000,
+		corridorWidthMetersInput: 12000,
+		fieldErrors: {},
+	};
+}
+
 describe("route planner page controller contract", () => {
 	const controllers: ReturnType<typeof createRoutePlannerPageController>[] = [];
 
@@ -315,5 +351,79 @@ describe("route planner page controller contract", () => {
 		expectWritable(controller.overlays, "gradientOverlayEnabled");
 		expectWritable(controller.overlays, "windOverlayEnabled");
 		expectWritable(controller.overlays, "trafficStressOverlayEnabled");
+	});
+
+	it("ignores stale route generation responses after planner edits", async () => {
+		const routeDeferred = createDeferredResponse({
+			routes: [],
+			selectedRouteIndex: 0,
+		});
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockImplementation(() => routeDeferred.promise);
+		let formState = createTestPlannerFormState();
+		let fieldErrors: NonNullable<RouteApiError["fieldErrors"]> = {};
+		const applyPlannerFormState = vi.fn((form: PlannerFormState) => {
+			formState = form;
+		});
+		const scheduleActiveRouteAutosave = vi.fn();
+		const bumpRouteSaveRevision = vi.fn();
+
+		const routes = createPlannerRoutesController({
+			getFetch: () => fetchMock,
+			getPlannerFormState: () => formState,
+			applyPlannerFormState,
+			getFieldErrors: () => fieldErrors,
+			setFieldErrors: (errors) => {
+				fieldErrors = errors;
+			},
+			clearFieldErrors: () => {
+				fieldErrors = {};
+			},
+			closeCompletionMenu: vi.fn(),
+			closeMapClickMenu: vi.fn(),
+			resetAnalysisState: vi.fn(),
+			cancelAutosaveTimer: vi.fn(),
+			scheduleActiveRouteAutosave,
+			bumpRouteSaveRevision,
+			captureSavedRouteEditMetadata: () => ({
+				activeSavedRouteId: null,
+				plannerDraftRouteId: null,
+				pendingSavedRouteId: null,
+				isActiveRouteSaved: false,
+			}),
+			restoreSavedRouteEditMetadata: vi.fn(),
+			markUnsaved: vi.fn(),
+			setPendingSavedRouteId: vi.fn(),
+			setRouteImportError: vi.fn(),
+			setRouteExportError: vi.fn(),
+			clearRouteShareState: vi.fn(),
+			getActiveRouteShareKey: () => null,
+			applyWorkoutPlanTarget: () => true,
+			validateDistanceInputs: () => true,
+		});
+
+		const routeEffect = routes.handleGenerateRoute({
+			preventDefault: vi.fn(),
+		} as unknown as SubmitEvent);
+		const routePromise = Effect.runPromise(routeEffect);
+		await expect.poll(() => fetchMock.mock.calls.length).toBe(1);
+
+		formState = {
+			...formState,
+			destinationStop: createPlannerStop("Garmisch"),
+		};
+		routes.markPlannerEdited();
+		routeDeferred.resolve();
+		await routePromise;
+
+		expect(formState.destinationStop.label).toBe("Garmisch");
+		expect(routes.routeAlternatives).toEqual([]);
+		expect(routes.routeNeedsRecalculation).toBe(false);
+		expect(routes.routeRequestError).toBeNull();
+		expect(applyPlannerFormState).not.toHaveBeenCalled();
+		expect(scheduleActiveRouteAutosave).not.toHaveBeenCalled();
+		expect(bumpRouteSaveRevision).not.toHaveBeenCalled();
+		expect(routes.isRouting).toBe(false);
 	});
 });
