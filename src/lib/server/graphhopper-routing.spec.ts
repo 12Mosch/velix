@@ -6,7 +6,10 @@ import {
 	clearGraphHopperCachesForTests,
 } from "$lib/server/graphhopper-cache";
 import { GraphHopperConfig } from "$lib/server/graphhopper-config";
-import { GraphHopperRouteStatusError } from "$lib/server/graphhopper-errors";
+import {
+	GraphHopperRoutePayloadError,
+	GraphHopperRouteStatusError,
+} from "$lib/server/graphhopper-errors";
 import { requestRoutesEffect } from "$lib/server/graphhopper-routing";
 import {
 	GraphHopperRouteCallSubject,
@@ -46,6 +49,37 @@ function buildRouteResponse(offset = 0): Response {
 						surface: [[0, 1, "ASPHALT"]],
 						smoothness: [[0, 1, "GOOD"]],
 					},
+				},
+			],
+		}),
+	);
+}
+
+function buildRouteResponseWithDetails(
+	details: Record<string, unknown>,
+): Response {
+	return new Response(
+		JSON.stringify({
+			paths: [
+				{
+					distance: 10_000,
+					time: 1_800_000,
+					ascend: 100,
+					descend: 100,
+					bbox: [11.55, 48.08, 11.69, 48.17],
+					points: {
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.6, 48.12, 600],
+						],
+					},
+					snapped_waypoints: {
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.6, 48.12, 600],
+						],
+					},
+					details,
 				},
 			],
 		}),
@@ -116,6 +150,78 @@ describe("GraphHopper routing POST boundary", () => {
 		);
 		await expect(runRequest(fetchMock)).rejects.toBeInstanceOf(
 			GraphHopperRouteStatusError,
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("rejects malformed detail values as route payload errors", async () => {
+		const fetchMock = vi.fn<typeof fetch>(() =>
+			Promise.resolve(
+				buildRouteResponseWithDetails({
+					surface: [[0, 1, 123]],
+				}),
+			),
+		);
+
+		await expect(runRequest(fetchMock)).rejects.toBeInstanceOf(
+			GraphHopperRoutePayloadError,
+		);
+	});
+
+	it("rejects non-finite detail bounds as route payload errors", async () => {
+		const fetchMock = vi.fn<typeof fetch>(() =>
+			Promise.resolve(
+				new Response(
+					`{
+						"paths": [
+							{
+								"distance": 10000,
+								"time": 1800000,
+								"ascend": 100,
+								"descend": 100,
+								"bbox": [11.55, 48.08, 11.69, 48.17],
+								"points": {
+									"coordinates": [
+										[11.5755, 48.1374, 520],
+										[11.6, 48.12, 600]
+									]
+								},
+								"snapped_waypoints": {
+									"coordinates": [
+										[11.5755, 48.1374, 520],
+										[11.6, 48.12, 600]
+									]
+								},
+								"details": {
+									"surface": [[0, 1e999, "ASPHALT"]]
+								}
+							}
+						]
+					}`,
+				),
+			),
+		);
+
+		await expect(runRequest(fetchMock)).rejects.toBeInstanceOf(
+			GraphHopperRoutePayloadError,
+		);
+	});
+
+	it("does not cache malformed GraphHopper route payloads", async () => {
+		const fetchMock = vi.fn<typeof fetch>(() =>
+			Promise.resolve(
+				buildRouteResponseWithDetails({
+					surface: [[0, 1, 123]],
+				}),
+			),
+		);
+
+		await expect(runRequest(fetchMock)).rejects.toBeInstanceOf(
+			GraphHopperRoutePayloadError,
+		);
+		await expect(runRequest(fetchMock)).rejects.toBeInstanceOf(
+			GraphHopperRoutePayloadError,
 		);
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);

@@ -175,6 +175,35 @@ function buildRouteResponse(points: number[][]) {
 	);
 }
 
+function buildRouteResponseWithMalformedDetails(points: number[][]) {
+	return new Response(
+		JSON.stringify({
+			paths: [
+				{
+					distance: 61234,
+					time: 9876000,
+					ascend: 820,
+					descend: 740,
+					bbox: [11.5755, 47.7362, 11.8598, 48.1374],
+					points: {
+						coordinates: [
+							[11.5755, 48.1374, 520],
+							[11.7, 48.02, 575],
+							[11.8598, 47.7362, 785],
+						],
+					},
+					snapped_waypoints: {
+						coordinates: points,
+					},
+					details: {
+						surface: [[0, 3, 42]],
+					},
+				},
+			],
+		}),
+	);
+}
+
 function buildRoundCourseResponse(
 	point: number[],
 	options: {
@@ -3416,6 +3445,37 @@ describe("POST /api/route", () => {
 				{
 					startQuery: "Berlin",
 					destinationQuery: "Leipzig",
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(502);
+		await expect(response.json()).resolves.toEqual({
+			error: "GraphHopper could not generate a route right now.",
+		});
+	});
+
+	it("surfaces malformed GraphHopper detail intervals as a gateway error", async () => {
+		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+			buildRouteResponseWithMalformedDetails([
+				[11.5756, 48.1375, 522],
+				[11.8597, 47.7361, 784],
+			]),
+		);
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "point_to_point",
+					start: {
+						label: "Marienplatz, Munich, Germany",
+						point: [11.5755, 48.1374],
+					},
+					destination: {
+						label: "Schliersee, Germany",
+						point: [11.8598, 47.7362],
+					},
 				},
 				fetchMock,
 			),

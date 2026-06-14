@@ -86,7 +86,7 @@ export class GraphHopperRoutePayloadError extends Error {
 	readonly _tag = "GraphHopperRoutePayloadError";
 
 	constructor(readonly cause: unknown) {
-		super("GraphHopper route response was not valid JSON");
+		super("GraphHopper route response was malformed");
 	}
 }
 
