@@ -1924,6 +1924,83 @@ describe("POST /api/route", () => {
 		expect(route?.routeQuality?.overallScore).not.toBeNull();
 	});
 
+	it("deduplicates concurrent geocoding for matching free-text stops", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						hits: [
+							{
+								name: "Berlin",
+								country: "Germany",
+								point: {
+									lat: 52.52,
+									lng: 13.405,
+								},
+							},
+						],
+					}),
+				),
+			)
+			.mockResolvedValueOnce(
+				buildRouteResponse([
+					[13.405, 52.52, 40],
+					[13.405, 52.52, 40],
+				]),
+			);
+
+		const response = await POST(
+			buildEvent(
+				{
+					startQuery: "Berlin",
+					destinationQuery: " berlin ",
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(2);
+		expect(String(fetchMock.mock.calls[0]?.[0])).toContain("geocode");
+		expect(String(fetchMock.mock.calls[1]?.[0])).not.toContain("geocode");
+
+		const routeRequestBody = JSON.parse(
+			String(fetchMock.mock.calls[1]?.[1]?.body),
+		);
+		expect(routeRequestBody.points).toEqual([
+			[13.405, 52.52],
+			[13.405, 52.52],
+		]);
+	});
+
+	it("deduplicates unresolved free-text stop geocoding while preserving field errors", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(new Response(JSON.stringify({ hits: [] })))
+			.mockResolvedValueOnce(new Response(JSON.stringify({ hits: [] })));
+
+		const response = await POST(
+			buildEvent(
+				{
+					startQuery: "Unknown place",
+					destinationQuery: " unknown place ",
+				},
+				fetchMock,
+			),
+		);
+
+		expect(response.status).toBe(422);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(2);
+		await expect(response.json()).resolves.toEqual({
+			error: "We couldn't resolve one or more locations.",
+			fieldErrors: {
+				startQuery: "We couldn't resolve that start point.",
+				destinationQuery: "We couldn't resolve that destination.",
+			},
+		});
+	});
+
 	it("returns multiple point-to-point alternatives when GraphHopper provides distinct paths", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
 			new Response(

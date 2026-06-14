@@ -10,28 +10,72 @@ import type { TimeoutFetch } from "$lib/server/resilience";
 import { UnresolvedLocationError } from "./errors";
 import type { ResolvedRouteStop, RouteStopResolutionInput } from "./types";
 
-function resolveStopEffect(stop: RouteStopResolutionInput) {
-	return Effect.gen(function* () {
-		if (stop.input.point) {
-			return {
+type MaybeResolvedRouteStop = RouteStopResolutionInput & {
+	label: string;
+	point?: [number, number];
+};
+
+type IndexedRouteStop = {
+	index: number;
+	stop: RouteStopResolutionInput;
+};
+
+type IndexedResolvedRouteStop = {
+	index: number;
+	stop: MaybeResolvedRouteStop;
+};
+
+function getStopGeocodeKey(stop: RouteStopResolutionInput): string {
+	return stop.input.label.trim().toLowerCase();
+}
+
+function resolveCoordinateStop(
+	stop: RouteStopResolutionInput,
+): MaybeResolvedRouteStop {
+	return {
+		...stop,
+		label: stop.input.label,
+		point: stop.input.point,
+	};
+}
+
+function applyGeocodeResult(
+	stop: RouteStopResolutionInput,
+	resolved: { label: string; point: [number, number] } | null,
+): MaybeResolvedRouteStop {
+	return resolved
+		? {
 				...stop,
-				label: stop.input.label,
-				point: stop.input.point,
+				label: resolved.label,
+				point: resolved.point,
+			}
+		: {
+				...stop,
+				label: "",
+				point: undefined,
 			};
+}
+
+function resolveFreeTextStopGroupEffect(
+	stops: IndexedRouteStop[],
+): Effect.Effect<
+	IndexedResolvedRouteStop[],
+	GraphHopperGeocodeError,
+	GraphHopperConfig | TimeoutFetch | GraphHopperSuggestionCache
+> {
+	return Effect.gen(function* () {
+		const firstStop = stops[0];
+
+		if (!firstStop) {
+			return [];
 		}
 
-		const resolved = yield* geocodeLocationEffect(stop.input.label);
-		return resolved
-			? {
-					...stop,
-					label: resolved.label,
-					point: resolved.point,
-				}
-			: {
-					...stop,
-					label: "",
-					point: undefined,
-				};
+		const resolved = yield* geocodeLocationEffect(firstStop.stop.input.label);
+
+		return stops.map(({ index, stop }) => ({
+			index,
+			stop: applyGeocodeResult(stop, resolved),
+		}));
 	});
 }
 
@@ -63,8 +107,44 @@ export function resolveRouteStopsEffect(
 	GraphHopperConfig | TimeoutFetch | GraphHopperSuggestionCache
 > {
 	return Effect.gen(function* () {
-		const resolvedStops = yield* Effect.all(stops.map(resolveStopEffect), {
-			concurrency: "unbounded",
+		const resolvedStopsByIndex = new Map<number, MaybeResolvedRouteStop>();
+		const freeTextStopsByKey = new Map<string, IndexedRouteStop[]>();
+
+		for (const [index, stop] of stops.entries()) {
+			if (stop.input.point) {
+				resolvedStopsByIndex.set(index, resolveCoordinateStop(stop));
+				continue;
+			}
+
+			const key = getStopGeocodeKey(stop);
+			const groupedStops = freeTextStopsByKey.get(key) ?? [];
+			groupedStops.push({ index, stop });
+			freeTextStopsByKey.set(key, groupedStops);
+		}
+
+		const resolvedFreeTextGroups = yield* Effect.all(
+			Array.from(freeTextStopsByKey.values()).map(
+				resolveFreeTextStopGroupEffect,
+			),
+			{
+				concurrency: "unbounded",
+			},
+		);
+
+		for (const group of resolvedFreeTextGroups) {
+			for (const { index, stop } of group) {
+				resolvedStopsByIndex.set(index, stop);
+			}
+		}
+
+		const resolvedStops = stops.map((_, index) => {
+			const stop = resolvedStopsByIndex.get(index);
+
+			if (!stop) {
+				throw new Error("Route stop resolution missed a stop.");
+			}
+
+			return stop;
 		});
 		const fieldErrors: RouteFieldErrors = {};
 		const waypointErrors = stops
