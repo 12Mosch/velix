@@ -16,6 +16,7 @@ import {
 } from "$lib/map-style-settings.svelte";
 import { MAP_CAMERA_STORAGE_KEY } from "$lib/preferences/map-camera-preferences";
 import { parseRouteGpxEffect } from "$lib/route-gpx-import";
+import { maxGpxImportBytes } from "$lib/route-planner/constants";
 import {
 	type RouteCoordinate,
 	sampleElevationProfile,
@@ -482,9 +483,13 @@ const importedTrackOnlyGpx = `<?xml version="1.0" encoding="UTF-8"?>
 const invalidGpx = `<gpx><trk><trkseg><trkpt lat="48.1374" lon="11.5755"></gpx>`;
 
 async function importGpxFile(name: string, contents: string) {
-	await page
-		.getByLabelText("Import GPX file")
-		.upload(new File([contents], name, { type: "application/gpx+xml" }));
+	await importGpxFileObject(
+		new File([contents], name, { type: "application/gpx+xml" }),
+	);
+}
+
+async function importGpxFileObject(file: File) {
+	await page.getByLabelText("Import GPX file").upload(file);
 }
 
 function readSavedRoutesFromStorage() {
@@ -3233,6 +3238,43 @@ describe("+page.svelte", () => {
 			);
 			expect(fetchMock).not.toHaveBeenCalled();
 		} finally {
+			consoleError.mockRestore();
+		}
+	});
+
+	it("shows an alert for oversized GPX files before reading or routing", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		const fileText = vi.spyOn(File.prototype, "text");
+		const fetchMock = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetchMock);
+
+		try {
+			render(PageTestShell);
+
+			await importGpxFileObject(
+				new File(["x".repeat(maxGpxImportBytes + 1)], "oversized.gpx", {
+					type: "application/gpx+xml",
+				}),
+			);
+
+			await expect
+				.element(page.getByRole("alert"))
+				.toHaveTextContent(
+					"The selected GPX is too large. Velix supports GPX imports up to 2 MiB.",
+				);
+			expect(fileText).not.toHaveBeenCalled();
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(mapInstance.addSource).not.toHaveBeenCalled();
+			expect(consoleError).toHaveBeenCalledWith(
+				"Failed to import GPX",
+				expect.objectContaining({
+					code: "file_too_large",
+				}),
+			);
+		} finally {
+			fileText.mockRestore();
 			consoleError.mockRestore();
 		}
 	});

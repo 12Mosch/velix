@@ -1,7 +1,7 @@
 import { Cause, Effect, Exit } from "effect";
 import {
 	parseRouteGpxEffect,
-	type RouteGpxImportError,
+	RouteGpxImportError,
 } from "$lib/route-gpx-import";
 import {
 	downloadRouteFitEffect,
@@ -9,6 +9,7 @@ import {
 } from "$lib/route-export";
 import type { PlannedRoute } from "$lib/route-planning";
 import { PlannerGpxFileReadError } from "./planner-controller-errors";
+import { formatGpxImportByteLimit, maxGpxImportBytes } from "../constants";
 
 type PlannerImportExportControllerDependencies = {
 	getActiveRoute: () => PlannedRoute | null;
@@ -89,6 +90,13 @@ export function createPlannerImportExportController(
 	const readFileTextEffect = Effect.fn("readFileTextEffect")(function* (
 		file: File,
 	) {
+		if (file.size > maxGpxImportBytes) {
+			return yield* new RouteGpxImportError({
+				code: "file_too_large",
+				message: `The selected GPX is too large. Velix supports GPX imports up to ${formatGpxImportByteLimit()}.`,
+			});
+		}
+
 		return yield* Effect.tryPromise({
 			try: () => file.text(),
 			catch: (cause) => new PlannerGpxFileReadError({ cause }),

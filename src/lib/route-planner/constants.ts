@@ -5,6 +5,8 @@ export const chartW = 800;
 export const padY = 5;
 export const maxRoutePoints = 5;
 export const maxWaypoints = maxRoutePoints - 2;
+export const maxGpxImportBytes = 2 * 1024 * 1024;
+export const maxGpxGeometryPoints = 20_000;
 export const minCompletionQueryLength = 3;
 export const completionDebounceMs = 250;
 export const desiredAlternativeRoutes = 3;
@@ -23,6 +25,14 @@ export const maxCorridorWidthMeters = 80_000;
 export const corridorWidthStepMeters = 1_000;
 export const defaultSpatialConstraintEnforcement: SpatialConstraintEnforcement =
 	"strict";
+
+export function formatGpxImportByteLimit(bytes = maxGpxImportBytes) {
+	return `${Math.round(bytes / 1024 / 1024)} MiB`;
+}
+
+export function formatGpxGeometryPointLimit(points = maxGpxGeometryPoints) {
+	return points.toLocaleString("en-US");
+}
 
 export const startCompletionTarget: CompletionTarget = { kind: "startQuery" };
 export const destinationCompletionTarget: CompletionTarget = {

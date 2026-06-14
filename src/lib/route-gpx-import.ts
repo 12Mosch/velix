@@ -3,6 +3,13 @@ import type {
 	PlannedRoute,
 	RouteCoordinate,
 } from "$lib/route-planning";
+import {
+	formatGpxGeometryPointLimit,
+	formatGpxImportByteLimit,
+	maxGpxGeometryPoints,
+	maxGpxImportBytes,
+	maxRoutePoints,
+} from "$lib/route-planner/constants";
 import { Data, Effect } from "effect";
 
 type ParsedGpxPoint = {
@@ -16,8 +23,10 @@ type ParseRouteGpxOptions = {
 };
 
 export type RouteGpxImportErrorCode =
+	| "file_too_large"
 	| "invalid_xml"
 	| "no_geometry"
+	| "too_many_geometry_points"
 	| "too_many_stops";
 
 export class RouteGpxImportError extends Data.TaggedError(
@@ -28,11 +37,15 @@ export class RouteGpxImportError extends Data.TaggedError(
 	readonly cause?: unknown;
 }> {}
 
-const maxRoutePoints = 5;
 const loopClosureThresholdMeters = 50;
 const defaultFilename = "imported-route.gpx";
 const parserErrorNamespace =
 	"http://www.mozilla.org/newlayout/xml/parsererror.xml";
+const gpxGeometryPointTagNames = ["trkpt", "rtept", "wpt"] as const;
+const gpxGeometryPointTagPattern = new RegExp(
+	`<\\s*(${gpxGeometryPointTagNames.join("|")})\\b`,
+	"gi",
+);
 
 function formatCoordinateLabel(point: [number, number]) {
 	return `${point[1].toFixed(5)}, ${point[0].toFixed(5)}`;
@@ -299,9 +312,52 @@ function parseRegexPoints(gpx: string, tagName: string): ParsedGpxPoint[] {
 		.filter((point): point is ParsedGpxPoint => point !== null);
 }
 
+function getUtf8ByteLength(value: string): number {
+	if (typeof TextEncoder !== "undefined") {
+		return new TextEncoder().encode(value).byteLength;
+	}
+
+	return value.length;
+}
+
+function countGpxGeometryPointTags(gpx: string): number {
+	let count = 0;
+	gpxGeometryPointTagPattern.lastIndex = 0;
+
+	while (gpxGeometryPointTagPattern.exec(gpx) !== null) {
+		count += 1;
+
+		if (count > maxGpxGeometryPoints) {
+			return count;
+		}
+	}
+
+	return count;
+}
+
+function getFileTooLargeImportError() {
+	return new RouteGpxImportError({
+		code: "file_too_large",
+		message: `The selected GPX is too large. Velix supports GPX imports up to ${formatGpxImportByteLimit()}.`,
+	});
+}
+
+function getTooManyGeometryPointsImportError(pointCount: number) {
+	return new RouteGpxImportError({
+		code: "too_many_geometry_points",
+		message: `This GPX contains ${pointCount.toLocaleString("en-US")} geometry points. Velix supports up to ${formatGpxGeometryPointLimit()}.`,
+	});
+}
+
 const parseGpxPointsEffect = Effect.fn("parseGpxPointsEffect")(function* (
 	gpx: string,
 ) {
+	const geometryPointCount = countGpxGeometryPointTags(gpx);
+
+	if (geometryPointCount > maxGpxGeometryPoints) {
+		return yield* getTooManyGeometryPointsImportError(geometryPointCount);
+	}
+
 	if (typeof DOMParser !== "undefined") {
 		const parser = new DOMParser();
 		const document = parser.parseFromString(gpx, "application/xml");
@@ -468,6 +524,10 @@ export const parseRouteGpxEffect = Effect.fn("parseRouteGpxEffect")(function* (
 	gpx: string,
 	options: ParseRouteGpxOptions = {},
 ): Effect.fn.Return<PlannedRoute, RouteGpxImportError> {
+	if (getUtf8ByteLength(gpx) > maxGpxImportBytes) {
+		return yield* getFileTooLargeImportError();
+	}
+
 	const { trackPoints, routePoints, waypoints } =
 		yield* parseGpxPointsEffect(gpx);
 	const geometryPoints = trackPoints.length >= 2 ? trackPoints : routePoints;
