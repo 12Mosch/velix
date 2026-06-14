@@ -1,4 +1,4 @@
-import { Effect, Layer, Result } from "effect";
+import { Effect, Layer, Result, Schema } from "effect";
 
 import type {
 	PlannedRoute,
@@ -60,6 +60,81 @@ type GraphHopperPath = {
 type GraphHopperRouteResponse = {
 	paths?: GraphHopperPath[];
 };
+
+const graphHopperCoordinateSchema = Schema.mutable(
+	Schema.TupleWithRest(Schema.Tuple([Schema.Finite, Schema.Finite]), [
+		Schema.Finite,
+	]),
+);
+
+const graphHopperDetailIntervalSchema = Schema.mutable(
+	Schema.Tuple([Schema.Finite, Schema.Finite, Schema.String]),
+);
+
+const graphHopperDetailsSchema = Schema.Struct({
+	surface: Schema.optionalKey(
+		Schema.mutable(Schema.Array(graphHopperDetailIntervalSchema)),
+	),
+	smoothness: Schema.optionalKey(
+		Schema.mutable(Schema.Array(graphHopperDetailIntervalSchema)),
+	),
+	road_class: Schema.optionalKey(
+		Schema.mutable(Schema.Array(graphHopperDetailIntervalSchema)),
+	),
+	road_environment: Schema.optionalKey(
+		Schema.mutable(Schema.Array(graphHopperDetailIntervalSchema)),
+	),
+	road_access: Schema.optionalKey(
+		Schema.mutable(Schema.Array(graphHopperDetailIntervalSchema)),
+	),
+	bike_network: Schema.optionalKey(
+		Schema.mutable(Schema.Array(graphHopperDetailIntervalSchema)),
+	),
+});
+
+const graphHopperInstructionSchema = Schema.Struct({
+	distance: Schema.optionalKey(Schema.Any),
+	time: Schema.optionalKey(Schema.Any),
+	text: Schema.optionalKey(Schema.Any),
+	sign: Schema.optionalKey(Schema.Any),
+	interval: Schema.optionalKey(Schema.Any),
+});
+
+const graphHopperPathSchema = Schema.Struct({
+	bbox: Schema.optionalKey(Schema.mutable(Schema.Array(Schema.Finite))),
+	distance: Schema.optionalKey(Schema.Finite),
+	time: Schema.optionalKey(Schema.Finite),
+	ascend: Schema.optionalKey(Schema.Finite),
+	descend: Schema.optionalKey(Schema.Finite),
+	points: Schema.optionalKey(
+		Schema.Struct({
+			coordinates: Schema.optionalKey(
+				Schema.mutable(Schema.Array(graphHopperCoordinateSchema)),
+			),
+		}),
+	),
+	instructions: Schema.optionalKey(
+		Schema.mutable(Schema.Array(graphHopperInstructionSchema)),
+	),
+	snapped_waypoints: Schema.optionalKey(
+		Schema.Struct({
+			coordinates: Schema.optionalKey(
+				Schema.mutable(Schema.Array(graphHopperCoordinateSchema)),
+			),
+		}),
+	),
+	details: Schema.optionalKey(graphHopperDetailsSchema),
+});
+
+const graphHopperRouteResponseSchema = Schema.Struct({
+	paths: Schema.optionalKey(
+		Schema.mutable(Schema.Array(graphHopperPathSchema)),
+	),
+});
+
+const decodeGraphHopperRouteResponse = Schema.decodeUnknownEffect(
+	graphHopperRouteResponseSchema,
+);
 
 type GraphHopperPriorityRule = {
 	if?: string;
@@ -444,9 +519,18 @@ function normalizeGraphHopperPath(
 function readRoutePayloadEffect(
 	response: Response,
 ): Effect.Effect<GraphHopperRouteResponse, GraphHopperRoutePayloadError> {
-	return Effect.tryPromise({
-		try: () => response.json() as Promise<GraphHopperRouteResponse>,
-		catch: (cause) => new GraphHopperRoutePayloadError(cause),
+	return Effect.gen(function* () {
+		const payload = yield* Effect.tryPromise({
+			try: () => response.json() as Promise<unknown>,
+			catch: (cause) => new GraphHopperRoutePayloadError(cause),
+		});
+
+		return yield* decodeGraphHopperRouteResponse(payload).pipe(
+			Effect.map(
+				(decodedPayload) => decodedPayload as GraphHopperRouteResponse,
+			),
+			Effect.mapError((cause) => new GraphHopperRoutePayloadError(cause)),
+		);
 	});
 }
 
