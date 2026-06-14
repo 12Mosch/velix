@@ -192,8 +192,9 @@ export function createRoutePlannerPageController() {
 	graph.runtime = createPlannerRuntime({
 		resetSpatialConstraintDefaults: () =>
 			graph.form.resetSpatialConstraintDefaults(),
-		restoreSavedRouteFromLocation: (location) =>
-			graph.save.restoreSavedRouteFromLocation(location),
+		queueSavedRouteRestoreFromLocation: (location) =>
+			graph.save.queueSavedRouteRestoreFromLocation(location),
+		restorePendingSavedRoute: () => graph.save.restorePendingSavedRoute(),
 		handleRouteEditKeydown: (event) =>
 			graph.routes.handleRouteEditKeydown(event),
 	});
@@ -240,6 +241,7 @@ export function createRoutePlannerPageController() {
 			"markUnsaved",
 			"markReplaced",
 			"setPendingSavedRouteId",
+			"queueSavedRouteRestoreFromLocation",
 			"captureSavedRouteEditMetadata",
 			"restoreSavedRouteEditMetadata",
 		] as const),
