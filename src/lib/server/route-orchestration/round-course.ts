@@ -6,8 +6,13 @@ import type {
 	RouteWaypoint,
 } from "$lib/route-planning";
 import type { GraphHopperConfig } from "$lib/server/graphhopper-config";
+import type { GraphHopperRouteCache } from "$lib/server/graphhopper-cache";
 import type { GraphHopperRouteBoundaryError } from "$lib/server/graphhopper-errors";
 import { requestRoutesEffect } from "$lib/server/graphhopper-routing";
+import type {
+	GraphHopperRouteCallSubject,
+	PaidUpstreamRateLimiter,
+} from "$lib/server/route-rate-limits";
 import type { TimeoutFetch } from "$lib/server/resilience";
 
 import {
@@ -38,7 +43,11 @@ export function searchRoundCourseRoutesEffect(
 ): Effect.Effect<
 	RoundCourseRouteSearchResult,
 	RouteGenerationError | GraphHopperRouteBoundaryError,
-	GraphHopperConfig | TimeoutFetch
+	| GraphHopperConfig
+	| TimeoutFetch
+	| GraphHopperRouteCache
+	| PaidUpstreamRateLimiter
+	| GraphHopperRouteCallSubject
 > {
 	return Effect.gen(function* () {
 		let normalizedRoutes: PlannedRoute[];

@@ -1,4 +1,4 @@
-import { Effect, Result } from "effect";
+import { Effect, Layer, Result } from "effect";
 
 import type {
 	PlannedRoute,
@@ -25,7 +25,14 @@ import {
 	type GraphHopperRouteBoundaryError,
 } from "$lib/server/graphhopper-errors";
 import { GraphHopperConfig } from "$lib/server/graphhopper-config";
+import { GraphHopperRouteCache } from "$lib/server/graphhopper-cache";
 import { GraphHopperLive } from "$lib/server/layers";
+import {
+	GraphHopperRouteCallSubject,
+	type PaidUpstreamRateLimiter,
+	chargeGraphHopperRouteCallEffect,
+	RouteRateLimitLive,
+} from "$lib/server/route-rate-limits";
 import { ServerFetch, TimeoutFetch } from "$lib/server/resilience";
 
 type GraphHopperPath = {
@@ -443,18 +450,57 @@ function readRoutePayloadEffect(
 	});
 }
 
+function canonicalJson(value: unknown): string {
+	if (Array.isArray(value)) {
+		return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+	}
+
+	if (value && typeof value === "object") {
+		const record = value as Record<string, unknown>;
+		return `{${Object.keys(record)
+			.sort()
+			.map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+			.join(",")}}`;
+	}
+
+	return JSON.stringify(value);
+}
+
+function buildRouteCacheKey(
+	apiBaseUrl: string,
+	body: GraphHopperRouteRequestBody,
+): string {
+	return `${apiBaseUrl}/route::${canonicalJson(body)}`;
+}
+
 function sendRouteRequestEffect(
 	routeUrl: string,
+	apiBaseUrl: string,
 	body: GraphHopperRouteRequestBody,
 	timeoutMs: number,
 ): Effect.Effect<
 	GraphHopperRouteResponse,
 	| GraphHopperRouteFetchError
 	| GraphHopperRouteStatusError
-	| GraphHopperRoutePayloadError,
-	TimeoutFetch
+	| GraphHopperRoutePayloadError
+	| import("$lib/server/route-rate-limits").GraphHopperRouteRateLimitUnavailableError
+	| import("$lib/server/route-rate-limits").GraphHopperRouteRateLimitExceededError,
+	| TimeoutFetch
+	| GraphHopperRouteCache
+	| PaidUpstreamRateLimiter
+	| GraphHopperRouteCallSubject
 > {
 	return Effect.gen(function* () {
+		const routeCache = yield* GraphHopperRouteCache;
+		const cacheKey = buildRouteCacheKey(apiBaseUrl, body);
+		const cachedPayload = yield* routeCache.get(cacheKey);
+
+		if (cachedPayload) {
+			return cachedPayload as GraphHopperRouteResponse;
+		}
+
+		yield* chargeGraphHopperRouteCallEffect();
+
 		const timeoutFetch = yield* TimeoutFetch;
 		const response = yield* Effect.mapError(
 			timeoutFetch.fetch(
@@ -478,7 +524,9 @@ function sendRouteRequestEffect(
 			);
 		}
 
-		return yield* readRoutePayloadEffect(response);
+		const payload = yield* readRoutePayloadEffect(response);
+		yield* routeCache.set(cacheKey, payload);
+		return payload;
 	});
 }
 
@@ -488,7 +536,11 @@ export function requestRoutesEffect(
 ): Effect.Effect<
 	RouteRequestResult,
 	GraphHopperRouteBoundaryError,
-	GraphHopperConfig | TimeoutFetch
+	| GraphHopperConfig
+	| TimeoutFetch
+	| GraphHopperRouteCache
+	| PaidUpstreamRateLimiter
+	| GraphHopperRouteCallSubject
 > {
 	return Effect.gen(function* () {
 		const config = yield* GraphHopperConfig;
@@ -551,6 +603,7 @@ export function requestRoutesEffect(
 			const routeResult = yield* Effect.result(
 				sendRouteRequestEffect(
 					routeUrl,
+					config.apiBaseUrl,
 					buildRouteRequestBody(strategy),
 					config.routeTimeoutMs,
 				),
@@ -612,7 +665,10 @@ export async function requestRoutes(
 ): Promise<RouteRequestResult> {
 	return runServerEffect(
 		requestRoutesEffect(points, options).pipe(
-			Effect.provide(GraphHopperLive),
+			Effect.provide(Layer.mergeAll(GraphHopperLive, RouteRateLimitLive)),
+			Effect.provideService(GraphHopperRouteCallSubject, {
+				subject: "direct-request",
+			}),
 			Effect.provideService(ServerFetch, { fetch: fetchFn }),
 		),
 	);

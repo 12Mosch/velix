@@ -7,9 +7,16 @@ import type {
 	RoundCourseTarget,
 } from "$lib/route-planning";
 import type { GraphHopperConfig } from "$lib/server/graphhopper-config";
+import type { GraphHopperRouteCache } from "$lib/server/graphhopper-cache";
 import type { GraphHopperRouteBoundaryError } from "$lib/server/graphhopper-errors";
 import { GraphHopperRouteStatusError } from "$lib/server/graphhopper-errors";
 import { requestRoutesEffect } from "$lib/server/graphhopper-routing";
+import {
+	GraphHopperRouteRateLimitExceededError,
+	GraphHopperRouteRateLimitUnavailableError,
+	type GraphHopperRouteCallSubject,
+	type PaidUpstreamRateLimiter,
+} from "$lib/server/route-rate-limits";
 import type { TimeoutFetch } from "$lib/server/resilience";
 
 import {
@@ -66,6 +73,15 @@ function serializeRoundCourseCandidateFailure(
 	};
 }
 
+function isRouteCallBoundaryRateLimitError(
+	error: GraphHopperRouteBoundaryError,
+): boolean {
+	return (
+		error instanceof GraphHopperRouteRateLimitExceededError ||
+		error instanceof GraphHopperRouteRateLimitUnavailableError
+	);
+}
+
 export function searchRoundCourseCandidateRoutesEffect(
 	startPoint: [number, number],
 	target: RoundCourseTarget,
@@ -75,7 +91,11 @@ export function searchRoundCourseCandidateRoutesEffect(
 ): Effect.Effect<
 	RoundCourseCandidateSearchResult,
 	RouteGenerationError | GraphHopperRouteBoundaryError,
-	GraphHopperConfig | TimeoutFetch
+	| GraphHopperConfig
+	| TimeoutFetch
+	| GraphHopperRouteCache
+	| PaidUpstreamRateLimiter
+	| GraphHopperRouteCallSubject
 > {
 	return Effect.gen(function* () {
 		let baseDistanceMeters = clampRoundCourseDistanceMeters(
@@ -156,13 +176,19 @@ export function searchRoundCourseCandidateRoutesEffect(
 									})),
 								}),
 							),
-							Effect.match({
-								onFailure: (error): RoundCourseCandidateFailure => ({
-									...context,
-									_tag: "RoundCourseCandidateFailure",
-									error,
-								}),
-								onSuccess: (success) => success,
+							Effect.matchEffect({
+								onFailure: (error) => {
+									if (isRouteCallBoundaryRateLimitError(error)) {
+										return Effect.fail(error);
+									}
+
+									return Effect.succeed({
+										...context,
+										_tag: "RoundCourseCandidateFailure" as const,
+										error,
+									});
+								},
+								onSuccess: (success) => Effect.succeed(success),
 							}),
 						);
 					},

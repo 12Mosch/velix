@@ -495,7 +495,7 @@ describe("POST /api/route", () => {
 		expect(response.status).toBe(429);
 		expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
 		expect(Number(response.headers.get("Retry-After"))).toBeLessThanOrEqual(60);
-		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(10);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
 		await expect(response.json()).resolves.toEqual({
 			error: "Too many route requests. Try again soon.",
 		});
@@ -2980,6 +2980,51 @@ describe("POST /api/route", () => {
 		expect(
 			payload.roundCourseCandidateErrors?.[8]?.requestedDistanceMeters,
 		).toBeCloseTo(55000);
+	});
+
+	it("stops round-course candidate fanout when the paid GraphHopper route-call bucket is exhausted", async () => {
+		let routeCallNumber = 0;
+		const fetchMock = vi.fn<typeof fetch>(() => {
+			routeCallNumber += 1;
+
+			if (routeCallNumber % 2 === 1) {
+				return Promise.resolve(
+					new Response("custom model rejected", { status: 400 }),
+				);
+			}
+
+			return Promise.resolve(
+				buildRoundCourseResponse([11.5756, 48.1375, 522], {
+					distance: 35_000 + routeCallNumber * 1000,
+					time: 6_000_000,
+				}),
+			);
+		});
+
+		const response = await POST(
+			buildEvent(
+				{
+					mode: "round_course",
+					start: {
+						label: "Start",
+						point: [11.5755, 48.1374],
+					},
+					target: {
+						kind: "duration",
+						durationMs: 12_600_000,
+					},
+				},
+				fetchMock,
+				"paid-route-fanout-client",
+			),
+		);
+
+		expect(response.status).toBe(429);
+		expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(10);
+		await expect(response.json()).resolves.toEqual({
+			error: "Too many GraphHopper route requests. Try again soon.",
+		});
 	});
 
 	it("adds a warning when the closest duration target still misses badly", async () => {

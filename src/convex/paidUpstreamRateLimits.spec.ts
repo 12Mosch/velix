@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { checkHandler } from "./paidUpstreamRateLimits";
 
-type Bucket = "route" | "suggestion" | "reverse";
+type Bucket = "route" | "suggestion" | "reverse" | "graphhopper_route";
 
 type RateLimitRow = {
 	_id: string;
@@ -180,6 +180,47 @@ describe("paidUpstreamRateLimits Convex mutation", () => {
 		await expect(
 			runCheck(ctx, {
 				bucket: "route",
+				subjectHash: "subject-a",
+				secret: "shared-secret",
+			}),
+		).resolves.toEqual({
+			allowed: false,
+			retryAfterSeconds: 60,
+		});
+	});
+
+	it("allows requests up to the GraphHopper route-call maximum", async () => {
+		const { ctx, state } = createCtx();
+
+		for (let index = 0; index < 10; index += 1) {
+			await expect(
+				runCheck(ctx, {
+					bucket: "graphhopper_route",
+					subjectHash: "subject-a",
+					secret: "shared-secret",
+				}),
+			).resolves.toEqual({ allowed: true });
+		}
+
+		expect(state[0]?.bucket).toBe("graphhopper_route");
+		expect(state[0]?.count).toBe(10);
+	});
+
+	it("rejects requests over the GraphHopper route-call maximum", async () => {
+		const { ctx } = createCtx([
+			{
+				_id: "limit_1",
+				bucket: "graphhopper_route",
+				subjectHash: "subject-a",
+				count: 10,
+				resetAtMs: 61_000,
+				updatedAtMs: 1_000,
+			},
+		]);
+
+		await expect(
+			runCheck(ctx, {
+				bucket: "graphhopper_route",
 				subjectHash: "subject-a",
 				secret: "shared-secret",
 			}),

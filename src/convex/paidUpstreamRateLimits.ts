@@ -9,7 +9,11 @@ declare const process: {
 	};
 };
 
-export type PaidUpstreamRateLimitBucket = "route" | "suggestion" | "reverse";
+export type PaidUpstreamRateLimitBucket =
+	| "route"
+	| "suggestion"
+	| "reverse"
+	| "graphhopper_route";
 
 export type PaidUpstreamRateLimitResult =
 	| {
@@ -27,6 +31,7 @@ const limits: Record<
 	route: { maxRequests: 10, windowMs: 60_000 },
 	suggestion: { maxRequests: 60, windowMs: 60_000 },
 	reverse: { maxRequests: 60, windowMs: 60_000 },
+	graphhopper_route: { maxRequests: 10, windowMs: 60_000 },
 };
 
 const cleanupBatchSize = 8;
@@ -117,6 +122,7 @@ export const check = mutation({
 			v.literal("route"),
 			v.literal("suggestion"),
 			v.literal("reverse"),
+			v.literal("graphhopper_route"),
 		),
 		subjectHash: v.string(),
 		secret: v.string(),
