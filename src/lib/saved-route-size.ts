@@ -1,5 +1,6 @@
 import { getConvexSize, getDocumentSize } from "convex/values";
 import { Data, Effect } from "effect";
+import type { RemoteSavedRouteSummaryPayload } from "./saved-routes-core";
 
 export const MAX_REMOTE_ROUTE_JSON_BYTES = 512 * 1024;
 
@@ -9,6 +10,7 @@ export type SavedRouteStorageRow = {
 	createdAtMs: number;
 	updatedAtMs: number;
 	routeJson: string;
+	summary?: RemoteSavedRouteSummaryPayload;
 };
 
 export function formatRoutePayloadSizeLimit(): string {

@@ -11,17 +11,23 @@ import {
 	buildSavedRoute,
 	buildSavedRouteVersion,
 	cloneSavedRoute,
+	deserializeRemoteSavedRoute,
 	normalizeSavedRouteVersions,
 	normalizeRemoteSavedRoutes,
+	normalizeSavedRouteSummaries,
 	serializeSavedRouteForRemote,
+	summarizeSavedRoute,
 	type RemoteSavedRoutePayload,
+	type RemoteSavedRouteSummaryPayload,
 	type RemoteSavedRouteVersionPayload,
 	type SavedRoute,
+	type SavedRouteSummary,
 	type SavedRouteVersion,
 } from "$lib/saved-routes-core";
 import {
 	fromRemoteAdapter,
 	haveRoutePayloadsChanged,
+	type SavedRoutesOperationError,
 	sortSavedRouteVersionsNewestFirst,
 	toSavedRoutesOperationError,
 } from "$lib/saved-routes/saved-routes-use-case-helpers";
@@ -29,9 +35,34 @@ import { Effect } from "effect";
 
 export type SavedRoutesAuthStatus = "loading" | "signedOut" | "signedIn";
 
+export type SavedRouteSummaryFilters = {
+	searchQuery?: string;
+	minDistanceMeters?: number;
+	maxDistanceMeters?: number;
+	minElevationMeters?: number;
+	maxElevationMeters?: number;
+};
+
+export type SavedRouteSummaryPage = {
+	page: RemoteSavedRouteSummaryPayload[] | unknown[];
+	continueCursor: string;
+	isDone: boolean;
+};
+
 export type SavedRoutesRemoteRepository = {
 	save: (savedRoute: RemoteSavedRoutePayload) => Effect.Effect<void, Error>;
 	delete: (routeId: string) => Effect.Effect<void, Error>;
+	get?: (
+		routeId: string,
+	) => Effect.Effect<RemoteSavedRoutePayload | null | unknown, Error>;
+	listSummaries?: (args: {
+		paginationOpts: {
+			numItems: number;
+			cursor: string | null;
+			maximumRowsRead?: number;
+		};
+		filters?: SavedRouteSummaryFilters;
+	}) => Effect.Effect<SavedRouteSummaryPage, Error>;
 	listVersions?: (
 		routeId: string,
 	) => Effect.Effect<RemoteSavedRouteVersionPayload[] | unknown[], Error>;
@@ -49,6 +80,10 @@ export type SavedRoutesRemoteRepository = {
 export type SavedRoutesStateModel = {
 	initialized: boolean;
 	savedRoutes: SavedRoute[];
+	savedRouteSummaries: SavedRouteSummary[];
+	savedRouteSummariesContinueCursor: string | null;
+	savedRouteSummariesLoading: boolean;
+	savedRouteSummaryFilters: SavedRouteSummaryFilters;
 	authStatus: SavedRoutesAuthStatus;
 	authUserId: string | null;
 	remoteReady: boolean;
@@ -64,6 +99,7 @@ export class SavedRoutesUseCases {
 	private pendingRemoteSaves = new Map<string, SavedRoute>();
 	private remoteSaveFlushTimer: ReturnType<typeof setTimeout> | null = null;
 	private remoteSessionVersion = 0;
+	private summaryRequestVersion = 0;
 	private readonly remoteRouteOperations = new Map<
 		string,
 		{ kind: "save" | "delete"; revision: number }
@@ -87,6 +123,7 @@ export class SavedRoutesUseCases {
 							userId: state.authUserId,
 						})
 					: yield* this.readRoutesEffect({ kind: "anonymous" });
+			state.savedRouteSummaries = this.getListSummariesFromState(state);
 
 			return state.savedRoutes;
 		});
@@ -105,6 +142,7 @@ export class SavedRoutesUseCases {
 				state.authUserId = null;
 				state.remoteReady = false;
 				state.syncError = null;
+				this.clearRemoteSummaryState(state);
 				yield* this.setRemoteRepository(null);
 				return;
 			}
@@ -115,8 +153,10 @@ export class SavedRoutesUseCases {
 				state.authUserId = null;
 				state.remoteReady = false;
 				state.pendingRemoteRouteIds = new Set();
+				this.clearRemoteSummaryState(state);
 				yield* this.setRemoteRepository(null);
 				state.savedRoutes = yield* this.readRoutesEffect({ kind: "anonymous" });
+				state.savedRouteSummaries = this.getListSummariesFromState(state);
 				state.syncError = null;
 				return;
 			}
@@ -128,8 +168,10 @@ export class SavedRoutesUseCases {
 					kind: "user",
 					userId,
 				});
+				state.savedRouteSummaries = this.getListSummariesFromState(state);
 				state.remoteReady = false;
 				state.pendingRemoteRouteIds = new Set();
+				state.savedRouteSummariesContinueCursor = null;
 			}
 
 			state.authStatus = "signedIn";
@@ -176,6 +218,7 @@ export class SavedRoutesUseCases {
 			);
 
 			state.savedRoutes = mergedSavedRoutes;
+			state.savedRouteSummaries = this.getListSummariesFromState(state);
 			state.remoteReady = true;
 			state.syncError = null;
 			yield* this.persistRoutesEffect(
@@ -183,6 +226,48 @@ export class SavedRoutesUseCases {
 				{ kind: "user", userId },
 				mergedSavedRoutes,
 			);
+		});
+	}
+
+	applyRemoteSavedRouteSummaries(
+		state: SavedRoutesStateModel,
+		userId: string,
+		summaries: unknown[],
+		continueCursor: string | null,
+		mode: "replace" | "append" = "replace",
+		filters: SavedRouteSummaryFilters = {},
+	): Effect.Effect<void> {
+		return Effect.sync(() => {
+			if (state.authStatus !== "signedIn" || state.authUserId !== userId) {
+				return;
+			}
+
+			const remoteSummaries = normalizeSavedRouteSummaries(summaries);
+			const optimisticSummaries = this.getListSummariesFromState(state).filter(
+				(summary) => state.pendingRemoteRouteIds.has(summary.id),
+			);
+			const mergedSummariesById = new Map(
+				(mode === "append" ? state.savedRouteSummaries : []).map((summary) => [
+					summary.id,
+					summary,
+				]),
+			);
+
+			for (const summary of remoteSummaries) {
+				mergedSummariesById.set(summary.id, summary);
+			}
+			for (const summary of optimisticSummaries) {
+				mergedSummariesById.set(summary.id, summary);
+			}
+
+			state.savedRouteSummaries = [...mergedSummariesById.values()].toSorted(
+				(left, right) =>
+					Date.parse(right.createdAt) - Date.parse(left.createdAt),
+			);
+			state.savedRouteSummariesContinueCursor = continueCursor;
+			state.savedRouteSummaryFilters = { ...filters };
+			state.remoteReady = true;
+			state.syncError = null;
 		});
 	}
 
@@ -327,6 +412,12 @@ export class SavedRoutesUseCases {
 
 			const savedRoute = buildSavedRoute(route);
 			state.savedRoutes = [savedRoute, ...state.savedRoutes];
+			state.savedRouteSummaries = [
+				summarizeSavedRoute(savedRoute),
+				...state.savedRouteSummaries.filter(
+					(summary) => summary.id !== savedRoute.id,
+				),
+			];
 			state.syncError = null;
 			yield* this.persistRouteEffect(state, savedRoute);
 			yield* this.syncSavedRouteEffect(state, savedRoute, "soon");
@@ -362,6 +453,15 @@ export class SavedRoutesUseCases {
 						entry.id === existingRoute.id ? savedRoute : entry,
 					)
 				: [savedRoute, ...state.savedRoutes];
+			state.savedRouteSummaries = [
+				summarizeSavedRoute(savedRoute),
+				...state.savedRouteSummaries.filter(
+					(summary) => summary.id !== savedRoute.id,
+				),
+			].toSorted(
+				(left, right) =>
+					Date.parse(right.createdAt) - Date.parse(left.createdAt),
+			);
 			state.syncError = null;
 			if (existingRoute && routeChanged) {
 				yield* this.persistRouteVersionEffect(
@@ -430,6 +530,13 @@ export class SavedRoutesUseCases {
 			state.savedRoutes = state.savedRoutes.map((entry) =>
 				entry.id === id ? restoredRoute : entry,
 			);
+			state.savedRouteSummaries = [
+				summarizeSavedRoute(restoredRoute),
+				...state.savedRouteSummaries.filter((summary) => summary.id !== id),
+			].toSorted(
+				(left, right) =>
+					Date.parse(right.createdAt) - Date.parse(left.createdAt),
+			);
 			state.syncError = null;
 			yield* this.persistRouteVersionEffect(state, currentVersion);
 			yield* this.persistRouteEffect(state, restoredRoute);
@@ -442,10 +549,148 @@ export class SavedRoutesUseCases {
 		});
 	}
 
+	loadMoreSavedRouteSummaries(
+		state: SavedRoutesStateModel,
+	): Effect.Effect<void> {
+		return Effect.gen({ self: this }, function* () {
+			if (
+				state.authStatus !== "signedIn" ||
+				!state.authUserId ||
+				!this.remoteRepository?.listSummaries ||
+				!state.savedRouteSummariesContinueCursor ||
+				state.savedRouteSummariesLoading
+			) {
+				return;
+			}
+
+			const userId = state.authUserId;
+			const cursor = state.savedRouteSummariesContinueCursor;
+			const filters = { ...state.savedRouteSummaryFilters };
+			const sessionVersion = this.remoteSessionVersion;
+			const requestVersion = this.summaryRequestVersion;
+			state.savedRouteSummariesLoading = true;
+
+			const result = yield* fromRemoteAdapter(
+				this.remoteRepository.listSummaries({
+					paginationOpts: {
+						numItems: 25,
+						cursor,
+						maximumRowsRead: 25,
+					},
+					filters,
+				}),
+			).pipe(
+				Effect.mapError((cause) =>
+					toSavedRoutesOperationError(
+						cause,
+						"Could not load more saved routes.",
+					),
+				),
+				Effect.catch((error) =>
+					Effect.sync(() => {
+						if (
+							this.isCurrentRemoteSession(state, userId, sessionVersion) &&
+							this.summaryRequestVersion === requestVersion &&
+							this.areSummaryFiltersEqual(
+								state.savedRouteSummaryFilters,
+								filters,
+							)
+						) {
+							state.syncError = `Could not load more saved routes: ${error.message}`;
+						}
+						return null;
+					}),
+				),
+			);
+
+			if (
+				!this.isCurrentRemoteSession(state, userId, sessionVersion) ||
+				this.summaryRequestVersion !== requestVersion ||
+				!this.areSummaryFiltersEqual(state.savedRouteSummaryFilters, filters)
+			) {
+				return;
+			}
+
+			state.savedRouteSummariesLoading = false;
+			if (!result) {
+				return;
+			}
+
+			yield* this.applyRemoteSavedRouteSummaries(
+				state,
+				userId,
+				result.page,
+				result.isDone ? null : result.continueCursor,
+				"append",
+				filters,
+			);
+		});
+	}
+
+	loadSavedRouteSummaries(
+		state: SavedRoutesStateModel,
+		filters: SavedRouteSummaryFilters = {},
+	): Effect.Effect<void> {
+		return Effect.gen({ self: this }, function* () {
+			if (
+				state.authStatus !== "signedIn" ||
+				!state.authUserId ||
+				!this.remoteRepository?.listSummaries
+			) {
+				return;
+			}
+
+			const userId = state.authUserId;
+			const requestVersion = ++this.summaryRequestVersion;
+			state.savedRouteSummariesLoading = true;
+
+			const result = yield* fromRemoteAdapter(
+				this.remoteRepository.listSummaries({
+					paginationOpts: {
+						numItems: 25,
+						cursor: null,
+						maximumRowsRead: 25,
+					},
+					filters,
+				}),
+			).pipe(
+				Effect.mapError((cause) =>
+					toSavedRoutesOperationError(cause, "Could not load saved routes."),
+				),
+				Effect.catch((error) =>
+					Effect.sync(() => {
+						if (this.summaryRequestVersion === requestVersion) {
+							state.syncError = `Could not load saved routes: ${error.message}`;
+						}
+						return null;
+					}),
+				),
+			);
+
+			if (this.summaryRequestVersion !== requestVersion) {
+				return;
+			}
+
+			state.savedRouteSummariesLoading = false;
+			if (!result) {
+				return;
+			}
+
+			yield* this.applyRemoteSavedRouteSummaries(
+				state,
+				userId,
+				result.page,
+				result.isDone ? null : result.continueCursor,
+				"replace",
+				filters,
+			);
+		});
+	}
+
 	getSavedRouteById(
 		state: SavedRoutesStateModel,
 		id: string | null | undefined,
-	): Effect.Effect<SavedRoute | null> {
+	): Effect.Effect<SavedRoute | null, SavedRoutesOperationError> {
 		return Effect.gen({ self: this }, function* () {
 			if (!id) {
 				return null;
@@ -455,7 +700,52 @@ export class SavedRoutesUseCases {
 
 			const savedRoute = state.savedRoutes.find((route) => route.id === id);
 
-			return savedRoute ? cloneSavedRoute(savedRoute) : null;
+			if (savedRoute) {
+				return cloneSavedRoute(savedRoute);
+			}
+
+			if (
+				state.authStatus !== "signedIn" ||
+				!state.authUserId ||
+				!this.remoteRepository?.get
+			) {
+				return null;
+			}
+
+			const userId = state.authUserId;
+			const sessionVersion = this.remoteSessionVersion;
+			const remotePayload = yield* fromRemoteAdapter(
+				this.remoteRepository.get(id),
+			).pipe(
+				Effect.mapError((cause) =>
+					toSavedRoutesOperationError(cause, "Could not load saved route."),
+				),
+			);
+			if (!this.isCurrentRemoteSession(state, userId, sessionVersion)) {
+				return null;
+			}
+
+			const hydratedRoute = deserializeRemoteSavedRoute(remotePayload);
+			if (!hydratedRoute) {
+				return null;
+			}
+
+			state.savedRoutes = [hydratedRoute, ...state.savedRoutes].toSorted(
+				(left, right) =>
+					Date.parse(right.createdAt) - Date.parse(left.createdAt),
+			);
+			state.savedRouteSummaries = [
+				summarizeSavedRoute(hydratedRoute),
+				...state.savedRouteSummaries.filter(
+					(summary) => summary.id !== hydratedRoute.id,
+				),
+			].toSorted(
+				(left, right) =>
+					Date.parse(right.createdAt) - Date.parse(left.createdAt),
+			);
+			yield* this.persistRouteEffect(state, hydratedRoute);
+
+			return cloneSavedRoute(hydratedRoute);
 		});
 	}
 
@@ -469,12 +759,19 @@ export class SavedRoutesUseCases {
 			const nextSavedRoutes = state.savedRoutes.filter(
 				(route) => route.id !== id,
 			);
+			const nextSavedRouteSummaries = state.savedRouteSummaries.filter(
+				(summary) => summary.id !== id,
+			);
 
-			if (nextSavedRoutes.length === state.savedRoutes.length) {
+			if (
+				nextSavedRoutes.length === state.savedRoutes.length &&
+				nextSavedRouteSummaries.length === state.savedRouteSummaries.length
+			) {
 				return false;
 			}
 
 			state.savedRoutes = nextSavedRoutes;
+			state.savedRouteSummaries = nextSavedRouteSummaries;
 			state.syncError = null;
 			yield* this.deleteLocalRouteEffect(state, id);
 			yield* this.deleteRemoteSavedRouteEffect(state, id);
@@ -488,6 +785,7 @@ export class SavedRoutesUseCases {
 			this.bumpRemoteSession();
 			state.initialized = false;
 			state.savedRoutes = [];
+			this.clearRemoteSummaryState(state);
 			state.authStatus = "signedOut";
 			state.authUserId = null;
 			state.remoteReady = false;
@@ -510,6 +808,31 @@ export class SavedRoutesUseCases {
 		return state.authStatus === "signedIn" && state.authUserId
 			? { kind: "user", userId: state.authUserId }
 			: { kind: "anonymous" };
+	}
+
+	private clearRemoteSummaryState(state: SavedRoutesStateModel) {
+		state.savedRouteSummaries = [];
+		state.savedRouteSummariesContinueCursor = null;
+		state.savedRouteSummariesLoading = false;
+		state.savedRouteSummaryFilters = {};
+	}
+
+	private getListSummariesFromState(
+		state: SavedRoutesStateModel,
+	): SavedRouteSummary[] {
+		return state.savedRoutes
+			.map(summarizeSavedRoute)
+			.toSorted(
+				(left, right) =>
+					Date.parse(right.createdAt) - Date.parse(left.createdAt),
+			);
+	}
+
+	private areSummaryFiltersEqual(
+		left: SavedRouteSummaryFilters,
+		right: SavedRouteSummaryFilters,
+	) {
+		return JSON.stringify(left) === JSON.stringify(right);
 	}
 
 	private readRoutesEffect(
@@ -947,6 +1270,7 @@ export class SavedRoutesUseCases {
 
 	private bumpRemoteSession() {
 		this.remoteSessionVersion += 1;
+		this.summaryRequestVersion += 1;
 		this.inFlightMerges.clear();
 		this.pendingRemoteSaves.clear();
 		this.remoteRouteOperations.clear();

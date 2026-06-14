@@ -1,7 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-import { plannedRouteValidator } from "../lib/saved-route-convex-validators";
+import {
+	plannedRouteValidator,
+	remoteSavedRouteSummaryPayloadValidator,
+} from "../lib/saved-route-convex-validators";
 import {
 	optionalDistanceUnitValidator,
 	optionalMapStyleValidator,
@@ -16,6 +19,7 @@ export default defineSchema({
 		updatedAtMs: v.number(),
 		routeJson: v.optional(v.string()),
 		route: v.optional(plannedRouteValidator),
+		summary: v.optional(remoteSavedRouteSummaryPayloadValidator),
 	})
 		.index("by_user_createdAt", ["userId", "createdAtMs"])
 		.index("by_user_routeId", ["userId", "routeId"]),

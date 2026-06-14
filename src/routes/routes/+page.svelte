@@ -27,27 +27,31 @@
 		downloadRouteFitEffect,
 		downloadRouteGpxEffect,
 	} from "$lib/route-export";
-	import { isImportedRoute, type PlannedRoute } from "$lib/route-planning";
+	import type { PlannedRoute } from "$lib/route-planning";
 	import {
+		formatDuration,
 		formatRoundCourseTarget,
-		formatWaypointSummary,
-		getRoundCourseTarget,
 		getRouteDurationText,
 		getRouteLegText,
-		isOutAndBackRoute,
-		isRoundCourseRoute,
 	} from "$lib/route-display";
 	import {
 		addSavedRoute,
 		deleteSavedRoute,
+		getSavedRouteById,
 		initSavedRoutes,
 		listSavedRouteVersions,
+		loadSavedRouteSummaries,
+		loadMoreSavedRouteSummaries,
 		restoreLatestSavedRouteVersion,
 		type SavedRoute,
+		type SavedRouteSummary,
 		type SavedRouteVersion,
 		savedRoutesState,
 	} from "$lib/saved-routes.svelte";
-	import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
+	import {
+		serializeSavedRouteForRemote,
+		summarizeSavedRoute,
+	} from "$lib/saved-routes-core";
 	import {
 		buildShareUrl,
 		copyTextToClipboardEffect,
@@ -118,7 +122,9 @@
 	let pendingShareUrl = $state<string | null>(null);
 	let copiedShareRouteId = $state<string | null>(null);
 	let restoringRoutes = $state<Set<string>>(new Set());
+	let hydratingRoutes = $state<Set<string>>(new Set());
 	let restoreMessages = $state<Record<string, string>>({});
+	let routeActionErrors = $state<Record<string, string>>({});
 	let expandedHistoryRouteId = $state<string | null>(null);
 	let loadingHistoryRoutes = $state<Set<string>>(new Set());
 	let savedRouteVersionsByRouteId = $state<Record<string, SavedRouteVersion[]>>(
@@ -129,12 +135,6 @@
 		string,
 		SavedRouteSearchTextCacheEntry
 	>();
-	const isLoadingSyncedRoutes = $derived(
-		savedRoutesState.authStatus === "signedIn" &&
-			!savedRoutesState.remoteReady &&
-			!savedRoutesState.syncError &&
-			savedRoutesState.savedRoutes.length === 0,
-	);
 	const normalizedSearchQuery = $derived(normalizeSearchText(searchQuery));
 	const minDistanceMeters = $derived(
 		parseSavedRouteDistanceFilter(minDistanceInput),
@@ -156,23 +156,52 @@
 				maxElevationInput.trim(),
 		),
 	);
-	const filteredSavedRoutes = $derived(
-		savedRoutesState.savedRoutes.filter((savedRoute) => {
+	const remoteSummaryFilters = $derived({
+		...(normalizedSearchQuery ? { searchQuery: normalizedSearchQuery } : {}),
+		...(minDistanceMeters === null
+			? {}
+			: { minDistanceMeters }),
+		...(maxDistanceMeters === null
+			? {}
+			: { maxDistanceMeters }),
+		...(minElevationMeters === null
+			? {}
+			: { minElevationMeters }),
+		...(maxElevationMeters === null
+			? {}
+			: { maxElevationMeters }),
+	});
+	const remoteSummaryFiltersSignature = $derived(
+		JSON.stringify(remoteSummaryFilters),
+	);
+	const displayedSavedRouteSummaries = $derived(
+		savedRoutesState.authStatus === "signedIn"
+			? savedRoutesState.savedRouteSummaries
+			: savedRoutesState.savedRoutes.map(summarizeSavedRoute),
+	);
+	const isLoadingSyncedRoutes = $derived(
+		savedRoutesState.authStatus === "signedIn" &&
+			!savedRoutesState.remoteReady &&
+			!savedRoutesState.syncError &&
+			displayedSavedRouteSummaries.length === 0,
+	);
+	const filteredSavedRouteSummaries = $derived(
+		displayedSavedRouteSummaries.filter((summary) => {
 			const matchesSearch =
 				!normalizedSearchQuery ||
-				getSavedRouteSearchText(savedRoute).includes(normalizedSearchQuery);
+				getSavedRouteSummarySearchText(summary).includes(normalizedSearchQuery);
 
 			return (
 				matchesSearch &&
-				matchesDistanceFilters(savedRoute) &&
-				matchesElevationFilters(savedRoute)
+				matchesDistanceFilters(summary) &&
+				matchesElevationFilters(summary)
 			);
 		}),
 	);
 
 	$effect(() => {
 		const currentSavedRouteIds = new Set(
-			savedRoutesState.savedRoutes.map((savedRoute) => savedRoute.id),
+			displayedSavedRouteSummaries.map((summary) => summary.id),
 		);
 
 		for (const cachedSavedRouteId of savedRouteSearchTextCache.keys()) {
@@ -180,6 +209,18 @@
 				savedRouteSearchTextCache.delete(cachedSavedRouteId);
 			}
 		}
+	});
+
+	$effect(() => {
+		remoteSummaryFiltersSignature;
+		if (
+			savedRoutesState.authStatus !== "signedIn" ||
+			!savedRoutesState.remoteReady
+		) {
+			return;
+		}
+
+		void loadSavedRouteSummaries(remoteSummaryFilters);
 	});
 
 	function formatSavedAt(createdAt: string): string {
@@ -207,89 +248,122 @@
 		return numericValue;
 	}
 
-	function getRouteTypeBadges(route: PlannedRoute): string[] {
-		const badges: string[] = [];
-
-		if (isRoundCourseRoute(route)) {
-			badges.push("Round course");
-		}
-
-		if (isOutAndBackRoute(route)) {
-			badges.push("Out and back");
-		}
-
-		if (isImportedRoute(route)) {
-			badges.push("Imported GPX");
-		}
-
-		return badges;
+	function isSummaryRoundCourse(summary: SavedRouteSummary): boolean {
+		return summary.mode === "round_course";
 	}
 
-	function buildSavedRouteSearchText(savedRoute: SavedRoute): string {
-		const route = savedRoute.route;
-		const roundCourseTarget = getRoundCourseTarget(route);
-		const waypointSummary = formatWaypointSummary(route.waypoints);
+	function isSummaryOutAndBack(summary: SavedRouteSummary): boolean {
+		return summary.mode === "out_and_back";
+	}
+
+	function isSummaryImported(summary: SavedRouteSummary): boolean {
+		return summary.sourceKind === "gpx_import";
+	}
+
+	function getSummaryRoundCourseTarget(
+		summary: SavedRouteSummary,
+	): SavedRouteSummary["roundCourseTarget"] | null {
+		if (!isSummaryRoundCourse(summary)) {
+			return null;
+		}
+
+		return (
+			summary.roundCourseTarget ??
+			(summary.requestedDistanceMeters === undefined
+				? null
+				: { kind: "distance", distanceMeters: summary.requestedDistanceMeters })
+		);
+	}
+
+	function getSummaryDurationText(summary: SavedRouteSummary): string {
+		if (isSummaryImported(summary) && !summary.sourceHasDuration) {
+			return "Time unavailable";
+		}
+
+		return formatDuration(summary.durationMs);
+	}
+
+	function getSummaryLegText(summary: SavedRouteSummary): string {
+		if (isSummaryRoundCourse(summary)) {
+			return "Returns to start";
+		}
+
+		if (isSummaryOutAndBack(summary)) {
+			return `to ${summary.destinationLabel} and back`;
+		}
+
+		return `to ${summary.destinationLabel}`;
+	}
+
+	function formatSummaryWaypointLabels(labels: string[]): string | null {
+		return labels.length === 0 ? null : `Via: ${labels.join(" -> ")}`;
+	}
+
+	function buildSavedRouteSummarySearchText(summary: SavedRouteSummary): string {
+		const roundCourseTarget = getSummaryRoundCourseTarget(summary);
+		const waypointSummary = formatSummaryWaypointLabels(summary.waypointLabels);
 
 		return [
-			`Saved ${formatSavedAt(savedRoute.createdAt)}`,
-			...getRouteTypeBadges(route),
-			route.startLabel,
-			route.destinationLabel,
-			getRouteLegText(route),
+			`Saved ${formatSavedAt(summary.createdAt)}`,
+			isSummaryRoundCourse(summary) ? "Round course" : null,
+			isSummaryOutAndBack(summary) ? "Out and back" : null,
+			isSummaryImported(summary) ? "Imported GPX" : null,
+			summary.startLabel,
+			summary.destinationLabel,
+			getSummaryLegText(summary),
 			waypointSummary,
-			formatDistance(route.distanceMeters),
+			formatDistance(summary.distanceMeters),
 			roundCourseTarget
 				? `Target ${formatRoundCourseTarget(roundCourseTarget)}`
 				: null,
-			`${Math.round(route.ascendMeters).toLocaleString()} m up`,
-			getRouteDurationText(route),
+			`${Math.round(summary.ascendMeters).toLocaleString()} m up`,
+			getSummaryDurationText(summary),
 		]
 			.filter((value): value is string => Boolean(value))
 			.join(" ");
 	}
 
-	function getSavedRouteSearchCacheKey(savedRoute: SavedRoute): string {
-		const route = savedRoute.route;
-		const waypointLabels = route.waypoints.map((waypoint) => waypoint.label).join("|");
-		const roundCourseTarget = route.roundCourseTarget
-			? JSON.stringify(route.roundCourseTarget)
+	function getSavedRouteSummarySearchCacheKey(summary: SavedRouteSummary): string {
+		const waypointLabels = summary.waypointLabels.join("|");
+		const roundCourseTarget = summary.roundCourseTarget
+			? JSON.stringify(summary.roundCourseTarget)
 			: "";
-		const importedDurationFlag = isImportedRoute(route)
-			? String(route.source.hasDuration)
+		const importedDurationFlag = isSummaryImported(summary)
+			? String(summary.sourceHasDuration)
 			: "";
 
 		return [
-			savedRoute.id,
+			summary.id,
 			unitPreference.selectedDistanceUnit,
-			savedRoute.createdAt,
-			route.mode,
-			route.startLabel,
-			route.destinationLabel,
-			String(route.distanceMeters),
-			String(route.ascendMeters),
-			String(route.durationMs),
-			route.requestedDistanceMeters == null
+			summary.createdAt,
+			summary.mode,
+			summary.startLabel,
+			summary.destinationLabel,
+			String(summary.distanceMeters),
+			String(summary.ascendMeters),
+			String(summary.durationMs),
+			summary.requestedDistanceMeters == null
 				? ""
-				: String(route.requestedDistanceMeters),
+				: String(summary.requestedDistanceMeters),
 			roundCourseTarget,
-			route.source.kind,
+			summary.sourceKind,
 			importedDurationFlag,
 			waypointLabels,
 		].join(":");
 	}
 
-	function getSavedRouteSearchText(savedRoute: SavedRoute): string {
-		const cacheKey = getSavedRouteSearchCacheKey(savedRoute);
-		const cachedSearchText = savedRouteSearchTextCache.get(savedRoute.id);
+	function getSavedRouteSummarySearchText(summary: SavedRouteSummary): string {
+		const cacheKey = getSavedRouteSummarySearchCacheKey(summary);
+		const cachedSearchText = savedRouteSearchTextCache.get(summary.id);
 
 		if (cachedSearchText?.cacheKey === cacheKey) {
 			return cachedSearchText.searchText;
 		}
 
 		const normalizedSearchText = normalizeSearchText(
-			buildSavedRouteSearchText(savedRoute),
+			buildSavedRouteSummarySearchText(summary),
 		);
-		savedRouteSearchTextCache.set(savedRoute.id, {
+		savedRouteSearchTextCache.set(summary.id, {
 			cacheKey,
 			searchText: normalizedSearchText,
 		});
@@ -316,7 +390,7 @@
 		clearFilters();
 	}
 
-	function matchesDistanceFilters(savedRoute: SavedRoute): boolean {
+	function matchesDistanceFilters(summary: SavedRouteSummary): boolean {
 		if (
 			minDistanceMeters !== null &&
 			maxDistanceMeters !== null &&
@@ -325,7 +399,7 @@
 			return false;
 		}
 
-		const distanceMeters = savedRoute.route.distanceMeters;
+		const distanceMeters = summary.distanceMeters;
 
 		if (minDistanceMeters !== null && distanceMeters < minDistanceMeters) {
 			return false;
@@ -338,7 +412,7 @@
 		return true;
 	}
 
-	function matchesElevationFilters(savedRoute: SavedRoute): boolean {
+	function matchesElevationFilters(summary: SavedRouteSummary): boolean {
 		if (
 			minElevationMeters !== null &&
 			maxElevationMeters !== null &&
@@ -347,7 +421,7 @@
 			return false;
 		}
 
-		const elevationMeters = savedRoute.route.ascendMeters;
+		const elevationMeters = summary.ascendMeters;
 
 		if (minElevationMeters !== null && elevationMeters < minElevationMeters) {
 			return false;
@@ -364,8 +438,58 @@
 		await deleteSavedRoute(id);
 	}
 
-	async function handleDuplicateSavedRoute(route: PlannedRoute) {
-		await addSavedRoute(route);
+	async function handleDuplicateSavedRouteById(routeId: string) {
+		const savedRoute = await hydrateSavedRouteForAction(routeId);
+		if (!savedRoute) {
+			return;
+		}
+
+		await addSavedRoute(savedRoute.route);
+	}
+
+	function setHydratingRoute(routeId: string, loading: boolean) {
+		const nextHydratingRoutes = new Set(hydratingRoutes);
+		if (loading) {
+			nextHydratingRoutes.add(routeId);
+		} else {
+			nextHydratingRoutes.delete(routeId);
+		}
+		hydratingRoutes = nextHydratingRoutes;
+	}
+
+	function setRouteActionError(routeId: string, message: string | null) {
+		const nextErrors = { ...routeActionErrors };
+		if (message) {
+			nextErrors[routeId] = message;
+		} else {
+			delete nextErrors[routeId];
+		}
+		routeActionErrors = nextErrors;
+	}
+
+	async function hydrateSavedRouteForAction(
+		routeId: string,
+	): Promise<SavedRoute | null> {
+		setRouteActionError(routeId, null);
+		setHydratingRoute(routeId, true);
+
+		try {
+			const savedRoute = await getSavedRouteById(routeId);
+			if (!savedRoute) {
+				setRouteActionError(routeId, "Saved route was not found.");
+			}
+			return savedRoute;
+		} catch (error) {
+			setRouteActionError(
+				routeId,
+				error instanceof Error
+					? `Could not load route: ${error.message}`
+					: "Could not load route.",
+			);
+			return null;
+		} finally {
+			setHydratingRoute(routeId, false);
+		}
 	}
 
 	function setRestoreMessage(routeId: string, message: string | null) {
@@ -418,40 +542,40 @@
 		};
 	}
 
-	async function handleToggleChangeHistory(savedRoute: SavedRoute) {
-		if (expandedHistoryRouteId === savedRoute.id) {
+	async function handleToggleChangeHistory(routeId: string) {
+		if (expandedHistoryRouteId === routeId) {
 			expandedHistoryRouteId = null;
 			return;
 		}
 
-		expandedHistoryRouteId = savedRoute.id;
-		setHistoryError(savedRoute.id, null);
-		setHistoryLoading(savedRoute.id, true);
+		expandedHistoryRouteId = routeId;
+		setHistoryError(routeId, null);
+		setHistoryLoading(routeId, true);
 
 		try {
-			const versions = await listSavedRouteVersions(savedRoute.id);
-			setSavedRouteVersions(savedRoute.id, versions);
+			const versions = await listSavedRouteVersions(routeId);
+			setSavedRouteVersions(routeId, versions);
 		} catch (error) {
 			setHistoryError(
-				savedRoute.id,
+				routeId,
 				error instanceof Error
 					? `Could not load change history: ${error.message}`
 					: "Could not load change history.",
 			);
 		} finally {
-			setHistoryLoading(savedRoute.id, false);
+			setHistoryLoading(routeId, false);
 		}
 	}
 
-	async function handleRestorePreviousVersion(savedRoute: SavedRoute) {
-		setRestoreMessage(savedRoute.id, null);
-		setRestoringRoute(savedRoute.id, true);
+	async function handleRestorePreviousVersion(routeId: string) {
+		setRestoreMessage(routeId, null);
+		setRestoringRoute(routeId, true);
 
 		try {
-			const result = await restoreLatestSavedRouteVersion(savedRoute.id);
+			const result = await restoreLatestSavedRouteVersion(routeId);
 			if (!result.restored) {
 				setRestoreMessage(
-					savedRoute.id,
+					routeId,
 					result.reason === "no_version"
 						? "No previous version available."
 						: "Saved route was not found.",
@@ -459,18 +583,20 @@
 			}
 		} catch (error) {
 			setRestoreMessage(
-				savedRoute.id,
+				routeId,
 				error instanceof Error
 					? `Could not restore route: ${error.message}`
 					: "Could not restore route.",
 			);
 		} finally {
-			setRestoringRoute(savedRoute.id, false);
+			setRestoringRoute(routeId, false);
 		}
 	}
 
 	function getHistoryRouteSummary(route: PlannedRoute): string {
-		const waypointSummary = formatWaypointSummary(route.waypoints);
+		const waypointSummary = formatSummaryWaypointLabels(
+			route.waypoints.map((waypoint) => waypoint.label),
+		);
 		return waypointSummary
 			? `${getRouteLegText(route)} ${waypointSummary}`
 			: getRouteLegText(route);
@@ -480,11 +606,15 @@
 		return `history-${savedRouteId}`;
 	}
 
-	function handleExportSavedRoute(route: PlannedRoute) {
+	async function handleExportSavedRoute(routeId: string) {
 		exportError = null;
+		const savedRoute = await hydrateSavedRouteForAction(routeId);
+		if (!savedRoute) {
+			return;
+		}
 
 		Effect.runSync(
-			downloadRouteGpxEffect(route).pipe(
+			downloadRouteGpxEffect(savedRoute.route).pipe(
 				Effect.catchTag("RouteExportError", (error) =>
 					Effect.sync(() => {
 						exportError = `Could not export GPX: ${error.message}`;
@@ -500,11 +630,15 @@
 		);
 	}
 
-	function handleExportSavedRouteFit(route: PlannedRoute) {
+	async function handleExportSavedRouteFit(routeId: string) {
 		exportError = null;
+		const savedRoute = await hydrateSavedRouteForAction(routeId);
+		if (!savedRoute) {
+			return;
+		}
 
 		Effect.runSync(
-			downloadRouteFitEffect(route).pipe(
+			downloadRouteFitEffect(savedRoute.route).pipe(
 				Effect.catchTag("RouteExportError", (error) =>
 					Effect.sync(() => {
 						exportError = `Could not export FIT: ${error.message}`;
@@ -520,7 +654,7 @@
 		);
 	}
 
-	async function handleShareSavedRoute(savedRoute: SavedRoute) {
+	async function handleShareSavedRoute(routeId: string) {
 		shareError = null;
 		pendingShareUrl = null;
 		copiedShareRouteId = null;
@@ -532,6 +666,11 @@
 
 		if (savedRoutesState.authStatus !== "signedIn") {
 			shareError = "Sign in to share routes.";
+			return;
+		}
+
+		const savedRoute = await hydrateSavedRouteForAction(routeId);
+		if (!savedRoute) {
 			return;
 		}
 
@@ -664,7 +803,7 @@
 					{@render savedRouteCardSkeleton()}
 				{/each}
 			</div>
-		{:else if savedRoutesState.savedRoutes.length === 0}
+		{:else if displayedSavedRouteSummaries.length === 0 && !hasActiveSearchOrFilters()}
 			<div class="rounded-xl border border-border bg-background p-6 shadow-lg md:p-8">
 				<div class="flex flex-col items-start gap-4">
 					<div class="rounded-lg border border-primary/20 bg-primary/10 p-3 text-primary">
@@ -689,11 +828,11 @@
 						class="h-6 border-primary/20 bg-primary/10 px-2.5 text-[10px] font-semibold uppercase tracking-wide text-primary"
 					>
 						{#if hasActiveSearchOrFilters()}
-							{`${filteredSavedRoutes.length} of ${savedRoutesState.savedRoutes.length}`}
-							{savedRoutesState.savedRoutes.length === 1 ? " route" : " routes"}
+							{`${filteredSavedRouteSummaries.length} of ${displayedSavedRouteSummaries.length}`}
+							{displayedSavedRouteSummaries.length === 1 ? " route" : " routes"}
 						{:else}
-							{savedRoutesState.savedRoutes.length}
-							{savedRoutesState.savedRoutes.length === 1 ? " route" : " routes"}
+							{displayedSavedRouteSummaries.length}
+							{displayedSavedRouteSummaries.length === 1 ? " route" : " routes"}
 						{/if}
 					</Badge>
 				</div>
@@ -782,7 +921,7 @@
 				{/if}
 			</div>
 
-			{#if filteredSavedRoutes.length === 0}
+			{#if filteredSavedRouteSummaries.length === 0}
 				<div class="rounded-xl border border-border bg-background p-6 shadow-lg md:p-8">
 					<div class="flex flex-col items-start gap-4">
 						<div class="rounded-lg border border-primary/20 bg-primary/10 p-3 text-primary">
@@ -803,14 +942,14 @@
 				</div>
 			{:else}
 				<div class="grid gap-3">
-					{#each filteredSavedRoutes as savedRoute (savedRoute.id)}
+					{#each filteredSavedRouteSummaries as savedRoute (savedRoute.id)}
 					<div class="rounded-xl border border-border bg-background p-4 shadow-lg md:p-5">
 						<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 							<div class="min-w-0 flex-1 space-y-3">
 								<div class="space-y-1">
 									<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 										<span>Saved {formatSavedAt(savedRoute.createdAt)}</span>
-										{#if isRoundCourseRoute(savedRoute.route)}
+										{#if isSummaryRoundCourse(savedRoute)}
 											<Badge
 												variant="secondary"
 												class="h-5 border-emerald-500/20 bg-emerald-500/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
@@ -818,7 +957,7 @@
 												Round course
 											</Badge>
 										{/if}
-										{#if isOutAndBackRoute(savedRoute.route)}
+										{#if isSummaryOutAndBack(savedRoute)}
 											<Badge
 												variant="secondary"
 												class="h-5 border-primary/20 bg-primary/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-primary"
@@ -826,7 +965,7 @@
 												Out and back
 											</Badge>
 										{/if}
-										{#if isImportedRoute(savedRoute.route)}
+										{#if isSummaryImported(savedRoute)}
 											<Badge
 												variant="secondary"
 												class="h-5 border-sky-500/20 bg-sky-500/10 px-2 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300"
@@ -836,30 +975,30 @@
 										{/if}
 									</div>
 									<h2 class="font-heading text-lg font-semibold tracking-tight text-foreground">
-										{savedRoute.route.startLabel}
+										{savedRoute.startLabel}
 									</h2>
-									{#if isRoundCourseRoute(savedRoute.route)}
+									{#if isSummaryRoundCourse(savedRoute)}
 										<div class="flex items-center gap-2 text-sm text-muted-foreground">
 											<Route class="size-4 shrink-0" />
 											<span>Returns to start</span>
 										</div>
-									{:else if isOutAndBackRoute(savedRoute.route)}
+									{:else if isSummaryOutAndBack(savedRoute)}
 										<div class="flex items-center gap-2 text-sm text-muted-foreground">
 											<Route class="size-4 shrink-0" />
-											<span>{getRouteLegText(savedRoute.route)}</span>
+											<span>{getSummaryLegText(savedRoute)}</span>
 										</div>
 									{:else}
 										<div class="flex items-center gap-2 text-sm text-muted-foreground">
 											<Route class="size-4 shrink-0" />
 											<span>to</span>
 											<span class="font-medium text-foreground">
-												{savedRoute.route.destinationLabel}
+												{savedRoute.destinationLabel}
 											</span>
 										</div>
 									{/if}
-									{#if formatWaypointSummary(savedRoute.route.waypoints)}
+									{#if formatSummaryWaypointLabels(savedRoute.waypointLabels)}
 										<p class="text-xs text-muted-foreground">
-											{formatWaypointSummary(savedRoute.route.waypoints)}
+											{formatSummaryWaypointLabels(savedRoute.waypointLabels)}
 										</p>
 									{/if}
 								</div>
@@ -867,21 +1006,21 @@
 								<div class="flex flex-wrap gap-2.5 text-xs text-muted-foreground sm:text-sm">
 									<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">
 										<MapPinned class="size-3.5 shrink-0 text-primary" />
-										<span>{formatDistance(savedRoute.route.distanceMeters)}</span>
+										<span>{formatDistance(savedRoute.distanceMeters)}</span>
 									</div>
-									{#if isRoundCourseRoute(savedRoute.route) && getRoundCourseTarget(savedRoute.route)}
+									{#if isSummaryRoundCourse(savedRoute) && getSummaryRoundCourseTarget(savedRoute)}
 										<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">
 											<Route class="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-											<span>Target {formatRoundCourseTarget(getRoundCourseTarget(savedRoute.route))}</span>
+											<span>Target {formatRoundCourseTarget(getSummaryRoundCourseTarget(savedRoute))}</span>
 										</div>
 									{/if}
 									<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">
 										<MountainSnow class="size-3.5 shrink-0 text-emerald-500" />
-										<span>{Math.round(savedRoute.route.ascendMeters).toLocaleString()} m up</span>
+										<span>{Math.round(savedRoute.ascendMeters).toLocaleString()} m up</span>
 									</div>
 									<div class="flex items-center gap-1.5 rounded-md bg-secondary/40 px-2.5 py-1.5">
 										<Clock3 class="size-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
-										<span>{getRouteDurationText(savedRoute.route)}</span>
+										<span>{getSummaryDurationText(savedRoute)}</span>
 									</div>
 								</div>
 							</div>
@@ -895,24 +1034,35 @@
 										{restoreMessages[savedRoute.id]}
 									</p>
 								{/if}
+								{#if routeActionErrors[savedRoute.id]}
+									<p
+										class="basis-full rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-right text-xs text-destructive"
+										role="status"
+									>
+										{routeActionErrors[savedRoute.id]}
+									</p>
+								{/if}
 								<Button
 									variant="outline"
 									class="font-semibold"
-									onclick={() => handleExportSavedRoute(savedRoute.route)}
+									disabled={hydratingRoutes.has(savedRoute.id)}
+									onclick={() => handleExportSavedRoute(savedRoute.id)}
 								>
 									Export GPX
 								</Button>
 								<Button
 									variant="outline"
 									class="font-semibold"
-									onclick={() => handleExportSavedRouteFit(savedRoute.route)}
+									disabled={hydratingRoutes.has(savedRoute.id)}
+									onclick={() => handleExportSavedRouteFit(savedRoute.id)}
 								>
 									Export FIT
 								</Button>
 								<Button
 									variant="outline"
 									class="gap-1 font-semibold"
-									onclick={() => handleDuplicateSavedRoute(savedRoute.route)}
+									disabled={hydratingRoutes.has(savedRoute.id)}
+									onclick={() => handleDuplicateSavedRouteById(savedRoute.id)}
 								>
 									<Copy class="size-3.5" />
 									Duplicate
@@ -923,7 +1073,8 @@
 									class="gap-1 font-semibold"
 									aria-expanded={expandedHistoryRouteId === savedRoute.id ? "true" : "false"}
 									aria-controls={getHistoryPanelId(savedRoute.id)}
-									onclick={() => handleToggleChangeHistory(savedRoute)}
+									disabled={hydratingRoutes.has(savedRoute.id)}
+									onclick={() => handleToggleChangeHistory(savedRoute.id)}
 								>
 									<History class="size-3.5" />
 									Change history
@@ -932,8 +1083,8 @@
 								<Button
 									variant="outline"
 									class="gap-1 font-semibold"
-									disabled={restoringRoutes.has(savedRoute.id)}
-									onclick={() => handleRestorePreviousVersion(savedRoute)}
+									disabled={restoringRoutes.has(savedRoute.id) || hydratingRoutes.has(savedRoute.id)}
+									onclick={() => handleRestorePreviousVersion(savedRoute.id)}
 								>
 									<RotateCcw class="size-3.5" />
 									{restoringRoutes.has(savedRoute.id) ? "Restoring..." : "Restore previous"}
@@ -941,8 +1092,8 @@
 								<Button
 									variant="outline"
 									class="gap-1 font-semibold"
-									disabled={sharingRouteId === savedRoute.id}
-									onclick={() => handleShareSavedRoute(savedRoute)}
+									disabled={sharingRouteId === savedRoute.id || hydratingRoutes.has(savedRoute.id)}
+									onclick={() => handleShareSavedRoute(savedRoute.id)}
 								>
 									<Link class="size-3.5" />
 									{#if sharingRouteId === savedRoute.id}
@@ -968,11 +1119,11 @@
 						</div>
 						{#if expandedHistoryRouteId === savedRoute.id}
 							<!-- biome-ignore lint/a11y/useSemanticElements: This collapsible panel is conditionally rendered inside a route card. -->
-							<div
+								<div
 								id={getHistoryPanelId(savedRoute.id)}
 								class="mt-4 border-t border-border pt-4"
 								role="region"
-								aria-label={`Change history for ${getRouteLegText(savedRoute.route)}`}
+								aria-label={`Change history for ${getSummaryLegText(savedRoute)}`}
 							>
 								<div class="mb-3 flex items-center justify-between gap-3">
 									<h2 class="text-sm font-semibold text-foreground">
@@ -1009,12 +1160,12 @@
 												</p>
 											</div>
 											<p class="mt-1 text-sm text-muted-foreground">
-												{getHistoryRouteSummary(savedRoute.route)}
+												{getSummaryLegText(savedRoute)}
 											</p>
 											<div class="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-												<span>{formatDistance(savedRoute.route.distanceMeters)}</span>
-												<span>{Math.round(savedRoute.route.ascendMeters).toLocaleString()} m up</span>
-												<span>{getRouteDurationText(savedRoute.route)}</span>
+												<span>{formatDistance(savedRoute.distanceMeters)}</span>
+												<span>{Math.round(savedRoute.ascendMeters).toLocaleString()} m up</span>
+												<span>{getSummaryDurationText(savedRoute)}</span>
 											</div>
 										</div>
 
@@ -1051,6 +1202,18 @@
 					</div>
 					{/each}
 				</div>
+				{#if savedRoutesState.savedRouteSummariesContinueCursor}
+					<div class="flex justify-center pt-2">
+						<Button
+							type="button"
+							variant="outline"
+							disabled={savedRoutesState.savedRouteSummariesLoading}
+							onclick={() => loadMoreSavedRouteSummaries()}
+						>
+							{savedRoutesState.savedRouteSummariesLoading ? "Loading..." : "Load more"}
+						</Button>
+					</div>
+				{/if}
 			{/if}
 		{/if}
 	</div>

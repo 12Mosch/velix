@@ -4,12 +4,16 @@ import type {
 	FunctionReturnType,
 } from "convex/server";
 import type { SavedRoutesRemoteAdapter } from "$lib/saved-routes.svelte";
-import type { RemoteSavedRoutePayload } from "$lib/saved-routes-core";
+import type {
+	RemoteSavedRoutePayload,
+	RemoteSavedRouteSummaryPayload,
+} from "$lib/saved-routes-core";
+import type { SavedRouteSummaryFilters } from "$lib/saved-routes/saved-routes-use-cases";
 import { api } from "../../convex/_generated/api";
 import { Effect } from "effect";
 
 type SavedRoutesRemotePage = FunctionReturnType<
-	typeof api.savedRoutes.listForCurrentUser
+	typeof api.savedRoutes.listSummariesForCurrentUser
 >;
 type SavedRoutesRemoteSnapshot = SavedRoutesRemotePage["page"];
 
@@ -17,9 +21,11 @@ const savedRoutesSyncPageSize = 25;
 const savedRoutesSyncMaximumRowsRead = 25;
 
 export type SavedRoutesSyncState = {
-	applyRemoteRoutesEffect: (
+	applyRemoteRouteSummariesEffect: (
 		userId: string,
 		routes: SavedRoutesRemoteSnapshot,
+		continueCursor: string | null,
+		filters?: SavedRouteSummaryFilters,
 	) => Effect.Effect<void>;
 	runLocalMergeOnceEffect: (userId: string) => Effect.Effect<void, Error>;
 	syncError: string | null;
@@ -82,6 +88,13 @@ export function createSavedRoutesRemoteAdapter(
 			convexMutationEffect(client, api.savedRoutes.remove, { routeId }).pipe(
 				Effect.asVoid,
 			),
+		get: (routeId: string) =>
+			convexQueryEffect(client, api.savedRoutes.getForCurrentUser, { routeId }),
+		listSummaries: ({ paginationOpts, filters = {} }) =>
+			convexQueryEffect(client, api.savedRoutes.listSummariesForCurrentUser, {
+				paginationOpts,
+				...filters,
+			}),
 		listVersions: (routeId: string) =>
 			convexQueryEffect(client, api.savedRoutes.listVersionsForRoute, {
 				routeId,
@@ -113,35 +126,28 @@ export const syncSavedRoutesOnce = Effect.fn("syncSavedRoutesOnce")(function* ({
 			return;
 		}
 
-		let cursor: string | null = null;
-		const remoteRoutes: RemoteSavedRoutePayload[] = [];
-
-		do {
-			const page: SavedRoutesRemotePage = yield* convexQueryEffect(
-				client,
-				api.savedRoutes.listForCurrentUser,
-				{
-					paginationOpts: {
-						numItems: savedRoutesSyncPageSize,
-						cursor,
-						maximumRowsRead: savedRoutesSyncMaximumRowsRead,
-					},
+		const page: SavedRoutesRemotePage = yield* convexQueryEffect(
+			client,
+			api.savedRoutes.listSummariesForCurrentUser,
+			{
+				paginationOpts: {
+					numItems: savedRoutesSyncPageSize,
+					cursor: null,
+					maximumRowsRead: savedRoutesSyncMaximumRowsRead,
 				},
-			);
-
-			if (getCurrentRequestId() !== requestId) {
-				return;
-			}
-
-			remoteRoutes.push(...page.page);
-			cursor = page.isDone ? null : page.continueCursor;
-		} while (cursor && getCurrentRequestId() === requestId);
+			},
+		);
 
 		if (getCurrentRequestId() !== requestId) {
 			return;
 		}
 
-		yield* state.applyRemoteRoutesEffect(userId, remoteRoutes);
+		yield* state.applyRemoteRouteSummariesEffect(
+			userId,
+			page.page as RemoteSavedRouteSummaryPayload[],
+			page.isDone ? null : page.continueCursor,
+			{},
+		);
 	}).pipe(
 		Effect.catch((error) =>
 			Effect.sync(() => {

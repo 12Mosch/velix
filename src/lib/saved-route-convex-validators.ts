@@ -151,6 +151,8 @@ const routeWaypointValidator = v.object({
 	coordinate: routeCoordinateValidator,
 });
 
+const savedRouteWaypointSummaryValidator = v.string();
+
 const manualRouteEditingValidator = v.object({
 	lockedSegmentIndexes: v.array(v.number()),
 });
@@ -372,4 +374,20 @@ export const remoteSavedRoutePayloadValidator = v.object({
 	id: v.string(),
 	createdAt: v.string(),
 	routeJson: v.string(),
+});
+
+export const remoteSavedRouteSummaryPayloadValidator = v.object({
+	id: v.string(),
+	createdAt: v.string(),
+	mode: routeModeValidator,
+	sourceKind: v.union(v.literal("graphhopper"), v.literal("gpx_import")),
+	sourceHasDuration: v.optional(v.boolean()),
+	startLabel: v.string(),
+	destinationLabel: v.string(),
+	waypointLabels: v.array(savedRouteWaypointSummaryValidator),
+	distanceMeters: v.number(),
+	ascendMeters: v.number(),
+	durationMs: v.number(),
+	requestedDistanceMeters: v.optional(v.number()),
+	roundCourseTarget: v.optional(roundCourseTargetValidator),
 });

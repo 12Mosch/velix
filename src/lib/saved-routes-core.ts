@@ -5,7 +5,12 @@ import {
 	RemoteSavedRoutePayloadSchema,
 	RouteModeSchema,
 } from "./route-api-schema";
-import type { ManualRouteEditingState, PlannedRoute } from "./route-planning";
+import type {
+	ManualRouteEditingState,
+	PlannedRoute,
+	RoundCourseTarget,
+	RouteMode,
+} from "./route-planning";
 import {
 	getRouteSegmentCount,
 	sanitizeLockedSegmentIndexes,
@@ -24,6 +29,24 @@ export type RemoteSavedRoutePayload = {
 	createdAt: string;
 	routeJson: string;
 };
+
+export type SavedRouteSummary = {
+	id: string;
+	createdAt: string;
+	mode: RouteMode;
+	sourceKind: PlannedRoute["source"]["kind"];
+	sourceHasDuration?: boolean;
+	startLabel: string;
+	destinationLabel: string;
+	waypointLabels: string[];
+	distanceMeters: number;
+	ascendMeters: number;
+	durationMs: number;
+	requestedDistanceMeters?: number;
+	roundCourseTarget?: RoundCourseTarget;
+};
+
+export type RemoteSavedRouteSummaryPayload = SavedRouteSummary;
 
 export type SavedRouteVersion = {
 	versionId: string;
@@ -218,6 +241,22 @@ const RawSavedRouteVersionSchema = Schema.Struct({
 	savedRoute: Schema.Unknown,
 });
 
+const RawSavedRouteSummarySchema = Schema.Struct({
+	id: Schema.String,
+	createdAt: Schema.String,
+	mode: RouteModeSchema,
+	sourceKind: Schema.Literals(["graphhopper", "gpx_import"]),
+	sourceHasDuration: Schema.optionalKey(Schema.Boolean),
+	startLabel: Schema.String,
+	destinationLabel: Schema.String,
+	waypointLabels: Schema.Array(Schema.String),
+	distanceMeters: Schema.Finite,
+	ascendMeters: Schema.Finite,
+	durationMs: Schema.Finite,
+	requestedDistanceMeters: Schema.optionalKey(Schema.Finite),
+	roundCourseTarget: Schema.optionalKey(Schema.Unknown),
+});
+
 function getNormalizedSavedRoute(value: unknown): SavedRoute | null {
 	const candidate = decodeOrNull(RawSavedRouteSchema, value);
 	if (!candidate || candidate.id.length === 0) {
@@ -257,6 +296,54 @@ function getNormalizedSavedRouteVersion(
 				savedRoute,
 			}
 		: null;
+}
+
+function getNormalizedSavedRouteSummary(
+	value: unknown,
+): SavedRouteSummary | null {
+	const candidate = decodeOrNull(RawSavedRouteSummarySchema, value);
+	if (!candidate || candidate.id.length === 0) {
+		return null;
+	}
+
+	const createdAt = normalizeDateString(candidate.createdAt);
+	if (!createdAt) {
+		return null;
+	}
+
+	const normalizedRoundCourseTarget =
+		candidate.roundCourseTarget === undefined
+			? undefined
+			: normalizeRoundCourseTarget(candidate.roundCourseTarget);
+
+	if (
+		candidate.roundCourseTarget !== undefined &&
+		!normalizedRoundCourseTarget
+	) {
+		return null;
+	}
+
+	return {
+		id: candidate.id,
+		createdAt,
+		mode: candidate.mode,
+		sourceKind: candidate.sourceKind,
+		...(candidate.sourceKind === "gpx_import"
+			? { sourceHasDuration: candidate.sourceHasDuration ?? false }
+			: {}),
+		startLabel: candidate.startLabel,
+		destinationLabel: candidate.destinationLabel,
+		waypointLabels: [...candidate.waypointLabels],
+		distanceMeters: candidate.distanceMeters,
+		ascendMeters: candidate.ascendMeters,
+		durationMs: candidate.durationMs,
+		...(candidate.requestedDistanceMeters === undefined
+			? {}
+			: { requestedDistanceMeters: candidate.requestedDistanceMeters }),
+		...(normalizedRoundCourseTarget
+			? { roundCourseTarget: normalizedRoundCourseTarget }
+			: {}),
+	};
 }
 
 export function isSavedRouteVersion(
@@ -304,6 +391,94 @@ export function normalizeSavedRouteVersions(
 			getNormalizedSavedRouteVersion(entry);
 
 		return savedRouteVersion ? [savedRouteVersion] : [];
+	});
+}
+
+function normalizeRoundCourseTarget(value: unknown): RoundCourseTarget | null {
+	if (!isRecord(value) || typeof value.kind !== "string") {
+		return null;
+	}
+
+	if (value.kind === "distance") {
+		return typeof value.distanceMeters === "number" &&
+			Number.isFinite(value.distanceMeters)
+			? { kind: "distance", distanceMeters: value.distanceMeters }
+			: null;
+	}
+
+	if (value.kind === "duration") {
+		return typeof value.durationMs === "number" &&
+			Number.isFinite(value.durationMs)
+			? { kind: "duration", durationMs: value.durationMs }
+			: null;
+	}
+
+	if (value.kind === "ascend") {
+		return typeof value.ascendMeters === "number" &&
+			Number.isFinite(value.ascendMeters)
+			? { kind: "ascend", ascendMeters: value.ascendMeters }
+			: null;
+	}
+
+	if (value.kind === "workout") {
+		return typeof value.durationMs === "number" &&
+			Number.isFinite(value.durationMs) &&
+			typeof value.distanceMeters === "number" &&
+			Number.isFinite(value.distanceMeters) &&
+			typeof value.estimatedSpeedMetersPerHour === "number" &&
+			Number.isFinite(value.estimatedSpeedMetersPerHour) &&
+			typeof value.weightedIntensity === "number" &&
+			Number.isFinite(value.weightedIntensity)
+			? {
+					kind: "workout",
+					durationMs: value.durationMs,
+					distanceMeters: value.distanceMeters,
+					estimatedSpeedMetersPerHour: value.estimatedSpeedMetersPerHour,
+					weightedIntensity: value.weightedIntensity,
+				}
+			: null;
+	}
+
+	return null;
+}
+
+export function summarizeSavedRoute(savedRoute: SavedRoute): SavedRouteSummary {
+	const route = savedRoute.route;
+	return {
+		id: savedRoute.id,
+		createdAt: savedRoute.createdAt,
+		mode: route.mode,
+		sourceKind: route.source.kind,
+		...(route.source.kind === "gpx_import"
+			? { sourceHasDuration: route.source.hasDuration }
+			: {}),
+		startLabel: route.startLabel,
+		destinationLabel: route.destinationLabel,
+		waypointLabels: route.waypoints.map((waypoint) => waypoint.label),
+		distanceMeters: route.distanceMeters,
+		ascendMeters: route.ascendMeters,
+		durationMs: route.durationMs,
+		...(route.requestedDistanceMeters === undefined
+			? {}
+			: { requestedDistanceMeters: route.requestedDistanceMeters }),
+		...(route.roundCourseTarget
+			? { roundCourseTarget: route.roundCourseTarget }
+			: {}),
+	};
+}
+
+export function normalizeSavedRouteSummary(
+	value: unknown,
+): SavedRouteSummary | null {
+	return getNormalizedSavedRouteSummary(value);
+}
+
+export function normalizeSavedRouteSummaries(
+	values: unknown[],
+): SavedRouteSummary[] {
+	return values.flatMap((entry) => {
+		const summary = getNormalizedSavedRouteSummary(entry);
+		return summary ? [summary] : [];
 	});
 }
 
