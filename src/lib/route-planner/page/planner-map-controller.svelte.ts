@@ -719,16 +719,87 @@ export function createPlannerMapController(
 		}
 	}
 
+	function plannerStopsMatch(
+		left: PlannerStop | null,
+		right: PlannerStop | null,
+	) {
+		if (!left || !right) {
+			return left === right;
+		}
+
+		const leftPoint = left.point;
+		const rightPoint = right.point;
+
+		return (
+			left.source === right.source &&
+			left.label === right.label &&
+			((!leftPoint && !rightPoint) ||
+				(!!leftPoint &&
+					!!rightPoint &&
+					leftPoint[0] === rightPoint[0] &&
+					leftPoint[1] === rightPoint[1]))
+		);
+	}
+
+	function getFieldStop(field: RouteField) {
+		switch (field) {
+			case "startQuery":
+				return dependencies.getStartStop();
+			case "destinationQuery":
+				return dependencies.getDestinationStop();
+			default: {
+				const exhaustive: never = field;
+				return exhaustive;
+			}
+		}
+	}
+
+	function getSelectedMapStopCurrentStop(selectedStop: SelectedMapStop) {
+		if (selectedStop.kind === "start") {
+			return dependencies.getStartStop();
+		}
+
+		if (selectedStop.kind === "destination") {
+			return dependencies.getDestinationStop();
+		}
+
+		if (selectedStop.kind !== "waypoint") {
+			return null;
+		}
+
+		const waypointStops = dependencies.getWaypointStops();
+		if (
+			dependencies.getPlannerMode() === "out_and_back" &&
+			selectedStop.index >= waypointStops.length
+		) {
+			return dependencies.getDestinationStop();
+		}
+
+		return waypointStops[selectedStop.index] ?? null;
+	}
+
+	function isActiveRouteFresh(activeRoute: PlannedRoute) {
+		return (
+			dependencies.getActiveRoute() === activeRoute &&
+			!dependencies.getRouteNeedsRecalculation()
+		);
+	}
+
 	const handleRouteStopDragEnd = Effect.fn("handleRouteStopDragEnd")(function* (
 		detail: RouteStopDragEnd,
 	) {
-		if (
-			!dependencies.getActiveRoute() ||
-			dependencies.getRouteNeedsRecalculation() ||
-			dependencies.isLockedStopIndex(detail.stopIndex)
-		) {
+		const activeRoute = dependencies.getActiveRoute();
+		if (!activeRoute || dependencies.getRouteNeedsRecalculation()) {
 			return;
 		}
+
+		if (dependencies.isLockedStopIndex(detail.stopIndex)) {
+			return;
+		}
+
+		const draggedStopSnapshot = getSelectedMapStopCurrentStop(
+			detail.selectedStop,
+		);
 
 		dependencies.closeCompletionMenu();
 		closeMapClickMenu();
@@ -736,6 +807,17 @@ export function createPlannerMapController(
 			() =>
 				Effect.gen(function* () {
 					const label = yield* resolveMapStopLabelEffect(detail.point);
+					if (
+						!isActiveRouteFresh(activeRoute) ||
+						dependencies.isLockedStopIndex(detail.stopIndex) ||
+						!plannerStopsMatch(
+							getSelectedMapStopCurrentStop(detail.selectedStop),
+							draggedStopSnapshot,
+						)
+					) {
+						return "noop";
+					}
+
 					updateDraggedStop(detail.selectedStop, detail.point, label);
 					return (yield* dependencies.rerouteAfterManualEdit())
 						? "committed"
@@ -779,14 +861,37 @@ export function createPlannerMapController(
 				return;
 			}
 
+			const existingWaypointIndex =
+				getManualSegmentWaypointIndex(routeLegIndex);
+			const waypointCount = dependencies.getWaypointStops().length;
+			const existingWaypointSnapshot =
+				existingWaypointIndex !== null
+					? (dependencies.getWaypointStops()[existingWaypointIndex] ?? null)
+					: null;
+
 			dependencies.closeCompletionMenu();
 			closeMapClickMenu();
 			yield* dependencies.performAsyncRouteEdit(
 				() =>
 					Effect.gen(function* () {
-						const existingWaypointIndex =
-							getManualSegmentWaypointIndex(routeLegIndex);
 						const label = yield* resolveMapStopLabelEffect(detail.point);
+
+						if (
+							!isActiveRouteFresh(activeRoute) ||
+							getSanitizedLockedSegmentIndexes().includes(routeLegIndex) ||
+							dependencies.getWaypointStops().length !== waypointCount ||
+							getManualSegmentWaypointIndex(routeLegIndex) !==
+								existingWaypointIndex ||
+							(existingWaypointIndex !== null &&
+								!plannerStopsMatch(
+									dependencies.getWaypointStops()[existingWaypointIndex] ??
+										null,
+									existingWaypointSnapshot,
+								))
+						) {
+							return "noop";
+						}
+
 						const stop = createPlannerStop(label, detail.point, "map");
 
 						if (existingWaypointIndex !== null) {
@@ -821,6 +926,7 @@ export function createPlannerMapController(
 	)(function* (field: RouteField) {
 		dependencies.closeCompletionMenu();
 		closeMapClickMenu();
+		const targetStopSnapshot = getFieldStop(field);
 		const location = yield* locateCurrentPositionEffect();
 
 		if (!location) {
@@ -828,6 +934,10 @@ export function createPlannerMapController(
 		}
 
 		const label = yield* resolveCurrentLocationLabelEffect(location.point);
+		if (!plannerStopsMatch(getFieldStop(field), targetStopSnapshot)) {
+			return;
+		}
+
 		dependencies.setFieldStop(
 			field,
 			getCurrentLocationStop(location.point, label),

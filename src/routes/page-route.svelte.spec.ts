@@ -580,6 +580,43 @@ function mockCurrentPositionSequence(
 	return getCurrentPosition;
 }
 
+function mockCurrentPositionDeferred(position: {
+	lng: number;
+	lat: number;
+	accuracy?: number;
+}) {
+	let successCallback!: PositionCallback;
+	const getCurrentPosition = vi.fn(
+		(success: PositionCallback, _error?: PositionErrorCallback | null) => {
+			successCallback = success;
+		},
+	);
+
+	Object.defineProperty(window.navigator, "geolocation", {
+		configurable: true,
+		value: {
+			getCurrentPosition,
+		},
+	});
+
+	return {
+		getCurrentPosition,
+		resolve: () =>
+			successCallback({
+				coords: {
+					latitude: position.lat,
+					longitude: position.lng,
+					accuracy: position.accuracy ?? 12,
+					altitude: null,
+					altitudeAccuracy: null,
+					heading: null,
+					speed: null,
+				},
+				timestamp: Date.now(),
+			} as GeolocationPosition),
+	};
+}
+
 function mockCurrentPositionError() {
 	const getCurrentPosition = vi.fn(
 		(_success: PositionCallback, error?: PositionErrorCallback | null) => {
@@ -2648,6 +2685,73 @@ describe("+page.svelte", () => {
 		).toHaveLength(2);
 	});
 
+	it("ignores stale manual stop drag labels after the dragged field changes", async () => {
+		const reverseDeferred = createDeferredResponse({
+			label: "Dragged start, Germany",
+			point: [11.6, 48.15],
+		});
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return reverseDeferred.promise;
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+
+		mockState.renderedFeatures.set("1160,4810", [
+			{
+				properties: {
+					kind: "start",
+					label: "Marienplatz, Munich, Germany",
+				},
+			},
+		]);
+		mockState.eventHandlers.get("mousedown")?.[0]?.({
+			lngLat: { lng: 11.5755, lat: 48.1374 },
+			point: { x: 1160, y: 4810 },
+			preventDefault: vi.fn(),
+		});
+		mockState.eventHandlers.get("mouseup")?.[0]?.({
+			lngLat: { lng: 11.6, lat: 48.15 },
+			point: { x: 1165, y: 4815 },
+		});
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter((call) =>
+						String(call[0]).startsWith("/api/route/reverse?"),
+					).length,
+			)
+			.toBe(1);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("User typed start");
+		reverseDeferred.resolve();
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("User typed start");
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(1);
+	});
+
 	it("does not add undo history when a manual stop drag reroute fails", async () => {
 		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
 			const url = String(input);
@@ -2799,6 +2903,74 @@ describe("+page.svelte", () => {
 			.element(page.getByRole("button", { name: "Saved" }))
 			.toBeInTheDocument();
 		expect(readSavedRoutesFromStorage()[0]?.id).toBe("saved-route-1");
+	});
+
+	it("ignores stale manual segment drag labels after route state changes", async () => {
+		const reverseDeferred = createDeferredResponse({
+			label: "Dragged waypoint, Germany",
+			point: [11.65, 48.15],
+		});
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return reverseDeferred.promise;
+			}
+
+			if (url === "/api/route") {
+				return Promise.resolve(
+					new Response(JSON.stringify(successfulRoutePayload)),
+				);
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page.getByRole("textbox", { name: "Destination" }).fill("Schliersee");
+		await page.getByRole("button", { name: "Generate Route" }).click();
+		await expect.poll(() => document.body.textContent).toContain("61.2");
+		await expect
+			.poll(() => (mockState.eventHandlers.get("mousedown") ?? []).length)
+			.toBe(1);
+
+		mockState.eventHandlers.get("mousedown")?.[0]?.({
+			lngLat: { lng: 11.6, lat: 48.12 },
+			point: { x: 1160, y: 4812 },
+			preventDefault: vi.fn(),
+		});
+		mockState.eventHandlers.get("mouseup")?.[0]?.({
+			lngLat: { lng: 11.65, lat: 48.15 },
+			point: { x: 1165, y: 4815 },
+		});
+
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter((call) =>
+						String(call[0]).startsWith("/api/route/reverse?"),
+					).length,
+			)
+			.toBe(1);
+
+		await page
+			.getByRole("textbox", { name: "Destination" })
+			.fill("User typed destination");
+		reverseDeferred.resolve();
+
+		await page.getByRole("button", { name: "Advanced" }).click();
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 1" }))
+			.toHaveValue("Tegernsee, Germany");
+		await expect
+			.element(page.getByRole("textbox", { name: "Waypoint 2" }))
+			.not.toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/route"),
+		).toHaveLength(1);
 	});
 
 	it("handles route edit keyboard shortcuts outside text inputs only", async () => {
@@ -4533,6 +4705,52 @@ describe("+page.svelte", () => {
 				point: [11.8598, 47.7362],
 			},
 		});
+	});
+
+	it("ignores stale current-location labels after the target field changes", async () => {
+		const currentPosition = mockCurrentPositionDeferred({
+			lng: 11.5755,
+			lat: 48.1374,
+			accuracy: 15,
+		});
+		const reverseDeferred = createDeferredResponse({
+			label: "Marienplatz, Munich, Germany",
+			point: [11.5755, 48.1374],
+		});
+		const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+			const url = String(input);
+
+			if (url.startsWith("/api/route/reverse?")) {
+				return reverseDeferred.promise;
+			}
+
+			throw new Error(`Unexpected fetch request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		render(PageTestShell);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("Munich");
+		await page
+			.getByRole("button", { name: "Use current location as start" })
+			.click();
+		currentPosition.resolve();
+		await expect
+			.poll(
+				() =>
+					fetchMock.mock.calls.filter((call) =>
+						String(call[0]).startsWith("/api/route/reverse?"),
+					).length,
+			)
+			.toBe(1);
+
+		await page.getByRole("textbox", { name: "Start" }).fill("User typed start");
+		reverseDeferred.resolve();
+
+		await expect
+			.element(page.getByRole("textbox", { name: "Start" }))
+			.toHaveValue("User typed start");
+		expect(currentPosition.getCurrentPosition).toHaveBeenCalledTimes(1);
 	});
 
 	it("can use current location as an out-and-back turnaround", async () => {
