@@ -12,7 +12,7 @@ import {
 type MockFn = ReturnType<typeof vi.fn>;
 
 type TestState = SavedRoutesSyncState & {
-	applyRemoteRoutesEffect: MockFn;
+	applyRemoteRouteSummariesEffect: MockFn;
 	runLocalMergeOnceEffect: MockFn;
 };
 
@@ -27,7 +27,7 @@ class TestRemoteError extends Error {
 
 function createState(overrides: Partial<TestState> = {}): TestState {
 	return {
-		applyRemoteRoutesEffect: vi.fn(() => Effect.void),
+		applyRemoteRouteSummariesEffect: vi.fn(() => Effect.void),
 		runLocalMergeOnceEffect: vi.fn(() => Effect.void),
 		syncError: null,
 		...overrides,
@@ -52,12 +52,25 @@ const savedRoute = {
 	routeJson: "{}",
 };
 
+const savedRouteSummary = {
+	id: "route_1",
+	createdAt: "2026-04-19T09:30:00.000Z",
+	mode: "point_to_point",
+	sourceKind: "graphhopper",
+	startLabel: "Start",
+	destinationLabel: "Finish",
+	waypointLabels: [],
+	distanceMeters: 12000,
+	ascendMeters: 250,
+	durationMs: 3600000,
+};
+
 describe("saved routes one-shot sync", () => {
 	it("runs local merge before loading and applying the remote snapshot", async () => {
 		const events: string[] = [];
-		const remoteRoutes = [{ ...savedRoute, id: "remote-route" }];
+		const remoteRoutes = [{ ...savedRouteSummary, id: "remote-route" }];
 		const state = createState({
-			applyRemoteRoutesEffect: vi.fn(() =>
+			applyRemoteRouteSummariesEffect: vi.fn(() =>
 				Effect.sync(() => {
 					events.push("apply");
 				}),
@@ -92,7 +105,7 @@ describe("saved routes one-shot sync", () => {
 		expect(events).toEqual(["merge", "query", "apply"]);
 		expect(client.query).toHaveBeenCalledTimes(1);
 		expect(client.query).toHaveBeenCalledWith(
-			api.savedRoutes.listForCurrentUser,
+			api.savedRoutes.listSummariesForCurrentUser,
 			{
 				paginationOpts: {
 					numItems: 25,
@@ -101,29 +114,23 @@ describe("saved routes one-shot sync", () => {
 				},
 			},
 		);
-		expect(state.applyRemoteRoutesEffect).toHaveBeenCalledWith(
+		expect(state.applyRemoteRouteSummariesEffect).toHaveBeenCalledWith(
 			"user_1",
 			remoteRoutes,
+			null,
+			{},
 		);
 	});
 
-	it("loads all remote routes across paginated query results", async () => {
-		const routeA = { ...savedRoute, id: "route_a" };
-		const routeB = { ...savedRoute, id: "route_b" };
+	it("loads one summary page and preserves the continuation cursor", async () => {
+		const routeA = { ...savedRouteSummary, id: "route_a" };
 		const state = createState();
 		const client = createClient({
-			query: vi
-				.fn()
-				.mockResolvedValueOnce({
-					page: [routeA],
-					isDone: false,
-					continueCursor: "cursor_1",
-				})
-				.mockResolvedValueOnce({
-					page: [routeB],
-					isDone: true,
-					continueCursor: "cursor_2",
-				}),
+			query: vi.fn().mockResolvedValueOnce({
+				page: [routeA],
+				isDone: false,
+				continueCursor: "cursor_1",
+			}),
 		});
 
 		await Effect.runPromise(
@@ -136,10 +143,9 @@ describe("saved routes one-shot sync", () => {
 			}),
 		);
 
-		expect(client.query).toHaveBeenCalledTimes(2);
-		expect(client.query).toHaveBeenNthCalledWith(
-			1,
-			api.savedRoutes.listForCurrentUser,
+		expect(client.query).toHaveBeenCalledTimes(1);
+		expect(client.query).toHaveBeenCalledWith(
+			api.savedRoutes.listSummariesForCurrentUser,
 			{
 				paginationOpts: {
 					numItems: 25,
@@ -148,21 +154,12 @@ describe("saved routes one-shot sync", () => {
 				},
 			},
 		);
-		expect(client.query).toHaveBeenNthCalledWith(
-			2,
-			api.savedRoutes.listForCurrentUser,
-			{
-				paginationOpts: {
-					numItems: 25,
-					cursor: "cursor_1",
-					maximumRowsRead: 25,
-				},
-			},
+		expect(state.applyRemoteRouteSummariesEffect).toHaveBeenCalledWith(
+			"user_1",
+			[routeA],
+			"cursor_1",
+			{},
 		);
-		expect(state.applyRemoteRoutesEffect).toHaveBeenCalledWith("user_1", [
-			routeA,
-			routeB,
-		]);
 	});
 
 	it("does not fetch or apply more pages after a stale request mid-pagination", async () => {
@@ -190,7 +187,7 @@ describe("saved routes one-shot sync", () => {
 		);
 
 		expect(client.query).toHaveBeenCalledTimes(1);
-		expect(state.applyRemoteRoutesEffect).not.toHaveBeenCalled();
+		expect(state.applyRemoteRouteSummariesEffect).not.toHaveBeenCalled();
 	});
 
 	it("ignores stale results when auth changes before the one-shot query starts", async () => {
@@ -215,7 +212,7 @@ describe("saved routes one-shot sync", () => {
 		);
 
 		expect(client.query).not.toHaveBeenCalled();
-		expect(state.applyRemoteRoutesEffect).not.toHaveBeenCalled();
+		expect(state.applyRemoteRouteSummariesEffect).not.toHaveBeenCalled();
 	});
 
 	it("ignores stale results when auth changes while the one-shot query is in flight", async () => {
@@ -243,7 +240,7 @@ describe("saved routes one-shot sync", () => {
 		);
 
 		expect(client.query).toHaveBeenCalledTimes(1);
-		expect(state.applyRemoteRoutesEffect).not.toHaveBeenCalled();
+		expect(state.applyRemoteRouteSummariesEffect).not.toHaveBeenCalled();
 	});
 
 	it("sets the existing load error message when the one-shot query fails", async () => {
@@ -284,7 +281,7 @@ describe("saved routes one-shot sync", () => {
 		);
 
 		expect(state.syncError).toBe("Could not load synced routes: merge down");
-		expect(state.applyRemoteRoutesEffect).not.toHaveBeenCalled();
+		expect(state.applyRemoteRouteSummariesEffect).not.toHaveBeenCalled();
 		expect(client.query).not.toHaveBeenCalled();
 	});
 

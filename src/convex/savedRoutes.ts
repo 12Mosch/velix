@@ -7,9 +7,13 @@ import { v } from "convex/values";
 import { Effect } from "effect";
 import { remoteSavedRoutePayloadValidator } from "../lib/saved-route-convex-validators";
 import {
+	deserializeRemoteSavedRoute,
 	normalizePlannedRoute,
+	normalizeSavedRouteSummary,
 	type RemoteSavedRoutePayload,
+	type RemoteSavedRouteSummaryPayload,
 	type RemoteSavedRouteVersionPayload,
+	summarizeSavedRoute,
 } from "../lib/saved-routes-core";
 import {
 	assertRemoteRouteJsonSizeEffect,
@@ -75,6 +79,96 @@ function remotePayloadFromRow(row: {
 				routeJson: JSON.stringify(legacyRoute),
 			}
 		: null;
+}
+
+function remoteSummaryFromPayload(
+	payload: RemoteSavedRoutePayload,
+): RemoteSavedRouteSummaryPayload | null {
+	const savedRoute = deserializeRemoteSavedRoute(payload);
+	return savedRoute ? summarizeSavedRoute(savedRoute) : null;
+}
+
+function remoteSummaryFromRow(row: {
+	routeId: string;
+	createdAtMs: number;
+	routeJson?: string;
+	route?: unknown;
+	summary?: RemoteSavedRouteSummaryPayload;
+}): RemoteSavedRouteSummaryPayload | null {
+	if (row.summary) {
+		return normalizeSavedRouteSummary(row.summary);
+	}
+
+	const payload = remotePayloadFromRow(row);
+	return payload ? remoteSummaryFromPayload(payload) : null;
+}
+
+function normalizeSearchText(value: string): string {
+	return value.trim().toLocaleLowerCase();
+}
+
+function summaryMatchesFilters(
+	summary: RemoteSavedRouteSummaryPayload,
+	args: {
+		searchQuery?: string;
+		minDistanceMeters?: number;
+		maxDistanceMeters?: number;
+		minElevationMeters?: number;
+		maxElevationMeters?: number;
+	},
+) {
+	if (
+		args.minDistanceMeters !== undefined &&
+		summary.distanceMeters < args.minDistanceMeters
+	) {
+		return false;
+	}
+
+	if (
+		args.maxDistanceMeters !== undefined &&
+		summary.distanceMeters > args.maxDistanceMeters
+	) {
+		return false;
+	}
+
+	if (
+		args.minElevationMeters !== undefined &&
+		summary.ascendMeters < args.minElevationMeters
+	) {
+		return false;
+	}
+
+	if (
+		args.maxElevationMeters !== undefined &&
+		summary.ascendMeters > args.maxElevationMeters
+	) {
+		return false;
+	}
+
+	const normalizedQuery = normalizeSearchText(args.searchQuery ?? "");
+	if (!normalizedQuery) {
+		return true;
+	}
+
+	return [
+		summary.id,
+		summary.createdAt,
+		summary.mode,
+		summary.sourceKind,
+		summary.startLabel,
+		summary.destinationLabel,
+		...summary.waypointLabels,
+		String(summary.distanceMeters),
+		String(summary.ascendMeters),
+		String(summary.durationMs),
+		summary.requestedDistanceMeters === undefined
+			? ""
+			: String(summary.requestedDistanceMeters),
+		summary.roundCourseTarget ? JSON.stringify(summary.roundCourseTarget) : "",
+	]
+		.join(" ")
+		.toLocaleLowerCase()
+		.includes(normalizedQuery);
 }
 
 function createSavedRouteVersionId(routeId: string, capturedAtMs: number) {
@@ -218,6 +312,87 @@ export function listForCurrentUserHandler(
 	);
 }
 
+/**
+ * Lists lightweight route summaries for the current user.
+ *
+ * Search/distance/elevation filters are applied after Convex pagination, so
+ * `paginationOpts.numItems` is a maximum returned page size when filters are
+ * present, not a guaranteed filled page size.
+ */
+export function listSummariesForCurrentUserHandler(
+	ctx: QueryCtx,
+	args: {
+		paginationOpts: PaginationOptions;
+		searchQuery?: string;
+		minDistanceMeters?: number;
+		maxDistanceMeters?: number;
+		minElevationMeters?: number;
+		maxElevationMeters?: number;
+	},
+) {
+	return runConvexEffect(
+		Effect.gen(function* () {
+			const userId = yield* getAuthenticatedUserIdEffect(
+				ctx,
+				() => new SavedRoutesAuthenticationError(),
+			);
+			const result = yield* tryConvexPromise(
+				() =>
+					ctx.db
+						.query("savedRoutes")
+						.withIndex("by_user_createdAt", (q) => q.eq("userId", userId))
+						.order("desc")
+						.paginate(args.paginationOpts),
+				"Could not read saved route summaries.",
+			);
+
+			const page = result.page.flatMap((row) => {
+				const summary = remoteSummaryFromRow(row);
+
+				return summary && summaryMatchesFilters(summary, args) ? [summary] : [];
+			});
+
+			return {
+				...result,
+				page,
+			} satisfies PaginationResult<RemoteSavedRouteSummaryPayload>;
+		}),
+	);
+}
+
+export function getForCurrentUserHandler(
+	ctx: QueryCtx,
+	args: { routeId: string },
+) {
+	return runConvexEffect(
+		Effect.gen(function* () {
+			const userId = yield* getAuthenticatedUserIdEffect(
+				ctx,
+				() => new SavedRoutesAuthenticationError(),
+			);
+
+			if (args.routeId.trim().length === 0) {
+				return yield* Effect.fail(
+					new SavedRoutesValidationError("Saved route id is required."),
+				);
+			}
+
+			const row = yield* tryConvexPromise(
+				() =>
+					ctx.db
+						.query("savedRoutes")
+						.withIndex("by_user_routeId", (q) =>
+							q.eq("userId", userId).eq("routeId", args.routeId),
+						)
+						.unique(),
+				"Could not read saved route.",
+			);
+
+			return row ? remotePayloadFromRow(row) : null;
+		}),
+	);
+}
+
 export function listVersionsForRouteHandler(
 	ctx: QueryCtx,
 	args: { routeId: string },
@@ -274,6 +449,12 @@ export function upsertHandler(
 				savedRoute.routeJson,
 				"saved",
 			).pipe(Effect.mapError(mapSavedRouteSizeError));
+			const summary = remoteSummaryFromPayload(savedRoute);
+			if (!summary) {
+				return yield* Effect.fail(
+					new SavedRoutesValidationError("Saved route payload is invalid."),
+				);
+			}
 
 			const now = Date.now();
 			const row = {
@@ -282,6 +463,7 @@ export function upsertHandler(
 				createdAtMs: savedRoute.createdAtMs,
 				updatedAtMs: now,
 				routeJson: savedRoute.routeJson,
+				summary,
 			} satisfies SavedRouteStorageRow;
 
 			if (!isSavedRouteRowWithinConvexDocumentLimit(row)) {
@@ -450,9 +632,10 @@ export function mergeLocalRoutesHandler(
 					createdAtMs: savedRoute.createdAtMs,
 					updatedAtMs: now,
 					routeJson: savedRoute.routeJson,
+					summary: remoteSummaryFromPayload(savedRoute) ?? undefined,
 				} satisfies SavedRouteStorageRow;
 
-				if (!isSavedRouteRowWithinConvexDocumentLimit(row)) {
+				if (!row.summary || !isSavedRouteRowWithinConvexDocumentLimit(row)) {
 					invalid += 1;
 					continue;
 				}
@@ -474,6 +657,25 @@ export const listForCurrentUser = query({
 		paginationOpts: paginationOptsValidator,
 	},
 	handler: listForCurrentUserHandler,
+});
+
+export const listSummariesForCurrentUser = query({
+	args: {
+		paginationOpts: paginationOptsValidator,
+		searchQuery: v.optional(v.string()),
+		minDistanceMeters: v.optional(v.number()),
+		maxDistanceMeters: v.optional(v.number()),
+		minElevationMeters: v.optional(v.number()),
+		maxElevationMeters: v.optional(v.number()),
+	},
+	handler: listSummariesForCurrentUserHandler,
+});
+
+export const getForCurrentUser = query({
+	args: {
+		routeId: v.string(),
+	},
+	handler: getForCurrentUserHandler,
 });
 
 export const listVersionsForRoute = query({

@@ -4,7 +4,11 @@ import {
 	type PlannedRoute,
 } from "../lib/route-planning";
 import { MAX_REMOTE_ROUTE_JSON_BYTES } from "../lib/saved-route-size";
-import { serializeSavedRouteForRemote } from "../lib/saved-routes-core";
+import {
+	serializeSavedRouteForRemote,
+	summarizeSavedRoute,
+	type RemoteSavedRouteSummaryPayload,
+} from "../lib/saved-routes-core";
 import {
 	listForCurrentUserHandler,
 	mergeLocalRoutesHandler,
@@ -20,6 +24,7 @@ type SavedRouteRow = {
 	updatedAtMs: number;
 	routeJson?: string;
 	route?: unknown;
+	summary?: RemoteSavedRouteSummaryPayload;
 };
 type IndexQuery = {
 	eq: (field: "userId" | "routeId", value: string) => IndexQuery;
@@ -62,6 +67,11 @@ const route: PlannedRoute = {
 	routeQuality: calculateRouteQuality(baseRoute),
 };
 const remoteSavedRoute = serializeSavedRouteForRemote({
+	id: "saved-route-1",
+	createdAt: "2026-04-19T09:30:00.000Z",
+	route,
+});
+const remoteSavedRouteSummary = summarizeSavedRoute({
 	id: "saved-route-1",
 	createdAt: "2026-04-19T09:30:00.000Z",
 	route,
@@ -325,6 +335,7 @@ describe("savedRoutes Convex functions", () => {
 				createdAtMs: Date.parse(remoteSavedRoute.createdAt),
 				updatedAtMs: 1778342400000,
 				routeJson: remoteSavedRoute.routeJson,
+				summary: remoteSavedRouteSummary,
 			},
 		]);
 	});
@@ -417,6 +428,10 @@ describe("savedRoutes Convex functions", () => {
 			"existing-route",
 			"new-route",
 		]);
+		expect(state.find((row) => row.routeId === "new-route")?.summary).toEqual({
+			...remoteSavedRouteSummary,
+			id: "new-route",
+		});
 		expect(
 			indexCalls
 				.filter((call) => call.index === "by_user_routeId")
@@ -451,6 +466,10 @@ describe("savedRoutes Convex functions", () => {
 		});
 
 		expect(state.map((row) => row.routeId)).toEqual(["valid-route"]);
+		expect(state[0]?.summary).toEqual({
+			...remoteSavedRouteSummary,
+			id: "valid-route",
+		});
 		expect(
 			indexCalls
 				.filter((call) => call.index === "by_user_routeId")

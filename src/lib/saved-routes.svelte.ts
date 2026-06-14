@@ -7,6 +7,7 @@ import {
 import {
 	type SavedRoutesAuthStatus,
 	type SavedRoutesRemoteRepository,
+	type SavedRouteSummaryFilters,
 	SavedRoutesUseCases,
 } from "$lib/saved-routes/saved-routes-use-cases";
 import {
@@ -17,6 +18,7 @@ import {
 	parseSavedRoutes,
 	SAVED_ROUTES_STORAGE_KEY,
 	type SavedRoute,
+	type SavedRouteSummary,
 	type SavedRouteVersion,
 } from "$lib/saved-routes-core";
 import { createBrowserStorage } from "$lib/storage/browser-storage";
@@ -30,8 +32,10 @@ export {
 	parseSavedRoutes,
 	SAVED_ROUTES_STORAGE_KEY,
 	type SavedRoute,
+	type SavedRouteSummary,
 	type SavedRouteVersion,
 	type SavedRoutesAuthStatus,
+	type SavedRouteSummaryFilters,
 	SYNCED_MIGRATIONS_STORAGE_KEY,
 };
 
@@ -44,6 +48,10 @@ const savedRoutesUseCases = new SavedRoutesUseCases(
 class SavedRoutesState {
 	initialized = $state(false);
 	savedRoutes = $state<SavedRoute[]>([]);
+	savedRouteSummaries = $state<SavedRouteSummary[]>([]);
+	savedRouteSummariesContinueCursor = $state<string | null>(null);
+	savedRouteSummariesLoading = $state(false);
+	savedRouteSummaryFilters = $state<SavedRouteSummaryFilters>({});
 	authStatus = $state<SavedRoutesAuthStatus>("signedOut");
 	authUserId = $state<string | null>(null);
 	remoteReady = $state(false);
@@ -68,6 +76,22 @@ class SavedRoutesState {
 
 	applyRemoteRoutesEffect(userId: string, routes: unknown[]) {
 		return savedRoutesUseCases.applyRemoteSavedRoutes(this, userId, routes);
+	}
+
+	applyRemoteRouteSummariesEffect(
+		userId: string,
+		summaries: unknown[],
+		continueCursor: string | null,
+		filters: SavedRouteSummaryFilters = {},
+	) {
+		return savedRoutesUseCases.applyRemoteSavedRouteSummaries(
+			this,
+			userId,
+			summaries,
+			continueCursor,
+			"replace",
+			filters,
+		);
 	}
 
 	setRemoteAdapter(adapter: SavedRoutesRemoteRepository | null) {
@@ -122,6 +146,20 @@ class SavedRoutesState {
 
 	getSavedRouteByIdEffect(id: string | null | undefined) {
 		return savedRoutesUseCases.getSavedRouteById(this, id);
+	}
+
+	loadMoreSavedRouteSummaries(): Promise<void> {
+		return Effect.runPromise(
+			savedRoutesUseCases.loadMoreSavedRouteSummaries(this),
+		);
+	}
+
+	loadSavedRouteSummaries(
+		filters: SavedRouteSummaryFilters = {},
+	): Promise<void> {
+		return Effect.runPromise(
+			savedRoutesUseCases.loadSavedRouteSummaries(this, filters),
+		);
 	}
 
 	deleteSavedRoute(id: string): Promise<boolean> {
@@ -189,6 +227,16 @@ export function getSavedRouteById(id: string | null | undefined) {
 
 export function getSavedRouteByIdEffect(id: string | null | undefined) {
 	return savedRoutesState.getSavedRouteByIdEffect(id);
+}
+
+export function loadMoreSavedRouteSummaries() {
+	return savedRoutesState.loadMoreSavedRouteSummaries();
+}
+
+export function loadSavedRouteSummaries(
+	filters: SavedRouteSummaryFilters = {},
+) {
+	return savedRoutesState.loadSavedRouteSummaries(filters);
 }
 
 export function deleteSavedRoute(id: string) {

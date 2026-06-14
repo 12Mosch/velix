@@ -11,7 +11,10 @@ import {
 	type SavedRoutesStateModel,
 	SavedRoutesUseCases,
 } from "$lib/saved-routes/saved-routes-use-cases";
-import { serializeSavedRouteForRemote } from "$lib/saved-routes-core";
+import {
+	serializeSavedRouteForRemote,
+	summarizeSavedRoute,
+} from "$lib/saved-routes-core";
 import type { BrowserStorage } from "$lib/storage/browser-storage";
 import { Effect } from "effect";
 
@@ -41,6 +44,10 @@ function createState(): SavedRoutesStateModel {
 	return {
 		initialized: false,
 		savedRoutes: [],
+		savedRouteSummaries: [],
+		savedRouteSummariesContinueCursor: null,
+		savedRouteSummariesLoading: false,
+		savedRouteSummaryFilters: {},
 		authStatus: "signedOut",
 		authUserId: null,
 		remoteReady: false,
@@ -967,5 +974,120 @@ describe("saved routes use cases", () => {
 				useCases.restoreLatestSavedRouteVersion(state, savedRoute.id),
 			),
 		).resolves.toEqual({ restored: false, reason: "no_version" });
+	});
+
+	it("discards stale load-more summary results after filters change", async () => {
+		const oldSummary = summarizeSavedRoute({
+			id: "old-route",
+			createdAt: "2026-04-19T09:30:00.000Z",
+			route,
+		});
+		const staleSummary = { ...oldSummary, id: "stale-route" };
+		const newSummary = { ...oldSummary, id: "new-route" };
+		const loadMoreDeferred = createDeferred<{
+			page: unknown[];
+			continueCursor: string;
+			isDone: boolean;
+		}>();
+		const listSummaries = vi.fn(({ paginationOpts }) =>
+			paginationOpts.cursor
+				? Effect.callback<{
+						page: unknown[];
+						continueCursor: string;
+						isDone: boolean;
+					}>((resume) => {
+						void loadMoreDeferred.promise.then((page) =>
+							resume(Effect.succeed(page)),
+						);
+					})
+				: Effect.succeed({
+						page: [newSummary],
+						continueCursor: "done",
+						isDone: true,
+					}),
+		);
+
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
+			useCases.setRemoteRepository({
+				save: vi.fn(() => Effect.void),
+				delete: vi.fn(() => Effect.void),
+				listSummaries,
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
+			}),
+		);
+		await Effect.runPromise(
+			useCases.applyRemoteSavedRouteSummaries(
+				state,
+				"user_1",
+				[oldSummary],
+				"cursor_1",
+				"replace",
+				{ searchQuery: "old" },
+			),
+		);
+
+		const loadMorePromise = Effect.runPromise(
+			useCases.loadMoreSavedRouteSummaries(state),
+		);
+		await flushMicrotasks();
+
+		await Effect.runPromise(
+			useCases.loadSavedRouteSummaries(state, { searchQuery: "new" }),
+		);
+		loadMoreDeferred.resolve({
+			page: [staleSummary],
+			continueCursor: "done",
+			isDone: true,
+		});
+		await loadMorePromise;
+
+		expect(state.savedRouteSummaries.map((summary) => summary.id)).toEqual([
+			"new-route",
+		]);
+	});
+
+	it("discards remote route hydration when auth changes before read completes", async () => {
+		const remoteSavedRoute = serializeSavedRouteForRemote({
+			id: "remote-route",
+			createdAt: "2026-04-19T09:30:00.000Z",
+			route,
+		});
+		const getDeferred = createDeferred<unknown>();
+
+		await Effect.runPromise(useCases.setAuthUser(state, "user_1"));
+		await Effect.runPromise(
+			useCases.setRemoteRepository({
+				save: vi.fn(() => Effect.void),
+				delete: vi.fn(() => Effect.void),
+				get: vi.fn(() =>
+					Effect.callback<unknown>((resume) => {
+						void getDeferred.promise.then((payload) =>
+							resume(Effect.succeed(payload)),
+						);
+					}),
+				),
+				mergeLocalRoutes: vi.fn(() =>
+					Effect.succeed({ inserted: 0, skipped: 0, invalid: 0, duplicate: 0 }),
+				),
+			}),
+		);
+
+		const hydrationPromise = Effect.runPromise(
+			useCases.getSavedRouteById(state, "remote-route"),
+		);
+		await flushMicrotasks();
+		await Effect.runPromise(useCases.setAuthUser(state, "user_2"));
+		getDeferred.resolve(remoteSavedRoute);
+
+		await expect(hydrationPromise).resolves.toBeNull();
+		expect(state.savedRoutes).toEqual([]);
+		expect(
+			await Effect.runPromise(
+				repository.readRoutes({ kind: "user", userId: "user_2" }),
+			),
+		).toEqual([]);
 	});
 });
