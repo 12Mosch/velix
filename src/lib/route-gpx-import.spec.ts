@@ -5,6 +5,10 @@ import {
 	parseRouteGpxEffect,
 	RouteGpxImportError,
 } from "$lib/route-gpx-import";
+import {
+	maxGpxGeometryPoints,
+	maxGpxImportBytes,
+} from "$lib/route-planner/constants";
 
 const waypointTrackGpx = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Velix tests" xmlns="http://www.topografix.com/GPX/1/1">
@@ -78,6 +82,23 @@ function expectImportError(
 	expect(result.failure).toBeInstanceOf(RouteGpxImportError);
 	expect(result.failure.code).toBe(expectedCode);
 	return result.failure;
+}
+
+function buildPointGpx(tagName: "trkpt" | "rtept" | "wpt", pointCount: number) {
+	const points = Array.from(
+		{ length: pointCount },
+		(_, index) => `<${tagName} lat="48.${index}" lon="11.${index}" />`,
+	).join("");
+
+	if (tagName === "trkpt") {
+		return `<gpx><trk><trkseg>${points}</trkseg></trk></gpx>`;
+	}
+
+	if (tagName === "rtept") {
+		return `<gpx><rte>${points}</rte></gpx>`;
+	}
+
+	return `<gpx>${points}</gpx>`;
 }
 
 describe("parseRouteGpxEffect", () => {
@@ -193,6 +214,40 @@ describe("parseRouteGpxEffect", () => {
 		);
 
 		expect(error.message).toContain("supports up to 5");
+	});
+
+	it("rejects GPX text over the import size limit", () => {
+		const oversizedGpx = `<gpx><metadata>${"x".repeat(maxGpxImportBytes)}</metadata></gpx>`;
+		const error = expectImportError(oversizedGpx, "file_too_large");
+
+		expect(error.message).toContain("2 MiB");
+	});
+
+	it("rejects GPX files with too many track geometry points", () => {
+		const error = expectImportError(
+			buildPointGpx("trkpt", maxGpxGeometryPoints + 1),
+			"too_many_geometry_points",
+		);
+
+		expect(error.message).toContain("20,000");
+	});
+
+	it("rejects GPX files with too many route geometry points before normal import", () => {
+		const error = expectImportError(
+			buildPointGpx("rtept", maxGpxGeometryPoints + 1),
+			"too_many_geometry_points",
+		);
+
+		expect(error.message).toContain("20,000");
+	});
+
+	it("rejects GPX files with too many waypoint geometry points before normal import", () => {
+		const error = expectImportError(
+			buildPointGpx("wpt", maxGpxGeometryPoints + 1),
+			"too_many_geometry_points",
+		);
+
+		expect(error.message).toContain("20,000");
 	});
 
 	it("infers closed-loop tracks as round courses when stops are track-derived", () => {
