@@ -163,6 +163,12 @@ export function createPlannerSaveController(
 		setPendingSavedRouteRestore(id);
 	}
 
+	function queueSavedRouteRestoreFromLocation(location: Location) {
+		const savedRouteId = new URLSearchParams(location.search).get("savedRoute");
+
+		setPendingSavedRouteRestore(savedRouteId);
+	}
+
 	function cancelAutosaveTimer() {
 		if (!autosaveTimer) {
 			return;
@@ -268,24 +274,8 @@ export function createPlannerSaveController(
 	const restoreSavedRouteFromLocationEffect = Effect.fn(
 		"restoreSavedRouteFromLocationEffect",
 	)(function* (location: Location) {
-		const savedRouteId = new URLSearchParams(location.search).get("savedRoute");
-
-		if (!savedRouteId) {
-			return;
-		}
-
-		const savedRoute = yield* getSavedRouteByIdEffect(savedRouteId).pipe(
-			Effect.mapError(
-				(cause) => new PlannerSavedRouteError({ operation: "read", cause }),
-			),
-		);
-
-		if (!savedRoute) {
-			setPendingSavedRouteRestore(savedRouteId);
-			return;
-		}
-
-		restoreSavedRoute(savedRoute);
+		queueSavedRouteRestoreFromLocation(location);
+		yield* restorePendingSavedRouteEffect();
 	});
 
 	function restoreSavedRouteFromLocation(location: Location) {
@@ -413,6 +403,7 @@ export function createPlannerSaveController(
 		getActiveRouteForSaving,
 		saveActiveRouteDraft,
 		scheduleActiveRouteAutosave,
+		queueSavedRouteRestoreFromLocation,
 		restoreSavedRouteFromLocation,
 		restorePendingSavedRoute,
 		restoreSavedRoute,

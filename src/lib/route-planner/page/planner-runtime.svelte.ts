@@ -4,9 +4,8 @@ import { initUnitPreference } from "$lib/unit-settings.svelte";
 
 type PlannerRuntimeDependencies = {
 	resetSpatialConstraintDefaults: () => void;
-	restoreSavedRouteFromLocation: (
-		location: Location,
-	) => Effect.Effect<void, unknown>;
+	queueSavedRouteRestoreFromLocation: (location: Location) => void;
+	restorePendingSavedRoute: () => Effect.Effect<void, unknown>;
 	handleRouteEditKeydown: (event: KeyboardEvent) => void;
 	runCleanup?: () => void;
 };
@@ -37,15 +36,14 @@ export function createPlannerRuntime(dependencies: PlannerRuntimeDependencies) {
 		clientFetch = nextWindow.fetch.bind(nextWindow);
 		Effect.runSync(initUnitPreference());
 		dependencies.resetSpatialConstraintDefaults();
+		dependencies.queueSavedRouteRestoreFromLocation(nextWindow.location);
 		void initSavedRoutes()
 			.then(() => {
 				if (destroyed || currentMountRevision !== mountRevision) {
 					return;
 				}
 
-				return Effect.runPromise(
-					dependencies.restoreSavedRouteFromLocation(nextWindow.location),
-				);
+				return Effect.runPromise(dependencies.restorePendingSavedRoute());
 			})
 			.catch((error) => {
 				console.error("Failed to initialize saved routes.", error);
