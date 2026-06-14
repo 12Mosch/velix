@@ -1,3 +1,4 @@
+<!-- biome-ignore-all lint/a11y/useValidAriaValues: Dynamic Svelte ARIA values are computed at runtime. -->
 <script lang="ts">
 	import { Laptop, Moon, Sun } from "@lucide/svelte";
 	import { Effect } from "effect";
@@ -43,6 +44,7 @@
 
 <div class="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="App theme">
 	{#each themeOptions as option}
+		<!-- biome-ignore lint/a11y/useSemanticElements: Button is used as a radio-style segmented option. -->
 		<Button
 			variant="outline"
 			class={`h-auto w-full items-start justify-start whitespace-normal rounded-lg px-3.5 py-3 text-left transition-colors ${
@@ -51,7 +53,7 @@
 					: "hover:bg-secondary/60"
 			}`}
 			role="radio"
-			aria-checked={userPrefersMode.current === option.mode}
+			aria-checked={userPrefersMode.current === option.mode ? "true" : "false"}
 			aria-label={option.label}
 			onclick={() => selectThemeMode(option.mode)}
 		>

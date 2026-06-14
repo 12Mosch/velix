@@ -51,6 +51,7 @@
 {/snippet}
 
 <div class="space-y-2">
+	<!-- biome-ignore lint/a11y/noLabelWithoutControl: Input renders a native input with the matching id. -->
 	<label
 		for={id}
 		class="block text-xs font-semibold uppercase tracking-wide text-foreground/80"
@@ -63,23 +64,26 @@
 				{@render leading()}
 			</div>
 		{/if}
+		<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA values are computed at runtime. -->
 		<Input
 			{id}
 			{value}
 			{placeholder}
 			class={inputClass}
 			autocomplete="off"
+			tabindex={0}
 			aria-autocomplete="list"
 			aria-controls={controller.getCompletionListId(target)}
-			aria-expanded={controller.isMenuVisible(target)}
+			aria-expanded={controller.isMenuVisible(target) ? "true" : "false"}
 			aria-activedescendant={controller.getActiveDescendant(target)}
-			aria-invalid={error ? "true" : undefined}
+			aria-invalid={error ? "true" : "false"}
 			onfocus={() => Effect.runSync(controller.handleFocus(target))}
 			onblur={() => Effect.runSync(controller.handleBlur(target))}
 			onkeydown={(event) =>
 				Effect.runSync(controller.handleKeydown(event, target))}
 			oninput={(event) => onInput((event.currentTarget as HTMLInputElement).value)}
 		/>
+		<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA values are computed at runtime. -->
 		{#if trailing}
 			<div class="absolute right-1 top-1/2 -translate-y-1/2">
 				{@render trailing()}
@@ -90,27 +94,30 @@
 			<div
 				class="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-xl border border-border/70 bg-popover shadow-lg"
 			>
-				<ul
+				<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
+				<div
 					id={controller.getCompletionListId(target)}
 					role="listbox"
 					aria-label={completionLabel}
-					aria-busy={controller.viewState.isLoading}
+					aria-busy={controller.viewState.isLoading ? "true" : "false"}
 					class="max-h-60 overflow-y-auto py-1"
 				>
 					{#if controller.viewState.isLoading}
 						{@render completionSuggestionsSkeleton()}
 					{:else if controller.viewState.suggestions.length > 0}
 						{#each controller.viewState.suggestions as suggestion, index (`${controller.getCompletionTargetKey(target)}-${suggestion.label}-${index}`)}
-							<li
+							<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
+							<div
 								id={controller.getCompletionOptionId(target, index)}
 								role="option"
+								tabindex="-1"
 								class={[
 									"flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors",
 									controller.viewState.highlightedIndex === index
 										? "bg-secondary text-foreground"
 										: "hover:bg-secondary/80",
 								]}
-								aria-selected={controller.viewState.highlightedIndex === index}
+								aria-selected={controller.viewState.highlightedIndex === index ? "true" : "false"}
 								onmousedown={(event) =>
 									Effect.runSync(
 										controller.handleSelectionPointerDown(
@@ -122,14 +129,22 @@
 							>
 								<Check class="size-4 shrink-0 text-primary" />
 								<span class="min-w-0 truncate">{suggestion.label}</span>
-							</li>
+							</div>
+							<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 						{/each}
 					{:else if controller.viewState.isEmpty}
-						<li class="px-3 py-2 text-sm text-muted-foreground">
+						<div
+							role="option"
+							aria-disabled="true"
+							aria-selected="false"
+							tabindex="-1"
+							class="px-3 py-2 text-sm text-muted-foreground"
+						>
 							No matches found.
-						</li>
+						</div>
 					{/if}
-				</ul>
+				</div>
+				<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 			</div>
 		{/if}
 	</div>

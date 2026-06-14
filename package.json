@@ -24,7 +24,7 @@
 		"test": "node scripts/run-vitest.mjs"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.16",
+		"@biomejs/biome": "^2.5.0",
 		"@effect/language-service": "^0.86.2",
 		"@fontsource-variable/inter": "^5.2.8",
 		"@fontsource-variable/space-grotesk": "^5.2.10",

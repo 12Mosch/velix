@@ -1,3 +1,4 @@
+<!-- biome-ignore-all lint/a11y/useValidAriaValues: Dynamic Svelte ARIA values are computed at runtime. -->
 <script lang="ts">
 	import { Effect } from "effect";
 	import { Check, ChevronDown, ChevronUp, MountainSnow, Redo2, Share2, TrendingDown, Undo2 } from "@lucide/svelte";
@@ -231,7 +232,7 @@
 					size="sm"
 					class="h-8 gap-1 px-2.5 font-semibold"
 					onclick={() => (analysis.directionsOpen = !dock.directionsOpen)}
-					aria-expanded={dock.directionsOpen}
+					aria-expanded={dock.directionsOpen ? "true" : "false"}
 					aria-controls="route-directions-panel"
 				>
 					Directions
@@ -249,7 +250,7 @@
 					size="sm"
 					class="h-8 gap-1 px-2.5 font-semibold"
 					onclick={onToggleProfile}
-					aria-expanded={profileOpen}
+					aria-expanded={profileOpen ? "true" : "false"}
 					aria-controls="route-profile-panel"
 				>
 					Profile
@@ -264,7 +265,7 @@
 					size="sm"
 					class="h-8 gap-1 px-2.5 font-semibold"
 					onclick={() => (analysis.routeAnalysisOpen = !dock.routeAnalysisOpen)}
-					aria-expanded={dock.routeAnalysisOpen}
+					aria-expanded={dock.routeAnalysisOpen ? "true" : "false"}
 					aria-controls="route-analysis-panel"
 				>
 					{dock.routeAnalysisOpen ? "Less" : "Analysis"}

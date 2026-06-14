@@ -578,13 +578,16 @@
 </script>
 
 <div class="absolute inset-0 overflow-hidden bg-slate-100" data-slot="map-view">
+	<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
+	<!-- biome-ignore lint/a11y/useSemanticElements: MapLibre expects this bound map container element. -->
 	<div
 		bind:this={mapContainer}
 		class="h-full w-full"
 		role="region"
-		aria-busy={!isLoaded && !loadError}
+		aria-busy={!isLoaded && !loadError ? "true" : "false"}
 		aria-label={ariaLabel}
 	></div>
+	<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 	<div
 		class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.22),transparent_36%),linear-gradient(to_bottom,rgba(255,255,255,0.08),transparent_24%)]"
 	></div>

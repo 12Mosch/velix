@@ -150,6 +150,7 @@
 			</Button>
 		</ActionTooltip>
 		<ActionTooltip content={gradientTooltip} side="left">
+			<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 			<Button
 				variant="ghost"
 				size="icon"
@@ -157,14 +158,16 @@
 				type="button"
 				disabled={!canShowGradientOverlay}
 				aria-label="Gradient overlay"
-				aria-pressed={gradientOverlayEnabled}
+				aria-pressed={gradientOverlayEnabled ? "true" : "false"}
 				data-active={gradientOverlayEnabled}
 				onclick={() => (overlay.gradientOverlayEnabled = !gradientOverlayEnabled)}
 			>
 				<MountainSnow class="size-4" />
 			</Button>
+			<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 		</ActionTooltip>
 		<ActionTooltip content={windTooltip} side="left">
+			<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 			<Button
 				variant="ghost"
 				size="icon"
@@ -172,14 +175,16 @@
 				type="button"
 				disabled={!canShowWindOverlay}
 				aria-label="Wind and conditions"
-				aria-pressed={windOverlayEnabled}
+				aria-pressed={windOverlayEnabled ? "true" : "false"}
 				data-active={windOverlayEnabled}
 				onclick={() => (overlay.windOverlayEnabled = !windOverlayEnabled)}
 			>
 				<Wind class="size-4" />
 			</Button>
+			<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 		</ActionTooltip>
 		<ActionTooltip content={trafficStressTooltip} side="left">
+			<!-- biome-ignore-start lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 			<Button
 				variant="ghost"
 				size="icon"
@@ -187,7 +192,7 @@
 				type="button"
 				disabled={!canShowTrafficStressOverlay}
 				aria-label="Traffic stress overlay"
-				aria-pressed={trafficStressOverlayEnabled}
+				aria-pressed={trafficStressOverlayEnabled ? "true" : "false"}
 				data-active={trafficStressOverlayEnabled}
 				onclick={() =>
 					(overlay.trafficStressOverlayEnabled =
@@ -195,6 +200,7 @@
 			>
 				<TrafficCone class="size-4" />
 			</Button>
+			<!-- biome-ignore-end lint/a11y/useValidAriaValues: Dynamic Svelte ARIA value is computed at runtime. -->
 		</ActionTooltip>
 	</Tooltip.Provider>
 </div>
