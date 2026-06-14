@@ -10,6 +10,10 @@ import {
 	isGraphHopperRoutePointLimitError,
 	isMissingGraphHopperApiKeyError,
 } from "$lib/server/graphhopper-errors";
+import {
+	GraphHopperRouteRateLimitExceededError,
+	GraphHopperRouteRateLimitUnavailableError,
+} from "$lib/server/route-rate-limits";
 
 import { RouteGenerationError } from "./errors";
 import type { CandidateRouteResult } from "./types";
@@ -176,7 +180,9 @@ export function mapRouteBoundaryToGenerationError(
 	): RouteGenerationError | GraphHopperRouteBoundaryError => {
 		if (
 			isMissingGraphHopperApiKeyError(error) ||
-			isGraphHopperRoutePointLimitError(error)
+			isGraphHopperRoutePointLimitError(error) ||
+			error instanceof GraphHopperRouteRateLimitExceededError ||
+			error instanceof GraphHopperRouteRateLimitUnavailableError
 		) {
 			return error;
 		}

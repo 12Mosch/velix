@@ -17,6 +17,12 @@ import {
 	isMissingGraphHopperApiKeyError,
 } from "$lib/server/graphhopper-errors";
 import {
+	GraphHopperRouteRateLimitExceededError,
+	GraphHopperRouteRateLimitUnavailableError,
+	graphHopperRouteRateLimitResponse,
+	graphHopperRouteRateLimitUnavailableResponse,
+} from "$lib/server/route-rate-limits";
+import {
 	maxRoutePoints,
 	maxWaypoints,
 } from "$lib/server/route-endpoint/constants";
@@ -117,6 +123,16 @@ export function mapRouteEndpointError(error: unknown): Effect.Effect<Response> {
 				`Your current routing plan allows up to ${maxRoutePoints} total route points (${maxWaypoints} waypoints plus start and destination).`,
 			),
 		);
+	}
+
+	if (error instanceof GraphHopperRouteRateLimitExceededError) {
+		return Effect.succeed(
+			graphHopperRouteRateLimitResponse(error.retryAfterSeconds),
+		);
+	}
+
+	if (error instanceof GraphHopperRouteRateLimitUnavailableError) {
+		return Effect.succeed(graphHopperRouteRateLimitUnavailableResponse());
 	}
 
 	if (error instanceof RouteGenerationError) {

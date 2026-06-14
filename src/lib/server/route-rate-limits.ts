@@ -8,7 +8,11 @@ import type { RequestEvent } from "@sveltejs/kit";
 
 import { api } from "../../convex/_generated/api";
 
-type PaidUpstreamRateLimitBucket = "route" | "suggestion" | "reverse";
+type PaidUpstreamRateLimitBucket =
+	| "route"
+	| "suggestion"
+	| "reverse"
+	| "graphhopper_route";
 
 type PaidUpstreamRateLimitResult =
 	| {
@@ -38,10 +42,33 @@ class PaidUpstreamRateLimitUnavailableError extends Error {
 	}
 }
 
+export class GraphHopperRouteRateLimitUnavailableError extends Error {
+	readonly _tag = "GraphHopperRouteRateLimitUnavailableError";
+
+	constructor(message = "Paid route-call rate limiting is unavailable.") {
+		super(message);
+	}
+}
+
+export class GraphHopperRouteRateLimitExceededError extends Error {
+	readonly _tag = "GraphHopperRouteRateLimitExceededError";
+
+	constructor(readonly retryAfterSeconds: number) {
+		super("Too many GraphHopper route requests. Try again soon.");
+	}
+}
+
 export class PaidUpstreamRateLimiter extends Context.Service<
 	PaidUpstreamRateLimiter,
 	PaidUpstreamRateLimiterService
 >()("PaidUpstreamRateLimiter") {}
+
+export class GraphHopperRouteCallSubject extends Context.Service<
+	GraphHopperRouteCallSubject,
+	{
+		readonly subject: string;
+	}
+>()("GraphHopperRouteCallSubject") {}
 
 const routeLimits: Record<
 	PaidUpstreamRateLimitBucket,
@@ -50,6 +77,7 @@ const routeLimits: Record<
 	route: { maxRequests: 10, windowMs: 60_000 },
 	suggestion: { maxRequests: 60, windowMs: 60_000 },
 	reverse: { maxRequests: 60, windowMs: 60_000 },
+	graphhopper_route: { maxRequests: 10, windowMs: 60_000 },
 };
 
 const convexCheckTimeoutMs = 2_000;
@@ -144,6 +172,19 @@ function rateLimitUnavailableResponse(): Response {
 	);
 }
 
+export function graphHopperRouteRateLimitUnavailableResponse(): Response {
+	return rateLimitUnavailableResponse();
+}
+
+export function graphHopperRouteRateLimitResponse(
+	retryAfterSeconds: number,
+): Response {
+	return rateLimitResponse(
+		"Too many GraphHopper route requests. Try again soon.",
+		retryAfterSeconds,
+	);
+}
+
 const PaidUpstreamRateLimiterLive = Layer.succeed(PaidUpstreamRateLimiter)({
 	check: (bucket, subject) =>
 		Effect.tryPromise({
@@ -202,6 +243,50 @@ export function checkRouteRateLimitEffect(
 		"route",
 		"Too many route requests. Try again soon.",
 	);
+}
+
+export function getGraphHopperRouteCallSubjectEffect(
+	event: Pick<RequestEvent, "getClientAddress">,
+): Effect.Effect<string, GraphHopperRouteRateLimitUnavailableError> {
+	return Effect.gen(function* () {
+		const address = yield* clientAddressEffect(event);
+
+		if (!address) {
+			return yield* Effect.fail(
+				new GraphHopperRouteRateLimitUnavailableError(
+					"Client address is unavailable.",
+				),
+			);
+		}
+
+		return address;
+	});
+}
+
+export function chargeGraphHopperRouteCallEffect(): Effect.Effect<
+	void,
+	| GraphHopperRouteRateLimitUnavailableError
+	| GraphHopperRouteRateLimitExceededError,
+	PaidUpstreamRateLimiter | GraphHopperRouteCallSubject
+> {
+	return Effect.gen(function* () {
+		const limiter = yield* PaidUpstreamRateLimiter;
+		const { subject } = yield* GraphHopperRouteCallSubject;
+		const result = yield* limiter
+			.check("graphhopper_route", subject)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new GraphHopperRouteRateLimitUnavailableError(error.message),
+				),
+			);
+
+		if (!result.allowed) {
+			return yield* Effect.fail(
+				new GraphHopperRouteRateLimitExceededError(result.retryAfterSeconds),
+			);
+		}
+	});
 }
 
 export function checkSuggestionRateLimit(

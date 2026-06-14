@@ -112,7 +112,9 @@ export type GraphHopperRouteBoundaryError =
 	| GraphHopperRouteStatusError
 	| GraphHopperRoutePayloadError
 	| GraphHopperRouteIncompleteError
-	| GraphHopperRouteStrategyError;
+	| GraphHopperRouteStrategyError
+	| import("$lib/server/route-rate-limits").GraphHopperRouteRateLimitUnavailableError
+	| import("$lib/server/route-rate-limits").GraphHopperRouteRateLimitExceededError;
 
 export function isMissingGraphHopperApiKeyError(
 	error: unknown,

@@ -18,6 +18,10 @@ import {
 	getContentLengthBytes,
 	parseRouteRequestJsonWithBodyLimit,
 } from "$lib/server/route-endpoint/request-body";
+import {
+	GraphHopperRouteCallSubject,
+	getGraphHopperRouteCallSubjectEffect,
+} from "$lib/server/route-rate-limits";
 import { ServerFetch } from "$lib/server/resilience";
 
 export const POST: RequestHandler = async (event) => {
@@ -40,8 +44,15 @@ export const POST: RequestHandler = async (event) => {
 			return yield* validationFailure(400, decodedPayload.error);
 		}
 
+		const graphHopperRouteCallSubject =
+			yield* getGraphHopperRouteCallSubjectEffect(event);
+
 		return yield* dispatchRouteModeEffect(
 			prepareRouteModeContext(event, decodedPayload.payload),
+		).pipe(
+			Effect.provideService(GraphHopperRouteCallSubject, {
+				subject: graphHopperRouteCallSubject,
+			}),
 		);
 	});
 

@@ -43,6 +43,7 @@ export default defineSchema({
 			v.literal("route"),
 			v.literal("suggestion"),
 			v.literal("reverse"),
+			v.literal("graphhopper_route"),
 		),
 		subjectHash: v.string(),
 		count: v.number(),

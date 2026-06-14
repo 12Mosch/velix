@@ -1,8 +1,19 @@
-import { Effect } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { Effect, Layer } from "effect";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RoundCourseTarget } from "$lib/route-planning";
+import {
+	GraphHopperRouteCacheLive,
+	clearGraphHopperCachesForTests,
+} from "$lib/server/graphhopper-cache";
 import { GraphHopperConfig } from "$lib/server/graphhopper-config";
+import {
+	GraphHopperRouteCallSubject,
+	RouteRateLimitLive,
+	clearRouteRateLimitsForTests,
+	installRouteRateLimiterForTests,
+	resetRouteRateLimiterForTests,
+} from "$lib/server/route-rate-limits";
 import { ServerFetch, TimeoutFetchLive } from "$lib/server/resilience";
 
 import { searchRoundCourseCandidateRoutesEffect } from "./round-course-candidates";
@@ -63,6 +74,12 @@ function runSearch(
 			undefined,
 			desiredCount,
 		).pipe(
+			Effect.provide(
+				Layer.mergeAll(GraphHopperRouteCacheLive, RouteRateLimitLive),
+			),
+			Effect.provideService(GraphHopperRouteCallSubject, {
+				subject: "round-course-candidate-test",
+			}),
 			Effect.provide(TimeoutFetchLive),
 			Effect.provideService(ServerFetch, { fetch: fetchMock }),
 			Effect.provideService(GraphHopperConfig, {
@@ -105,6 +122,16 @@ function getRequestBodies(
 }
 
 describe("searchRoundCourseCandidateRoutesEffect", () => {
+	beforeEach(() => {
+		installRouteRateLimiterForTests();
+		clearRouteRateLimitsForTests();
+		clearGraphHopperCachesForTests();
+	});
+
+	afterEach(() => {
+		resetRouteRateLimiterForTests();
+	});
+
 	it("caps concurrent GraphHopper route calls", async () => {
 		let activeRequests = 0;
 		let maxActiveRequests = 0;
