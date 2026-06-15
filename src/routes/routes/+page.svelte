@@ -97,6 +97,8 @@
 		searchText: string;
 	};
 
+	const LOCAL_SAVED_ROUTE_PAGE_SIZE = 25;
+
 	onMount(() => {
 		Effect.runSync(
 			initUnitPreference().pipe(
@@ -127,6 +129,7 @@
 	let routeActionErrors = $state<Record<string, string>>({});
 	let expandedHistoryRouteId = $state<string | null>(null);
 	let loadingHistoryRoutes = $state<Set<string>>(new Set());
+	let visibleLocalSavedRouteLimit = $state(LOCAL_SAVED_ROUTE_PAGE_SIZE);
 	let savedRouteVersionsByRouteId = $state<Record<string, SavedRouteVersion[]>>(
 		{},
 	);
@@ -198,6 +201,35 @@
 			);
 		}),
 	);
+	const displayedSavedRouteSetSignature = $derived(
+		displayedSavedRouteSummaries.map((summary) => summary.id).join("|"),
+	);
+	const localPaginationResetSignature = $derived(
+		[
+			searchQuery,
+			minDistanceInput,
+			maxDistanceInput,
+			minElevationInput,
+			maxElevationInput,
+			savedRoutesState.authStatus,
+			displayedSavedRouteSetSignature,
+		].join("\n"),
+	);
+	const visibleSavedRouteSummaries = $derived(
+		savedRoutesState.authStatus === "signedIn"
+			? filteredSavedRouteSummaries
+			: filteredSavedRouteSummaries.slice(0, visibleLocalSavedRouteLimit),
+	);
+	const hasMoreLocalSavedRouteSummaries = $derived(
+		savedRoutesState.authStatus !== "signedIn" &&
+			visibleLocalSavedRouteLimit < filteredSavedRouteSummaries.length,
+	);
+	const canLoadMoreSavedRouteSummaries = $derived(
+		Boolean(
+			savedRoutesState.savedRouteSummariesContinueCursor ||
+				hasMoreLocalSavedRouteSummaries,
+		),
+	);
 
 	$effect(() => {
 		const currentSavedRouteIds = new Set(
@@ -221,6 +253,11 @@
 		}
 
 		void loadSavedRouteSummaries(remoteSummaryFilters);
+	});
+
+	$effect(() => {
+		localPaginationResetSignature;
+		visibleLocalSavedRouteLimit = LOCAL_SAVED_ROUTE_PAGE_SIZE;
 	});
 
 	function formatSavedAt(createdAt: string): string {
@@ -388,6 +425,15 @@
 	function clearSearchAndFilters() {
 		clearSearch();
 		clearFilters();
+	}
+
+	function handleLoadMoreSavedRouteSummaries() {
+		if (savedRoutesState.savedRouteSummariesContinueCursor) {
+			void loadMoreSavedRouteSummaries();
+			return;
+		}
+
+		visibleLocalSavedRouteLimit += LOCAL_SAVED_ROUTE_PAGE_SIZE;
 	}
 
 	function matchesDistanceFilters(summary: SavedRouteSummary): boolean {
@@ -942,7 +988,7 @@
 				</div>
 			{:else}
 				<div class="grid gap-3">
-					{#each filteredSavedRouteSummaries as savedRoute (savedRoute.id)}
+					{#each visibleSavedRouteSummaries as savedRoute (savedRoute.id)}
 					<div class="rounded-xl border border-border bg-background p-4 shadow-lg md:p-5">
 						<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 							<div class="min-w-0 flex-1 space-y-3">
@@ -1202,13 +1248,13 @@
 					</div>
 					{/each}
 				</div>
-				{#if savedRoutesState.savedRouteSummariesContinueCursor}
+				{#if canLoadMoreSavedRouteSummaries}
 					<div class="flex justify-center pt-2">
 						<Button
 							type="button"
 							variant="outline"
 							disabled={savedRoutesState.savedRouteSummariesLoading}
-							onclick={() => loadMoreSavedRouteSummaries()}
+							onclick={handleLoadMoreSavedRouteSummaries}
 						>
 							{savedRoutesState.savedRouteSummariesLoading ? "Loading..." : "Load more"}
 						</Button>

@@ -145,6 +145,24 @@ const searchableSavedRoutes = [
 	},
 ];
 
+function buildLocalSavedRoutes(count: number): SavedRoute[] {
+	return Array.from({ length: count }, (_, index) => {
+		const routeNumber = index + 1;
+		return {
+			id: `local-route-${routeNumber}`,
+			createdAt: new Date(Date.UTC(2026, 3, routeNumber, 9, 30)).toISOString(),
+			route: {
+				...savedRoutes[0].route,
+				startLabel: `Local route ${routeNumber.toString().padStart(2, "0")}`,
+				destinationLabel: `Destination ${routeNumber.toString().padStart(2, "0")}`,
+				distanceMeters: 30_000 + routeNumber * 100,
+				durationMs: 3_600_000 + routeNumber * 60_000,
+				ascendMeters: 100 + routeNumber,
+			},
+		};
+	});
+}
+
 function setupGpxDownloadSpies(options: { clickError?: Error } = {}) {
 	const createObjectUrl = vi.fn((blob: Blob) => {
 		(window as Window & { __lastGpxBlob?: Blob }).__lastGpxBlob = blob;
@@ -281,6 +299,82 @@ describe("routes/+page.svelte", () => {
 		await expect
 			.element(page.getByRole("link", { name: "Open route" }))
 			.toHaveAttribute("href", "/?savedRoute=saved-route-1");
+	});
+
+	it("paginates local saved routes while preserving the full count", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(buildLocalSavedRoutes(30)),
+		);
+
+		render(RoutesPage);
+
+		await expect.element(page.getByText("30 routes")).toBeInTheDocument();
+		await expect.element(page.getByText("Local route 30")).toBeInTheDocument();
+		await expect.element(page.getByText("Local route 06")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Local route 05"))
+			.not.toBeInTheDocument();
+
+		await page.getByRole("button", { name: "Load more" }).click();
+
+		await expect.element(page.getByText("Local route 05")).toBeInTheDocument();
+		await expect.element(page.getByText("Local route 01")).toBeInTheDocument();
+	});
+
+	it("resets local saved-route pagination when search or filters change", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(buildLocalSavedRoutes(30)),
+		);
+
+		render(RoutesPage);
+
+		await page.getByRole("button", { name: "Load more" }).click();
+		await expect.element(page.getByText("Local route 01")).toBeInTheDocument();
+
+		await page
+			.getByRole("textbox", { name: "Search saved routes" })
+			.fill("Local route");
+
+		await expect.element(page.getByText("30 of 30 routes")).toBeInTheDocument();
+		await expect.element(page.getByText("Local route 06")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Local route 05"))
+			.not.toBeInTheDocument();
+
+		await page.getByRole("button", { name: "Load more" }).click();
+		await expect.element(page.getByText("Local route 01")).toBeInTheDocument();
+
+		await page.getByRole("textbox", { name: "Min elevation (m)" }).fill("100");
+
+		await expect.element(page.getByText("30 of 30 routes")).toBeInTheDocument();
+		await expect.element(page.getByText("Local route 06")).toBeInTheDocument();
+		await expect
+			.element(page.getByText("Local route 05"))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Load more" }))
+			.toBeInTheDocument();
+	});
+
+	it("hides local saved-route pagination when filtered results fit on one page", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(buildLocalSavedRoutes(30)),
+		);
+
+		render(RoutesPage);
+
+		await page
+			.getByRole("textbox", { name: "Search saved routes" })
+			.fill("Local route 01");
+
+		await expect.element(page.getByText("1 of 30 routes")).toBeInTheDocument();
+		await expect.element(page.getByText("Local route 01")).toBeInTheDocument();
+		await expect
+			.element(page.getByRole("button", { name: "Load more" }))
+			.not.toBeInTheDocument();
 	});
 
 	it("restores the previous route payload and persists it locally", async () => {
