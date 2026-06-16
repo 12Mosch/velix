@@ -12,6 +12,7 @@ import {
 	getManualEditingRequest as getPlannerManualEditingRequest,
 	getRoundCourseTarget,
 	getActiveRouteForSaving as getSaveableActiveRoute,
+	getRouteShareSignature,
 	hydratePlannerStateFromRoute,
 	type PlannerFormState,
 	type PlannerRouteState,
@@ -35,6 +36,8 @@ import {
 	type RouteApiError,
 	type RouteApiSuccess,
 	type RouteRequestPayload,
+	type RouteWarning,
+	type RouteWindApiSuccess,
 	sanitizeLockedSegmentIndexes,
 } from "$lib/route-planning";
 import {
@@ -90,6 +93,7 @@ export function createPlannerRoutesController(
 	let lastGeneratedRouteCount = $state<number | null>(null);
 	let routeRequestRevision = 0;
 	let activeRouteRequestRevision: number | null = null;
+	let activeRouteWindAnalysisLoading = $state(false);
 	let fitInitialSavedRouteBounds = $state(false);
 	let undoStack = $state<RouteEditSnapshot[]>([]);
 	let redoStack = $state<RouteEditSnapshot[]>([]);
@@ -131,6 +135,14 @@ export function createPlannerRoutesController(
 
 	function getCanRedoRouteEdit() {
 		return redoStack.length > 0 && !isRouting;
+	}
+
+	function hasWindProviderFailureWarning(route: PlannedRoute) {
+		return (route.warnings ?? []).some(
+			(warning: RouteWarning) =>
+				warning.category === "routing_provider" &&
+				warning.code === "wind_analysis_unavailable",
+		);
 	}
 
 	function getPlannerRouteState(): PlannerRouteState {
@@ -636,6 +648,102 @@ export function createPlannerRoutesController(
 		return requestRouteCalculationEffect(routeRequest);
 	}
 
+	const ensureActiveRouteWindAnalysisEffect = Effect.fn(
+		"ensureActiveRouteWindAnalysisEffect",
+	)(function* () {
+		const activeRoute = getActiveRoute();
+		const activeIndex = selectedRouteIndex;
+
+		if (
+			!activeRoute ||
+			activeIndex === null ||
+			routeNeedsRecalculation ||
+			activeRoute.windAnalysis ||
+			hasWindProviderFailureWarning(activeRoute) ||
+			activeRouteWindAnalysisLoading
+		) {
+			return;
+		}
+
+		const clientFetch = dependencies.getFetch();
+		if (!clientFetch) {
+			return;
+		}
+
+		activeRouteWindAnalysisLoading = true;
+		const routeKey = getRouteShareSignature(activeRoute);
+
+		return yield* Effect.gen(function* () {
+			const response = yield* Effect.tryPromise({
+				try: () =>
+					clientFetch("/api/route/wind", {
+						method: "POST",
+						headers: {
+							"content-type": "application/json",
+						},
+						body: JSON.stringify({ route: activeRoute }),
+					}),
+				catch: (cause) => new PlannerRouteRequestError({ cause }),
+			});
+
+			if (!(response instanceof Response) || !response.ok) {
+				return;
+			}
+
+			const payload = yield* Effect.tryPromise({
+				try: () => response.json() as Promise<RouteWindApiSuccess>,
+				catch: (cause) => new PlannerRouteRequestError({ cause }),
+			});
+
+			if (!payload.route || typeof payload.route !== "object") {
+				return;
+			}
+
+			const currentRoute = getActiveRoute();
+
+			if (
+				selectedRouteIndex !== activeIndex ||
+				!currentRoute ||
+				getRouteShareSignature(currentRoute) !== routeKey
+			) {
+				return;
+			}
+
+			const routeChanged =
+				JSON.stringify(currentRoute) !== JSON.stringify(payload.route);
+
+			if (!routeChanged) {
+				return;
+			}
+
+			routeAlternatives = routeAlternatives.map((route, index) =>
+				index === activeIndex ? payload.route : route,
+			);
+			dependencies.bumpRouteSaveRevision();
+			dependencies.scheduleActiveRouteAutosave();
+
+			const staleRouteShareKey = dependencies.getActiveRouteShareKey();
+			if (staleRouteShareKey) {
+				dependencies.clearRouteShareState(staleRouteShareKey);
+			}
+		}).pipe(
+			Effect.catchTag("PlannerRouteRequestError", (error) =>
+				Effect.sync(() => {
+					console.error("Failed to load route wind analysis", error.cause);
+				}),
+			),
+			Effect.ensuring(
+				Effect.sync(() => {
+					activeRouteWindAnalysisLoading = false;
+				}),
+			),
+		);
+	});
+
+	function ensureActiveRouteWindAnalysis() {
+		return ensureActiveRouteWindAnalysisEffect();
+	}
+
 	function isLockedStopIndex(stopIndex: number) {
 		const activeRoute = getActiveRoute();
 		return activeRoute
@@ -890,6 +998,9 @@ export function createPlannerRoutesController(
 		get fitInitialSavedRouteBounds() {
 			return fitInitialSavedRouteBounds;
 		},
+		get activeRouteWindAnalysisLoading() {
+			return activeRouteWindAnalysisLoading;
+		},
 		set fitInitialSavedRouteBounds(value) {
 			fitInitialSavedRouteBounds = value;
 		},
@@ -939,6 +1050,7 @@ export function createPlannerRoutesController(
 		clearRouteEditHistory,
 		removeAvoidedRoad,
 		requestRouteCalculation,
+		ensureActiveRouteWindAnalysis,
 		rerouteAfterManualEdit,
 		isLockedStopIndex,
 		handleGenerateRoute,

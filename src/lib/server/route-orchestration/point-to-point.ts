@@ -23,7 +23,6 @@ import {
 	mapRouteBoundaryToGenerationError,
 } from "./route-normalization";
 import type { PointToPointRouteSearchInput } from "./types";
-import { attachWindAnalysisEffect } from "./wind-analysis";
 import { finalizeGeneratedRoutesWarnings } from "./warnings";
 
 export function searchPointToPointRoutesEffect(
@@ -84,8 +83,8 @@ export function searchPointToPointRoutesEffect(
 			);
 		}
 
-		const routesWithWind = yield* attachWindAnalysisEffect(normalizedRoutes);
-
-		return finalizeGeneratedRoutesWarnings(routesWithWind);
+		return finalizeGeneratedRoutesWarnings(normalizedRoutes, {
+			suppressDeferredWindWarning: true,
+		});
 	});
 }

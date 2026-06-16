@@ -1,4 +1,4 @@
-import { Option } from "effect";
+import { Effect, Option } from "effect";
 import {
 	buildLockedSegmentGeoJson,
 	buildRouteAvoidanceGeoJson,
@@ -10,6 +10,7 @@ import {
 	type ResolvedRouteAvoidance,
 	type RouteClimb,
 	type RouteMapOverlay,
+	type RouteWarning,
 } from "$lib/route-planning";
 import { routeHasWindOverlayFeatures } from "$lib/route-planner/page/route-overlay-capabilities";
 import {
@@ -30,6 +31,8 @@ type PlannerOverlayControllerDependencies = {
 	getHighlightedRouteCoordinate: () =>
 		| PlannedRoute["coordinates"][number]
 		| null;
+	getActiveRouteWindAnalysisLoading: () => boolean;
+	ensureActiveRouteWindAnalysis: () => Effect.Effect<void>;
 	cache?: PlannerOverlayCache;
 };
 
@@ -95,6 +98,27 @@ export function createPlannerOverlayController(
 	function getCanShowWindOverlay() {
 		const activeRoute = getActiveRoute();
 		return activeRoute ? routeHasWindOverlayFeatures(activeRoute) : false;
+	}
+
+	function getWindDataUnavailable() {
+		const activeRoute = getActiveRoute();
+		return activeRoute
+			? (activeRoute.warnings ?? []).some(
+					(warning: RouteWarning) =>
+						warning.category === "routing_provider" &&
+						warning.code === "wind_analysis_unavailable",
+				)
+			: false;
+	}
+
+	function getCanLoadWindOverlay() {
+		const activeRoute = getActiveRoute();
+
+		return Boolean(
+			activeRoute &&
+				!getWindDataUnavailable() &&
+				!dependencies.getActiveRouteWindAnalysisLoading(),
+		);
 	}
 
 	const selectActiveRouteWindGeoJson = createMemoizedSelector(
@@ -289,6 +313,23 @@ export function createPlannerOverlayController(
 		return dependencies.getHighlightedRouteCoordinate();
 	}
 
+	const toggleWindOverlay = Effect.fn("toggleWindOverlay")(function* () {
+		if (getCanShowWindOverlay()) {
+			windOverlayEnabled = !windOverlayEnabled;
+			return;
+		}
+
+		if (!getCanLoadWindOverlay()) {
+			return;
+		}
+
+		yield* dependencies.ensureActiveRouteWindAnalysis();
+
+		if (getCanShowWindOverlay()) {
+			windOverlayEnabled = true;
+		}
+	});
+
 	$effect(() => {
 		if (gradientOverlayEnabled && !getCanShowGradientOverlay()) {
 			gradientOverlayEnabled = false;
@@ -356,6 +397,16 @@ export function createPlannerOverlayController(
 		get canShowWindOverlay() {
 			return getCanShowWindOverlay();
 		},
+		get canLoadWindOverlay() {
+			return getCanLoadWindOverlay();
+		},
+		get activeRouteWindAnalysisLoading() {
+			return dependencies.getActiveRouteWindAnalysisLoading();
+		},
+		get windDataUnavailable() {
+			return getWindDataUnavailable();
+		},
+		toggleWindOverlay,
 		get activeRouteTrafficStressGeoJson() {
 			return getActiveRouteTrafficStressGeoJson();
 		},

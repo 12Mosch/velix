@@ -32,7 +32,6 @@ import type {
 	RoundCourseRouteSearchInput,
 	RoundCourseRouteSearchResult,
 } from "./types";
-import { attachWindAnalysisEffect } from "./wind-analysis";
 import {
 	finalizeGeneratedRoutesWarnings,
 	withProviderWarning,
@@ -143,10 +142,10 @@ export function searchRoundCourseRoutesEffect(
 				withRoundCourseTargetAdjustedDurationEffect(route, input.target),
 			),
 		);
-		const routesWithWind = yield* attachWindAnalysisEffect(
+		const routesWithWarnings = finalizeGeneratedRoutesWarnings(
 			targetAdjustedRoutes.map(({ route }) => route),
+			{ suppressDeferredWindWarning: true },
 		);
-		const routesWithWarnings = finalizeGeneratedRoutesWarnings(routesWithWind);
 
 		return candidateErrors
 			? { routes: routesWithWarnings, candidateErrors }

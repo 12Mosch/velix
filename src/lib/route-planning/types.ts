@@ -438,6 +438,14 @@ export type RouteApiSuccess = {
 	roundCourseCandidateErrors?: RoundCourseCandidateError[];
 };
 
+export type RouteWindRequestPayload = {
+	route: PlannedRoute;
+};
+
+export type RouteWindApiSuccess = {
+	route: PlannedRoute;
+};
+
 export type RouteSuggestionsApiSuccess = {
 	suggestions: RouteSuggestion[];
 };

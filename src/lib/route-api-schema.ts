@@ -8,6 +8,8 @@ import type {
 	RouteApiError,
 	RouteApiSuccess,
 	RouteCoordinate,
+	RouteWindApiSuccess,
+	RouteWindRequestPayload,
 	RouteMode,
 	RouteAvoidanceInput,
 	RouteSpatialConstraintInput,
@@ -496,6 +498,14 @@ export const RouteApiSuccessSchema = Schema.Struct({
 	),
 });
 
+export const RouteWindRequestPayloadSchema = Schema.Struct({
+	route: PlannedRouteSchema,
+});
+
+export const RouteWindApiSuccessSchema = Schema.Struct({
+	route: PlannedRouteSchema,
+});
+
 export const RouteApiErrorSchema = Schema.Struct({
 	error: Schema.String,
 	fieldErrors: Schema.optionalKey(
@@ -522,6 +532,8 @@ export type LegacyRouteRequestPayloadInput =
 export type SavedRoutePayload = typeof SavedRouteSchema.Type;
 export type RemoteSavedRoutePayloadInput =
 	typeof RemoteSavedRoutePayloadSchema.Type;
+export type RouteWindRequestPayloadInput =
+	typeof RouteWindRequestPayloadSchema.Type;
 
 export type DecodeRoutePayloadResult =
 	| {
@@ -568,6 +580,14 @@ type _RouteApiErrorCompatibility = IsAssignable<
 	typeof RouteApiErrorSchema.Type,
 	RouteApiError
 >;
+type _RouteWindRequestPayloadCompatibility = IsAssignable<
+	typeof RouteWindRequestPayloadSchema.Type,
+	RouteWindRequestPayload
+>;
+type _RouteWindApiSuccessCompatibility = IsAssignable<
+	typeof RouteWindApiSuccessSchema.Type,
+	RouteWindApiSuccess
+>;
 type _PlannedRouteCompatibility = IsAssignable<
 	PlannedRoute,
 	typeof PlannedRouteSchema.Type
@@ -602,6 +622,8 @@ void (null as unknown as _RoundCourseTargetCompatibility);
 void (null as unknown as _RouteSpatialConstraintCompatibility);
 void (null as unknown as _RouteApiSuccessCompatibility);
 void (null as unknown as _RouteApiErrorCompatibility);
+void (null as unknown as _RouteWindRequestPayloadCompatibility);
+void (null as unknown as _RouteWindApiSuccessCompatibility);
 void (null as unknown as _PlannedRouteCompatibility);
 void (null as unknown as _ResolvedSpatialConstraintCompatibility);
 void (null as unknown as _RouteCoordinateCompatibility);
@@ -621,6 +643,32 @@ export function decodeRouteRequestPayload(
 		return {
 			ok: false,
 			error: "Invalid route request payload.",
+		};
+	}
+}
+
+export type DecodeRouteWindPayloadResult =
+	| {
+			readonly ok: true;
+			readonly payload: RouteWindRequestPayloadInput;
+	  }
+	| {
+			readonly ok: false;
+			readonly error: "Invalid wind route request payload.";
+	  };
+
+export function decodeRouteWindRequestPayload(
+	value: unknown,
+): DecodeRouteWindPayloadResult {
+	try {
+		return {
+			ok: true,
+			payload: Schema.decodeUnknownSync(RouteWindRequestPayloadSchema)(value),
+		};
+	} catch {
+		return {
+			ok: false,
+			error: "Invalid wind route request payload.",
 		};
 	}
 }

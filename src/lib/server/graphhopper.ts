@@ -15,12 +15,16 @@ import { GraphHopperConfig } from "$lib/server/graphhopper-config";
 import {
 	GraphHopperReverseGeocodeCache,
 	GraphHopperSuggestionCache,
-	clearGraphHopperCachesForTests,
+	clearGraphHopperCachesForTests as clearGraphHopperCachesOnlyForTests,
 } from "$lib/server/graphhopper-cache";
 import { GraphHopperLive } from "$lib/server/layers";
+import { clearOpenMeteoCachesForTests } from "$lib/server/open-meteo";
 import { ServerFetch, TimeoutFetch } from "$lib/server/resilience";
 
-export { clearGraphHopperCachesForTests };
+export function clearGraphHopperCachesForTests(): void {
+	clearGraphHopperCachesOnlyForTests();
+	clearOpenMeteoCachesForTests();
+}
 
 type GeocodeProvider = "default" | "nominatim";
 
