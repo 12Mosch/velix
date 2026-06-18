@@ -301,6 +301,36 @@ describe("routes/+page.svelte", () => {
 			.toHaveAttribute("href", "/?savedRoute=saved-route-1");
 	});
 
+	it("keeps route actions contained within the route card", async () => {
+		window.localStorage.setItem(
+			SAVED_ROUTES_STORAGE_KEY,
+			JSON.stringify(savedRoutes),
+		);
+
+		render(RoutesPage);
+
+		await expect
+			.element(page.getByText("Marienplatz, Munich, Germany"))
+			.toBeInTheDocument();
+
+		const routeCard = document.querySelector<HTMLElement>("[data-route-card]");
+		const routeActions = document.querySelector<HTMLElement>(
+			"[data-route-actions]",
+		);
+		expect(routeCard).not.toBeNull();
+		expect(routeActions).not.toBeNull();
+
+		const cardBounds = routeCard?.getBoundingClientRect();
+		const actionBounds = routeActions?.getBoundingClientRect();
+		const boundaryTolerance = 1;
+		expect(actionBounds?.left).toBeGreaterThanOrEqual(
+			(cardBounds?.left ?? 0) - boundaryTolerance,
+		);
+		expect(actionBounds?.right).toBeLessThanOrEqual(
+			(cardBounds?.right ?? 0) + boundaryTolerance,
+		);
+	});
+
 	it("paginates local saved routes while preserving the full count", async () => {
 		window.localStorage.setItem(
 			SAVED_ROUTES_STORAGE_KEY,
