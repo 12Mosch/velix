@@ -791,7 +791,7 @@
 {/snippet}
 
 <div class="relative h-full w-full overflow-y-auto bg-background">
-	<div class="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 md:p-6">
+	<div class="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 md:p-6">
 		<div class="flex items-center gap-3">
 			<Button variant="ghost" size="icon" class="size-8 shrink-0" href="/">
 				<ArrowLeft class="size-4" />
@@ -989,9 +989,12 @@
 			{:else}
 				<div class="grid gap-3">
 					{#each visibleSavedRouteSummaries as savedRoute (savedRoute.id)}
-					<div class="rounded-xl border border-border bg-background p-4 shadow-lg md:p-5">
-						<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-							<div class="min-w-0 flex-1 space-y-3">
+					<div
+						class="overflow-hidden rounded-xl border border-border bg-background shadow-lg"
+						data-route-card
+					>
+						<div class="p-4 md:p-5">
+							<div class="min-w-0 space-y-3">
 								<div class="space-y-1">
 									<div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 										<span>Saved {formatSavedAt(savedRoute.createdAt)}</span>
@@ -1071,7 +1074,10 @@
 								</div>
 							</div>
 
-							<div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+							<div
+								class="mt-4 flex min-w-0 flex-wrap items-center gap-2 border-t border-border pt-4"
+								data-route-actions
+							>
 								{#if restoreMessages[savedRoute.id]}
 									<p
 										class="basis-full rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-right text-xs text-muted-foreground"
@@ -1158,16 +1164,18 @@
 									<Trash2 class="size-3.5" />
 									Delete
 								</Button>
-								<Button href={`/?savedRoute=${savedRoute.id}`} class="font-semibold">
-									Open route
-								</Button>
+								<div class="ml-auto pl-2">
+									<Button href={`/?savedRoute=${savedRoute.id}`} class="font-semibold">
+										Open route
+									</Button>
+								</div>
 							</div>
 						</div>
 						{#if expandedHistoryRouteId === savedRoute.id}
 							<!-- biome-ignore lint/a11y/useSemanticElements: This collapsible panel is conditionally rendered inside a route card. -->
 								<div
 								id={getHistoryPanelId(savedRoute.id)}
-								class="mt-4 border-t border-border pt-4"
+								class="border-t border-border p-4 md:p-5"
 								role="region"
 								aria-label={`Change history for ${getSummaryLegText(savedRoute)}`}
 							>
