@@ -1,9 +1,12 @@
 import { Effect } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+	clearOpenMeteoCachesForTests,
+	fetchCachedOpenMeteoBatchWindEffect,
 	fetchOpenMeteoBatchWindEffect,
 	fetchOpenMeteoWindEffect,
+	OpenMeteoWindForecastCacheLive,
 	openMeteoTestExports,
 	OpenMeteoWindError,
 } from "$lib/server/open-meteo";
@@ -38,7 +41,25 @@ function runBatchWithFetch(
 	);
 }
 
+function runCachedBatchWithFetch(
+	coordinates: [number, number][],
+	fetchMock: TimeoutFetchFn,
+) {
+	return Effect.runPromise(
+		fetchCachedOpenMeteoBatchWindEffect(coordinates).pipe(
+			Effect.provide(OpenMeteoWindForecastCacheLive),
+			Effect.provideService(TimeoutFetch, {
+				fetch: fetchMock,
+			}),
+		),
+	);
+}
+
 describe("fetchOpenMeteoWindEffect", () => {
+	beforeEach(() => {
+		clearOpenMeteoCachesForTests();
+	});
+
 	it("builds the expected Open-Meteo URL", () => {
 		const url = new URL(
 			openMeteoTestExports.buildOpenMeteoWindUrl([[11.5755, 48.1374]]),
@@ -180,5 +201,78 @@ describe("fetchOpenMeteoWindEffect", () => {
 		await expect(runWithFetch(fetchMock)).rejects.toBeInstanceOf(
 			OpenMeteoWindError,
 		);
+	});
+
+	it("fetches only cache misses and preserves requested ordering", async () => {
+		const fetchMock = vi.fn(
+			(
+				input: RequestInfo | URL,
+				_init: RequestInit | undefined,
+				_timeoutMs: number,
+			) => {
+				const url = new URL(String(input));
+				const longitudes = (url.searchParams.get("longitude") ?? "").split(",");
+
+				return Effect.succeed(
+					new Response(
+						JSON.stringify(
+							longitudes.map((longitude) => ({
+								current: {
+									time: `2026-05-10T${longitude === "11.5755" ? "10" : longitude === "11.6" ? "11" : "12"}:00`,
+									wind_speed_10m:
+										longitude === "11.5755"
+											? 11
+											: longitude === "11.6"
+												? 22
+												: 33,
+									wind_direction_10m: 270,
+								},
+							})),
+						),
+					),
+				);
+			},
+		);
+
+		await expect(
+			runCachedBatchWithFetch([[11.5755, 48.1374]], fetchMock),
+		).resolves.toEqual([
+			{
+				speedKmh: 11,
+				directionDegrees: 270,
+				forecastTime: "2026-05-10T10:00",
+			},
+		]);
+
+		await expect(
+			runCachedBatchWithFetch(
+				[
+					[11.6, 48.15],
+					[11.5755, 48.1374],
+					[11.7, 48.2],
+				],
+				fetchMock,
+			),
+		).resolves.toEqual([
+			{
+				speedKmh: 22,
+				directionDegrees: 270,
+				forecastTime: "2026-05-10T11:00",
+			},
+			{
+				speedKmh: 11,
+				directionDegrees: 270,
+				forecastTime: "2026-05-10T10:00",
+			},
+			{
+				speedKmh: 33,
+				directionDegrees: 270,
+				forecastTime: "2026-05-10T12:00",
+			},
+		]);
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		const secondUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
+		expect(secondUrl.searchParams.get("longitude")).toBe("11.6,11.7");
 	});
 });

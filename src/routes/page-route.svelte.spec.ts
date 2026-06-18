@@ -1384,10 +1384,10 @@ describe("+page.svelte", () => {
 		const windToggle = page.getByRole("button", {
 			name: "Wind and conditions",
 		});
-		await expect.element(windToggle).toBeDisabled();
+		await expect.element(windToggle).not.toBeDisabled();
 		await windToggle.hover();
 		await expect
-			.element(page.getByText("Wind data unavailable", { exact: true }))
+			.element(page.getByText("Load wind and conditions", { exact: true }))
 			.toBeInTheDocument();
 	});
 

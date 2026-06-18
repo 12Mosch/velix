@@ -1,6 +1,7 @@
-import { Effect, Result, Schema } from "effect";
+import { Context, Effect, Layer, Result, Schema } from "effect";
 
 import { TimeoutFetch } from "$lib/server/resilience";
+import { makeTtlCache, type TtlCacheService } from "$lib/server/resilience";
 
 export type OpenMeteoWindForecast = {
 	speedKmh: number;
@@ -21,6 +22,36 @@ export class OpenMeteoWindError extends Error {
 
 const openMeteoForecastUrl = "https://api.open-meteo.com/v1/forecast";
 const openMeteoTimeoutMs = 4500;
+const openMeteoWindForecastCacheTtlMs = 10 * 60 * 1_000;
+const maxOpenMeteoWindForecastCacheEntries = 1000;
+
+export class OpenMeteoWindForecastCache extends Context.Service<
+	OpenMeteoWindForecastCache,
+	TtlCacheService<OpenMeteoWindForecast>
+>()("OpenMeteoWindForecastCache") {}
+
+let windForecastCache: TtlCacheService<OpenMeteoWindForecast> | undefined;
+
+export const OpenMeteoWindForecastCacheLive = Layer.effect(
+	OpenMeteoWindForecastCache,
+)(
+	Effect.suspend(() => {
+		if (windForecastCache) {
+			return Effect.succeed(windForecastCache);
+		}
+
+		return makeTtlCache<OpenMeteoWindForecast>({
+			ttlMs: openMeteoWindForecastCacheTtlMs,
+			maxEntries: maxOpenMeteoWindForecastCacheEntries,
+		}).pipe(
+			Effect.tap((cache) =>
+				Effect.sync(() => {
+					windForecastCache = cache;
+				}),
+			),
+		);
+	}),
+);
 
 const OpenMeteoWindPayloadSchema = Schema.Struct({
 	current: Schema.Struct({
@@ -51,6 +82,10 @@ function buildOpenMeteoWindUrl(coordinates: [number, number][]): string {
 	url.searchParams.set("wind_speed_unit", "kmh");
 	url.searchParams.set("timezone", "UTC");
 	return url.toString();
+}
+
+function getWindForecastCacheKey(coordinate: [number, number]): string {
+	return `${coordinate[0].toFixed(4)},${coordinate[1].toFixed(4)}`;
 }
 
 function toOpenMeteoWindForecast(
@@ -146,6 +181,60 @@ export function fetchOpenMeteoBatchWindEffect(
 	});
 }
 
+export function fetchCachedOpenMeteoBatchWindEffect(
+	coordinates: [number, number][],
+): Effect.Effect<
+	OpenMeteoWindForecast[],
+	OpenMeteoWindError,
+	TimeoutFetch | OpenMeteoWindForecastCache
+> {
+	return Effect.gen(function* () {
+		if (coordinates.length === 0) {
+			return [];
+		}
+
+		const cache = yield* OpenMeteoWindForecastCache;
+		const forecastsByKey = new Map<string, OpenMeteoWindForecast>();
+		const missingCoordinatesByKey = new Map<string, [number, number]>();
+
+		for (const coordinate of coordinates) {
+			const key = getWindForecastCacheKey(coordinate);
+			const cached = yield* cache.get(key);
+
+			if (cached) {
+				forecastsByKey.set(key, cached);
+			} else if (!missingCoordinatesByKey.has(key)) {
+				missingCoordinatesByKey.set(key, coordinate);
+			}
+		}
+
+		if (missingCoordinatesByKey.size > 0) {
+			const missingEntries = [...missingCoordinatesByKey.entries()];
+			const missingForecasts = yield* fetchOpenMeteoBatchWindEffect(
+				missingEntries.map(([, coordinate]) => coordinate),
+			);
+
+			for (const [index, [key]] of missingEntries.entries()) {
+				const forecast = missingForecasts[index];
+
+				if (!forecast) {
+					return yield* Effect.fail(
+						new OpenMeteoWindError("Open-Meteo wind response was malformed."),
+					);
+				}
+
+				forecastsByKey.set(key, forecast);
+				yield* cache.set(key, forecast);
+			}
+		}
+
+		return coordinates.map((coordinate) => {
+			const key = getWindForecastCacheKey(coordinate);
+			return forecastsByKey.get(key) as OpenMeteoWindForecast;
+		});
+	});
+}
+
 export function fetchOpenMeteoWindEffect(
 	coordinate: [number, number],
 ): Effect.Effect<OpenMeteoWindForecast, OpenMeteoWindError, TimeoutFetch> {
@@ -156,6 +245,17 @@ export function fetchOpenMeteoWindEffect(
 
 export const openMeteoTestExports = {
 	buildOpenMeteoWindUrl,
+	getWindForecastCacheKey,
 	openMeteoTimeoutMs,
 	parseOpenMeteoWindPayload,
 };
+
+export function clearOpenMeteoCachesForTests(): void {
+	Effect.runSync(
+		Effect.gen(function* () {
+			if (windForecastCache) {
+				yield* windForecastCache.clear;
+			}
+		}),
+	);
+}

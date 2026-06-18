@@ -108,6 +108,8 @@ export function createRoutePlannerPageController() {
 	graph.analysis = createPlannerAnalysisController({
 		getActiveRoute: () => graph.routes.activeRoute,
 		getRouteAlternatives: () => graph.routes.routeAlternatives,
+		ensureActiveRouteWindAnalysis: () =>
+			graph.routes.ensureActiveRouteWindAnalysis(),
 		cache,
 	});
 
@@ -124,6 +126,10 @@ export function createRoutePlannerPageController() {
 		getActiveRouteClimbs: () => graph.analysis.activeRouteClimbs,
 		getHighlightedRouteCoordinate: () =>
 			graph.analysis.highlightedRouteCoordinate,
+		getActiveRouteWindAnalysisLoading: () =>
+			graph.routes.activeRouteWindAnalysisLoading,
+		ensureActiveRouteWindAnalysis: () =>
+			graph.routes.ensureActiveRouteWindAnalysis(),
 		cache,
 	});
 

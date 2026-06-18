@@ -4,6 +4,7 @@
 		createPlannerAnalysisController,
 		type PlannerAnalysisController,
 	} from "./planner-analysis-controller.svelte";
+	import { Effect } from "effect";
 
 	type Props = {
 		activeRoute: PlannedRoute;
@@ -14,6 +15,7 @@
 	const controller = createPlannerAnalysisController({
 		getActiveRoute: () => activeRoute,
 		getRouteAlternatives: () => [activeRoute],
+		ensureActiveRouteWindAnalysis: () => Effect.void,
 	});
 
 	function notifyController() {

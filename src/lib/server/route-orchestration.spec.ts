@@ -1,8 +1,9 @@
 import { Effect } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlannedRoute } from "$lib/route-planning";
 import { attachWindAnalysisEffect } from "$lib/server/route-orchestration";
+import { clearOpenMeteoCachesForTests } from "$lib/server/open-meteo";
 import { TimeoutFetch, type FetchTimeoutError } from "$lib/server/resilience";
 
 type TimeoutFetchFn = (
@@ -57,6 +58,10 @@ function buildBatchWindResponse(input: RequestInfo | URL) {
 }
 
 describe("attachWindAnalysisEffect", () => {
+	beforeEach(() => {
+		clearOpenMeteoCachesForTests();
+	});
+
 	it("attaches wind analysis and readiness warnings when weather fetches succeed", async () => {
 		const fetchMock = vi.fn((input: RequestInfo | URL) =>
 			Effect.succeed(buildBatchWindResponse(input)),

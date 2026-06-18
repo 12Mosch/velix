@@ -39,6 +39,9 @@
 	const availableBasemapOptions = $derived(map.availableBasemapOptions);
 	const canShowGradientOverlay = $derived(overlay.canShowGradientOverlay);
 	const canShowWindOverlay = $derived(overlay.canShowWindOverlay);
+	const canLoadWindOverlay = $derived(overlay.canLoadWindOverlay);
+	const windDataUnavailable = $derived(overlay.windDataUnavailable);
+	const windAnalysisLoading = $derived(overlay.activeRouteWindAnalysisLoading);
 	const canShowTrafficStressOverlay = $derived(
 		overlay.canShowTrafficStressOverlay,
 	);
@@ -64,8 +67,12 @@
 				: "Generate a route first",
 	);
 	const windTooltip = $derived(
-		canShowWindOverlay
+		windAnalysisLoading
+			? "Loading wind"
+			: canShowWindOverlay
 			? "Wind and conditions"
+			: hasActiveRoute && canLoadWindOverlay
+				? "Load wind and conditions"
 			: hasGeneratedRoute
 				? "Wind data unavailable"
 				: "Generate a route first",
@@ -173,11 +180,11 @@
 				size="icon"
 				class="size-8 rounded-lg border border-border/60 bg-background/90 text-muted-foreground shadow-md backdrop-blur-md supports-[backdrop-filter]:bg-background/78 hover:bg-secondary/90 hover:text-foreground disabled:opacity-50 data-[active=true]:border-teal-300/70 data-[active=true]:bg-teal-50/90 data-[active=true]:text-teal-700 md:size-9"
 				type="button"
-				disabled={!canShowWindOverlay}
+				disabled={!hasActiveRoute || windAnalysisLoading || windDataUnavailable}
 				aria-label="Wind and conditions"
 				aria-pressed={windOverlayEnabled ? "true" : "false"}
 				data-active={windOverlayEnabled}
-				onclick={() => (overlay.windOverlayEnabled = !windOverlayEnabled)}
+				onclick={() => void Effect.runPromise(overlay.toggleWindOverlay())}
 			>
 				<Wind class="size-4" />
 			</Button>

@@ -34,9 +34,6 @@ import {
 } from "$lib/server/route-rate-limits";
 
 let eventId = 0;
-const windUnavailableWarning =
-	"Wind data is temporarily unavailable, so wind analysis was skipped.";
-
 function expectWarnings(
 	warnings: RouteWarning[] | undefined,
 	expected: Array<Record<string, unknown>>,
@@ -45,6 +42,18 @@ function expectWarnings(
 		expect.arrayContaining(
 			expected.map((warning) => expect.objectContaining(warning)),
 		),
+	);
+}
+
+function expectNoWindAnalysisUnavailableWarning(
+	warnings: RouteWarning[] | undefined,
+) {
+	expect(warnings ?? []).not.toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				code: "wind_analysis_unavailable",
+			}),
+		]),
 	);
 }
 
@@ -303,6 +312,12 @@ function getNonWeatherFetchCalls(fetchMock: FetchMock) {
 	);
 }
 
+function getWeatherFetchCalls(fetchMock: FetchMock) {
+	return fetchMock.mock.calls.filter((call) =>
+		getFetchCallUrl(call[0]).includes("api.open-meteo.com"),
+	);
+}
+
 function getRoundTripRequestedDistances(fetchMock: FetchMock): number[] {
 	return getNonWeatherFetchCalls(fetchMock)
 		.map((call) => {
@@ -367,6 +382,7 @@ describe("POST /api/route", () => {
 
 		expect(response.status).toBe(200);
 		expect(getNonWeatherFetchCalls(fetchMock)).toHaveLength(1);
+		expect(getWeatherFetchCalls(fetchMock)).toHaveLength(0);
 		const routeRequest = fetchMock.mock.calls[0];
 		const requestBody = JSON.parse(String(routeRequest?.[1]?.body));
 		expect(requestBody.points).toEqual([
@@ -1927,13 +1943,7 @@ describe("POST /api/route", () => {
 		expect(route?.routingProfile).toBe("racingbike");
 		expect(route?.routingStrategy).toContain("racingbike");
 		expect(route?.routingWarnings).toBeUndefined();
-		expectWarnings(route?.warnings, [
-			{
-				category: "routing_provider",
-				code: "wind_analysis_unavailable",
-				message: windUnavailableWarning,
-			},
-		]);
+		expectNoWindAnalysisUnavailableWarning(route?.warnings);
 		expect(route?.surfaceDetails).toEqual([
 			{ from: 0, to: 2, value: "ASPHALT" },
 			{ from: 2, to: 3, value: "COMPACTED" },
@@ -2537,13 +2547,7 @@ describe("POST /api/route", () => {
 		});
 		expect(payload.routes[0]?.trainingSuitability).toBeUndefined();
 		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
-		expectWarnings(payload.routes[0]?.warnings, [
-			{
-				category: "routing_provider",
-				code: "wind_analysis_unavailable",
-				message: windUnavailableWarning,
-			},
-		]);
+		expectNoWindAnalysisUnavailableWarning(payload.routes[0]?.warnings);
 	});
 
 	it("uses workout target distance and adjusted duration for round-course candidates", async () => {
@@ -2667,13 +2671,7 @@ describe("POST /api/route", () => {
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.durationMs).toBe(12600000);
 		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
-		expectWarnings(payload.routes[0]?.warnings, [
-			{
-				category: "routing_provider",
-				code: "wind_analysis_unavailable",
-				message: windUnavailableWarning,
-			},
-		]);
+		expectNoWindAnalysisUnavailableWarning(payload.routes[0]?.warnings);
 	});
 
 	it("stops duration target search after two rounds when a candidate is close enough", async () => {
@@ -2726,13 +2724,7 @@ describe("POST /api/route", () => {
 		const payload = (await response.json()) as RouteApiSuccess;
 		expect(payload.routes[0]?.durationMs).toBe(12300000);
 		expect(payload.routes[0]?.routingWarnings).toBeUndefined();
-		expectWarnings(payload.routes[0]?.warnings, [
-			{
-				category: "routing_provider",
-				code: "wind_analysis_unavailable",
-				message: windUnavailableWarning,
-			},
-		]);
+		expectNoWindAnalysisUnavailableWarning(payload.routes[0]?.warnings);
 	});
 
 	it("searches round-course candidates for climb targets and returns the closest match", async () => {
@@ -3189,12 +3181,8 @@ describe("POST /api/route", () => {
 				message:
 					"Requested 3:30 h, but the closest round course came out to 2:55 h.",
 			},
-			{
-				category: "routing_provider",
-				code: "wind_analysis_unavailable",
-				message: windUnavailableWarning,
-			},
 		]);
+		expectNoWindAnalysisUnavailableWarning(payload.routes[0]?.warnings);
 	});
 
 	it("accepts round-course responses even when GraphHopper omits snapped waypoints", async () => {
@@ -3711,12 +3699,8 @@ describe("POST /api/route", () => {
 				code: "routing_profile_fallback",
 				message: expect.stringContaining("racingbike profile"),
 			},
-			{
-				category: "routing_provider",
-				code: "wind_analysis_unavailable",
-				message: windUnavailableWarning,
-			},
 		]);
+		expectNoWindAnalysisUnavailableWarning(fallbackPayload.routes[0]?.warnings);
 	});
 
 	it("routes out-and-back shaping waypoints before mirroring the outbound path", async () => {
@@ -3830,12 +3814,8 @@ describe("POST /api/route", () => {
 				message:
 					"Manual shaping points make the round-course target best-effort.",
 			},
-			{
-				category: "routing_provider",
-				code: "wind_analysis_unavailable",
-				message: windUnavailableWarning,
-			},
 		]);
+		expectNoWindAnalysisUnavailableWarning(payload.routes[0]?.warnings);
 		expect(payload.roundCourseCandidateErrors).toBeUndefined();
 	});
 

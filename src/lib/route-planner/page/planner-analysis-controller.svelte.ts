@@ -1,4 +1,4 @@
-import { Option } from "effect";
+import { Effect, Option } from "effect";
 import {
 	analyzeRouteClimbs,
 	getProviderWarnings,
@@ -30,6 +30,7 @@ import { createMemoizedSelector } from "$lib/route-planner/page/planner-selector
 type PlannerAnalysisControllerDependencies = {
 	getActiveRoute: () => PlannedRoute | null;
 	getRouteAlternatives: () => PlannedRoute[];
+	ensureActiveRouteWindAnalysis: () => Effect.Effect<void>;
 	cache?: PlannerOverlayCache;
 };
 
@@ -401,6 +402,12 @@ export function createPlannerAnalysisController(
 	$effect(() => {
 		if (!getActiveRoute() && routeAnalysisOpen) {
 			routeAnalysisOpen = false;
+		}
+	});
+
+	$effect(() => {
+		if (routeAnalysisOpen && getActiveRoute()) {
+			Effect.runFork(dependencies.ensureActiveRouteWindAnalysis());
 		}
 	});
 

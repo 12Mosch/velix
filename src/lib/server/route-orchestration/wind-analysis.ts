@@ -11,7 +11,10 @@ import {
 	calculateBearingDegrees,
 	calculateWindComponents,
 } from "$lib/route-planning";
-import { fetchOpenMeteoBatchWindEffect } from "$lib/server/open-meteo";
+import {
+	fetchCachedOpenMeteoBatchWindEffect,
+	OpenMeteoWindForecastCacheLive,
+} from "$lib/server/open-meteo";
 import type { TimeoutFetch } from "$lib/server/resilience";
 
 import { finalizeGeneratedRouteWarnings, withWindWarning } from "./warnings";
@@ -243,7 +246,7 @@ export function attachWindAnalysisEffect(
 		}
 
 		const result = yield* Effect.result(
-			fetchOpenMeteoBatchWindEffect(allSampleCoordinates),
+			fetchCachedOpenMeteoBatchWindEffect(allSampleCoordinates),
 		);
 
 		if (Result.isFailure(result)) {
@@ -274,5 +277,5 @@ export function attachWindAnalysisEffect(
 				windAnalysis ? { ...plan.route, windAnalysis } : plan.route,
 			);
 		});
-	});
+	}).pipe(Effect.provide(OpenMeteoWindForecastCacheLive));
 }

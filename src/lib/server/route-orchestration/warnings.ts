@@ -1,8 +1,8 @@
 import type { PlannedRoute, RouteWarning } from "$lib/route-planning";
 import {
 	buildRouteReadinessWarnings,
+	calculateRouteQuality,
 	mergeRouteWarnings,
-	withRouteQuality,
 	withRouteTrainingSuitability,
 } from "$lib/route-planning";
 
@@ -38,16 +38,32 @@ export function withProviderWarning(
 
 export function finalizeGeneratedRouteWarnings(
 	route: PlannedRoute,
+	options: { suppressDeferredWindWarning?: boolean } = {},
 ): PlannedRoute {
-	const routeWithAnalysis = withRouteTrainingSuitability(
-		withRouteQuality(route),
+	const providerWarnings = (route.warnings ?? []).filter(
+		(warning) => warning.category === "routing_provider",
 	);
-	const readinessWarnings = buildRouteReadinessWarnings(routeWithAnalysis);
+	const routeWithoutGeneratedAnalyses = {
+		...route,
+		warnings: providerWarnings.length > 0 ? providerWarnings : undefined,
+		routeQuality: calculateRouteQuality(route),
+	};
+	const routeWithAnalysis = withRouteTrainingSuitability(
+		routeWithoutGeneratedAnalyses,
+	);
+	const readinessWarnings = buildRouteReadinessWarnings(
+		routeWithAnalysis,
+	).filter(
+		(warning) =>
+			!options.suppressDeferredWindWarning ||
+			warning.code !== "wind_analysis_unavailable",
+	);
 	return mergeRouteWarnings(routeWithAnalysis, readinessWarnings);
 }
 
 export function finalizeGeneratedRoutesWarnings(
 	routes: PlannedRoute[],
+	options: { suppressDeferredWindWarning?: boolean } = {},
 ): PlannedRoute[] {
-	return routes.map(finalizeGeneratedRouteWarnings);
+	return routes.map((route) => finalizeGeneratedRouteWarnings(route, options));
 }
