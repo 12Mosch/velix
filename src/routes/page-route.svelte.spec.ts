@@ -846,9 +846,24 @@ describe("+page.svelte", () => {
 		});
 	});
 
-	afterEach(() => {
-		cleanup();
-		consoleWarnSpy.mockRestore();
+	afterEach(async () => {
+		let derivedInertWarnings: unknown[][] = [];
+
+		try {
+			// Bits UI defers dismissible-layer listener setup by 1 ms.
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			cleanup();
+			derivedInertWarnings = consoleWarnSpy.mock.calls.filter(
+				isDerivedInertWarning,
+			);
+		} finally {
+			consoleWarnSpy.mockRestore();
+		}
+
+		expect(
+			derivedInertWarnings,
+			"Svelte emitted derived_inert warnings during the browser test or its cleanup",
+		).toHaveLength(0);
 	});
 
 	it("shows the persisted basemap as selected in the quick basemap menu", async () => {
