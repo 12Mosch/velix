@@ -206,7 +206,7 @@ export function createRoutePlannerPageController() {
 	});
 
 	function destroy() {
-		graph.save.cancelAutosaveTimer();
+		graph.save.destroy();
 		graph.form.destroy();
 		graph.runtime.destroy();
 	}
@@ -242,6 +242,7 @@ export function createRoutePlannerPageController() {
 			"clearRouteShareState",
 		] as const),
 		save: omitControllerKeys(graph.save, [
+			"destroy",
 			"routeSaveRevision",
 			"bumpRouteSaveRevision",
 			"markUnsaved",
