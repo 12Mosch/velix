@@ -6,6 +6,7 @@ import type { SavedRoute } from "$lib/saved-routes.svelte";
 
 const savedRoutesMock = vi.hoisted(() => ({
 	getSavedRouteByIdEffect: vi.fn(),
+	upsertSavedRouteEffect: vi.fn(),
 }));
 
 vi.mock("$lib/saved-routes.svelte", async (importOriginal) => {
@@ -15,6 +16,7 @@ vi.mock("$lib/saved-routes.svelte", async (importOriginal) => {
 	return {
 		...actual,
 		getSavedRouteByIdEffect: savedRoutesMock.getSavedRouteByIdEffect,
+		upsertSavedRouteEffect: savedRoutesMock.upsertSavedRouteEffect,
 	};
 });
 
@@ -72,7 +74,7 @@ function createDeferred<T>() {
 function createControllerHarness() {
 	let controller!: ReturnType<typeof createPlannerSaveController>;
 	const setSingleRouteState = vi.fn();
-	const dependencies = {
+	const dependencies: Parameters<typeof createPlannerSaveController>[0] = {
 		isDestroyed: () => false,
 		getRouteNeedsRecalculation: () => false,
 		getActiveRoute: () => null,
@@ -103,9 +105,11 @@ function createControllerHarness() {
 describe("createPlannerSaveController", () => {
 	beforeEach(() => {
 		savedRoutesMock.getSavedRouteByIdEffect.mockReset();
+		savedRoutesMock.upsertSavedRouteEffect.mockReset();
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		cleanup();
 	});
 
@@ -158,5 +162,69 @@ describe("createPlannerSaveController", () => {
 		expect(controller.plannerDraftRouteId).toBeNull();
 		expect(controller.isActiveRouteSaved).toBe(false);
 		expect(controller.pendingSavedRouteId).toBeNull();
+	});
+
+	it("serializes rapid saves and preserves the first autosaved route id", async () => {
+		const firstUpsert = createDeferred<SavedRoute>();
+		let activeRoute = plannedRoute;
+		const { controller, dependencies } = createControllerHarness();
+		dependencies.getActiveRouteForSaving = () => activeRoute;
+		savedRoutesMock.upsertSavedRouteEffect
+			.mockReturnValueOnce(Effect.promise(() => firstUpsert.promise))
+			.mockImplementation((route: PlannedRoute, id?: string) =>
+				Effect.succeed({
+					...createSavedRoute(id),
+					route,
+				}),
+			);
+
+		const firstSave = Effect.runPromise(
+			controller.saveActiveRouteDraft({ source: "autosave" }),
+		);
+		await expect
+			.poll(() => savedRoutesMock.upsertSavedRouteEffect.mock.calls.length)
+			.toBe(1);
+
+		activeRoute = { ...plannedRoute, distanceMeters: 61_999 };
+		controller.bumpRouteSaveRevision();
+		const secondSave = Effect.runPromise(
+			controller.saveActiveRouteDraft({ source: "autosave" }),
+		);
+		await Promise.resolve();
+
+		expect(savedRoutesMock.upsertSavedRouteEffect).toHaveBeenCalledTimes(1);
+		firstUpsert.resolve(createSavedRoute("stable-draft-id"));
+		await firstSave;
+		await secondSave;
+
+		expect(savedRoutesMock.upsertSavedRouteEffect).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ distanceMeters: 61_999 }),
+			"stable-draft-id",
+			{ source: "autosave" },
+		);
+		expect(controller.plannerDraftRouteId).toBe("stable-draft-id");
+	});
+
+	it("interrupts an in-flight autosave when destroyed", async () => {
+		vi.useFakeTimers();
+		let wasInterrupted = false;
+		const { controller, dependencies } = createControllerHarness();
+		dependencies.getActiveRouteForSaving = () => plannedRoute;
+		savedRoutesMock.upsertSavedRouteEffect.mockReturnValue(
+			Effect.callback<SavedRoute>(() =>
+				Effect.sync(() => {
+					wasInterrupted = true;
+				}),
+			),
+		);
+
+		controller.scheduleActiveRouteAutosave();
+		await vi.advanceTimersByTimeAsync(750);
+		expect(savedRoutesMock.upsertSavedRouteEffect).toHaveBeenCalledOnce();
+
+		controller.destroy();
+		await Promise.resolve();
+		expect(wasInterrupted).toBe(true);
 	});
 });

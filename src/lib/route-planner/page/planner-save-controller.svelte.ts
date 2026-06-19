@@ -1,14 +1,14 @@
-import { Cause, Effect, Exit } from "effect";
+import { Cause, Effect, Exit, type Fiber, Semaphore } from "effect";
+import type { PlannedRoute } from "$lib/route-planning";
 import {
 	deleteSavedRouteEffect,
 	getSavedRouteByIdEffect,
 	isPlannedRoute,
-	savedRoutesState,
 	type SavedRoute,
+	savedRoutesState,
 	upsertSavedRouteEffect,
 } from "$lib/saved-routes.svelte";
 import { cloneRoute } from "$lib/saved-routes-core";
-import type { PlannedRoute } from "$lib/route-planning";
 import { PlannerSavedRouteError } from "./planner-controller-errors";
 
 type PlannerSaveControllerDependencies = {
@@ -42,9 +42,12 @@ export function createPlannerSaveController(
 	let isActiveRouteSaved = $state(false);
 	let pendingSavedRouteRestore = $state<PendingSavedRouteRestore | null>(null);
 	let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+	let isSaveControllerDestroyed = false;
 	let routeSaveRevision = 0;
 	let lastAutosavedRouteId: string | null = null;
 	let lastAutosavedRevision: number | null = null;
+	const saveSemaphore = Semaphore.makeUnsafe(1);
+	const inFlightSaveFibers = new Set<Fiber.Fiber<unknown, unknown>>();
 
 	$effect(() => {
 		saveSyncError = savedRoutesState.syncError;
@@ -76,11 +79,23 @@ export function createPlannerSaveController(
 		effect: Effect.Effect<unknown, unknown>,
 		errorMessage: string,
 	) {
-		void Effect.runPromiseExit(effect).then((exit) => {
-			if (Exit.isFailure(exit)) {
+		const fiber = Effect.runFork(effect);
+		inFlightSaveFibers.add(fiber);
+		fiber.addObserver((exit) => {
+			inFlightSaveFibers.delete(fiber);
+			if (!isSaveControllerDestroyed && Exit.isFailure(exit)) {
 				reportSaveEffectFailure(errorMessage, Cause.squash(exit.cause));
 			}
 		});
+	}
+
+	function destroy() {
+		isSaveControllerDestroyed = true;
+		cancelAutosaveTimer();
+		for (const fiber of inFlightSaveFibers) {
+			fiber.interruptUnsafe();
+		}
+		inFlightSaveFibers.clear();
 	}
 
 	function bumpRouteSaveRevision() {
@@ -182,6 +197,69 @@ export function createPlannerSaveController(
 		return dependencies.getActiveRouteForSaving();
 	}
 
+	const saveActiveRouteDraftUnserializedEffect = Effect.fn(
+		"saveActiveRouteDraftUnserializedEffect",
+	)(function* (
+		options: {
+			force?: boolean;
+			source?: "autosave" | "explicit" | "share";
+		} = {},
+	) {
+		cancelAutosaveTimer();
+		if (isSaveControllerDestroyed || dependencies.isDestroyed()) {
+			return null;
+		}
+		if (dependencies.getRouteNeedsRecalculation()) {
+			return null;
+		}
+
+		const routeId = plannerDraftRouteId ?? activeSavedRouteId;
+		const createdNewRoute = !routeId;
+
+		if (
+			!options.force &&
+			options.source === "autosave" &&
+			routeId === lastAutosavedRouteId &&
+			routeSaveRevision === lastAutosavedRevision
+		) {
+			return null;
+		}
+
+		const activeRouteForSaving = getActiveRouteForSaving();
+
+		if (!activeRouteForSaving) {
+			return null;
+		}
+		const routeForSaving = cloneRoute(activeRouteForSaving);
+		const savedRevision = routeSaveRevision;
+
+		const savedRoute = yield* upsertSavedRouteEffect(
+			routeForSaving,
+			plannerDraftRouteId ?? activeSavedRouteId ?? undefined,
+			{ source: options.source },
+		).pipe(
+			Effect.mapError(
+				(cause) => new PlannerSavedRouteError({ operation: "upsert", cause }),
+			),
+		);
+		if (isSaveControllerDestroyed || dependencies.isDestroyed()) {
+			if (createdNewRoute) {
+				yield* deleteSavedRouteEffect(savedRoute.id);
+			}
+			return null;
+		}
+		plannerDraftRouteId = savedRoute.id;
+		activeSavedRouteId = savedRoute.id;
+		isActiveRouteSaved = true;
+		if (savedRevision === routeSaveRevision) {
+			lastAutosavedRouteId = savedRoute.id;
+			lastAutosavedRevision = savedRevision;
+		} else if (options.source === "autosave") {
+			scheduleActiveRouteAutosave();
+		}
+		return savedRoute;
+	});
+
 	const saveActiveRouteDraftEffect = Effect.fn("saveActiveRouteDraftEffect")(
 		function* (
 			options: {
@@ -189,59 +267,9 @@ export function createPlannerSaveController(
 				source?: "autosave" | "explicit" | "share";
 			} = {},
 		) {
-			cancelAutosaveTimer();
-			if (dependencies.isDestroyed()) {
-				return null;
-			}
-			if (dependencies.getRouteNeedsRecalculation()) {
-				return null;
-			}
-
-			const routeId = plannerDraftRouteId ?? activeSavedRouteId;
-			const createdNewRoute = !routeId;
-
-			if (
-				!options.force &&
-				options.source === "autosave" &&
-				routeId === lastAutosavedRouteId &&
-				routeSaveRevision === lastAutosavedRevision
-			) {
-				return null;
-			}
-
-			const activeRouteForSaving = getActiveRouteForSaving();
-
-			if (!activeRouteForSaving) {
-				return null;
-			}
-			const routeForSaving = cloneRoute(activeRouteForSaving);
-			const savedRevision = routeSaveRevision;
-
-			const savedRoute = yield* upsertSavedRouteEffect(
-				routeForSaving,
-				plannerDraftRouteId ?? activeSavedRouteId ?? undefined,
-				{ source: options.source },
-			).pipe(
-				Effect.mapError(
-					(cause) => new PlannerSavedRouteError({ operation: "upsert", cause }),
-				),
+			return yield* saveSemaphore.withPermit(
+				saveActiveRouteDraftUnserializedEffect(options),
 			);
-			if (dependencies.isDestroyed()) {
-				if (createdNewRoute) {
-					yield* deleteSavedRouteEffect(savedRoute.id);
-				}
-				return null;
-			}
-			plannerDraftRouteId = savedRoute.id;
-			activeSavedRouteId = savedRoute.id;
-			isActiveRouteSaved = true;
-			if (savedRevision === routeSaveRevision) {
-				lastAutosavedRouteId = savedRoute.id;
-				lastAutosavedRevision = savedRevision;
-			} else if (options.source === "autosave") {
-				scheduleActiveRouteAutosave();
-			}
-			return savedRoute;
 		},
 	);
 
@@ -257,6 +285,7 @@ export function createPlannerSaveController(
 	function scheduleActiveRouteAutosave() {
 		cancelAutosaveTimer();
 		if (
+			isSaveControllerDestroyed ||
 			dependencies.isDestroyed() ||
 			dependencies.getRouteNeedsRecalculation()
 		) {
@@ -337,42 +366,52 @@ export function createPlannerSaveController(
 		dependencies.clearRouteEditHistory();
 	}
 
+	const handleSaveDraftUnserializedEffect = Effect.fn(
+		"handleSaveDraftUnserializedEffect",
+	)(function* () {
+		if (isSaveControllerDestroyed || dependencies.isDestroyed()) {
+			return;
+		}
+		if (
+			!dependencies.getActiveRoute() ||
+			dependencies.getRouteNeedsRecalculation()
+		) {
+			return;
+		}
+
+		if (isActiveRouteSaved && activeSavedRouteId) {
+			const deletedRouteId = activeSavedRouteId;
+			cancelAutosaveTimer();
+			yield* deleteSavedRouteEffect(deletedRouteId).pipe(
+				Effect.mapError(
+					(cause) => new PlannerSavedRouteError({ operation: "delete", cause }),
+				),
+			);
+			if (plannerDraftRouteId === deletedRouteId) {
+				plannerDraftRouteId = null;
+			}
+			activeSavedRouteId = null;
+			isActiveRouteSaved = false;
+			return;
+		}
+
+		const savedRoute = yield* saveActiveRouteDraftUnserializedEffect({
+			force: true,
+			source: "explicit",
+		});
+		if (!savedRoute) {
+			return;
+		}
+		plannerDraftRouteId = savedRoute.id;
+		activeSavedRouteId = savedRoute.id;
+		isActiveRouteSaved = true;
+	});
+
 	const handleSaveDraftEffect = Effect.fn("handleSaveDraftEffect")(
 		function* () {
-			if (
-				!dependencies.getActiveRoute() ||
-				dependencies.getRouteNeedsRecalculation()
-			) {
-				return;
-			}
-
-			if (isActiveRouteSaved && activeSavedRouteId) {
-				const deletedRouteId = activeSavedRouteId;
-				cancelAutosaveTimer();
-				yield* deleteSavedRouteEffect(deletedRouteId).pipe(
-					Effect.mapError(
-						(cause) =>
-							new PlannerSavedRouteError({ operation: "delete", cause }),
-					),
-				);
-				if (plannerDraftRouteId === deletedRouteId) {
-					plannerDraftRouteId = null;
-				}
-				activeSavedRouteId = null;
-				isActiveRouteSaved = false;
-				return;
-			}
-
-			const savedRoute = yield* saveActiveRouteDraftEffect({
-				force: true,
-				source: "explicit",
-			});
-			if (!savedRoute) {
-				return;
-			}
-			plannerDraftRouteId = savedRoute.id;
-			activeSavedRouteId = savedRoute.id;
-			isActiveRouteSaved = true;
+			return yield* saveSemaphore.withPermit(
+				handleSaveDraftUnserializedEffect(),
+			);
 		},
 	);
 
@@ -399,6 +438,7 @@ export function createPlannerSaveController(
 		get routeSaveRevision() {
 			return routeSaveRevision;
 		},
+		destroy,
 		cancelAutosaveTimer,
 		getActiveRouteForSaving,
 		saveActiveRouteDraft,
